@@ -2241,6 +2241,40 @@ fn applies_quantization_roi_and_output_conversion() {
 }
 
 #[test]
+fn original_sample_conversion_storage_keeps_preflight_empty_source_and_retry() {
+    let plane = ReconstructedPlane::for_test(2, 1, 1, vec![3, -3]);
+    let limits = ResourceLimits::default();
+    let expected = convert_samples(&plane, 8, true, &limits).unwrap();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || convert_samples(&plane, 8, true, &limits)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(plane.samples(), &[3, -3]);
+    assert_eq!(convert_samples(&plane, 8, true, &limits).unwrap(), expected);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            convert_samples(&plane, 0, true, &limits),
+            Err(DecodeError::MalformedInput {
+                offset: 0,
+                kind: crate::MalformedKind::InvalidTransform,
+            })
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let empty = ReconstructedPlane::for_test(0, 0, 0, vec![]);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(convert_samples(&empty, 8, true, &limits), Ok(vec![]));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn undoes_maximum_maxshift_before_narrowing_and_quantization() {
     let limits = ResourceLimits::default();
     let shifted = SignedMagnitude {

@@ -850,6 +850,18 @@ def _reconstruction_contracts() -> dict[tuple[str, str], tuple[str, str, str | N
         "prepare_mct_decorrelation": ("part2_mct_prepare_decorrelation",
             view("mct_decorrelation_preparation_outcome", r"\1"), r"\*\s*" + final("work"),
             args(view("transform_components_view", "components"), collection, work_old, caps)),
+        "mct_component_pair_indexes": ("part2_mct_component_pairs",
+            view("mct_component_pairs_outcome", r"\1"), None,
+            args(view("transform_components_view", "components"), "inputs@", "outputs@", r"count\s+as\s+nat")),
+        "prepare_mct_dependency": ("part2_mct_prepare_dependency",
+            view("mct_dependency_preparation_outcome", r"\1"), r"\*\s*" + final("work"),
+            args(view("transform_components_view", "components"), collection, work_old, caps)),
+        "prepare_mct_wavelet": ("part2_mct_prepare_wavelet",
+            view("mct_wavelet_preparation_outcome", r"\1"), r"\*\s*" + final("work"),
+            args(view("transform_components_view", "components"), collection, work_old, caps)),
+        "prepare_mct_wavelet_partition": ("part2_mct_wavelet_partition",
+            view("mct_wavelet_partition_outcome", r"\1"), None,
+            args("count", view("crate::codestream::mct_wavelet_view", "wavelet"))),
         **{name: (model, r"\1", components_final, args(components_old, collection, work_old, caps))
            for name, model in (
                ("apply_mct_dependency", "part2_mct_dependency"),
@@ -5028,6 +5040,9 @@ _GENERAL_LAYER_HANDOFFS = (
     "u32::from(layer.horizontal_grid_size()), u32::from(layer.vertical_grid_size()), *horizontal_offset, *vertical_offset,",
     "TypedSamples::Unsigned(widen_samples(&samples)?)",
     "crate::image::typed_component_from_parts(",
+    "assembled.try_copy_channel_definitions(component)", "part2_general_component_definition_member(",
+    "target.try_add_channel_definition(record.definition)", "part2_general_record_definition_member(",
+    "part2_general_default_definition_member(", "part2_general_opacity_definition_member(",
     "clear_channel_definitions(&mut components);", "validate_layer_definition(record.definition, color_count)?;",
     "descriptors.push((component.info().precision, component.info().signed));",
     "crate::image::typed_image_from_components_with_origin(width, height, 0, 0, components, options.limits(),)?",
@@ -5156,6 +5171,7 @@ _PLANE_ROLE_RESULT_RUNS = {
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _PLANE_ROLE_RESULT_RUNS.update({
+    "part2_convert_samples_storage_result": ("part2_convert_samples_storage_run", False),
     "part2_mct_inverse_storage_result": ("part2_mct_inverse_storage_run", False),
     "part2_mct_reversible_row_storage_result": ("part2_mct_reversible_row_storage_run", False),
     "part2_mct_scalar_storage_result": ("part2_mct_scalar_storage_run", False),
@@ -5194,6 +5210,13 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
 _COLD_RESULT_MODELS = {
+    "part2_mct_component_pairs": ("part2_mct_pair_storage_result", "specs/cold_mct_auxiliary.rs", "part2_mct_pair_storage_normal"),
+    "part2_mct_prepare_dependency": ("part2_mct_dependency_prepare_storage_result", "specs/cold_mct_auxiliary.rs", "part2_mct_dependency_prepare_storage_normal"),
+    "part2_mct_dependency": ("part2_mct_dependency_storage_result", "specs/cold_mct_auxiliary.rs", "part2_mct_dependency_storage_normal"),
+    "part2_mct_wavelet_partition": ("part2_mct_partition_storage_result", "specs/cold_mct_auxiliary.rs", "part2_mct_partition_storage_normal"),
+    "part2_mct_prepare_wavelet": ("part2_mct_wavelet_prepare_storage_result", "specs/cold_mct_auxiliary.rs", "part2_mct_wavelet_prepare_storage_normal"),
+    "part1_convert_samples": ("part2_convert_samples_storage_result", "specs/cold_quantization_outputs.rs", "part2_convert_samples_storage_normal"),
+    "part2_selection_explicit": ("part2_explicit_selection_storage_result", "specs/decoder_input.rs", "part2_explicit_selection_storage_normal"),
     "color_channel_layout": ("part2_color_layout_storage_result", "specs/cold_color_conversion.rs", "part2_color_layout_storage_normal"),
     "color_normalize_component": ("part2_color_normalize_storage_result", "specs/cold_color_conversion.rs", "part2_color_normalize_storage_normal"),
     "color_convert_channel": ("part2_color_channel_storage_result", "specs/cold_color_conversion.rs", "part2_color_channel_storage_normal"),
@@ -5479,6 +5502,25 @@ _COLD_RESULT_MODELS = {
 }
 
 
+_ORIGINAL_STORAGE_CONTRACTS = {
+    **{key: _RECONSTRUCTION_CONTRACTS[key] for key in (
+        ("src/image/mct_dependency.rs", "mct_component_pair_indexes"),
+        ("src/image/mct_dependency.rs", "prepare_mct_dependency"),
+        ("src/image/mct_dependency.rs", "apply_mct_dependency"),
+        ("src/image/mct_wavelet.rs", "prepare_mct_wavelet_partition"),
+        ("src/image/mct_wavelet.rs", "prepare_mct_wavelet"),
+    )},
+    ("src/transform/output.rs", "convert_samples"): (
+        "part1_convert_samples", _coverage_call("sequence_outcome", r"\1"), None,
+        _coverage_call("reconstructed_plane_view", r"\*\s*plane") + r"\s*,\s*precision\s*,\s*signed\s*,\s*"
+        + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits"),
+    ),
+    ("src/decode/selection.rs", "explicit_tiles_from_selection"): (
+        "part2_selection_explicit", _coverage_call("selected_tiles_outcome", r"\1"), None,
+        _coverage_call("crate::options::tile_selection_view", "selection"),
+    ),
+}
+
 _COLOR_OUTPUT_RESULT_MODELS = frozenset(_COLD_RESULT_MODELS[value[0]][0] for value in _COLOR_OUTPUT_CONTRACTS.values())
 
 def _coverage_cold_relation(
@@ -5515,8 +5557,11 @@ def _coverage_cold_relation(
             + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits") + r"\s*,\s*"
             + _coverage_call("crate::limits::resource_work_limit", "limits")
         )
-    if model in {"part2_mct_prepare_decorrelation", "part2_mct_decorrelation"}:
-        component = (_coverage_call("transform_components_view", "components") if model == "part2_mct_prepare_decorrelation"
+    if model == "part2_mct_component_pairs":
+        inputs = inputs.replace(r"count\s+as\s+nat", "count")
+    if model in {"part2_mct_prepare_decorrelation", "part2_mct_decorrelation",
+                 "part2_mct_prepare_dependency", "part2_mct_dependency", "part2_mct_prepare_wavelet"}:
+        component = (_coverage_call("transform_components_view", "components") if model.startswith("part2_mct_prepare_")
                      else _coverage_call("transform_components_view", _coverage_call("old", "components")))
         inputs = (
             r"crate::specs::Part2MctRuntimeContext\s*\{\s*components\s*:\s*" + component
@@ -5795,6 +5840,7 @@ _COLD_RESULT_CONTRACTS = {
         _RAW_COMPOSITION_CONTRACTS,
         _NONLINEAR_APPLICATION_CONTRACTS, _NONLINEAR_REGIONS_CONTRACTS,
         _COLOR_OUTPUT_CONTRACTS,
+        _ORIGINAL_STORAGE_CONTRACTS,
         _COLOR_HEADER_CONTRACTS,
         _JPX_SOURCE_CONTRACTS, _RAW_JPX_PUBLIC_IMAGE_CONTRACTS,
         _RAW_CONTAINER_IMAGE_CONTRACTS, _RAW_CONTAINER_COLOR_CONTRACTS,
@@ -6099,6 +6145,11 @@ _COLD_RESULT_CONTRACTS[("src/image/assembly.rs", "append_assembly_component")] =
 )
 
 _COLD_INNER_RUNS = {
+    **{name: "part2_mct_auxiliary_program_run" for name in (
+        "part2_mct_pair_storage_result", "part2_mct_partition_storage_result",
+        "part2_mct_dependency_prepare_storage_result", "part2_mct_wavelet_prepare_storage_result",
+        "part2_mct_dependency_storage_result",
+    )},
     **{name: "part2_color_output_program_run" for name in (
         "part2_color_layout_storage_result", "part2_color_normalize_storage_result",
         "part2_color_channel_storage_result", "part2_color_alpha_storage_result", "part2_color_crop_plane_storage_result",
@@ -6153,9 +6204,13 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
                 "part2_mct_scalar_storage_result", "part2_mct_rows_storage_result",
                 "part2_mct_pixel_storage_result", "part2_mct_prepare_storage_result",
                 "part2_mct_decorrelation_storage_result", "part2_mct_line_decoded_result",
-                "part2_mct_line_prepared_result"}:
+                "part2_mct_line_prepared_result", "part2_mct_pair_storage_result",
+                "part2_mct_partition_storage_result", "part2_mct_dependency_prepare_storage_result",
+                "part2_mct_wavelet_prepare_storage_result", "part2_mct_dependency_storage_result"}:
             models |= set(_MCT_RUNTIME_GUARDS)
             proofs |= _MCT_RUNTIME_PROOFS
+        models |= set(_ORIGINAL_ADMISSION_GUARDS.get(model, {}))
+        proofs |= _ORIGINAL_ADMISSION_PROOFS.get(model, set())
         if model in ("part2_typed_samples_result", "part2_typed_image_result", "part2_typed_layout_result"):
             models |= _TYPED_STORAGE_MODELS
             proofs |= _TYPED_STORAGE_PROOFS
@@ -6330,7 +6385,17 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         **_COLD_INNER_RUNS,
     }.get(model, model.removesuffix("_result") + "_run")
     call = run + "(" + ",".join(names[:-1] + ["events"]) + ")"
-    color_program_bodies = {
+    program_bodies = {
+        "part2_mct_pair_storage_result":
+            "part2_mct_auxiliary_program_result(part2_mct_pair_requests(components,inputs,outputs,count,()),(part2_mct_component_pairs(components,inputs,outputs,countasnat),()),(result,()))",
+        "part2_mct_partition_storage_result":
+            "part2_mct_auxiliary_program_result(part2_mct_partition_requests(count,wavelet,()),(part2_mct_wavelet_partition(count,wavelet),()),(result,()))",
+        "part2_mct_dependency_prepare_storage_result":
+            "part2_mct_auxiliary_program_result(part2_mct_dependency_prepare_requests(context),part2_mct_dependency_prepare_value(context),result)",
+        "part2_mct_wavelet_prepare_storage_result":
+            "part2_mct_auxiliary_program_result(part2_mct_wavelet_prepare_requests(context),part2_mct_wavelet_prepare_value(context),result)",
+        "part2_mct_dependency_storage_result":
+            "part2_mct_auxiliary_program_result(part2_mct_dependency_requests(context),part2_mct_dependency_value(context),(result.0,(result.1,result.2)))",
         "part2_color_layout_storage_result":
             "part2_color_output_program_result(part2_color_layout_requests(definitions,colors),color_channel_layout(definitions,colors),result)",
         "part2_color_normalize_storage_result":
@@ -6342,8 +6407,8 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         "part2_color_crop_plane_storage_result":
             "part2_color_output_program_result(seq![part2_color_crop_plane_request(source,source_width,x,y,x1,y1,count)],color_crop_plane(source,source_width,x,y,x1,y1),result)",
     }
-    if model in color_program_bodies:
-        expected = color_program_bodies[model]
+    if model in program_bodies:
+        expected = program_bodies[model]
     elif model in _PLANE_ROLE_RESULT_RUNS:
         run_name, wrapped = _PLANE_ROLE_RESULT_RUNS[model]
         count = (["collections.len()"] if model == "part2_mct_line_stage_result" else
@@ -6921,10 +6986,12 @@ _PREPARE_WORKING_ENTRIES = {"part1-complete-standard-plan-coordinator", "part2-c
 _PRECINCT_CONTRIBUTION_MODELS = {("specs/cold_packet_payload.rs", name) for name in (
     "part2_precinct_contributions_run", "part2_precinct_contributions_result", "part2_plane_payload_prepared_run",
     "part2_jpip_inner_inline", "part2_jpip_inner_finish", "part2_jpip_inner_run", "part2_jpip_inner_result",
+    "part2_jpip_inline_copy_run", "part2_jpip_inner_after_copy_run",
 )} | {("specs/cold_packet_copy.rs", name) for name in ("part2_jpip_inner_caps", "part2_jpip_packet_inner_run")}
 _PRECINCT_CONTRIBUTION_PROOFS = {("specs/cold_packet_payload.rs", name) for name in (
     "part2_precinct_contributions_observed", "part2_plane_payload_prepared_normal", "part2_plane_payload_capacity_then",
     "part2_jpip_inner_normal", "part2_jpip_inner_observed",
+    "part2_jpip_inline_copy_observed", "part2_jpip_inline_copy_normal", "part2_jpip_inner_after_copy_frames", "part2_jpip_inner_copy_error",
 )} | {("specs/cold_packet_copy.rs", "part2_jpip_packet_inner_observed")}
 _PRECINCT_CONTRIBUTION_GUARDS = {
     ("specs/cold_packet_payload.rs", "part2_precinct_contributions_run"): (
@@ -6938,6 +7005,11 @@ _PRECINCT_CONTRIBUTION_GUARDS = {
         "Err(error)=>Some((Ok((Err(error),state)),rest))", "part2_plane_payload_prepared_run(",
     ),
     ("specs/cold_packet_payload.rs", "part2_jpip_inner_run"): (
+        "part2_tier1_storage_resume(part2_jpip_inline_copy_run(part,calls)",
+        "Err(error)=>Some((Ok((Err(error),part1_precinct_context_layer(initial,layer))),rest))",
+        "part2_jpip_inner_after_copy_run(initial,part,data,sequence,layer,limits,rest)",
+    ),
+    ("specs/cold_packet_payload.rs", "part2_jpip_inner_after_copy_run"): (
         "part1_precinct_context_layer(initial,layer)", "part2_jpip_inner_inline(part,data)", "sequence,false",
         "part2_plane_precinct_run(", "part2_jpip_inner_finish(packet)", "rest)",
     ),
@@ -6956,7 +7028,8 @@ _PRECINCT_CONTRIBUTION_NATIVE_ORDER = {
         "decode_precinct_contribution_headers(", "decode_precinct_packet_payload_after_headers(", "part2_plane_payload_observed(",
     ),
     "decode_jpip_precinct_packet_inner": (
-        "set_progression_context_layer(", "let inline = TilePartPayload {", "let packed_headers: &[u8] = &[]",
+        "set_progression_context_layer(", "template.try_duplicate()", "part2_jpip_inline_copy_observed(",
+        "part2_jpip_inner_copy_error(", "let copied = copied?", "let inline = TilePartPayload {", "let packed_headers: &[u8] = &[]",
         "assert(packed_headers@ =~= Seq::<u8>::empty())", "let packet_result = decode_precinct_packet(",
         "part2_jpip_inner_observed(", "let (decoded, consumed, packed) = packet_result?", "if packed != 0",
     ),
@@ -8132,7 +8205,9 @@ _WAVELET_LINE_NATIVE_ORDER = {
         "while index < length",
     ),
     ("src/image/mct_wavelet.rs", "reconstruct_mct_wavelet"): (
-        "Vec::with_capacity(low_length)", "source.get(..low_length)", "high_lengths.len()", "source.get(cursor..high_end)",
+        "empty_with_capacity(low_length)", "WaveletReconstruction", "inspection_capacity_outcome(reserved)",
+        "part2_mct_line_reconstruction_capacity_error", "let mut reconstructed = reserved?",
+        "source.get(..low_length)", "high_lengths.len()", "source.get(cursor..high_end)",
         "let transformed =", "part2_mct_line_child_error", "reconstructed = transformed?",
     ),
 }
@@ -9647,11 +9722,61 @@ _COLOR_GENERAL_GUARDS = {
     ),
     ("specs/jpx_general.rs", "part2_general_normalize_source_requests"): (
         "part2_general_assembled_sources_prefix(sources.0,config,sources.1,sources.2,index)",
-        "part2_general_components_prefix(sources.0[index as int],config,sources.1,sources.2,component,initial).is_ok()",
-        "part2_color_normalize_requests(part2_general_normalize_context(sources.0[index as int],component))",
+        "part2_general_component_storage_requests(sources.0[index as int],config,sources.1,sources.2,component,initial)",
+    ),
+    ("specs/jpx_general.rs", "part2_general_component_storage_requests"): (
+        "part2_general_components_prefix(source,config,width,height,component,initial).is_err(){Seq::empty()}",
+        "part2_color_normalize_requests(part2_general_normalize_context(source,component))",
+        "+part2_general_component_copy_requests(source,config,width,height,component,initial)",
+    ),
+    ("specs/jpx_general.rs", "part2_general_component_copy_context"): (
+        "part2_general_components_prefix(source,config,width,height,component,initial)",
+        "part2_general_component_step(source,config,width,height,component,before)",
+        "Part2TypedCapacityContext::DefinitionCopy", "source:(source.0.1[component as int],source.0.2[component as int])",
+        "target:(after.0[before.0.len() as int].0,Seq::empty())",
+    ),
+    ("specs/jpx_general.rs", "part2_general_component_copy_requests"): (
+        "part2_general_component_copy_context(source,config,width,height,component,initial)",
+        "None=>Seq::empty()", "Some(context)=>seq![Part2ColorOutputCapacity::Definition {context}]",
+    ),
+    ("specs/jpx_general.rs", "part2_general_definition_input"): (
+        "sources.1==0 || sources.2==0", "crate::limits::resource_pixel_limit(limits)",
+        "part2_general_assembled_sources_prefix(sources.0,config,sources.1,sources.2,sources.0.len())",
+        "components.0.len()>crate::limits::resource_component_limit(limits)", "Some(components.0)",
+    ),
+    ("specs/jpx_general.rs", "part2_general_record_definition_context"): (
+        "part2_general_records_prefix(config.definitions,colors,part2_general_clear_definitions(input,input.len()),index)",
+        "part2_general_validate_definition(record.1,colors).is_err() || record.0>=before.len()",
+        "Part2TypedCapacityContext::Definition {source:before[record.0 as int],definition:record.1}",
+    ),
+    ("specs/jpx_general.rs", "part2_general_record_definition_requests"): (
+        "part2_general_record_definition_context(config,colors,input,index)",
+        "None=>Seq::empty()", "Some(context)=>seq![Part2ColorOutputCapacity::Definition {context}]",
+    ),
+    ("specs/jpx_general.rs", "part2_general_default_definition_context"): (
+        "part2_general_default_colors(part2_general_clear_definitions(input,input.len()),index)[index as int]",
+        "crate::ChannelAssociation::Color((index+1) as u16)",
+    ),
+    ("specs/jpx_general.rs", "part2_general_finish_storage_requests"): (
+        "part2_general_finish_definition_requests(config,colors,sources,limits)+part2_general_finish_color_requests(config,colors,sources,limits)",
+    ),
+    ("specs/jpx_general.rs", "part2_general_default_definition_requests"): (
+        "if input.len()<colors {Seq::empty()}", "part2_color_output_trace(",
+        "part2_general_default_definition_context(input,index)", "matches!(opacity,Part2SourceOpacity::ChromaKey",
+        "input.len()!=colors as nat+1", "part2_general_opacity_definition_context(input,colors,opacity)",
+    ),
+    ("specs/jpx_general.rs", "part2_general_opacity_definition_context"): (
+        "part2_general_default_colors(part2_general_clear_definitions(input,input.len()),colors as nat)[colors as int]",
+        "if opacity==Part2SourceOpacity::Premultiplied {crate::ChannelType::PremultipliedOpacity}else{crate::ChannelType::Opacity}",
+        "crate::ChannelAssociation::WholeImage",
+    ),
+    ("specs/jpx_general.rs", "part2_general_finish_definition_requests"): (
+        "part2_general_definition_input(config,sources,limits)", "config.definitions.len()>0",
+        "part2_general_record_definition_requests(config,colors,input,index)",
+        "part2_general_default_definition_requests(input,colors,opacity)",
     ),
     ("specs/jpx_general.rs", "part2_general_color_requests"): (
-        "part2_general_normalize_requests(config,sources,limits)+part2_general_finish_color_requests(config,colors,sources,limits)",
+        "part2_general_normalize_requests(config,sources,limits)+part2_general_finish_storage_requests(config,colors,sources,limits)",
     ),
     ("specs/jpx_general.rs", "part2_general_after_cold_sources_run"): (
         "part2_color_output_program_run(part2_general_color_requests(config,colors,sources,limits),part2_general_after_cold_sources(config,colors,sources,limits),events)",
@@ -9660,7 +9785,11 @@ _COLOR_GENERAL_GUARDS = {
 _GENERAL_LAYER_MODELS |= set(_COLOR_GENERAL_GUARDS)
 _GENERAL_LAYER_PROOFS |= {("specs/jpx_general.rs", name) for name in (
     "part2_general_after_cold_sources_normal", "part2_general_normalize_error", "part2_general_color_error",
+    "part2_general_component_definition_member", "part2_general_record_definition_member",
+    "part2_general_default_definition_member", "part2_general_opacity_definition_member", "part2_general_definition_error",
+    "part2_general_finish_definition_member",
 )}
+_GENERAL_LAYER_PROOFS.add(("specs/cold_color_conversion.rs", "part2_color_definition_storage_observed"))
 
 _MCT_RUNTIME_GUARDS = {
     ("specs/cold_mct_runtime.rs", "part2_mct_runtime_preparation"): (
@@ -9768,6 +9897,62 @@ _MCT_RUNTIME_GUARDS = {
         "part2_mct_line_decoded_after_views(before,stages,maximum_work,maximum_bytes,rest)",
     ),
 }
+_MCT_RUNTIME_GUARDS.update({
+    ("specs/cold_mct_auxiliary.rs", "part2_mct_auxiliary_program_run"): (
+        "if requests.len()==0 {Some((Ok(ordinary),calls))}",
+        "part2_mct_runtime_capacity_run(requests[0].0,calls)",
+        "Err(error)=>Some((Ok((Err(error),requests[0].1)),rest))",
+        "part2_mct_auxiliary_program_run(requests.drop_first(),ordinary,rest)",
+    ),
+    ("specs/cold_mct_auxiliary.rs", "part2_mct_pair_requests"): (
+        "PairIndexes {components,inputs,outputs,count,destination:false}",
+        "PairIndexes {components,inputs,outputs,count,destination:true}",
+    ),
+    ("specs/cold_mct_auxiliary.rs", "part2_mct_dependency_prepare_requests"): (
+        "part2_mct_dependency_dimensions(context.collection)",
+        "Err(_)=>Seq::empty()", "context.components,context.collection.1,context.collection.2,count,context.work",
+    ),
+    ("specs/cold_mct_auxiliary.rs", "part2_mct_wavelet_before_partition"): (
+        "!part2_mct_wavelet_pair_admitted(context)", "part2_mct_component_pairs(context.components,context.collection.1,context.collection.2,count as nat)",
+        "part2_mct_validate_dependency_layout(", "Some((wavelet,count,samples))",
+    ),
+    ("specs/cold_mct_auxiliary.rs", "part2_mct_wavelet_after_partition_requests"): (
+        "part2_mct_wavelet_partition(count,wavelet)",
+        "part2_mct_wavelet_admission(samples,count,wavelet.1,context.work,context.maximum_work,context.maximum_bytes)",
+        "if admitted.0.is_err(){Seq::empty()}", "WaveletFractions {context},admitted.1",
+    ),
+    ("specs/cold_mct_auxiliary.rs", "part2_mct_wavelet_prepare_requests"): (
+        "!part2_mct_wavelet_pair_admitted(context){Seq::empty()}",
+        "part2_mct_pair_requests(context.components,context.collection.1,context.collection.2,",
+        "context.collection.1.len() as usize,context.work)+part2_mct_wavelet_partition_tail_requests(context)",
+    ),
+    ("specs/cold_mct_auxiliary.rs", "part2_mct_dependency_scratch_requests"): (
+        "part2_mct_dependency_prepare_value(context)", "Err(_)=>Seq::empty()",
+        "SourceSamples},(context.components,preparation.1)", "OutputSamples},(context.components,preparation.1)",
+        "FractionBits},(context.components,preparation.1)",
+    ),
+    ("specs/cold_mct_auxiliary.rs", "part2_mct_dependency_value"): (
+        "part2_mct_dependency(context.components,context.collection,context.work,context.maximum_work,context.maximum_bytes)",
+        "(value.0,(value.1,value.2))",
+    ),
+    ("specs/cold_mct_auxiliary.rs", "part2_mct_dependency_storage_run"): (
+        "part2_mct_auxiliary_program_run(", "part2_mct_dependency_requests(context),part2_mct_dependency_value(context),calls",
+        "Some((Ok((effect.0,effect.1.0,effect.1.1)),rest))",
+    ),
+    ("specs/cold_mct_line_pixels.rs", "part2_mct_line_wavelet_run"): (
+        "Part2MctRuntimeContext {components:before,collection,work,maximum_work,maximum_bytes}",
+        "part2_mct_wavelet_prepare_storage_run(context,calls)", "part2_mct_line_wavelet_after_preparation(context,prepared,rest)",
+    ),
+    ("specs/cold_mct_line_pixels.rs", "part2_mct_line_wavelet_after_preparation"): (
+        "Err(error)=>Some((Ok((Err(error),context.components,prepared.1)),calls))",
+        "part2_mct_runtime_capacity_run(Part2MctRuntimeCapacity::WaveletSource {context},calls)",
+        "part2_mct_line_wavelet_after_source(context,plan,prepared.1,reply,rest)",
+    ),
+    ("specs/cold_mct_wavelet_lines.rs", "part2_mct_line_reconstruction_run"): (
+        "Part2MctRuntimeCapacity::WaveletReconstruction {source,high,first,reversible,low,count}",
+        "part2_mct_line_reconstruction_after_capacity_run(source,high,first,reversible,low,count,rest)",
+    ),
+})
 _MCT_RUNTIME_PROOFS = {("specs/cold_mct_runtime.rs", name) for name in (
     "part2_mct_runtime_capacity_observed", "part2_mct_runtime_capacity_normal",
     "part2_mct_prepare_storage_normal", "part2_mct_prepare_storage_refused",
@@ -9816,6 +10001,154 @@ _MCT_RUNTIME_NATIVE_ORDER = {
         "inspection_capacity_outcome(reserved)", "part2_mct_line_prepared_views_error(", "let mut components = reserved?",
         "collect_prepared_transform_components(",
     ),
+}
+
+_MCT_RUNTIME_GUARDS[("specs/cold_mct_runtime.rs", "part2_mct_runtime_capacity_count")] += (
+    "PairIndexes {count,..}=>count as nat,", "WaveletPartition {wavelet,..}=>wavelet.1 as nat,",
+    "DependencyScratch {context,role}=>match part2_mct_prepare_dependency(",
+    "WaveletFractions {context}|Part2MctRuntimeCapacity::WaveletSource {context}",
+    "WaveletReconstruction {low,..}=>low as nat",
+)
+_MCT_RUNTIME_PROOFS |= {("specs/cold_mct_auxiliary.rs", name) for name in (
+    "part2_mct_auxiliary_program_normal", "part2_mct_auxiliary_program_refused_at",
+    "part2_mct_auxiliary_program_refused", "part2_mct_auxiliary_program_error_at",
+    "part2_mct_auxiliary_program_error_info", "part2_mct_auxiliary_program_child_error",
+    "part2_mct_pair_storage_normal", "part2_mct_pair_storage_refused",
+    "part2_mct_partition_storage_normal", "part2_mct_partition_storage_refused",
+    "part2_mct_dependency_prepare_storage_normal", "part2_mct_dependency_prepare_pair_error",
+    "part2_mct_wavelet_prepare_storage_normal", "part2_mct_wavelet_prepare_storage_frames",
+    "part2_mct_wavelet_prepare_pair_error", "part2_mct_wavelet_prepare_partition_error",
+    "part2_mct_wavelet_prepare_fraction_error", "part2_mct_dependency_storage_frames",
+    "part2_mct_dependency_storage_normal", "part2_mct_dependency_storage_prepare_error",
+    "part2_mct_dependency_storage_scratch_error",
+)} | {("specs/cold_mct_line_pixels.rs", name) for name in (
+    "part2_mct_line_wavelet_from_prepared", "part2_mct_line_wavelet_prepare_error", "part2_mct_line_wavelet_source_error",
+)} | {("specs/cold_mct_wavelet_lines.rs", name) for name in (
+    "part2_mct_line_reconstruction_after_capacity_frames", "part2_mct_line_reconstruction_capacity_error",
+)} | {("specs/cold_mct_line_composition.rs", "part2_mct_line_collection_dependency_observed")}
+_MCT_RUNTIME_TESTS |= {
+    ("src/image/tests.rs", "original_mct_dependency_storage_keeps_preflight_work_empty_and_exact_retry"),
+    ("src/image/tests.rs", "original_mct_wavelet_storage_preserves_admission_committed_pixels_and_retry"),
+}
+_MCT_RUNTIME_NATIVE_ORDER.update({
+    ("src/image/mct_dependency.rs", "mct_component_pair_indexes"): (
+        "empty_with_capacity(count)", "destination:false", "inspection_capacity_outcome(reserved)",
+        "let mut source = reserved?", "empty_with_capacity(count)", "destination:true",
+        "inspection_capacity_outcome(reserved)", "let mut destination = reserved?", "find_transform_component(",
+    ),
+    ("src/image/mct_dependency.rs", "prepare_mct_dependency"): (
+        "count == 0", "mct_dependency_coefficient_count(", "collection.offsets()",
+        "let pairs = mct_component_pair_indexes(", "part2_mct_dependency_prepare_pair_error(",
+        "let (source_indexes, destination_indexes) = pairs?", "validate_mct_dependency_layout(", "admit_mct_dependency(",
+    ),
+    ("src/image/mct_dependency.rs", "apply_mct_dependency"): (
+        "let preparation = prepare_mct_dependency(", "part2_mct_dependency_storage_prepare_error(",
+        "let prepared = preparation?", "empty_with_capacity(count)", "Part2MctRuntimeRole::SourceSamples",
+        "inspection_capacity_outcome(reserved)", "let mut source = reserved?", "empty_with_capacity(count)", "Part2MctRuntimeRole::OutputSamples",
+        "inspection_capacity_outcome(reserved)", "let mut output = reserved?", "empty_with_capacity(count)", "Part2MctRuntimeRole::FractionBits",
+        "inspection_capacity_outcome(reserved)", "let mut source_fraction_bits = reserved?", "apply_mct_dependency_pixel(", "apply_mct_destination_precisions(",
+    ),
+    ("src/image/mct_wavelet.rs", "prepare_mct_wavelet_partition"): (
+        "empty_with_capacity(levels)", "high:false", "inspection_capacity_outcome(reserved)", "let mut low_first = reserved?",
+        "empty_with_capacity(levels)", "high:true", "inspection_capacity_outcome(reserved)", "let mut high_lengths = reserved?",
+        "i64::try_from(count)", "while level < level_count",
+    ),
+    ("src/image/mct_wavelet.rs", "prepare_mct_wavelet"): (
+        "collection.wavelet()", "count == 0", "mct_component_pair_indexes(", "part2_mct_wavelet_prepare_pair_error(",
+        "let (source_indexes, destination_indexes) = pairs?", "validate_mct_dependency_layout(",
+        "prepare_mct_wavelet_partition(", "part2_mct_wavelet_prepare_partition_error(", "admit_mct_wavelet(",
+        "empty_with_capacity(count)", "WaveletFractions", "inspection_capacity_outcome(reserved)", "part2_mct_wavelet_prepare_fraction_error(",
+        "let mut source_fraction_bits = reserved?",
+    ),
+    ("src/image/mct_wavelet.rs", "apply_mct_wavelet"): (
+        "let preparation = prepare_mct_wavelet(", "part2_mct_line_wavelet_prepare_error(", "let prepared = preparation?",
+        "empty_with_capacity(prepared.count)", "WaveletSource", "inspection_capacity_outcome(reserved)", "part2_mct_line_wavelet_source_error(",
+        "let mut source = reserved?", "apply_mct_wavelet_pixel(", "apply_mct_destination_precisions(",
+    ),
+})
+
+_ORIGINAL_ADMISSION_GUARDS = {
+    "part2_explicit_selection_storage_result": {
+        ("specs/decoder_input.rs", "part2_explicit_selection_storage_count"): (
+            "All=>0", "Index(_)=>1", "Set(values)=>values.len()",
+        ),
+        ("specs/decoder_input.rs", "part2_explicit_selection_storage_run"): (
+            "part2_selection_explicit(source)", "part2_explicit_selection_storage_count(source)",
+            "if ordinary.is_err() || count==0", "actual!=source || elements!=count",
+            "if succeeded {ordinary}else{Err(crate::DecodeError::AllocationFailed)}", "events.drop_first()",
+        ),
+    },
+    "part2_convert_samples_storage_result": {
+        ("specs/cold_quantization_outputs.rs", "part2_convert_samples_storage_admitted"): (
+            "precision>0 && precision<=38 && plane.2<=62", "part1_quantization_budget(plane.3.len(),maximum).is_ok()",
+        ),
+        ("specs/cold_quantization_outputs.rs", "part2_convert_samples_storage_run"): (
+            "part1_convert_samples(plane,precision,signed,maximum)", "!part2_convert_samples_storage_admitted(plane,precision,maximum)",
+            "Part2QuantizationOwner::ConvertedSamples,plane.3.len()", "Some((value,rest))",
+        ),
+    },
+    "part2_plane_multi_payload_result": {
+        ("specs/cold_packet_payload.rs", "part2_multi_contributions_run"): (
+            "let count=context.state.states.len()", "if count==0", "actual!=context || elements!=count {None}",
+            "Err(crate::DecodeError::AllocationFailed)", "calls.drop_first()",
+        ),
+        ("specs/cold_packet_payload.rs", "part2_plane_multi_payload_run"): (
+            "part1_multi_packet_prefix(data,sop,offset,header_limit,work)",
+            "Err(error)=>Some((Ok((Err(error),s)),calls))", "Part2MultiContributionsContext {state:s,data,sop,eph,offset,header_limit,pass_limit,byte_limit,input_limit,work}",
+            "part2_multi_contributions_run(context,calls)", "part2_multi_contributions_after(context,reply,rest)",
+        ),
+        ("specs/cold_packet_payload.rs", "part2_multi_contributions_after"): (
+            "Err(error)=>Some((Ok((Err(error),context.state)),calls))",
+            "part2_plane_multi_payload_after_capacity_run(context.state,context.data,context.sop,context.eph,context.offset,",
+        ),
+    },
+    "part2_jpip_inner_result": {
+        ("specs/cold_packet_payload.rs", "part2_jpip_inline_copy_run"): (
+            "PayloadMetadataCopy {source:actual,calls:inner}", "actual!=source",
+            "part1_mct_copy_run(part2_payload_duplicate_tail(source,0),inner)", "rest.len()!=0",
+            "Some((reply,calls.drop_first()))",
+        ),
+    },
+}
+_ORIGINAL_ADMISSION_PROOFS = {
+    "part2_explicit_selection_storage_result": {("specs/decoder_input.rs", name) for name in (
+        "part2_explicit_selection_storage_observed", "part2_explicit_selection_storage_normal",
+        "part2_validate_selection_explicit_error", "part2_validate_selection_after_explicit_normal",
+    )},
+    "part2_convert_samples_storage_result": {("specs/cold_quantization_outputs.rs", name) for name in (
+        "part2_convert_samples_storage_normal", "part2_convert_samples_storage_refused",
+    )},
+    "part2_plane_multi_payload_result": {("specs/cold_packet_payload.rs", name) for name in (
+        "part2_multi_contributions_observed", "part2_multi_contributions_after_capacity_frames",
+        "part2_multi_contributions_refused", "part2_plane_multi_payload_after_capacity_normal",
+    )},
+    "part2_jpip_inner_result": {("specs/cold_packet_payload.rs", name) for name in (
+        "part2_jpip_inline_copy_observed", "part2_jpip_inline_copy_normal", "part2_jpip_inner_copy_error",
+    )},
+}
+_ORIGINAL_ADMISSION_NATIVE_ORDER = {
+    "part2_explicit_selection_storage_result": (
+        "TileSelection::All", "TileSelection::Index", "copy_values(&[*index])",
+        "part2_explicit_selection_storage_observed(", "let tiles = copied?",
+        "TileSelection::Set", "indices.is_empty()", "copy_values(indices)",
+        "part2_explicit_selection_storage_observed(", "let copied = copied?",
+    ),
+    "part2_convert_samples_storage_result": (
+        "precision == 0", "validate_output_size(", "empty_with_capacity(plane.samples.len())",
+        "Part2QuantizationOwner::ConvertedSamples", "inspection_capacity_outcome(reserved)",
+        "part2_convert_samples_storage_refused(", "let mut converted = reserved?", "while index < plane.samples.len()",
+    ),
+    "part2_plane_multi_payload_result": (
+        "read_multi_packet_prefix(", "none_values(states.len())", "Part2MultiContributionsContext",
+        "part2_multi_contributions_observed(", "part2_multi_contributions_refused(",
+        "let mut contributions = reserved?", "read_multi_packet_headers(", "decode_multi_packet_body(",
+    ),
+}
+_ORIGINAL_ADMISSION_TESTS = {
+    "part2_explicit_selection_storage_result": ("src/decode/tests.rs", "original_explicit_selection_storage_keeps_raw_order_empty_errors_and_retry"),
+    "part2_convert_samples_storage_result": ("src/transform/tests.rs", "original_sample_conversion_storage_keeps_preflight_empty_source_and_retry"),
+    "part2_plane_multi_payload_result": ("src/packet/tests.rs", "original_multi_packet_contribution_storage_keeps_empty_packet_state_and_retry"),
+    "part2_jpip_inner_result": ("src/packet/tests.rs", "original_jpip_inline_copy_refusal_keeps_actual_layer_update_and_restore"),
 }
 
 _MCT_MARKER_OWNER_GUARDS = {
@@ -11437,6 +11770,11 @@ def validate_normative_coverage(
                     "events.drop_first()",
                 )),
                 ("specs/decoder_input.rs", "part2_validate_selection_run", (
+                    "!part2_validate_selection_explicit_admitted(size)",
+                    "part2_explicit_selection_storage_run(requested.0,events)",
+                    "part2_validate_selection_after_explicit_run(size,requested,rest)",
+                )),
+                ("specs/decoder_input.rs", "part2_validate_selection_after_explicit_run", (
                     "part2_validate_selection(size, requested)",
                     "part2_select_tiles_run(size, part2_selection_explicit(requested.0).get_Ok_0(),",
                     "selected.1, part2_selection_tile_count(size).get_Ok_0(), events)",
@@ -14970,7 +15308,9 @@ def validate_normative_coverage(
             if {(ref["path"], ref["symbol"]) for ref in entry["contract_refs"]} != set(_GENERAL_LAYER_CONTRACTS):
                 raise ValueError("whole general layer Result requires the actual complete general normalizer contract")
             if not _GENERAL_LAYER_MODELS.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}) \
-                    or not _GENERAL_LAYER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                    or not _GENERAL_LAYER_PROOFS.issubset({(ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}) \
+                    or ("src/jpx/tests.rs", "original_general_definition_refusals_preserve_later_error_priority_and_restore") not in {
+                        (ref["path"], ref["symbol"]) for ref in entry["test_refs"]}:
                 raise ValueError("whole general layer Result requires all actual source/component/definition/output models and error bridges")
             path = (ROOT / "src/jpx/layer_decode.rs").resolve()
             body = _coverage_function_body(source_text(path), function_header(path, "decode_general_compositing_layer"))
@@ -17317,6 +17657,11 @@ def validate_normative_coverage(
                         + r"\s*,\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
                     if not _coverage_extraction_normal_arguments(contract, projection, model, inputs):
                         raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary typed conversion projection")
+                if cold_contract[0] in {"part2_convert_samples_storage_result", "part2_explicit_selection_storage_result"}:
+                    legacy = _ORIGINAL_STORAGE_CONTRACTS[(reference["path"], reference["symbol"])]
+                    projection = "sequence_outcome" if cold_contract[0] == "part2_convert_samples_storage_result" else "selected_tiles_outcome"
+                    if not _coverage_extraction_normal_arguments(contract, projection, legacy[0], legacy[3]):
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact original ordinary conversion/selection projection")
                 if cold_contract[0] == "part2_typed_layout_result":
                     normal = _TYPED_LAYOUT_CONTRACTS[(reference["path"], reference["symbol"])]
                     if not _coverage_extraction_normal_arguments(contract, "crate::image::decoded_typed_image_outcome", normal[0], normal[3]):
@@ -17379,6 +17724,27 @@ def validate_normative_coverage(
                 )
                 if not _coverage_cold_result_body(source_text((ROOT / model_path).resolve()), cold_contract[0]):
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid complete cold Result body")
+                for (relative, symbol), fragments in _ORIGINAL_ADMISSION_GUARDS.get(cold_contract[0], {}).items():
+                    body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+                    compact = "".join(body.split()) if body is not None else ""
+                    if any("".join(fragment.split()) not in compact for fragment in fragments):
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; original storage requires exact source/count/admission/reply/state/tail")
+                if not _ORIGINAL_ADMISSION_PROOFS.get(cold_contract[0], set()).issubset({
+                        (ref["path"], ref["symbol"]) for ref in entry["proof_refs"]}):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; original storage requires actual normal/refusal/state/tail proof links")
+                if cold_contract[0] in _ORIGINAL_ADMISSION_NATIVE_ORDER:
+                    body = _coverage_function_body(text, function_header(path, reference["symbol"]))
+                    compact = "".join(body.split()) if body is not None else ""
+                    position = 0
+                    for fragment in _ORIGINAL_ADMISSION_NATIVE_ORDER[cold_contract[0]]:
+                        token = "".join(fragment.split())
+                        found = compact.find(token, position)
+                        if found < 0:
+                            raise ValueError(f"linked function lacks executable Verus contract: {short}; original storage requires actual producer/preflight/child order")
+                        position = found + len(token)
+                required_test = _ORIGINAL_ADMISSION_TESTS.get(cold_contract[0])
+                if required_test is not None and required_test not in {(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}:
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; original storage requires bounded refusal/ordinary-error/restore control")
                 normal_refs = {
                     (path, normal) for model, path, normal in _COLD_RESULT_MODELS.values()
                     if model == cold_contract[0]

@@ -1,7 +1,7 @@
 //! Actual wide, quantized-sample and final code-block-copy owners.
 use super::*;
 verus! {
-pub enum Part2QuantizationOwner {Wide, Samples, CodeBlockCopy}
+pub enum Part2QuantizationOwner {Wide, Samples, CodeBlockCopy, ConvertedSamples}
 #[verifier::opaque]
 pub(crate) open spec fn part2_quantization_capacity_run(owner:Part2QuantizationOwner,count:nat,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<()> {
     if count==0{Some((Ok(()),calls))}else if calls.len()==0{None}else{match calls[0]{
@@ -23,6 +23,42 @@ pub(crate) proof fn part2_quantization_capacity_observed(owner:Part2Quantization
         if count==0{assert(prefix+tail =~= tail);}else{assert((prefix+tail).drop_first() =~= tail);}
     }
     assert(part2_tier1_storage_prefix(|calls|part2_quantization_capacity_run(owner,count,calls),prefix,result));
+}
+pub(crate) open spec fn part2_convert_samples_storage_admitted(plane:Part1ReconstructedPlane,precision:u8,maximum:u64)->bool {
+    precision>0 && precision<=38 && plane.2<=62 && part1_quantization_budget(plane.3.len(),maximum).is_ok()
+}
+pub(crate) open spec fn part2_convert_samples_storage_run(plane:Part1ReconstructedPlane,precision:u8,signed:bool,maximum:u64,
+    calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Seq<i64>> {
+    let value=part1_convert_samples(plane,precision,signed,maximum);
+    if !part2_convert_samples_storage_admitted(plane,precision,maximum){Some((value,calls))}else{
+        part2_tier1_storage_bind(part2_quantization_capacity_run(Part2QuantizationOwner::ConvertedSamples,plane.3.len(),calls),
+            |_:(),rest|Some((value,rest)))
+    }
+}
+pub closed spec fn part2_convert_samples_storage_result(plane:Part1ReconstructedPlane,precision:u8,signed:bool,maximum:u64,
+    result:Result<Seq<i64>,crate::DecodeError>)->bool {
+    part2_tier1_storage_framed(|calls|part2_convert_samples_storage_run(plane,precision,signed,maximum,calls),result)
+}
+pub(crate) proof fn part2_convert_samples_storage_normal(plane:Part1ReconstructedPlane,precision:u8,signed:bool,maximum:u64)
+    ensures part2_convert_samples_storage_result(plane,precision,signed,maximum,part1_convert_samples(plane,precision,signed,maximum)),
+{
+    reveal(part2_convert_samples_storage_result);
+    let value=part1_convert_samples(plane,precision,signed,maximum);
+    part2_tier1_storage_pure(value);
+    if part2_convert_samples_storage_admitted(plane,precision,maximum) {
+        part2_quantization_capacity_observed(Part2QuantizationOwner::ConvertedSamples,plane.3.len(),Ok(()));
+        part2_tier1_storage_bind_frame(|calls|part2_quantization_capacity_run(Part2QuantizationOwner::ConvertedSamples,plane.3.len(),calls),
+            |_:(),rest|Some((value,rest)),Ok(()),value);
+    }
+}
+pub(crate) proof fn part2_convert_samples_storage_refused(plane:Part1ReconstructedPlane,precision:u8,signed:bool,maximum:u64,error:crate::DecodeError)
+    requires part2_convert_samples_storage_admitted(plane,precision,maximum),
+        part2_quantization_capacity_result(Part2QuantizationOwner::ConvertedSamples,plane.3.len(),Err(error)),
+    ensures part2_convert_samples_storage_result(plane,precision,signed,maximum,Err(error)),
+{
+    reveal(part2_convert_samples_storage_result);
+    part2_tier1_storage_bind_frame(|calls|part2_quantization_capacity_run(Part2QuantizationOwner::ConvertedSamples,plane.3.len(),calls),
+        |_:(),rest|Some((part1_convert_samples(plane,precision,signed,maximum),rest)),Err(error),Err(error));
 }
 pub(crate) open spec fn part2_quantization_admit(count:nat,exponent:u8,mantissa:u16,dynamic_range:u8,reversible:bool,maximum:u64)->Result<i64,crate::DecodeError> {
     if dynamic_range==0 || dynamic_range>38 || mantissa>2047{Err(part1_transform_error(false))}

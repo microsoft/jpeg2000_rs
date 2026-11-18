@@ -472,6 +472,8 @@ fn apply_mct_collection(
             crate::specs::part2_mct_line_collection_wavelet_observed(before,style,before_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),(result,transform_components_view(components),*work));
         }else if matches!(style.3,MctCollectionKind::Decorrelation){
             crate::specs::part2_mct_line_collection_decorrelation_observed(before,style,before_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),(result,transform_components_view(components),*work));
+        }else{
+            crate::specs::part2_mct_line_collection_dependency_observed(before,style,before_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),(result,transform_components_view(components),*work));
         }
     }
     result

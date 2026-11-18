@@ -289,7 +289,55 @@ pub(crate) open spec fn part2_plane_multi_headers(s:Part1MultiPacketState,data:S
         },
     }
 }
+pub(crate) struct Part2MultiContributionsContext {
+    pub state:Part1MultiPacketState,pub data:Seq<u8>,pub sop:bool,pub eph:bool,pub offset:usize,
+    pub header_limit:u64,pub pass_limit:u32,pub byte_limit:u64,pub input_limit:u64,pub work:u64,
+}
+pub(crate) open spec fn part2_multi_contributions_run(context:Part2MultiContributionsContext,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<()> {
+    let count=context.state.states.len();
+    if count==0 {Some((Ok(()),calls))}else if calls.len()==0 {None}else{match calls[0] {
+        Part2Tier1StorageEvent::MultiContributions {context:actual,elements,succeeded}=>
+            if actual!=context || elements!=count {None}else{
+                Some((if succeeded {Ok(())}else{Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))
+            },
+        _=>None,
+    }}
+}
+pub(crate) open spec fn part2_multi_contributions_result(context:Part2MultiContributionsContext,result:Result<(),crate::DecodeError>)->bool {
+    part2_tier1_storage_framed(|calls|part2_multi_contributions_run(context,calls),result)
+}
+pub(crate) proof fn part2_multi_contributions_observed(context:Part2MultiContributionsContext,result:Result<(),crate::DecodeError>)
+    requires result==Ok(()) || (context.state.states.len()>0 && result==Err(crate::DecodeError::AllocationFailed)),
+    ensures part2_multi_contributions_result(context,result),
+{
+    let count=context.state.states.len();
+    let prefix=if count==0 {Seq::empty()}else{
+        seq![Part2Tier1StorageEvent::MultiContributions {context,elements:count,succeeded:result.is_ok()}]
+    };
+    assert forall|tail:Seq<Part2Tier1StorageEvent>|part2_multi_contributions_run(context,prefix+tail)==Some((result,tail)) by {
+        if count==0 {assert(prefix+tail =~= tail);}else{assert((prefix+tail).drop_first() =~= tail);}
+    }
+    assert(part2_tier1_storage_prefix(|calls|part2_multi_contributions_run(context,calls),prefix,result));
+}
+pub(crate) open spec fn part2_multi_contributions_after(context:Part2MultiContributionsContext,reply:Result<(),crate::DecodeError>,
+    calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1MultiPacketResult> {
+    match reply {
+        Err(error)=>Some((Ok((Err(error),context.state)),calls)),
+        Ok(())=>part2_plane_multi_payload_after_capacity_run(context.state,context.data,context.sop,context.eph,context.offset,
+            context.header_limit,context.pass_limit,context.byte_limit,context.input_limit,context.work,calls),
+    }
+}
 pub(crate) open spec fn part2_plane_multi_payload_run(s:Part1MultiPacketState,data:Seq<u8>,sop:bool,eph:bool,offset:usize,header_limit:u64,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,
+    calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1MultiPacketResult> {
+    match part1_multi_packet_prefix(data,sop,offset,header_limit,work) {
+        Err(error)=>Some((Ok((Err(error),s)),calls)),Ok(_)=>{
+            let context=Part2MultiContributionsContext {state:s,data,sop,eph,offset,header_limit,pass_limit,byte_limit,input_limit,work};
+            part2_tier1_storage_resume(part2_multi_contributions_run(context,calls),
+                |reply,rest|part2_multi_contributions_after(context,reply,rest))
+        },
+    }
+}
+pub(crate) open spec fn part2_plane_multi_payload_after_capacity_run(s:Part1MultiPacketState,data:Seq<u8>,sop:bool,eph:bool,offset:usize,header_limit:u64,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,
     calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1MultiPacketResult> {
     let prepared=part2_plane_multi_headers(s,data,sop,eph,offset,header_limit,work);
     match prepared.0{
@@ -302,9 +350,10 @@ pub(crate) open spec fn part2_plane_multi_payload_result(s:Part1MultiPacketState
     result:Part1MultiPacketResult)->bool {
     part2_tier1_storage_framed(|calls|part2_plane_multi_payload_run(s,data,sop,eph,offset,header_limit,pass_limit,byte_limit,input_limit,work,calls),Ok(result))
 }
-pub(crate) proof fn part2_plane_multi_payload_normal(s:Part1MultiPacketState,data:Seq<u8>,sop:bool,eph:bool,offset:usize,header_limit:u64,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64)
-    ensures part2_plane_multi_payload_result(s,data,sop,eph,offset,header_limit,pass_limit,byte_limit,input_limit,work,
-        part1_multi_payload(s,data,sop,eph,offset,header_limit,pass_limit,byte_limit,input_limit,work)),
+pub(crate) proof fn part2_plane_multi_payload_after_capacity_normal(s:Part1MultiPacketState,data:Seq<u8>,sop:bool,eph:bool,offset:usize,header_limit:u64,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64)
+    ensures part2_tier1_storage_framed(|calls|part2_plane_multi_payload_after_capacity_run(
+        s,data,sop,eph,offset,header_limit,pass_limit,byte_limit,input_limit,work,calls),
+        Ok(part1_multi_payload(s,data,sop,eph,offset,header_limit,pass_limit,byte_limit,input_limit,work))),
 {
     reveal(part1_multi_payload);
     reveal(part1_multi_body);
@@ -330,6 +379,51 @@ pub(crate) proof fn part2_plane_multi_payload_observed(s:Part1MultiPacketState,d
     let result=(decoded.0,Part1MultiPacketState {decoders:decoded.1,..before});part2_tier1_storage_pure(Ok(result));
     part2_tier1_storage_bind_frame(|calls|part2_plane_multi_body_run(before.decoders,before.states.len() as u64,data,h.contributions,h.present,h.count,h.header,h.start,offset,pass_limit,byte_limit,input_limit,work,calls),
         |decoded:(Result<crate::packet::PacketBodyDecode,crate::DecodeError>,Seq<Tier1DecoderState>),rest|Some((Ok((decoded.0,Part1MultiPacketState {decoders:decoded.1,..before})),rest)),Ok(decoded),Ok(result));
+    part2_multi_contributions_after_capacity_frames(Part2MultiContributionsContext {
+        state:s,data,sop,eph,offset,header_limit,pass_limit,byte_limit,input_limit,work,
+    },result);
+}
+pub(crate) proof fn part2_multi_contributions_after_capacity_frames(context:Part2MultiContributionsContext,result:Part1MultiPacketResult)
+    requires part1_multi_packet_prefix(context.data,context.sop,context.offset,context.header_limit,context.work).is_ok(),
+        part2_tier1_storage_framed(|calls|part2_plane_multi_payload_after_capacity_run(context.state,context.data,context.sop,
+            context.eph,context.offset,context.header_limit,context.pass_limit,context.byte_limit,context.input_limit,context.work,calls),Ok(result)),
+    ensures part2_plane_multi_payload_result(context.state,context.data,context.sop,context.eph,context.offset,context.header_limit,
+        context.pass_limit,context.byte_limit,context.input_limit,context.work,result),
+{
+    part2_multi_contributions_observed(context,Ok(()));
+    part2_tier1_storage_eta(|calls|part2_plane_multi_payload_after_capacity_run(context.state,context.data,context.sop,
+        context.eph,context.offset,context.header_limit,context.pass_limit,context.byte_limit,context.input_limit,context.work,calls),Ok(result));
+    part2_tier1_storage_eta(|calls|part2_multi_contributions_after(context,Ok(()),calls),Ok(result));
+    part2_tier1_resume_frame(|calls|part2_multi_contributions_run(context,calls),
+        |reply,rest|part2_multi_contributions_after(context,reply,rest),Ok(()),Ok(result));
+}
+pub(crate) proof fn part2_plane_multi_payload_normal(s:Part1MultiPacketState,data:Seq<u8>,sop:bool,eph:bool,offset:usize,header_limit:u64,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64)
+    ensures part2_plane_multi_payload_result(s,data,sop,eph,offset,header_limit,pass_limit,byte_limit,input_limit,work,
+        part1_multi_payload(s,data,sop,eph,offset,header_limit,pass_limit,byte_limit,input_limit,work)),
+{
+    let context=Part2MultiContributionsContext {state:s,data,sop,eph,offset,header_limit,pass_limit,byte_limit,input_limit,work};
+    match part1_multi_packet_prefix(data,sop,offset,header_limit,work) {
+        Err(_)=>{
+            reveal(part1_multi_payload);part2_tier1_storage_pure(Ok(part1_multi_payload(
+                s,data,sop,eph,offset,header_limit,pass_limit,byte_limit,input_limit,work)));
+        },
+        Ok(_)=>{
+            part2_plane_multi_payload_after_capacity_normal(s,data,sop,eph,offset,header_limit,pass_limit,byte_limit,input_limit,work);
+            part2_multi_contributions_after_capacity_frames(context,part1_multi_payload(
+                s,data,sop,eph,offset,header_limit,pass_limit,byte_limit,input_limit,work));
+        },
+    }
+}
+pub(crate) proof fn part2_multi_contributions_refused(context:Part2MultiContributionsContext,error:crate::DecodeError)
+    requires part1_multi_packet_prefix(context.data,context.sop,context.offset,context.header_limit,context.work).is_ok(),
+        part2_multi_contributions_result(context,Err(error)),
+    ensures part2_plane_multi_payload_result(context.state,context.data,context.sop,context.eph,context.offset,context.header_limit,
+        context.pass_limit,context.byte_limit,context.input_limit,context.work,(Err(error),context.state)),
+{
+    let result=Ok((Err::<crate::packet::PacketBodyDecode,crate::DecodeError>(error),context.state));
+    part2_tier1_storage_pure(result);
+    part2_tier1_resume_frame(|calls|part2_multi_contributions_run(context,calls),
+        |reply,rest|part2_multi_contributions_after(context,reply,rest),Err(error),result);
 }
 pub(crate) open spec fn part2_plane_precinct_admit(s:Part1PacketPrecinctState,part:Part2OwnedTilePart,offset:usize,packed_offset:usize,expected:Option<u32>,sequence:u16,decode:bool,
     blocks:u64,work:u64)->Result<Part1PrecinctPayloadParameters,crate::DecodeError> {
@@ -392,16 +486,82 @@ pub(crate) open spec fn part2_jpip_inner_finish(packet:Part1PrecinctPayloadResul
     };
     (result,packet.1)
 }
-pub(crate) open spec fn part2_jpip_inner_run(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,
+pub(crate) open spec fn part2_jpip_inline_copy_run(source:Part2OwnedTilePart,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<()> {
+    if calls.len()==0 {None}else{match calls[0] {
+        Part2Tier1StorageEvent::PayloadMetadataCopy {source:actual,calls:inner}=>if actual!=source {None}else{
+            match part1_mct_copy_run(part2_payload_duplicate_tail(source,0),inner) {
+                Some((reply,rest))=>if rest.len()!=0 {None}else{Some((reply,calls.drop_first()))},
+                None=>None,
+            }
+        },
+        _=>None,
+    }}
+}
+pub(crate) proof fn part2_jpip_inline_copy_observed(source:Part2OwnedTilePart,result:Result<Part2OwnedTilePart,crate::DecodeError>)
+    requires part1_mct_copy_result(part2_payload_duplicate_tail(source,0),match result {Ok(_)=>Ok(()),Err(error)=>Err(error)}),
+        result.is_ok() ==> result==Ok(source),
+    ensures part2_tier1_storage_framed(|calls|part2_jpip_inline_copy_run(source,calls),
+        match result {Ok(_)=>Ok(()),Err(error)=>Err(error)}),
+{
+    reveal(part1_mct_copy_result);
+    let reply=match result {Ok(_)=>Ok(()),Err(error)=>Err(error)};
+    let inner=choose|inner:Seq<Part1ColdStorageEvent>|part1_mct_copy_run(part2_payload_duplicate_tail(source,0),inner)==Some((reply,Seq::empty()));
+    let prefix=seq![Part2Tier1StorageEvent::PayloadMetadataCopy {source,calls:inner}];
+    assert forall|tail:Seq<Part2Tier1StorageEvent>|part2_jpip_inline_copy_run(source,prefix+tail)==Some((reply,tail)) by {
+        assert((prefix+tail).drop_first() =~= tail);
+    }
+    assert(part2_tier1_storage_prefix(|calls|part2_jpip_inline_copy_run(source,calls),prefix,reply));
+}
+pub(crate) proof fn part2_jpip_inline_copy_normal(source:Part2OwnedTilePart)
+    ensures part2_tier1_storage_framed(|calls|part2_jpip_inline_copy_run(source,calls),Ok(())),
+{
+    reveal(part1_mct_copy_result);
+    let requests=part2_payload_duplicate_tail(source,0);
+    part1_mct_copy_normal(requests,Seq::empty());
+    assert(part1_mct_copy_run(requests,part1_mct_copy_normal_calls(requests))==Some((Ok(()),Seq::empty())));
+    part2_jpip_inline_copy_observed(source,Ok(source));
+}
+pub(crate) open spec fn part2_jpip_inner_after_copy_run(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,
     limits:&crate::ResourceLimits,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Result<usize,crate::DecodeError>,Part1PacketPrecinctState)> {
     part2_tier1_storage_bind(part2_plane_precinct_run(part1_precinct_context_layer(initial,layer),part2_jpip_inner_inline(part,data),0,Seq::empty(),0,None,sequence,false,
         crate::limits::resource_code_block_limit(limits),crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),
         crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),calls),
         |packet:Part1PrecinctPayloadResult,rest|Some((Ok(part2_jpip_inner_finish(packet)),rest)))
 }
+pub(crate) open spec fn part2_jpip_inner_run(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,
+    limits:&crate::ResourceLimits,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Result<usize,crate::DecodeError>,Part1PacketPrecinctState)> {
+    part2_tier1_storage_resume(part2_jpip_inline_copy_run(part,calls),|reply:Result<(),crate::DecodeError>,rest|match reply {
+        Err(error)=>Some((Ok((Err(error),part1_precinct_context_layer(initial,layer))),rest)),
+        Ok(())=>part2_jpip_inner_after_copy_run(initial,part,data,sequence,layer,limits,rest),
+    })
+}
 pub(crate) open spec fn part2_jpip_inner_result(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,
     limits:&crate::ResourceLimits,result:(Result<usize,crate::DecodeError>,Part1PacketPrecinctState))->bool {
     part2_tier1_storage_framed(|calls|part2_jpip_inner_run(initial,part,data,sequence,layer,limits,calls),Ok(result))
+}
+pub(crate) proof fn part2_jpip_inner_after_copy_frames(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,
+    limits:&crate::ResourceLimits,result:(Result<usize,crate::DecodeError>,Part1PacketPrecinctState))
+    requires part2_tier1_storage_framed(|calls|part2_jpip_inner_after_copy_run(initial,part,data,sequence,layer,limits,calls),Ok(result)),
+    ensures part2_jpip_inner_result(initial,part,data,sequence,layer,limits,result),
+{
+    part2_jpip_inline_copy_normal(part);
+    part2_tier1_storage_eta(|calls|part2_jpip_inner_after_copy_run(initial,part,data,sequence,layer,limits,calls),Ok(result));
+    part2_tier1_resume_frame(|calls|part2_jpip_inline_copy_run(part,calls),|reply:Result<(),crate::DecodeError>,rest|match reply {
+        Err(error)=>Some((Ok((Err(error),part1_precinct_context_layer(initial,layer))),rest)),
+        Ok(())=>part2_jpip_inner_after_copy_run(initial,part,data,sequence,layer,limits,rest),
+    },Ok(()),Ok(result));
+}
+pub(crate) proof fn part2_jpip_inner_copy_error(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,
+    limits:&crate::ResourceLimits,error:crate::DecodeError)
+    requires part2_tier1_storage_framed(|calls|part2_jpip_inline_copy_run(part,calls),Err(error)),
+    ensures part2_jpip_inner_result(initial,part,data,sequence,layer,limits,(Err(error),part1_precinct_context_layer(initial,layer))),
+{
+    let result=Ok((Err::<usize,crate::DecodeError>(error),part1_precinct_context_layer(initial,layer)));
+    part2_tier1_storage_pure(result);
+    part2_tier1_resume_frame(|calls|part2_jpip_inline_copy_run(part,calls),|reply:Result<(),crate::DecodeError>,rest|match reply {
+        Err(error)=>Some((Ok((Err(error),part1_precinct_context_layer(initial,layer))),rest)),
+        Ok(())=>part2_jpip_inner_after_copy_run(initial,part,data,sequence,layer,limits,rest),
+    },Err(error),result);
 }
 pub(crate) proof fn part2_jpip_inner_observed(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,
     limits:&crate::ResourceLimits,packet:Part1PrecinctPayloadResult)
@@ -415,6 +575,7 @@ pub(crate) proof fn part2_jpip_inner_observed(initial:Part1PacketPrecinctState,p
         crate::limits::resource_code_block_limit(limits),crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),
         crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),calls),
         |packet:Part1PrecinctPayloadResult,rest|Some((Ok(part2_jpip_inner_finish(packet)),rest)),Ok(packet),Ok(part2_jpip_inner_finish(packet)));
+    part2_jpip_inner_after_copy_frames(initial,part,data,sequence,layer,limits,part2_jpip_inner_finish(packet));
 }
 pub(crate) proof fn part2_jpip_inner_normal(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,limits:&crate::ResourceLimits)
     ensures part2_jpip_inner_result(initial,part,data,sequence,layer,limits,

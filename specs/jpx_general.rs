@@ -152,13 +152,38 @@ pub(crate) open spec fn part2_general_finish_color_requests(config:Part2GeneralL
 pub(crate) open spec fn part2_general_normalize_context(source:Part2GeneralSource,index:nat)->Part2ColorNormalizeContext {
     Part2ColorNormalizeContext {component:source.0.1[index as int],width:source.0.0.0,height:source.0.0.1,x:source.0.0.2,y:source.0.0.3}
 }
+pub(crate) open spec fn part2_general_component_copy_context(source:Part2GeneralSource,config:Part2GeneralLayerConfig,
+    width:u32,height:u32,component:nat,initial:Part2GeneralComponents)->Option<Part2TypedCapacityContext> {
+    if component>=source.0.1.len(){None}else{
+        match part2_general_components_prefix(source,config,width,height,component,initial) {
+            Err(_)=>None,Ok(before)=>match part2_general_component_step(source,config,width,height,component,before) {
+                Err(_)=>None,Ok(after)=>Some(Part2TypedCapacityContext::DefinitionCopy {
+                    source:(source.0.1[component as int],source.0.2[component as int]),
+                    target:(after.0[before.0.len() as int].0,Seq::empty()),
+                }),
+            },
+        }
+    }
+}
+pub(crate) open spec fn part2_general_component_copy_requests(source:Part2GeneralSource,config:Part2GeneralLayerConfig,
+    width:u32,height:u32,component:nat,initial:Part2GeneralComponents)->Seq<Part2ColorOutputCapacity> {
+    match part2_general_component_copy_context(source,config,width,height,component,initial) {
+        None=>Seq::empty(),Some(context)=>seq![Part2ColorOutputCapacity::Definition {context}],
+    }
+}
+pub(crate) open spec fn part2_general_component_storage_requests(source:Part2GeneralSource,config:Part2GeneralLayerConfig,
+    width:u32,height:u32,component:nat,initial:Part2GeneralComponents)->Seq<Part2ColorOutputCapacity> {
+    if component>=source.0.1.len() || part2_general_components_prefix(source,config,width,height,component,initial).is_err(){Seq::empty()}else{
+        part2_color_normalize_requests(part2_general_normalize_context(source,component))
+            +part2_general_component_copy_requests(source,config,width,height,component,initial)
+    }
+}
 pub(crate) open spec fn part2_general_normalize_source_requests(config:Part2GeneralLayerConfig,sources:Part2GeneralSources,index:nat)->Seq<Part2ColorOutputCapacity> {
     if index>=sources.0.len(){Seq::empty()}else{
         match part2_general_assembled_sources_prefix(sources.0,config,sources.1,sources.2,index) {
             Err(_)=>Seq::empty(),Ok(initial)=>part2_color_output_trace(|component:nat|
-                if part2_general_components_prefix(sources.0[index as int],config,sources.1,sources.2,component,initial).is_ok() {
-                    part2_color_normalize_requests(part2_general_normalize_context(sources.0[index as int],component))
-                }else{Seq::empty()},sources.0[index as int].0.1.len()),
+                part2_general_component_storage_requests(sources.0[index as int],config,sources.1,sources.2,component,initial),
+                sources.0[index as int].0.1.len()),
         }
     }
 }
@@ -170,7 +195,72 @@ pub(crate) open spec fn part2_general_normalize_requests(config:Part2GeneralLaye
 }
 pub(crate) open spec fn part2_general_color_requests(config:Part2GeneralLayerConfig,colors:usize,sources:Part2GeneralSources,
     limits:&crate::ResourceLimits)->Seq<Part2ColorOutputCapacity> {
-    part2_general_normalize_requests(config,sources,limits)+part2_general_finish_color_requests(config,colors,sources,limits)
+    part2_general_normalize_requests(config,sources,limits)+part2_general_finish_storage_requests(config,colors,sources,limits)
+}
+pub(crate) open spec fn part2_general_definition_input(config:Part2GeneralLayerConfig,sources:Part2GeneralSources,limits:&crate::ResourceLimits)
+    ->Option<Seq<Part2TypedComponentOutput>> {
+    if sources.1==0 || sources.2==0 || sources.1==u32::MAX || sources.2==u32::MAX
+        || sources.1 as nat*sources.2 as nat>crate::limits::resource_pixel_limit(limits) {None}else{
+        match part2_general_assembled_sources_prefix(sources.0,config,sources.1,sources.2,sources.0.len()) {
+            Err(_)=>None,Ok(components)=>if components.0.len()>crate::limits::resource_component_limit(limits){None}else{Some(components.0)},
+        }
+    }
+}
+pub(crate) open spec fn part2_general_record_definition_context(config:Part2GeneralLayerConfig,colors:usize,
+    input:Seq<Part2TypedComponentOutput>,index:nat)->Option<Part2TypedCapacityContext> {
+    if index>=config.definitions.len(){None}else{
+        let record=config.definitions[index as int];
+        match part2_general_records_prefix(config.definitions,colors,part2_general_clear_definitions(input,input.len()),index) {
+            Err(_)=>None,Ok(before)=>if part2_general_validate_definition(record.1,colors).is_err() || record.0>=before.len(){None}else{
+                Some(Part2TypedCapacityContext::Definition {source:before[record.0 as int],definition:record.1})
+            },
+        }
+    }
+}
+pub(crate) open spec fn part2_general_record_definition_requests(config:Part2GeneralLayerConfig,colors:usize,
+    input:Seq<Part2TypedComponentOutput>,index:nat)->Seq<Part2ColorOutputCapacity> {
+    match part2_general_record_definition_context(config,colors,input,index) {
+        None=>Seq::empty(),Some(context)=>seq![Part2ColorOutputCapacity::Definition {context}],
+    }
+}
+pub(crate) open spec fn part2_general_default_definition_context(input:Seq<Part2TypedComponentOutput>,index:nat)
+    ->Part2TypedCapacityContext {
+    Part2TypedCapacityContext::Definition {
+        source:part2_general_default_colors(part2_general_clear_definitions(input,input.len()),index)[index as int],
+        definition:(crate::ChannelType::Color,crate::ChannelAssociation::Color((index+1) as u16)),
+    }
+}
+pub(crate) open spec fn part2_general_opacity_definition_context(input:Seq<Part2TypedComponentOutput>,colors:usize,opacity:Part2SourceOpacity)
+    ->Part2TypedCapacityContext {
+    Part2TypedCapacityContext::Definition {
+        source:part2_general_default_colors(part2_general_clear_definitions(input,input.len()),colors as nat)[colors as int],
+        definition:(if opacity==Part2SourceOpacity::Premultiplied {crate::ChannelType::PremultipliedOpacity}else{crate::ChannelType::Opacity},
+            crate::ChannelAssociation::WholeImage),
+    }
+}
+pub(crate) open spec fn part2_general_default_definition_requests(input:Seq<Part2TypedComponentOutput>,colors:usize,opacity:Part2SourceOpacity)
+    ->Seq<Part2ColorOutputCapacity> {
+    if input.len()<colors {Seq::empty()}else{
+        part2_color_output_trace(|index:nat|if index>=u16::MAX{Seq::empty()}else{
+            seq![Part2ColorOutputCapacity::Definition {context:part2_general_default_definition_context(input,index)}]
+        },colors as nat)
+        +if matches!(opacity,Part2SourceOpacity::ChromaKey {..}) || colors>u16::MAX
+            || colors as nat+1>usize::MAX || input.len()!=colors as nat+1 {Seq::empty()}else{
+            seq![Part2ColorOutputCapacity::Definition {context:part2_general_opacity_definition_context(input,colors,opacity)}]
+        }
+    }
+}
+pub(crate) open spec fn part2_general_finish_definition_requests(config:Part2GeneralLayerConfig,colors:usize,sources:Part2GeneralSources,
+    limits:&crate::ResourceLimits)->Seq<Part2ColorOutputCapacity> {
+    match part2_general_definition_input(config,sources,limits) {
+        None=>Seq::empty(),Some(input)=>if config.definitions.len()>0 {
+            part2_color_output_trace(|index|part2_general_record_definition_requests(config,colors,input,index),config.definitions.len())
+        }else{match config.opacity {None=>Seq::empty(),Some(opacity)=>part2_general_default_definition_requests(input,colors,opacity)}},
+    }
+}
+pub(crate) open spec fn part2_general_finish_storage_requests(config:Part2GeneralLayerConfig,colors:usize,sources:Part2GeneralSources,
+    limits:&crate::ResourceLimits)->Seq<Part2ColorOutputCapacity> {
+    part2_general_finish_definition_requests(config,colors,sources,limits)+part2_general_finish_color_requests(config,colors,sources,limits)
 }
 pub(crate) open spec fn part2_general_after_cold_sources_run(config:Part2GeneralLayerConfig,colors:usize,sources:Part2GeneralSources,
     limits:&crate::ResourceLimits,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2OwnedLayer> {
@@ -297,7 +387,9 @@ pub(crate) proof fn part2_general_color_error(file:Part2JpxDecodeInput,config:Pa
     part2_decode_eta(|events|part2_color_output_program_run(requests,part2_color_convert_value(context),events),Err(error));
     let whole=part2_general_color_requests(config,colors,sources,limits);
     assert forall|request:Part2ColorOutputCapacity|requests.contains(request) implies whole.contains(request) by {
-        part2_color_output_concat_member(part2_general_normalize_requests(config,sources,limits),requests,request);
+        part2_color_output_concat_member(part2_general_finish_definition_requests(config,colors,sources,limits),requests,request);
+        part2_color_output_concat_member(part2_general_normalize_requests(config,sources,limits),
+            part2_general_finish_storage_requests(config,colors,sources,limits),request);
     }
     part2_color_output_program_child_error(whole,ordinary,requests,part2_color_convert_value(context),error);
     part2_decode_eta(|events|part2_color_output_program_run(whole,ordinary,events),Err(error));
@@ -321,20 +413,122 @@ pub(crate) proof fn part2_general_normalize_error(file:Part2JpxDecodeInput,confi
 {
     let context=part2_general_normalize_context(sources.0[source_index as int],component);
     let request=Part2ColorOutputCapacity::Normalize {context};
-    let component_step=|i:nat|if part2_general_components_prefix(sources.0[source_index as int],config,sources.1,sources.2,i,initial).is_ok() {
-        part2_color_normalize_requests(part2_general_normalize_context(sources.0[source_index as int],i))
-    }else{Seq::empty()};
-    assert(component_step(component)[0]==request);
+    let component_step=|i:nat|part2_general_component_storage_requests(
+        sources.0[source_index as int],config,sources.1,sources.2,i,initial);
+    assert(part2_color_normalize_requests(context)[0]==request);
+    assert(part2_color_normalize_requests(context).contains(request));
+    part2_color_output_concat_member(part2_color_normalize_requests(context),
+        part2_general_component_copy_requests(sources.0[source_index as int],config,sources.1,sources.2,component,initial),request);
     part2_color_output_trace_member(component_step,sources.0[source_index as int].0.1.len(),component,request);
     let source_step=|i|part2_general_normalize_source_requests(config,sources,i);
     part2_color_output_trace_member(source_step,sources.0.len(),source_index,request);
-    part2_color_output_concat_member(part2_general_normalize_requests(config,sources,limits),part2_general_finish_color_requests(config,colors,sources,limits),request);
+    part2_color_output_concat_member(part2_general_normalize_requests(config,sources,limits),
+        part2_general_finish_storage_requests(config,colors,sources,limits),request);
     let whole=part2_general_color_requests(config,colors,sources,limits);
     assert forall|child:Part2ColorOutputCapacity|part2_color_normalize_requests(context).contains(child) implies whole.contains(child) by {
         assert(child==request);
     }
     let ordinary=part2_general_after_cold_sources(config,colors,sources,limits);
     part2_color_output_program_child_error(whole,ordinary,part2_color_normalize_requests(context),part2_color_normalize_value(context),error);
+    part2_decode_eta(|events|part2_color_output_program_run(whole,ordinary,events),Err(error));
+    part2_general_sources_cold_normal(file,config,layer_index,limits,part2_general_source_count(config));
+    part2_cold_bind(|events|part2_general_sources_cold_prefix(file,config,layer_index,limits,part2_general_source_count(config),events),
+        |sources,tail|part2_general_after_cold_sources_run(config,colors,sources,limits,tail),Ok(sources),Err(error));
+}
+pub(crate) proof fn part2_general_finish_definition_member(config:Part2GeneralLayerConfig,colors:usize,
+    sources:Part2GeneralSources,limits:&crate::ResourceLimits,request:Part2ColorOutputCapacity)
+    requires part2_general_finish_definition_requests(config,colors,sources,limits).contains(request),
+    ensures part2_general_color_requests(config,colors,sources,limits).contains(request),
+{
+    part2_color_output_concat_member(part2_general_finish_definition_requests(config,colors,sources,limits),
+        part2_general_finish_color_requests(config,colors,sources,limits),request);
+    part2_color_output_concat_member(part2_general_normalize_requests(config,sources,limits),
+        part2_general_finish_storage_requests(config,colors,sources,limits),request);
+}
+pub(crate) proof fn part2_general_component_definition_member(config:Part2GeneralLayerConfig,colors:usize,
+    sources:Part2GeneralSources,limits:&crate::ResourceLimits,source_index:nat,component:nat,initial:Part2GeneralComponents,
+    context:Part2TypedCapacityContext)
+    requires sources.1>0,sources.2>0,sources.1<u32::MAX,sources.2<u32::MAX,
+        sources.1 as nat*sources.2 as nat<=crate::limits::resource_pixel_limit(limits),
+        source_index<sources.0.len(),component<sources.0[source_index as int].0.1.len(),
+        part2_general_assembled_sources_prefix(sources.0,config,sources.1,sources.2,source_index)==Ok(initial),
+        part2_general_component_copy_context(sources.0[source_index as int],config,sources.1,sources.2,component,initial)==Some(context),
+    ensures part2_general_color_requests(config,colors,sources,limits).contains(Part2ColorOutputCapacity::Definition {context}),
+{
+    let source=sources.0[source_index as int];
+    let request=Part2ColorOutputCapacity::Definition {context};
+    let copy=part2_general_component_copy_requests(source,config,sources.1,sources.2,component,initial);
+    assert(copy[0]==request);assert(copy.contains(request));
+    part2_color_output_concat_member(part2_color_normalize_requests(part2_general_normalize_context(source,component)),copy,request);
+    let components_step=|i:nat|part2_general_component_storage_requests(source,config,sources.1,sources.2,i,initial);
+    part2_color_output_trace_member(components_step,source.0.1.len(),component,request);
+    let source_step=|i|part2_general_normalize_source_requests(config,sources,i);
+    part2_color_output_trace_member(source_step,sources.0.len(),source_index,request);
+    part2_color_output_concat_member(part2_general_normalize_requests(config,sources,limits),
+        part2_general_finish_storage_requests(config,colors,sources,limits),request);
+}
+pub(crate) proof fn part2_general_record_definition_member(config:Part2GeneralLayerConfig,colors:usize,
+    sources:Part2GeneralSources,limits:&crate::ResourceLimits,input:Seq<Part2TypedComponentOutput>,
+    index:nat,context:Part2TypedCapacityContext)
+    requires part2_general_definition_input(config,sources,limits)==Some(input),config.definitions.len()>0,
+        part2_general_record_definition_context(config,colors,input,index)==Some(context),
+    ensures part2_general_color_requests(config,colors,sources,limits).contains(Part2ColorOutputCapacity::Definition {context}),
+{
+    let request=Part2ColorOutputCapacity::Definition {context};
+    let step=|i|part2_general_record_definition_requests(config,colors,input,i);
+    assert(step(index)[0]==request);assert(step(index).contains(request));
+    part2_color_output_trace_member(step,config.definitions.len(),index,request);
+    part2_general_finish_definition_member(config,colors,sources,limits,request);
+}
+pub(crate) proof fn part2_general_default_definition_member(config:Part2GeneralLayerConfig,colors:usize,
+    sources:Part2GeneralSources,limits:&crate::ResourceLimits,input:Seq<Part2TypedComponentOutput>,opacity:Part2SourceOpacity,index:nat)
+    requires part2_general_definition_input(config,sources,limits)==Some(input),config.definitions.len()==0,
+        config.opacity==Some(opacity),input.len()>=colors,index<colors,index<u16::MAX,
+    ensures part2_general_color_requests(config,colors,sources,limits).contains(
+        Part2ColorOutputCapacity::Definition {context:part2_general_default_definition_context(input,index)}),
+{
+    let request=Part2ColorOutputCapacity::Definition {context:part2_general_default_definition_context(input,index)};
+    let step=|i:nat|if i>=u16::MAX{Seq::empty()}else{
+        seq![Part2ColorOutputCapacity::Definition {context:part2_general_default_definition_context(input,i)}]
+    };
+    assert(step(index)[0]==request);assert(step(index).contains(request));
+    part2_color_output_trace_member(step,colors as nat,index,request);
+    let opacity_request=if matches!(opacity,Part2SourceOpacity::ChromaKey {..}) || colors>u16::MAX
+        || colors as nat+1>usize::MAX || input.len()!=colors as nat+1 {Seq::empty()}else{
+        seq![Part2ColorOutputCapacity::Definition {context:part2_general_opacity_definition_context(input,colors,opacity)}]
+    };
+    part2_color_output_concat_member(part2_color_output_trace(step,colors as nat),opacity_request,request);
+    part2_general_finish_definition_member(config,colors,sources,limits,request);
+}
+pub(crate) proof fn part2_general_opacity_definition_member(config:Part2GeneralLayerConfig,colors:usize,
+    sources:Part2GeneralSources,limits:&crate::ResourceLimits,input:Seq<Part2TypedComponentOutput>,opacity:Part2SourceOpacity)
+    requires part2_general_definition_input(config,sources,limits)==Some(input),config.definitions.len()==0,
+        config.opacity==Some(opacity),!matches!(opacity,Part2SourceOpacity::ChromaKey {..}),colors<=u16::MAX,
+        colors as nat+1<=usize::MAX,input.len()==colors as nat+1,
+    ensures part2_general_color_requests(config,colors,sources,limits).contains(
+        Part2ColorOutputCapacity::Definition {context:part2_general_opacity_definition_context(input,colors,opacity)}),
+{
+    let request=Part2ColorOutputCapacity::Definition {context:part2_general_opacity_definition_context(input,colors,opacity)};
+    let opacity_request=seq![request];assert(opacity_request[0]==request);assert(opacity_request.contains(request));
+    let step=|i:nat|if i>=u16::MAX{Seq::empty()}else{
+        seq![Part2ColorOutputCapacity::Definition {context:part2_general_default_definition_context(input,i)}]
+    };
+    part2_color_output_concat_member(part2_color_output_trace(step,colors as nat),opacity_request,request);
+    part2_general_finish_definition_member(config,colors,sources,limits,request);
+}
+pub(crate) proof fn part2_general_definition_error(file:Part2JpxDecodeInput,config:Part2GeneralLayerConfig,layer_index:usize,
+    colors:usize,sources:Part2GeneralSources,limits:&crate::ResourceLimits,context:Part2TypedCapacityContext,error:crate::DecodeError)
+    requires part2_general_color_count(config.color)==Ok(colors),
+        part2_general_sources_prefix(file,config,layer_index,limits,part2_general_source_count(config))==Ok(sources),
+        part2_general_color_requests(config,colors,sources,limits).contains(Part2ColorOutputCapacity::Definition {context}),
+        matches!(context,Part2TypedCapacityContext::Definition {..}|Part2TypedCapacityContext::DefinitionCopy {..}),
+        part2_definition_storage_result(context,Err(error)),
+    ensures part2_general_layer_cold_result(file,config,layer_index,limits,Err(error)),
+{
+    part2_color_definition_storage_observed(context,Err(error));
+    let whole=part2_general_color_requests(config,colors,sources,limits);
+    let ordinary=part2_general_after_cold_sources(config,colors,sources,limits);
+    part2_color_output_program_refused(whole,ordinary,Part2ColorOutputCapacity::Definition {context},error);
     part2_decode_eta(|events|part2_color_output_program_run(whole,ordinary,events),Err(error));
     part2_general_sources_cold_normal(file,config,layer_index,limits,part2_general_source_count(config));
     part2_cold_bind(|events|part2_general_sources_cold_prefix(file,config,layer_index,limits,part2_general_source_count(config),events),

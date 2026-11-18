@@ -46,7 +46,8 @@ pub(crate) open spec fn part2_mct_line_collection_run(before:Seq<Part2MctCompone
     else if matches!(collection.3,crate::codestream::MctCollectionKind::Decorrelation){
         part2_mct_decorrelation_storage_run(Part2MctRuntimeContext {components:before,collection,work,maximum_work,maximum_bytes},calls)
     }
-    else{Some((Ok(part2_mct_collection(before,collection,work,maximum_work,maximum_bytes)),calls))}
+    else{part2_mct_dependency_storage_run(
+        Part2MctRuntimeContext {components:before,collection,work,maximum_work,maximum_bytes},calls)}
 }
 pub(crate) open spec fn part2_mct_line_collection_result(before:Seq<Part2MctComponent>,collection:Part2MctCollection,work:u64,maximum_work:u64,maximum_bytes:u64,result:Part2MctLineEffect)->bool {
     part2_tier1_storage_framed(|calls|part2_mct_line_collection_run(before,collection,work,maximum_work,maximum_bytes,calls),Ok(result))
@@ -94,7 +95,12 @@ pub(crate) proof fn part2_mct_line_collection_normal(before:Seq<Part2MctComponen
         let context=Part2MctRuntimeContext {components:before,collection,work,maximum_work,maximum_bytes};
         part2_mct_decorrelation_storage_normal(context);
         part2_tier1_storage_eta(|calls|part2_mct_decorrelation_storage_run(context,calls),Ok(result));
-    }else{part2_tier1_storage_pure(Ok(result));}
+    }else{
+        let context=Part2MctRuntimeContext {components:before,collection,work,maximum_work,maximum_bytes};
+        part2_mct_dependency_storage_normal(context);
+        part2_mct_dependency_storage_frames(context,result);
+        part2_tier1_storage_eta(|calls|part2_mct_dependency_storage_run(context,calls),Ok(result));
+    }
 }
 pub(crate) proof fn part2_mct_line_stage_normal(before:Seq<Part2MctComponent>,collections:Seq<Part2MctCollection>,work:u64,maximum_work:u64,maximum_bytes:u64,count:nat)
     ensures part2_tier1_storage_framed(|calls|part2_mct_line_stage_run(before,collections,work,maximum_work,maximum_bytes,count,calls),Ok(part2_mct_stage_prefix(before,collections,work,maximum_work,maximum_bytes,count))),
@@ -189,6 +195,15 @@ pub(crate) proof fn part2_mct_line_collection_decorrelation_observed(before:Seq<
 {
     part2_tier1_storage_eta(|calls|part2_mct_decorrelation_storage_run(
         Part2MctRuntimeContext {components:before,collection,work,maximum_work,maximum_bytes},calls),Ok(result));
+}
+pub(crate) proof fn part2_mct_line_collection_dependency_observed(before:Seq<Part2MctComponent>,collection:Part2MctCollection,work:u64,maximum_work:u64,maximum_bytes:u64,result:Part2MctLineEffect)
+    requires matches!(collection.3,crate::codestream::MctCollectionKind::Dependency),
+        part2_mct_dependency_storage_result(Part2MctRuntimeContext {components:before,collection,work,maximum_work,maximum_bytes},result),
+    ensures part2_mct_line_collection_result(before,collection,work,maximum_work,maximum_bytes,result),
+{
+    let context=Part2MctRuntimeContext {components:before,collection,work,maximum_work,maximum_bytes};
+    part2_mct_dependency_storage_frames(context,result);
+    part2_tier1_storage_eta(|calls|part2_mct_dependency_storage_run(context,calls),Ok(result));
 }
 pub(crate) open spec fn part2_mct_line_decoded_after_views(before:Part1DecodedImageModel,stages:Seq<Part2MctStage>,maximum_work:u64,maximum_bytes:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Result<(),crate::DecodeError>,Part1DecodedImageModel)> {
     if before.4.len()>u16::MAX{Some((Ok((Err(part1_transform_error(true)),before)),calls))}

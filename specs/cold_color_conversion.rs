@@ -11,6 +11,7 @@ pub(crate) struct Part2ColorCropContext {
     pub image:ColorImageModel,pub x:u32,pub y:u32,pub width:u32,pub height:u32,
 }
 pub(crate) enum Part2ColorOutputCapacity {
+    Definition {context:Part2TypedCapacityContext},
     LayoutColors {definitions:Seq<Seq<ColorDefinition>>,colors:usize},
     LayoutAlpha {definitions:Seq<Seq<ColorDefinition>>,colors:usize,component:nat,record:nat},
     Normalize {context:Part2ColorNormalizeContext},
@@ -71,6 +72,10 @@ pub(crate) open spec fn part2_color_crop_admitted(context:Part2ColorCropContext)
 }
 pub(crate) open spec fn part2_color_output_capacity_count(context:Part2ColorOutputCapacity)->nat {
     match context {
+        Part2ColorOutputCapacity::Definition {context}=>match context {
+            Part2TypedCapacityContext::Definition {..}|Part2TypedCapacityContext::DefinitionCopy {..}=>part2_typed_capacity_count(context),
+            _=>0,
+        },
         Part2ColorOutputCapacity::LayoutColors {definitions,colors}=>if part2_color_layout_has_definitions(definitions) || definitions.len()==colors {colors as nat}else{0},
         Part2ColorOutputCapacity::LayoutAlpha {definitions,colors,component,record}=>if part2_color_layout_alpha_admitted(definitions,colors,component,record){1}else{0},
         Part2ColorOutputCapacity::Normalize {context}=>part2_color_normalize_count(context),
@@ -107,6 +112,18 @@ pub(crate) proof fn part2_color_output_capacity_observed(context:Part2ColorOutpu
         if count==0 {assert(prefix+tail =~= tail);}else{assert((prefix+tail).drop_first() =~= tail);}
     }
     assert(part2_cold_prefix(|events|part2_color_output_capacity_run(context,events),prefix,result));
+}
+pub(crate) proof fn part2_color_definition_storage_observed(context:Part2TypedCapacityContext,response:Result<(),crate::DecodeError>)
+    requires matches!(context,Part2TypedCapacityContext::Definition {..}|Part2TypedCapacityContext::DefinitionCopy {..}),
+        part2_definition_storage_result(context,response),
+    ensures part2_color_output_capacity_result(Part2ColorOutputCapacity::Definition {context},response),
+{
+    part2_definition_storage_frames(context,response);
+    let run=|calls|part2_typed_capacity_run(context,calls);
+    let prefix=choose|prefix:Seq<Part2Tier1StorageEvent>|part2_tier1_storage_prefix(run,prefix,response);
+    part2_tier1_storage_at(run,prefix,response,Seq::empty());
+    assert(prefix+Seq::<Part2Tier1StorageEvent>::empty() =~= prefix);
+    part2_color_output_capacity_observed(Part2ColorOutputCapacity::Definition {context},response);
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_color_output_requests_run(requests:Seq<Part2ColorOutputCapacity>,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<()>

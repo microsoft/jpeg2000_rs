@@ -5,6 +5,7 @@ use super::*;
 verus! {
 
 pub enum Part2JpipSnapshotEvent {
+    ExplicitSelectionCapacity {source:Part2TileSelection,elements:nat,succeeded:bool},
     ColorOutputCapacity {context:Part2ColorOutputCapacity,elements:nat,succeeded:bool},
     NltRegionCapacity {context:Part2NltRegionAppendContext,elements:nat,succeeded:bool},
     NltCapacity {context:Part2NltComponentStorageContext,role:Part2NltCapacityRole,elements:nat,succeeded:bool},

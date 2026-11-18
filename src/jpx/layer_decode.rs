@@ -635,43 +635,26 @@ fn decode_general_compositing_layer(
                         previous.1.push((crate::image::typed_component_view(component).info.precision,
                             crate::image::typed_component_view(component).info.signed)))));
             }
-            let mut definition_index = 0_usize;
-            let definition_count = component.channel_definitions().len();
-            #[cfg_attr(
-                verus_keep_ghost,
-                verus_spec(
-                    invariant definition_index <= definition_count,
-                        crate::specs::part2_general_color_count(config.color)==Ok(color_count),
-                        crate::specs::part2_general_sources_prefix(input,config,layer_index,limits,
-                            crate::specs::part2_general_source_count(config))==Ok(collected),
-                        collected==(general_source_views(sources@),width,height),
-                        width>0,height>0,width<u32::MAX,height<u32::MAX,
-                        width as nat*height as nat<=crate::limits::resource_pixel_limit(limits),
-                        crate::specs::part2_general_layer_cold_result(input, config, layer_index, limits,
-                            crate::specs::part2_decode_general_layer(input, config, layer_index, limits)),
-                        definition_count == crate::image::typed_component_definitions(component).len(),
-                        crate::image::typed_component_output_view(&assembled).0 == assembled_value,
-                        crate::image::typed_component_output_view(&assembled).1
-                            == crate::image::typed_component_output_view(component).1.take(definition_index as int),
-                    decreases definition_count - definition_index,
-                )
-            )]
-            while definition_index < definition_count {
-                assembled.add_channel_definition(
-                    *component
-                        .channel_definitions()
-                        .get(definition_index)
-                        .ok_or_else(invalid_layer)?,
-                );
-                definition_index = definition_index
-                    .checked_add(1)
-                    .ok_or_else(arithmetic_overflow)?;
-                #[cfg(verus_keep_ghost)]
-                proof! {
-                    assert(crate::image::typed_component_output_view(&assembled).1
-                        =~= crate::image::typed_component_output_view(component).1.take(definition_index as int));
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost definition_context=crate::specs::Part2TypedCapacityContext::DefinitionCopy {
+                    source:crate::image::typed_component_output_view(component),
+                    target:crate::image::typed_component_output_view(&assembled),
+                };
+            }
+            let copied_definitions = assembled.try_copy_channel_definitions(component);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=copied_definitions {
+                    assert(crate::specs::part2_general_component_copy_context(
+                        source,config,width,height,component_index as nat,initial)==Some(definition_context));
+                    crate::specs::part2_general_component_definition_member(
+                        config,color_count,collected,limits,source_index as nat,component_index as nat,initial,definition_context);
+                    crate::specs::part2_general_definition_error(
+                        input,config,layer_index,color_count,collected,limits,definition_context,error);
                 }
             }
+            copied_definitions?;
 
             descriptors.push((component.info().precision, component.info().signed));
             #[cfg(verus_keep_ghost)]
@@ -721,6 +704,7 @@ fn decode_general_compositing_layer(
     proof! {
         reveal(crate::specs::part2_general_definitions);
         reveal(crate::specs::part2_general_finish);
+        assert(crate::specs::part2_general_definition_input(config,collected,limits)==Some(undefined));
     }
     if !layer.channel_definition_records().is_empty() {
         clear_channel_definitions(&mut components);
@@ -745,6 +729,7 @@ fn decode_general_compositing_layer(
                     crate::specs::part2_decode_general_layer(input, config, layer_index, limits)
                         == crate::specs::part2_general_finish(config, color_count, width, height, (undefined, descriptors@), limits),
                     record_count == config.definitions.len(),
+                    crate::specs::part2_general_definition_input(config,collected,limits)==Some(undefined),
                     config == jp2::general_layer_config(file, layer),
                     crate::specs::part2_general_records_prefix(config.definitions, color_count,
                         crate::specs::part2_general_clear_definitions(undefined, undefined.len()), record_index as nat)
@@ -769,10 +754,26 @@ fn decode_general_compositing_layer(
                 .get(record_index)
                 .ok_or_else(invalid_layer)?;
             validate_layer_definition(record.definition, color_count)?;
-            components
+            let target = components
                 .get_mut(usize::from(record.channel))
-                .ok_or_else(invalid_layer)?
-                .add_channel_definition(record.definition);
+                .ok_or_else(invalid_layer)?;
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost definition_context=crate::specs::Part2TypedCapacityContext::Definition {
+                    source:crate::image::typed_component_output_view(target),
+                    definition:crate::image::channel_definition_view(record.definition),
+                };
+            }
+            let appended = target.try_add_channel_definition(record.definition);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=appended {
+                    assert(crate::specs::part2_general_record_definition_context(config,color_count,undefined,record_index as nat)==Some(definition_context));
+                    crate::specs::part2_general_record_definition_member(config,color_count,collected,limits,undefined,record_index as nat,definition_context);
+                    crate::specs::part2_general_definition_error(input,config,layer_index,color_count,collected,limits,definition_context,error);
+                }
+            }
+            appended?;
             #[cfg(verus_keep_ghost)]
             proof! {
                 assert(crate::image::typed_components_output_view(components@)
@@ -816,6 +817,7 @@ fn decode_general_compositing_layer(
                 config == jp2::general_layer_config(file, layer),
                 config.definitions.len() == 0,
                 config.opacity == Some(jp2::source_opacity_value_view(opacity)),
+                crate::specs::part2_general_definition_input(config,collected,limits)==Some(undefined),
                 crate::specs::part2_decode_general_layer(input, config, layer_index, limits)
                     == crate::specs::part2_general_finish(config, color_count, width, height, (undefined, descriptors@), limits),
                     color_count <= components.len(), color_count <= u16::MAX,
@@ -829,15 +831,31 @@ fn decode_general_compositing_layer(
         while color_index < color_count {
             #[cfg(verus_keep_ghost)]
             proof_decl! { let ghost before = components@; }
-            components
-                .get_mut(color_index)
-                .ok_or_else(invalid_layer)?
-                .add_channel_definition(crate::image::channel_definition_new(
-                    ChannelType::Color,
-                    ChannelAssociation::Color(
-                        u16::try_from(color_index + 1).map_err(|_| arithmetic_overflow())?,
-                    ),
-                ));
+            let target = components.get_mut(color_index).ok_or_else(invalid_layer)?;
+            let definition = crate::image::channel_definition_new(
+                ChannelType::Color,
+                ChannelAssociation::Color(
+                    u16::try_from(color_index + 1).map_err(|_| arithmetic_overflow())?,
+                ),
+            );
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost definition_context=crate::specs::Part2TypedCapacityContext::Definition {
+                    source:crate::image::typed_component_output_view(target),
+                    definition:crate::image::channel_definition_view(definition),
+                };
+            }
+            let appended = target.try_add_channel_definition(definition);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=appended {
+                    assert(definition_context==crate::specs::part2_general_default_definition_context(undefined,color_index as nat));
+                    crate::specs::part2_general_default_definition_member(
+                        config,color_count,collected,limits,undefined,jp2::source_opacity_value_view(opacity),color_index as nat);
+                    crate::specs::part2_general_definition_error(input,config,layer_index,color_count,collected,limits,definition_context,error);
+                }
+            }
+            appended?;
             #[cfg(verus_keep_ghost)]
             proof! {
                 assert(crate::image::typed_components_output_view(components@)[color_index as int]
@@ -871,17 +889,34 @@ fn decode_general_compositing_layer(
             }
             #[cfg(verus_keep_ghost)]
             proof_decl! { let ghost before = components@; }
-            components
-                .get_mut(color_count)
-                .ok_or_else(invalid_layer)?
-                .add_channel_definition(crate::image::channel_definition_new(
-                    if matches!(opacity, LayerOpacity::Premultiplied) {
-                        ChannelType::PremultipliedOpacity
-                    } else {
-                        ChannelType::Opacity
-                    },
-                    ChannelAssociation::WholeImage,
-                ));
+            let target = components.get_mut(color_count).ok_or_else(invalid_layer)?;
+            let definition = crate::image::channel_definition_new(
+                if matches!(opacity, LayerOpacity::Premultiplied) {
+                    ChannelType::PremultipliedOpacity
+                } else {
+                    ChannelType::Opacity
+                },
+                ChannelAssociation::WholeImage,
+            );
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost definition_context=crate::specs::Part2TypedCapacityContext::Definition {
+                    source:crate::image::typed_component_output_view(target),
+                    definition:crate::image::channel_definition_view(definition),
+                };
+            }
+            let appended = target.try_add_channel_definition(definition);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=appended {
+                    assert(definition_context==crate::specs::part2_general_opacity_definition_context(
+                        undefined,color_count,jp2::source_opacity_value_view(opacity)));
+                    crate::specs::part2_general_opacity_definition_member(
+                        config,color_count,collected,limits,undefined,jp2::source_opacity_value_view(opacity));
+                    crate::specs::part2_general_definition_error(input,config,layer_index,color_count,collected,limits,definition_context,error);
+                }
+            }
+            appended?;
             #[cfg(verus_keep_ghost)]
             proof! {
                 assert(crate::image::typed_components_output_view(components@)

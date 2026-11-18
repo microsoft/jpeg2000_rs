@@ -454,7 +454,10 @@ pub(super) fn select_intersecting_tiles(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures selected_tiles_outcome(result) == crate::specs::part2_selection_explicit(crate::options::tile_selection_view(selection)),
+    ensures crate::specs::part2_explicit_selection_storage_result(
+        crate::options::tile_selection_view(selection),selected_tiles_outcome(result)),
+    selected_tiles_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        selected_tiles_outcome(result) == crate::specs::part2_selection_explicit(crate::options::tile_selection_view(selection)),
 ))]
 pub(super) fn explicit_tiles_from_selection(
     selection: &TileSelection,
@@ -463,6 +466,7 @@ pub(super) fn explicit_tiles_from_selection(
     proof! {
         reveal(crate::specs::part2_selection_explicit);
         reveal(crate::options::tile_selection_view);
+        crate::specs::part2_explicit_selection_storage_normal(crate::options::tile_selection_view(selection));
     }
     match selection {
         TileSelection::All => {
@@ -475,7 +479,13 @@ pub(super) fn explicit_tiles_from_selection(
             Ok(tiles)
         }
         TileSelection::Index(index) => {
-            let tiles = vec![*index];
+            let copied = crate::allocation::copy_values(&[*index]);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_explicit_selection_storage_observed(
+                    crate::options::tile_selection_view(selection),crate::allocation::inspection_capacity_outcome(copied));
+            }
+            let tiles = copied?;
             #[cfg(verus_keep_ghost)]
             proof! {
                 assert(tiles@ =~= seq![*index]);
@@ -489,7 +499,13 @@ pub(super) fn explicit_tiles_from_selection(
                     reason: SelectionError::EmptyTileSet,
                 });
             }
-            let copied = indices.clone();
+            let copied = crate::allocation::copy_values(indices);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_explicit_selection_storage_observed(
+                    crate::options::tile_selection_view(selection),crate::allocation::inspection_capacity_outcome(copied));
+            }
+            let copied = copied?;
             #[cfg(verus_keep_ghost)]
             proof! {
                 assert(copied@ == indices@);
@@ -541,7 +557,13 @@ pub(super) fn validate_selection(
         });
     }
 
-    let explicit_tiles = explicit_tiles_from_selection(selection.tile_selection())?;
+    let copying = explicit_tiles_from_selection(selection.tile_selection());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=copying {crate::specs::part2_validate_selection_explicit_error(
+            crate::codestream::selection_geometry_view(size),crate::options::decode_selection_view(selection),error);}
+    }
+    let explicit_tiles = copying?;
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(crate::specs::part2_selection_explicit(crate::options::decode_selection_view(selection).0) == Ok(explicit_tiles@));
