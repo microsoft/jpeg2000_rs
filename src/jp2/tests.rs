@@ -546,6 +546,8 @@ fn actual_raw_file_type_retains_exact_jp2_jpx_jph_profile_admission_and_error_of
     let limits = ResourceLimits::default();
     let cases = [
         (*b"jp2 ", 0, vec![*b"jp2 "], None),
+        (*b"jp2 ", 0, vec![*b"jp2 ", *b"jpx "], None),
+        (*b"jp2 ", 0, vec![*b"jp2 ", *b"jpxb"], None),
         (
             *b"jp2 ",
             0,
@@ -7015,15 +7017,19 @@ fn rejects_duplicate_compatible_brands_and_late_codestream_headers() {
 }
 
 #[test]
-fn rejects_contradictory_jp2_primary_and_jpx_compatibility() {
-    let contradictory = boxed_file(b"jp2 \0\0\0\0jp2 jpx ", &valid_codestream(64, 32));
-    assert!(matches!(
-        parse(&contradictory, &ResourceLimits::default()),
-        Err(DecodeError::MalformedInput {
-            kind: MalformedKind::InvalidFileType,
-            ..
-        })
-    ));
+fn accepts_jp2_primary_with_jp2_and_jpx_compatibility() {
+    for compatibility in [
+        b"jp2 \0\0\0\0jp2 jpx ".as_slice(),
+        b"jp2 \0\0\0\0jp2 jpxb".as_slice(),
+        b"jp2 \0\0\0\0jp2 jpxbjpx ".as_slice(),
+    ] {
+        let input = boxed_file(compatibility, &valid_codestream(64, 32));
+        let parsed = parse(&input, &ResourceLimits::default()).unwrap();
+        assert!(parsed.file_type().is_compatible_with(BoxType::JP2_BRAND));
+        assert!(parsed.file_type().is_jpx_compatible());
+        assert_eq!(parsed.codestream_count(), 1);
+        assert!(parse_and_inspect(&input, &ResourceLimits::default()).is_ok());
+    }
 }
 
 #[test]
