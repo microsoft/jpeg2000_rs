@@ -550,7 +550,25 @@ fn decode_multi_packet_payload(
     )?;
     let present = prefix.present;
     let mut reader = prefix.reader;
-    let mut contributions = vec![None; states.len()];
+    let reserved = if states.is_empty() {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::none_values(states.len())
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let context=crate::specs::Part2MultiContributionsContext {
+            state:initial,data:data@,sop:crate::codestream::coding_style_packet_markers(&params.part.coding_style).0,
+            eph:crate::codestream::coding_style_packet_markers(&params.part.coding_style).1,offset:params.offset,
+            header_limit:crate::limits::resource_packet_header_byte_limit(params.limits),
+            pass_limit:crate::limits::resource_code_block_pass_limit(params.limits),
+            byte_limit:crate::limits::resource_code_block_byte_limit(params.limits),
+            input_limit:crate::limits::resource_input_byte_limit(params.limits),work:crate::limits::resource_work_limit(params.limits),
+        };
+        crate::specs::part2_multi_contributions_observed(context,crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {crate::specs::part2_multi_contributions_refused(context,error);}
+    }
+    let mut contributions = reserved?;
     #[cfg(verus_keep_ghost)]
     proof! {assert(contributions@.map_values(|c:Option<CodeBlockContribution>|code_block_contribution_option_view(c))
     =~= Seq::new(states@.len(),|i:int|None));}

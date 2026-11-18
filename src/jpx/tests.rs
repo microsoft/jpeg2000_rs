@@ -214,6 +214,65 @@ mod tests {
     }
 
     #[test]
+    fn original_general_definition_refusals_preserve_later_error_priority_and_restore() {
+        fn requests_before_error(file: &jp2::Jp2File<'_>, options: &DecodeOptions, expected: DecodeError) -> usize {
+            for after in 0..512 {
+                let (error, pending) = crate::allocation::with_refusal(after, || {
+                    let error = super::layer_decode::decode_effective_layer(file, 0, options).err();
+                    let pending = crate::allocation::empty_with_capacity::<u8>(1).err();
+                    (error, pending)
+                });
+                if error == Some(expected) {
+                    assert_eq!(pending, Some(DecodeError::AllocationFailed));
+                    return after;
+                }
+                assert_eq!(error, Some(DecodeError::AllocationFailed));
+            }
+            panic!("bounded general-layer prefix did not reach its ordinary error");
+        }
+
+        let invalid = DecodeError::MalformedInput {
+            offset: 0, kind: crate::MalformedKind::InvalidBoxContents,
+        };
+        let options = DecodeOptions::default();
+        let rgb_sources = [[0, 0, 2, 1, 0, 0], [0, 1, 2, 1, 0, 0], [0, 2, 2, 1, 0, 0]];
+        let bytes = general_source_bytes(&rgb_sources, &[(99, 0, 1)], None, jp2::ENUMERATED_SRGB);
+        let file = jp2::parse(&bytes, options.limits()).unwrap();
+        let prefix = requests_before_error(&file, &options, invalid);
+
+        for (records, opacity) in [(&[(0, 0, 1), (99, 0, 1)][..], None),
+            (&[][..], Some(&[0][..]))] {
+            let bytes = general_source_bytes(&rgb_sources, records, opacity, jp2::ENUMERATED_SRGB);
+            let file = jp2::parse(&bytes, options.limits()).unwrap();
+            let original = file.clone();
+            assert_eq!(super::layer_decode::decode_effective_layer(&file, 0, &options).err(), Some(invalid));
+            assert_eq!(crate::allocation::with_refusal(prefix, ||
+                super::layer_decode::decode_effective_layer(&file, 0, &options)).err(),
+                Some(DecodeError::AllocationFailed));
+            assert_eq!(super::layer_decode::decode_effective_layer(&file, 0, &options).err(), Some(invalid));
+            assert_eq!(file, original);
+        }
+
+        let options = DecodeOptions::new(ResourceLimits::default().with_maximum_decoded_bytes(9).unwrap());
+        let gray_sources = [[0, 0, 2, 1, 0, 0], [0, 1, 2, 1, 0, 0]];
+        let bytes = general_source_bytes(&gray_sources, &[(99, 0, 1)], None, jp2::ENUMERATED_GRAYSCALE);
+        let file = jp2::parse(&bytes, options.limits()).unwrap();
+        let prefix = requests_before_error(&file, &options, invalid);
+        let bytes = general_source_bytes(&gray_sources, &[], Some(&[0]), jp2::ENUMERATED_GRAYSCALE);
+        let file = jp2::parse(&bytes, options.limits()).unwrap();
+        let original = file.clone();
+        let expected = DecodeError::LimitExceeded {
+            resource: Resource::DecodedBytes, limit: 9, actual: 16,
+        };
+        assert_eq!(super::layer_decode::decode_effective_layer(&file, 0, &options).err(), Some(expected));
+        assert_eq!(crate::allocation::with_refusal(prefix + 1, ||
+            super::layer_decode::decode_effective_layer(&file, 0, &options)).err(),
+            Some(DecodeError::AllocationFailed));
+        assert_eq!(super::layer_decode::decode_effective_layer(&file, 0, &options).err(), Some(expected));
+        assert_eq!(file, original);
+    }
+
+    #[test]
     fn actual_general_layer_derives_literal_multisource_registered_planes() {
         let options = DecodeOptions::default();
         for (subsampling, offset, expected_width) in [(2, 0, 1), (4, 1, 3)] {

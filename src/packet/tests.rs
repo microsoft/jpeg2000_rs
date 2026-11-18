@@ -373,7 +373,8 @@ fn rollback_snapshot_storage_empty_and_independent_raw_owners_keep_error_frontie
     let ordinary = decode_jpip_precinct_packet(&template, &[], 0, 0, &mut empty(), &limits);
     assert!(ordinary.is_err());
     assert_ne!(ordinary, Err(DecodeError::AllocationFailed));
-    crate::allocation::with_refusal(0, || {
+    // The uniform template has one metadata copy before packet admission.
+    crate::allocation::with_refusal(1, || {
         let mut precinct = empty();
         let before = exact_packet_precinct_snapshot(&precinct);
         assert_eq!(
@@ -2580,6 +2581,93 @@ fn public_multi_optional_sop_retains_empty_packet_state_and_budgets() {
         );
         assert_eq!(format!("{:?}", decoders[0]), before);
     }
+}
+
+#[test]
+fn original_multi_packet_contribution_storage_keeps_empty_packet_state_and_retry() {
+    let limits = ResourceLimits::default();
+    let data = [0];
+    let tile = TilePartPayload::uniform_for_packet_decoding(
+        0,
+        0,
+        1,
+        1,
+        coding_style(false, false),
+        crate::codestream::RoiShifts::none(),
+        &data,
+    )
+    .unwrap();
+    let mut states = [code_block_packet_state_new()];
+    let mut inclusion = tag_tree_new(1, 1, &limits).unwrap();
+    let mut zero = tag_tree_new(1, 1, &limits).unwrap();
+    let contexts = [literal_precinct_header_context()];
+    let mut decoders = [one_bit_legacy_decoder(false)];
+    let before = format!("{states:?}{inclusion:?}{zero:?}{decoders:?}");
+    assert_eq!(
+        crate::allocation::with_refusal(0, || decode_multi_code_block_packet(
+            &tile,
+            0,
+            PacketCodeBlockExecution {
+                states: &mut states,
+                inclusion_tree: &mut inclusion,
+                zero_bitplane_tree: &mut zero,
+                contexts: &contexts,
+                decoders: &mut decoders,
+            },
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        format!("{states:?}{inclusion:?}{zero:?}{decoders:?}"),
+        before
+    );
+    let restored = decode_multi_code_block_packet(
+        &tile,
+        0,
+        PacketCodeBlockExecution {
+            states: &mut states,
+            inclusion_tree: &mut inclusion,
+            zero_bitplane_tree: &mut zero,
+            contexts: &contexts,
+            decoders: &mut decoders,
+        },
+        &limits,
+    )
+    .unwrap();
+    assert!(!restored.present);
+    assert_eq!(restored.contributions, 0);
+    assert_eq!(restored.bytes_consumed, 1);
+}
+
+#[test]
+fn original_jpip_inline_copy_refusal_keeps_actual_layer_update_and_restore() {
+    let limits = ResourceLimits::default();
+    let mut template = literal_progression_tile(&[], 1, 0, 0, 1);
+    template.progression_changes =
+        ProgressionChanges::from_records(vec![literal_progression_window()]);
+    let mut precinct = literal_ht_progression_precinct(0);
+    precinct.states.clear();
+    precinct.contexts[0].layer = 0;
+    let expected = exact_packet_precinct_snapshot(&precinct);
+    precinct.contexts[0].layer = 7;
+    assert_eq!(
+        crate::allocation::with_refusal(0, || decode_jpip_precinct_packet_inner(
+            &template,
+            &[],
+            0,
+            0,
+            &mut precinct,
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(exact_packet_precinct_snapshot(&precinct), expected);
+    assert_eq!(
+        decode_jpip_precinct_packet_inner(&template, &[], 0, 0, &mut precinct, &limits),
+        Err(invalid_packet_header())
+    );
+    assert_eq!(exact_packet_precinct_snapshot(&precinct), expected);
 }
 
 #[test]

@@ -1698,7 +1698,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_complete_coefficient_reconstruction_and_real_mct_owners(self):
         self._assert_complete_packet_contract_bindings(
             {"part2-complete-native-coefficient-component-reconstruction"},
-            framework._RECONSTRUCTION_CONTRACTS, 21,
+            framework._RECONSTRUCTION_CONTRACTS, 25,
         )
 
     def test_inventory_binds_complete_native_chroma_key_owner_and_inputs(self):
@@ -5320,10 +5320,10 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "color output storage|executable Verus"):
                 framework.validate_normative_coverage(dict(data, requirements=[entries[ident]]))
 
-    def test_inventory_color_output_storage_keeps_every_primary_source_argument_and_result(self):
+    def _assert_storage_primary_bindings(self, contracts):
         data = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         read_text = Path.read_text
-        for key in framework._COLOR_OUTPUT_CONTRACTS:
+        for key in contracts:
             relative, symbol = key
             entry = next(item for item in data["requirements"]
                          if {"path": relative, "symbol": symbol} in item["contract_refs"])
@@ -5363,6 +5363,92 @@ class FrameworkTests(WorkingFiles):
                 with self.subTest(symbol=symbol, changed=changed), mock.patch.object(Path, "read_text", altered), \
                         self.assertRaisesRegex(ValueError, "executable Verus"):
                     framework.validate_normative_coverage(dict(data, requirements=[entry]))
+
+    def test_inventory_color_output_storage_keeps_every_primary_source_argument_and_result(self):
+        self._assert_storage_primary_bindings(framework._COLOR_OUTPUT_CONTRACTS)
+
+    def test_inventory_original_port_keeps_every_primary_source_argument_result_and_guard(self):
+        self._assert_storage_primary_bindings(framework._ORIGINAL_STORAGE_CONTRACTS)
+
+    def test_inventory_original_port_binds_real_source_roles_work_metadata_prefixes_and_tails(self):
+        data = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entries = {entry["id"]: entry for entry in data["requirements"]}
+        read_text = Path.read_text
+        mct = "part2-complete-native-coefficient-component-reconstruction"
+        packet = "part1-complete-native-public-packet-boundaries"
+        general = "part2-complete-native-general-layer-result"
+        mutations = (
+            (mct, "specs/cold_mct_auxiliary.rs", "part2_mct_auxiliary_program_run",
+             "Err(error)=>Some((Ok((Err(error),requests[0].1)),rest))", "Err(error)=>Some((Ok((Err(error),ordinary.1)),rest))"),
+            (mct, "specs/cold_mct_auxiliary.rs", "part2_mct_pair_requests",
+             "destination:true", "destination:false"),
+            (mct, "specs/cold_mct_runtime.rs", "part2_mct_runtime_capacity_count",
+             "PairIndexes {count,..}=>count as nat", "PairIndexes {count,..}=>count as nat+1"),
+            (mct, "specs/cold_mct_auxiliary.rs", "part2_mct_wavelet_after_partition_requests",
+             "WaveletFractions {context},admitted.1", "WaveletFractions {context},context.work"),
+            (mct, "specs/cold_mct_line_pixels.rs", "part2_mct_line_wavelet_after_preparation",
+             "Err(error),context.components,prepared.1", "Err(error),Seq::empty(),prepared.1"),
+            (mct, "specs/cold_mct_wavelet_lines.rs", "part2_mct_line_reconstruction_run",
+             "WaveletReconstruction {source,high,first,reversible,low,count}",
+             "WaveletReconstruction {source,high,first,reversible,low:count,count:low}"),
+            (mct, "src/image/mct_dependency.rs", "mct_component_pair_indexes",
+             "inspection_capacity_outcome(reserved)", "Ok(())"),
+            (mct, "src/image/mct_dependency.rs", "apply_mct_dependency",
+             "empty_with_capacity(count)", "empty_with_capacity(count + 1)"),
+            (packet, "specs/cold_packet_payload.rs", "part2_multi_contributions_run",
+             "actual!=context || elements!=count", "actual!=context || elements!=count+1"),
+            (packet, "specs/cold_packet_payload.rs", "part2_jpip_inline_copy_run",
+             "actual!=source", "actual==source"),
+            ("part2-complete-native-container-selection-output", "specs/decoder_input.rs", "part2_explicit_selection_storage_count",
+             "Index(_)=>1", "Index(_)=>0"),
+            ("part1-complete-public-sample-conversion", "specs/cold_quantization_outputs.rs", "part2_convert_samples_storage_admitted",
+             "plane.2<=62", "plane.2<=63"),
+            (general, "specs/jpx_general.rs", "part2_general_component_copy_context",
+             "after.0[before.0.len() as int].0", "source.0.1[component as int]"),
+            (general, "specs/jpx_general.rs", "part2_general_record_definition_context",
+             "source:before[record.0 as int]", "source:before[0]"),
+            (general, "specs/jpx_general.rs", "part2_general_opacity_definition_context",
+             "crate::ChannelType::PremultipliedOpacity", "crate::ChannelType::Opacity"),
+            (general, "src/jpx/layer_decode.rs", "decode_general_compositing_layer",
+             "try_copy_channel_definitions(component)", "try_copy_channel_definitions(unrelated)"),
+        )
+        for ident, relative, symbol, before, after in mutations:
+            path = framework.ROOT / relative
+            original = read_text(path)
+            body = (framework._coverage_spec_function_body(original, symbol) if relative.startswith("specs/") else
+                    framework._coverage_function_body(original, framework._coverage_function_header(original, symbol)))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(source, *args, **kwargs):
+                return changed if source == path else read_text(source, *args, **kwargs)
+
+            with self.subTest(symbol=symbol), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus|MCT runtime storage|color output storage|source-derived|whole general"):
+                framework.validate_normative_coverage(dict(data, requirements=[entries[ident]]))
+
+    def test_inventory_original_port_requires_normal_refusal_work_and_actual_child_links(self):
+        data = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        for ident, field, relative, symbol in (
+            ("part2-complete-native-coefficient-component-reconstruction", "proof_refs",
+             "specs/cold_mct_auxiliary.rs", "part2_mct_wavelet_prepare_fraction_error"),
+            ("part2-complete-native-coefficient-component-reconstruction", "spec_refs",
+             "specs/cold_mct_auxiliary.rs", "part2_mct_dependency_scratch_requests"),
+            ("part2-complete-native-general-layer-result", "proof_refs",
+             "specs/jpx_general.rs", "part2_general_definition_error"),
+            ("part1-complete-native-public-packet-boundaries", "proof_refs",
+             "specs/cold_packet_payload.rs", "part2_multi_contributions_refused"),
+            ("part2-complete-native-container-selection-output", "test_refs",
+             "src/decode/tests.rs", "original_explicit_selection_storage_keeps_raw_order_empty_errors_and_retry"),
+        ):
+            entry = next(item for item in data["requirements"] if item["id"] == ident)
+            changed = dict(entry, **{field: [
+                ref for ref in entry[field] if (ref["path"], ref["symbol"]) != (relative, symbol)
+            ]})
+            self.assertEqual(len(changed[field]), len(entry[field]) - 1)
+            with self.subTest(symbol=symbol), \
+                    self.assertRaisesRegex(ValueError, "executable Verus|MCT runtime storage|whole general"):
+                framework.validate_normative_coverage(dict(data, requirements=[changed]))
 
     def test_inventory_color_output_storage_requires_normal_refusal_and_source_program_links(self):
         data = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
@@ -11072,7 +11158,10 @@ class FrameworkTests(WorkingFiles):
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._TILE_METADATA_STORAGE_TESTS)
                         if {"path": path, "symbol": symbol} not in isolated["test_refs"]
                     ]
-                if key in framework._COLOR_OUTPUT_CONTRACTS or key == ("src/decode/api.rs", "typed_layout") or isolated["id"] in {
+                if key in framework._COLOR_OUTPUT_CONTRACTS or key in framework._ORIGINAL_STORAGE_CONTRACTS \
+                        or framework._COLD_RESULT_CONTRACTS.get(key, (None,))[0] in framework._ORIGINAL_ADMISSION_GUARDS \
+                        or key == ("src/decode/api.rs", "typed_layout") or isolated["id"] in {
+                        "part1-complete-native-public-packet-boundaries",
                         "part2-complete-native-reversible-decorrelation-engineering",
                         "part2-complete-native-coefficient-component-reconstruction",
                         "part1-complete-native-raw-layout-result",

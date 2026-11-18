@@ -57,8 +57,8 @@ pub fn decode_subband(
             bytes,
         ));
     }
-    let mut samples = vec![0_i64; length];
-    let mut visited = vec![false; length];
+    let mut samples = crate::allocation::filled_values(0_i64, length)?;
+    let mut visited = crate::allocation::filled_values(false, length)?;
     let mut fraction_bits = None;
     let mut block_index = 0_usize;
     #[cfg_attr(

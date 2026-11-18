@@ -182,6 +182,8 @@ mod cold_mct_line_composition;
 pub use cold_mct_line_composition::*;
 mod cold_mct_runtime;
 pub use cold_mct_runtime::*;
+mod cold_mct_auxiliary;
+pub use cold_mct_auxiliary::*;
 mod cold_coefficient_extraction;
 pub use cold_coefficient_extraction::*;
 mod cold_extraction_reconstruction;

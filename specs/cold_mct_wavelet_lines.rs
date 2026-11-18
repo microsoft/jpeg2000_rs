@@ -29,12 +29,35 @@ pub(crate) open spec fn part2_mct_line_steps_run(source:Seq<i64>,high:Seq<usize>
 pub(crate) open spec fn part2_mct_line_finish(previous:(usize,Seq<i64>),count:usize)->Result<Seq<i64>,crate::DecodeError> {
     if previous.0!=count || previous.1.len()!=count{Err(part1_transform_error(false))}else{Ok(previous.1)}
 }
-pub(crate) open spec fn part2_mct_line_reconstruction_run(source:Seq<i64>,high:Seq<usize>,first:Seq<bool>,reversible:bool,low:usize,count:usize,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Seq<i64>> {
+pub(crate) open spec fn part2_mct_line_reconstruction_after_capacity_run(source:Seq<i64>,high:Seq<usize>,first:Seq<bool>,reversible:bool,low:usize,count:usize,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Seq<i64>> {
     part2_tier1_storage_bind(part2_mct_line_steps_run(source,high,first,reversible,low,high.len(),calls),
         |previous:(usize,Seq<i64>),rest|Some((part2_mct_line_finish(previous,count),rest)))
 }
+pub(crate) open spec fn part2_mct_line_reconstruction_run(source:Seq<i64>,high:Seq<usize>,first:Seq<bool>,reversible:bool,low:usize,count:usize,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Seq<i64>> {
+    part2_tier1_storage_bind(part2_mct_runtime_capacity_run(
+        Part2MctRuntimeCapacity::WaveletReconstruction {source,high,first,reversible,low,count},calls),
+        |_:(),rest|part2_mct_line_reconstruction_after_capacity_run(source,high,first,reversible,low,count,rest))
+}
 pub(crate) open spec fn part2_mct_line_reconstruction_result(source:Seq<i64>,high:Seq<usize>,first:Seq<bool>,reversible:bool,low:usize,count:usize,result:Result<Seq<i64>,crate::DecodeError>)->bool {
     part2_tier1_storage_framed(|calls|part2_mct_line_reconstruction_run(source,high,first,reversible,low,count,calls),result)
+}
+pub(crate) proof fn part2_mct_line_reconstruction_after_capacity_frames(source:Seq<i64>,high:Seq<usize>,first:Seq<bool>,reversible:bool,low:usize,count:usize,result:Result<Seq<i64>,crate::DecodeError>)
+    requires part2_tier1_storage_framed(|calls|part2_mct_line_reconstruction_after_capacity_run(source,high,first,reversible,low,count,calls),result),
+    ensures part2_mct_line_reconstruction_result(source,high,first,reversible,low,count,result),
+{
+    let capacity=Part2MctRuntimeCapacity::WaveletReconstruction {source,high,first,reversible,low,count};
+    part2_mct_runtime_capacity_normal(capacity);
+    part2_tier1_storage_eta(|calls|part2_mct_line_reconstruction_after_capacity_run(source,high,first,reversible,low,count,calls),result);
+    part2_tier1_storage_bind_frame(|calls|part2_mct_runtime_capacity_run(capacity,calls),
+        |_:(),rest|part2_mct_line_reconstruction_after_capacity_run(source,high,first,reversible,low,count,rest),Ok(()),result);
+}
+pub(crate) proof fn part2_mct_line_reconstruction_capacity_error(source:Seq<i64>,high:Seq<usize>,first:Seq<bool>,reversible:bool,low:usize,count:usize,error:crate::DecodeError)
+    requires part2_mct_runtime_capacity_result(Part2MctRuntimeCapacity::WaveletReconstruction {source,high,first,reversible,low,count},Err(error)),
+    ensures part2_mct_line_reconstruction_result(source,high,first,reversible,low,count,Err(error)),
+{
+    let capacity=Part2MctRuntimeCapacity::WaveletReconstruction {source,high,first,reversible,low,count};
+    part2_tier1_storage_bind_frame(|calls|part2_mct_runtime_capacity_run(capacity,calls),
+        |_:(),rest|part2_mct_line_reconstruction_after_capacity_run(source,high,first,reversible,low,count,rest),Err(error),Err(error));
 }
 pub(crate) proof fn part2_mct_line_step_normal(previous:(usize,Seq<i64>),source:Seq<i64>,high:Seq<usize>,first:Seq<bool>,reversible:bool,index:nat)
     ensures part2_tier1_storage_framed(|calls|part2_mct_line_step_run(previous,source,high,first,reversible,index,calls),
@@ -77,6 +100,8 @@ pub(crate) proof fn part2_mct_line_reconstruction_normal(source:Seq<i64>,high:Se
     if previous.is_ok(){part2_tier1_storage_pure(result);}
     part2_tier1_storage_bind_frame(|calls|part2_mct_line_steps_run(source,high,first,reversible,low,high.len(),calls),
         |previous:(usize,Seq<i64>),rest|Some((part2_mct_line_finish(previous,count),rest)),previous,result);
+    part2_mct_line_reconstruction_after_capacity_frames(source,high,first,reversible,low,count,
+        part2_mct_wavelet_reconstruction(source,high,first,reversible,low,count));
 }
 pub(crate) proof fn part2_mct_line_prefix_error(source:Seq<i64>,high:Seq<usize>,first:Seq<bool>,reversible:bool,low:usize,prefix:nat,count:nat,error:crate::DecodeError)
     requires prefix<=count,count<=high.len(),part2_tier1_storage_framed(|calls|part2_mct_line_steps_run(source,high,first,reversible,low,prefix,calls),Err(error)),
@@ -106,6 +131,7 @@ pub(crate) proof fn part2_mct_line_child_error(source:Seq<i64>,high:Seq<usize>,f
     part2_mct_line_prefix_error(source,high,first,reversible,low,processed+1,high.len(),error);
     part2_tier1_storage_bind_frame(|calls|part2_mct_line_steps_run(source,high,first,reversible,low,high.len(),calls),
         |previous:(usize,Seq<i64>),rest|Some((part2_mct_line_finish(previous,count),rest)),Err(error),Err(error));
+    part2_mct_line_reconstruction_after_capacity_frames(source,high,first,reversible,low,count,Err(error));
 }
 pub type Part2MctLinePixelEffect=(Result<(),crate::DecodeError>,Seq<Part2MctComponent>,Seq<i64>);
 pub(crate) open spec fn part2_mct_line_pixel_after(before:Seq<Part2MctComponent>,prepared:Part2MctWaveletPreparation,sample:usize,source:Seq<i64>,result:Result<Seq<i64>,crate::DecodeError>)->Part2MctLinePixelEffect {

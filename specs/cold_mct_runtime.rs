@@ -14,6 +14,12 @@ pub(crate) enum Part2MctRuntimeRole {
 pub(crate) enum Part2MctRuntimeCapacity {
     Collection {context:Part2MctRuntimeContext,role:Part2MctRuntimeRole},
     Inverse {matrix:Part2MctArray,source:Seq<i64>},
+    PairIndexes {components:Seq<Part2MctComponent>,inputs:Seq<u16>,outputs:Seq<u16>,count:usize,destination:bool},
+    WaveletPartition {count:usize,wavelet:Part2MctWavelet,high:bool},
+    DependencyScratch {context:Part2MctRuntimeContext,role:Part2MctRuntimeRole},
+    WaveletFractions {context:Part2MctRuntimeContext},
+    WaveletSource {context:Part2MctRuntimeContext},
+    WaveletReconstruction {source:Seq<i64>,high:Seq<usize>,first:Seq<bool>,reversible:bool,low:usize,count:usize},
 }
 pub(crate) open spec fn part2_mct_runtime_preparation(context:Part2MctRuntimeContext)
     ->(Result<Part2MctDecorrelationPreparation,crate::DecodeError>,u64) {
@@ -25,6 +31,18 @@ pub(crate) open spec fn part2_mct_inverse_storage_admitted(matrix:Part2MctArray,
 }
 pub(crate) open spec fn part2_mct_runtime_capacity_count(capacity:Part2MctRuntimeCapacity)->nat {
     match capacity {
+        Part2MctRuntimeCapacity::PairIndexes {count,..}=>count as nat,
+        Part2MctRuntimeCapacity::WaveletPartition {wavelet,..}=>wavelet.1 as nat,
+        Part2MctRuntimeCapacity::DependencyScratch {context,role}=>match part2_mct_prepare_dependency(
+            context.components,context.collection,context.work,context.maximum_work,context.maximum_bytes).0 {
+                Err(_)=>0,Ok(plan)=>if role==Part2MctRuntimeRole::SourceSamples || role==Part2MctRuntimeRole::OutputSamples
+                    || role==Part2MctRuntimeRole::FractionBits {plan.3 as nat}else{0},
+            },
+        Part2MctRuntimeCapacity::WaveletFractions {context}|Part2MctRuntimeCapacity::WaveletSource {context}=>
+            match part2_mct_prepare_wavelet(context.components,context.collection,context.work,context.maximum_work,context.maximum_bytes).0 {
+                Err(_)=>0,Ok(plan)=>plan.6 as nat,
+            },
+        Part2MctRuntimeCapacity::WaveletReconstruction {low,..}=>low as nat,
         Part2MctRuntimeCapacity::Inverse {matrix,source}=>if part2_mct_inverse_storage_admitted(matrix,source){source.len()}else{0},
         Part2MctRuntimeCapacity::Collection {context,role}=>match role {
             Part2MctRuntimeRole::SourceIndexes=>match part2_mct_decorrelation_dimensions(context.collection){Ok((_,columns))=>columns as nat,_=>0},

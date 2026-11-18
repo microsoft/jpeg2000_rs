@@ -58,78 +58,312 @@
         {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"}
       ],
       "spec_refs": [
-        {"path": "specs/jpip_copy_packets.rs", "symbol": "Part2CopyPacketDecode"},
-        {"path": "specs/jpip_copy_packets.rs", "symbol": "Part2CopyPacketStep"},
-        {"path": "specs/jpip_copy_packets.rs", "symbol": "part2_copy_packet_admit"},
-        {"path": "specs/jpip_copy_packets.rs", "symbol": "part2_copy_packet_finish"},
-        {"path": "specs/jpip_copy_packets.rs", "symbol": "part2_copy_packets_run"},
-        {"path": "specs/jpip_copy_packets.rs", "symbol": "part2_copy_packets_normal_calls"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_copy_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_precinct_contributions_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_precinct_contributions_result"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_prepared_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_inline"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_finish"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_result"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_inner_caps"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_inner_run"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_copy_result"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_automatic_snapshot_result"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_run"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tile_normal_run"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_grid_plan"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_grid_plan_value"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_grid_normal_calls"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tile"},
-        {"path": "specs/jpip_snapshot.rs", "symbol": "part2_jpip_snapshot_ready"},
-        {"path": "specs/jpip_snapshot.rs", "symbol": "part2_jpip_snapshot_available"},
-        {"path": "specs/jpip_snapshot.rs", "symbol": "part2_jpip_snapshot_missing"},
-        {"path": "specs/jpip_snapshot.rs", "symbol": "part2_jpip_snapshot_emit_tiles"},
-        {"path": "specs/jpip_byte_writes.rs", "symbol": "part2_jpip_template_finish"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_finish_prepared"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_hot_prefix"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_prepare_tiles"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_static_context"}
+        {
+          "path": "specs/jpip_copy_packets.rs",
+          "symbol": "Part2CopyPacketDecode"
+        },
+        {
+          "path": "specs/jpip_copy_packets.rs",
+          "symbol": "Part2CopyPacketStep"
+        },
+        {
+          "path": "specs/jpip_copy_packets.rs",
+          "symbol": "part2_copy_packet_admit"
+        },
+        {
+          "path": "specs/jpip_copy_packets.rs",
+          "symbol": "part2_copy_packet_finish"
+        },
+        {
+          "path": "specs/jpip_copy_packets.rs",
+          "symbol": "part2_copy_packets_run"
+        },
+        {
+          "path": "specs/jpip_copy_packets.rs",
+          "symbol": "part2_copy_packets_normal_calls"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_copy_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_precinct_contributions_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_precinct_contributions_result"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_prepared_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_inline"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_finish"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_result"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_inner_caps"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_inner_run"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_copy_result"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_automatic_snapshot_result"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_snapshot_run"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_snapshot_tile_normal_run"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_grid_plan"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_grid_plan_value"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_grid_normal_calls"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_snapshot_tile"
+        },
+        {
+          "path": "specs/jpip_snapshot.rs",
+          "symbol": "part2_jpip_snapshot_ready"
+        },
+        {
+          "path": "specs/jpip_snapshot.rs",
+          "symbol": "part2_jpip_snapshot_available"
+        },
+        {
+          "path": "specs/jpip_snapshot.rs",
+          "symbol": "part2_jpip_snapshot_missing"
+        },
+        {
+          "path": "specs/jpip_snapshot.rs",
+          "symbol": "part2_jpip_snapshot_emit_tiles"
+        },
+        {
+          "path": "specs/jpip_byte_writes.rs",
+          "symbol": "part2_jpip_template_finish"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_snapshot_finish_prepared"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_snapshot_hot_prefix"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_snapshot_prepare_tiles"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_snapshot_static_context"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inline_copy_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_after_copy_run"
+        }
       ],
       "proof_refs": [
-        {"path": "src/jpip/progression.rs", "symbol": "DatabinCache::build_automatic_snapshot"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_grid_normal_frame"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_grid_plan_error"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_tile_actual_error"},
-        {"path": "src/jpip/snapshot_header_proof_support.rs", "symbol": "jpip_snapshot_layout_capacity_error"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_automatic_snapshot_outcome"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_root_ready_result"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_root_emit_error"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_tile_root_missing"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_missing_ref_projection"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_layout_success_known"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_mapping_capacity_error"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_packet_capacity_error"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_plan_errors"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_iterator_errors"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_order_errors"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_normal_fold_equivalent"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_root_join"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_root_start"},
-        {"path": "specs/jpip_snapshot_inputs.rs", "symbol": "part2_jpip_snapshot_tiles_equivalent"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_collection_entry"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_collection_outcome"},
-        {"path": "specs/jpip_copy_packets.rs", "symbol": "part2_copy_packets_normal"},
-        {"path": "specs/jpip_copy_packets.rs", "symbol": "part2_copy_packets_skip"},
-        {"path": "specs/jpip_copy_packets.rs", "symbol": "part2_copy_packets_end"},
-        {"path": "specs/jpip_copy_packets.rs", "symbol": "part2_copy_packets_decode"},
-        {"path": "specs/jpip_copy_packets.rs", "symbol": "part2_copy_packets_normal_calls_known"},
-        {"path": "specs/jpip_copy_packets.rs", "symbol": "part2_copy_packets_normal_at"},
-        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_copy_error"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_copy_frames"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_precinct_contributions_observed"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_prepared_normal"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_capacity_then"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_normal"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_observed"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_inner_observed"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_copy_normal"}
+        {
+          "path": "src/jpip/progression.rs",
+          "symbol": "DatabinCache::build_automatic_snapshot"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_grid_normal_frame"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_snapshot_grid_plan_error"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_snapshot_tile_actual_error"
+        },
+        {
+          "path": "src/jpip/snapshot_header_proof_support.rs",
+          "symbol": "jpip_snapshot_layout_capacity_error"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_automatic_snapshot_outcome"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_snapshot_root_ready_result"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_snapshot_root_emit_error"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_snapshot_tile_root_missing"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_missing_ref_projection"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_snapshot_layout_success_known"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_snapshot_mapping_capacity_error"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_snapshot_packet_capacity_error"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_snapshot_plan_errors"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_snapshot_iterator_errors"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_snapshot_order_errors"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_snapshot_normal_fold_equivalent"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_snapshot_root_join"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_snapshot_root_start"
+        },
+        {
+          "path": "specs/jpip_snapshot_inputs.rs",
+          "symbol": "part2_jpip_snapshot_tiles_equivalent"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_snapshot_collection_entry"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_snapshot_collection_outcome"
+        },
+        {
+          "path": "specs/jpip_copy_packets.rs",
+          "symbol": "part2_copy_packets_normal"
+        },
+        {
+          "path": "specs/jpip_copy_packets.rs",
+          "symbol": "part2_copy_packets_skip"
+        },
+        {
+          "path": "specs/jpip_copy_packets.rs",
+          "symbol": "part2_copy_packets_end"
+        },
+        {
+          "path": "specs/jpip_copy_packets.rs",
+          "symbol": "part2_copy_packets_decode"
+        },
+        {
+          "path": "specs/jpip_copy_packets.rs",
+          "symbol": "part2_copy_packets_normal_calls_known"
+        },
+        {
+          "path": "specs/jpip_copy_packets.rs",
+          "symbol": "part2_copy_packets_normal_at"
+        },
+        {
+          "path": "src/jpip/progression_proof_support.rs",
+          "symbol": "jpip_snapshot_copy_error"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_copy_frames"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_precinct_contributions_observed"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_prepared_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_capacity_then"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_observed"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_inner_observed"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_copy_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inline_copy_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inline_copy_observed"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_after_copy_frames"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_copy_error"
+        }
       ],
       "test_refs": [
         {"path": "src/jpip/tests.rs", "symbol": "automatic_snapshot_complete_result_keeps_none_zero_prefix_and_final_bytes"},
@@ -450,43 +684,172 @@
         {"path": "src/jpip/automatic_phases.rs", "symbol": "emit_automatic_tile_part"}
       ],
       "spec_refs": [
-        {"path": "specs/jpip_phases.rs", "symbol": "part2_jpip_order_phase"},
-        {"path": "specs/jpip_phases.rs", "symbol": "part2_jpip_ordinal_cell_phase"},
-        {"path": "specs/jpip_phases.rs", "symbol": "part2_jpip_precinct_phase"},
-        {"path": "specs/jpip_phases.rs", "symbol": "part2_jpip_emit_packet_phase"},
-        {"path": "specs/jpip_phases.rs", "symbol": "part2_jpip_emit_packets_phase"},
-        {"path": "specs/jpip_phases.rs", "symbol": "part2_jpip_emit_part_patch"},
-        {"path": "specs/jpip_phases.rs", "symbol": "part2_jpip_emit_part_phase"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_phase_copy_run"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_phase_copy_result"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_copy_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_precinct_contributions_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_precinct_contributions_result"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_prepared_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_inline"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_finish"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_result"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_inner_caps"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_inner_run"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_copy_result"}
+        {
+          "path": "specs/jpip_phases.rs",
+          "symbol": "part2_jpip_order_phase"
+        },
+        {
+          "path": "specs/jpip_phases.rs",
+          "symbol": "part2_jpip_ordinal_cell_phase"
+        },
+        {
+          "path": "specs/jpip_phases.rs",
+          "symbol": "part2_jpip_precinct_phase"
+        },
+        {
+          "path": "specs/jpip_phases.rs",
+          "symbol": "part2_jpip_emit_packet_phase"
+        },
+        {
+          "path": "specs/jpip_phases.rs",
+          "symbol": "part2_jpip_emit_packets_phase"
+        },
+        {
+          "path": "specs/jpip_phases.rs",
+          "symbol": "part2_jpip_emit_part_patch"
+        },
+        {
+          "path": "specs/jpip_phases.rs",
+          "symbol": "part2_jpip_emit_part_phase"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_phase_copy_run"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_phase_copy_result"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_copy_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_precinct_contributions_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_precinct_contributions_result"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_prepared_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_inline"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_finish"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_result"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_inner_caps"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_inner_run"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_copy_result"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inline_copy_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_after_copy_run"
+        }
       ],
       "proof_refs": [
-        {"path": "src/jpip/automatic_phases.rs", "symbol": "build_automatic_order"},
-        {"path": "src/jpip/automatic_phases.rs", "symbol": "write_automatic_ordinal"},
-        {"path": "src/jpip/automatic_phases.rs", "symbol": "decode_automatic_precinct"},
-        {"path": "src/jpip/automatic_phases.rs", "symbol": "emit_automatic_tile_part"},
-        {"path": "src/decode/planning.rs", "symbol": "ProgressionTilePlan::precincts_mut"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_phase_copy_lookup_error"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_phase_copy_observed"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_phase_copy_normal"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_precinct_contributions_observed"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_prepared_normal"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_capacity_then"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_normal"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_observed"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_inner_observed"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_copy_frames"}
+        {
+          "path": "src/jpip/automatic_phases.rs",
+          "symbol": "build_automatic_order"
+        },
+        {
+          "path": "src/jpip/automatic_phases.rs",
+          "symbol": "write_automatic_ordinal"
+        },
+        {
+          "path": "src/jpip/automatic_phases.rs",
+          "symbol": "decode_automatic_precinct"
+        },
+        {
+          "path": "src/jpip/automatic_phases.rs",
+          "symbol": "emit_automatic_tile_part"
+        },
+        {
+          "path": "src/decode/planning.rs",
+          "symbol": "ProgressionTilePlan::precincts_mut"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_phase_copy_lookup_error"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_phase_copy_observed"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_phase_copy_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_precinct_contributions_observed"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_prepared_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_capacity_then"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_observed"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_inner_observed"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_copy_frames"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inline_copy_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inline_copy_observed"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_after_copy_frames"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_copy_error"
+        }
       ],
       "test_refs": [
         {"path": "src/jpip/tests.rs", "symbol": "automatic_order_phase_preserves_exact_partial_error_states_and_next_call_order"},
@@ -3402,49 +3765,233 @@
         {"path": "src/image/layout.rs", "symbol": "channel_definition_new"}
       ],
       "spec_refs": [
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_after_cold_sources_run"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_color_context"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_color_requests"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_normalize_source_requests"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_decode_general_layer"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_sources_prefix"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_source_step"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_assembled_sources_prefix"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_components_prefix"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_component_step"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_definitions"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_records_prefix"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_default_colors"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_after_assembly"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_finish"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_layer_cold_result"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_layer_cold_run"}
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_after_cold_sources_run"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_color_context"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_color_requests"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_normalize_source_requests"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_decode_general_layer"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_sources_prefix"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_source_step"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_assembled_sources_prefix"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_components_prefix"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_component_step"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_definitions"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_records_prefix"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_default_colors"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_after_assembly"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_finish"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_layer_cold_result"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_layer_cold_run"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_component_copy_context"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_component_copy_requests"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_component_storage_requests"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_default_definition_context"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_default_definition_requests"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_definition_input"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_finish_definition_requests"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_finish_storage_requests"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_opacity_definition_context"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_record_definition_context"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_record_definition_requests"
+        }
       ],
       "contract_refs": [
         {"path": "src/jpx/layer_decode.rs", "symbol": "decode_general_compositing_layer"}
       ],
       "proof_refs": [
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_after_cold_sources_normal"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_color_error"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_normalize_error"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_sources_step"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_sources_error"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_assembled_sources_step"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_assembled_sources_error"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_components_step"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_components_error"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_records_step"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_records_error"},
-        {"path": "src/decode/proof_support.rs", "symbol": "associated_typed_outcome_known"},
-        {"path": "src/jpx/proof_support.rs", "symbol": "general_source_views_push"},
-        {"path": "src/jp2/proof_support.rs", "symbol": "general_layer_config"},
-        {"path": "specs/jpx_general.rs", "symbol": "part2_general_layer_cold_normal"}
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_after_cold_sources_normal"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_color_error"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_normalize_error"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_sources_step"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_sources_error"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_assembled_sources_step"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_assembled_sources_error"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_components_step"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_components_error"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_records_step"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_records_error"
+        },
+        {
+          "path": "src/decode/proof_support.rs",
+          "symbol": "associated_typed_outcome_known"
+        },
+        {
+          "path": "src/jpx/proof_support.rs",
+          "symbol": "general_source_views_push"
+        },
+        {
+          "path": "src/jp2/proof_support.rs",
+          "symbol": "general_layer_config"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_layer_cold_normal"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_definition_storage_observed"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_default_definition_member"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_definition_error"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_finish_definition_member"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_opacity_definition_member"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_record_definition_member"
+        },
+        {
+          "path": "specs/jpx_general.rs",
+          "symbol": "part2_general_component_definition_member"
+        }
       ],
       "test_refs": [
-        {"path": "src/jpx/tests.rs", "symbol": "actual_general_layer_derives_literal_multisource_registered_planes"},
-        {"path": "src/jpx/tests.rs", "symbol": "actual_general_layer_clears_inherited_definitions_and_uses_actual_layer_records"},
-        {"path": "src/jpx/tests.rs", "symbol": "actual_general_layer_composes_straight_premultiplied_and_component_chroma_opacity"},
-        {"path": "src/jpx/tests.rs", "symbol": "actual_general_layer_preserves_exact_source_resource_definition_and_chroma_error_priority"}
+        {
+          "path": "src/jpx/tests.rs",
+          "symbol": "actual_general_layer_derives_literal_multisource_registered_planes"
+        },
+        {
+          "path": "src/jpx/tests.rs",
+          "symbol": "actual_general_layer_clears_inherited_definitions_and_uses_actual_layer_records"
+        },
+        {
+          "path": "src/jpx/tests.rs",
+          "symbol": "actual_general_layer_composes_straight_premultiplied_and_component_chroma_opacity"
+        },
+        {
+          "path": "src/jpx/tests.rs",
+          "symbol": "actual_general_layer_preserves_exact_source_resource_definition_and_chroma_error_priority"
+        },
+        {
+          "path": "src/jpx/tests.rs",
+          "symbol": "original_general_definition_refusals_preserve_later_error_priority_and_restore"
+        }
       ]
     },
     {
@@ -5634,54 +6181,246 @@
         {"path": "src/image/mct.rs", "symbol": "admit_reversible_mct_decorrelation"}
       ],
       "spec_refs": [
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_collection_run"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_decoded_run"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_prepared_run"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_view_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_after_output"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_after_preparation"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_after_source"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_storage_finish"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_inverse_storage_admitted"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_inverse_storage_result"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_inverse_storage_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixel_rows_context"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixel_storage_after_rows"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixel_storage_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixels_storage_next"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixels_storage_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_refused_work"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_storage_next"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_storage_requests_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_storage_result"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_storage_roles"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_storage_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_reversible_row_storage_result"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_reversible_row_storage_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_rows_storage_after"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_rows_storage_result"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_rows_storage_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_runtime_capacity_count"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_runtime_capacity_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_runtime_preparation"},
-        {"path": "specs/mod.rs", "symbol": "part1_mct_graph_collection"},
-        {"path": "specs/mod.rs", "symbol": "part1_mct_graph_element_count"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_power_of_two"},
-        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_scale"},
-        {"path": "specs/mod.rs", "symbol": "part2_validate_reversible_mct_coefficients"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_scale_prefix"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_scale_at"},
-        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_stage"},
-        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_sum"},
-        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_term"},
-        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_stages"},
-        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_advance"},
-        {"path": "specs/mod.rs", "symbol": "part2_inverse_reversible_mct"},
-        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_row"},
-        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_output"},
-        {"path": "specs/mod.rs", "symbol": "part2_reversible_mct_admission"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_prepare_decorrelation"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_decorrelation_rows"}
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_collection_run"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_decoded_run"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_prepared_run"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_view_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_after_output"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_after_preparation"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_after_source"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_storage_finish"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_inverse_storage_admitted"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_inverse_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_inverse_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixel_rows_context"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixel_storage_after_rows"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixel_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixels_storage_next"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixels_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_refused_work"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_storage_next"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_storage_requests_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_storage_roles"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_reversible_row_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_reversible_row_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_rows_storage_after"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_rows_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_rows_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_runtime_capacity_count"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_runtime_capacity_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_runtime_preparation"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part1_mct_graph_collection"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part1_mct_graph_element_count"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_mct_power_of_two"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_reversible_mct_scale"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_validate_reversible_mct_coefficients"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_mct_scale_prefix"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_mct_scale_at"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_reversible_mct_stage"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_reversible_mct_sum"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_reversible_mct_term"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_reversible_mct_stages"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_reversible_mct_advance"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_inverse_reversible_mct"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_reversible_mct_row"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_reversible_mct_output"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_reversible_mct_admission"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_mct_prepare_decorrelation"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_mct_decorrelation_rows"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_run"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_prepare_requests"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_scratch_requests"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_value"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_pair_requests"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_after_partition_requests"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_before_partition"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_requests"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_wavelet_after_preparation"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_wavelet_run"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_reconstruction_run"
+        }
       ],
       "contract_refs": [
         {"path": "src/codestream/mct_resolution.rs", "symbol": "Parser::expected_mct_elements"},
@@ -5696,53 +6435,304 @@
         {"path": "src/image/mct.rs", "symbol": "admit_reversible_mct_decorrelation"}
       ],
       "proof_refs": [
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_collection_decorrelation_observed"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_decoded_views_error"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_prepared_views_error"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_view_observed"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_storage_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_storage_pixels"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_storage_prepare_error"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_storage_scratch_error"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_inverse_storage_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_inverse_storage_refused"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixel_storage_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixel_storage_rows_observed"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixels_storage_advance"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixels_storage_error_suffix"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixels_storage_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_storage_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_storage_refused"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_reversible_row_storage_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_rows_storage_inverse_error"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_rows_storage_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_runtime_capacity_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_runtime_capacity_observed"},
-        {"path": "src/codestream/proof_support.rs", "symbol": "mct_array_view"},
-        {"path": "src/codestream/proof_support.rs", "symbol": "mct_collection_view"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_scale_empty"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_scale_step"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_scale_error"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_sum_empty"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_sum_step"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_sum_error"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_stages_empty"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_stages_step"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_serm_stages_error"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_rows_step"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_rows_error"}
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_collection_decorrelation_observed"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_decoded_views_error"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_prepared_views_error"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_view_observed"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_storage_pixels"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_storage_prepare_error"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_storage_scratch_error"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_inverse_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_inverse_storage_refused"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixel_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixel_storage_rows_observed"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixels_storage_advance"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixels_storage_error_suffix"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixels_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_storage_refused"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_reversible_row_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_rows_storage_inverse_error"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_rows_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_runtime_capacity_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_runtime_capacity_observed"
+        },
+        {
+          "path": "src/codestream/proof_support.rs",
+          "symbol": "mct_array_view"
+        },
+        {
+          "path": "src/codestream/proof_support.rs",
+          "symbol": "mct_collection_view"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_mct_scale_empty"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_mct_scale_step"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_mct_scale_error"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_mct_serm_sum_empty"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_mct_serm_sum_step"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_mct_serm_sum_error"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_mct_serm_stages_empty"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_mct_serm_stages_step"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_mct_serm_stages_error"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_mct_rows_step"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_mct_rows_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_child_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_error_at"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_error_info"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_normal"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_refused"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_refused_at"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_prepare_pair_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_prepare_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_storage_frames"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_storage_prepare_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_storage_scratch_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_pair_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_pair_storage_refused"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_partition_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_partition_storage_refused"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_fraction_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_pair_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_partition_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_storage_frames"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_collection_dependency_observed"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_wavelet_from_prepared"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_wavelet_prepare_error"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_wavelet_source_error"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_reconstruction_after_capacity_frames"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_reconstruction_capacity_error"
+        }
       ],
       "test_refs": [
-        {"path": "src/decode/tests.rs", "symbol": "mct_runtime_storage_prepared_views_refusal_keeps_samples_metadata_work_and_retry"},
-        {"path": "src/image/tests.rs", "symbol": "mct_runtime_storage_inverse_rows_preserve_source_semantic_priority_and_retry"},
-        {"path": "src/image/tests.rs", "symbol": "mct_runtime_storage_preparation_scratch_and_pixel_refusals_keep_work_and_committed_prefix"},
-        {"path": "src/image/tests.rs", "symbol": "t801_reversible_mct_stages_keep_order_signed_ties_and_post_transform_offsets"},
-        {"path": "src/image/tests.rs", "symbol": "t801_reversible_mct_matches_independently_reversed_integer_lifting"},
-        {"path": "src/image/tests.rs", "symbol": "t801_reversible_mct_rejects_bad_scales_and_reports_integer_overflow"},
-        {"path": "src/image/tests.rs", "symbol": "native_mct_preparation_derives_real_ordered_indexes_fractions_and_late_work_errors"},
-        {"path": "src/decode/tests.rs", "symbol": "applies_ordered_part2_mct_stages_to_raw_jp2_and_selected_jpx_decode"},
-        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "actual_raw_typed_result_joins_real_packed_packets_mct_and_nonlinear_regions"},
-        {"path": "src/codestream/tests.rs", "symbol": "actual_mct_graph_collections_preserve_lookup_shape_flags_and_all_fields"}
+        {
+          "path": "src/decode/tests.rs",
+          "symbol": "mct_runtime_storage_prepared_views_refusal_keeps_samples_metadata_work_and_retry"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "mct_runtime_storage_inverse_rows_preserve_source_semantic_priority_and_retry"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "mct_runtime_storage_preparation_scratch_and_pixel_refusals_keep_work_and_committed_prefix"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "t801_reversible_mct_stages_keep_order_signed_ties_and_post_transform_offsets"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "t801_reversible_mct_matches_independently_reversed_integer_lifting"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "t801_reversible_mct_rejects_bad_scales_and_reports_integer_overflow"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "native_mct_preparation_derives_real_ordered_indexes_fractions_and_late_work_errors"
+        },
+        {
+          "path": "src/decode/tests.rs",
+          "symbol": "applies_ordered_part2_mct_stages_to_raw_jp2_and_selected_jpx_decode"
+        },
+        {
+          "path": "src/decode/raw_typed_result_tests.rs",
+          "symbol": "actual_raw_typed_result_joins_real_packed_packets_mct_and_nonlinear_regions"
+        },
+        {
+          "path": "src/codestream/tests.rs",
+          "symbol": "actual_mct_graph_collections_preserve_lookup_shape_flags_and_all_fields"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "original_mct_dependency_storage_keeps_preflight_work_empty_and_exact_retry"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "original_mct_wavelet_storage_preserves_admission_committed_pixels_and_retry"
+        }
       ]
     },
     {
@@ -9164,294 +10154,1386 @@
       "id": "part2-complete-native-coefficient-component-reconstruction",
       "topic": "Complete actual supplied-coefficient reconstruction: raw plan/style/first-match kernel lookup, ROI/quantization and standard/arbitrary inverse preparation, all actual MCT collection kinds and reverse stages, owner-buffer alias joins, standard RCT/ICT, and full/selected assembly. Complete Result/deep mutable state/work/native-limit relations have no supplied plan-success, normalized-layout, adequate-budget, trace or decoder-outcome premise. Public standalone APIs are explicit proof support, not fabricated internal consumers. Computational selected native scope, not compressed parser-to-pixel or normative/official-vector conformance.",
       "implementation_refs": [
-        {"path": "src/image/mct_decorrelation.rs", "symbol": "append_mct_decorrelation_rows"},
-        {"path": "src/image/mct_decorrelation.rs", "symbol": "apply_mct_decorrelation"},
-        {"path": "src/image/mct.rs", "symbol": "apply_mct_collection"},
-        {"path": "src/image/mct.rs", "symbol": "apply_mct_stage"},
-        {"path": "src/image/mct.rs", "symbol": "apply_multiple_component_transform_components"},
-        {"path": "src/image/mct.rs", "symbol": "apply_multiple_component_transform"},
-        {"path": "src/decode/reconstruction.rs", "symbol": "apply_tile_multiple_component_transform"},
-        {"path": "src/decode/execution.rs", "symbol": "finish_prepared_tile"},
-        {"path": "src/decode/execution.rs", "symbol": "reconstruct_planned_tile"},
-        {"path": "src/decode/execution.rs", "symbol": "decode_planned_tile_components"},
-        {"path": "src/decode/reconstruction.rs", "symbol": "decode_progression_prepared_image"},
-        {"path": "src/decode/execution.rs", "symbol": "decode_layout"},
-        {"path": "src/decode/execution.rs", "symbol": "decode_layout_selected"}
+        {
+          "path": "src/image/mct_decorrelation.rs",
+          "symbol": "append_mct_decorrelation_rows"
+        },
+        {
+          "path": "src/image/mct_decorrelation.rs",
+          "symbol": "apply_mct_decorrelation"
+        },
+        {
+          "path": "src/image/mct.rs",
+          "symbol": "apply_mct_collection"
+        },
+        {
+          "path": "src/image/mct.rs",
+          "symbol": "apply_mct_stage"
+        },
+        {
+          "path": "src/image/mct.rs",
+          "symbol": "apply_multiple_component_transform_components"
+        },
+        {
+          "path": "src/image/mct.rs",
+          "symbol": "apply_multiple_component_transform"
+        },
+        {
+          "path": "src/decode/reconstruction.rs",
+          "symbol": "apply_tile_multiple_component_transform"
+        },
+        {
+          "path": "src/decode/execution.rs",
+          "symbol": "finish_prepared_tile"
+        },
+        {
+          "path": "src/decode/execution.rs",
+          "symbol": "reconstruct_planned_tile"
+        },
+        {
+          "path": "src/decode/execution.rs",
+          "symbol": "decode_planned_tile_components"
+        },
+        {
+          "path": "src/decode/reconstruction.rs",
+          "symbol": "decode_progression_prepared_image"
+        },
+        {
+          "path": "src/decode/execution.rs",
+          "symbol": "decode_layout"
+        },
+        {
+          "path": "src/decode/execution.rs",
+          "symbol": "decode_layout_selected"
+        },
+        {
+          "path": "src/image/mct_dependency.rs",
+          "symbol": "apply_mct_dependency"
+        },
+        {
+          "path": "src/image/mct_dependency.rs",
+          "symbol": "prepare_mct_dependency"
+        },
+        {
+          "path": "src/image/mct_wavelet.rs",
+          "symbol": "apply_mct_wavelet"
+        },
+        {
+          "path": "src/image/mct_wavelet.rs",
+          "symbol": "prepare_mct_wavelet"
+        }
       ],
       "spec_refs": [
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_reversible_row_storage_result"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_reversible_row_storage_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_scalar_storage_result"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_scalar_storage_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixel_storage_result"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_rows_storage_result"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_view_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_after_output"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_after_preparation"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_after_source"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_storage_finish"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_storage_result"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_storage_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_inverse_storage_admitted"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_inverse_storage_result"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_inverse_storage_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixel_rows_context"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixel_storage_after_rows"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixel_storage_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixels_storage_next"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixels_storage_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_refused_work"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_storage_next"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_storage_requests_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_storage_result"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_storage_roles"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_storage_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_rows_storage_after"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_rows_storage_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_runtime_capacity_count"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_runtime_capacity_run"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_runtime_preparation"},
-        {"path": "specs/mod.rs", "symbol": "part2_inverse_reversible_mct"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_prepare_decorrelation"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_dependency"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_decorrelation"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_wavelet"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_collection"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_stage_prefix"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_transform"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_decoded_image"},
-        {"path": "specs/mod.rs", "symbol": "part2_mct_prepared_tiles"},
-        {"path": "specs/mod.rs", "symbol": "part2_finish_prepared_tile"},
-        {"path": "specs/mod.rs", "symbol": "part2_reconstruct_planned_tile"},
-        {"path": "specs/mod.rs", "symbol": "part1_prepared_standard_transform"},
-        {"path": "specs/mod.rs", "symbol": "part2_assemble_prepared"},
-        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepared_views_run"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_owner_admit"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_preflight"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_finish"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_capacity_run"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_after_visited_run"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_after_samples_run"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_run"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_result"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_value"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_count"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_prefix_run"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_body_header"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_body_run"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_owner_run"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_storage_run"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_storage_result"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_calls_run"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_decode_prepared_storage_finish"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_decode_prepared_storage_run"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_decode_prepared_storage_result"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_progression_component_transform"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_progression_after_views_run"},
-        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepared_views_result"},
-        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepared_view_calls_run"},
-        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_assemble_prepared_storage_run"},
-        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_assemble_prepared_storage_result"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_progression_finish_run"},
-        {"path": "specs/mod.rs", "symbol": "part1_decode_prepared_image"},
-        {"path": "specs/mod.rs", "symbol": "part1_progression_prepared_image"},
-        {"path": "specs/mod.rs", "symbol": "part2_kernel_registry_lookup"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "Part2ExtractionComponentsEffect"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "Part2ExtractionTileEffect"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "Part2CoefficientReconstructionContext"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_reconstruct_component_run"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_components_run"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_components_next"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_prepared_component_capacity_run"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_prepared_component_capacity_result"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_components_after_child"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_tile_finish"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_tile_run"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_tile_result"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_tile_context"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_tile_calls_run"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_progression_finish"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_progression_run"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_coefficient_progression_result"},
-        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_planned_extraction_run"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_step_admit"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_step_run"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_steps_run"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_finish"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_reconstruction_run"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_reconstruction_result"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_pixel_after"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_pixel_run"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_pixel_result"},
-        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "Part2MctLineEffect"},
-        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_pixels_next"},
-        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_pixels_run"},
-        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_wavelet_finish"},
-        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_wavelet_run"},
-        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_wavelet_result"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_collection_run"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_collection_result"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_stage_next"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_stage_run"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_stage_result"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_transform_next"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_transform_run"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_transform_result"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_decoded_run"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_decoded_result"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_prepared_run"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_prepared_result"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_finish_after"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_finish_run"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_finish_result"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_tile_finish_run"}
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_reversible_row_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_reversible_row_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_scalar_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_scalar_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixel_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_rows_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_view_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_after_output"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_after_preparation"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_after_source"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_storage_finish"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_inverse_storage_admitted"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_inverse_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_inverse_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixel_rows_context"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixel_storage_after_rows"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixel_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixels_storage_next"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixels_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_refused_work"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_storage_next"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_storage_requests_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_storage_roles"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_rows_storage_after"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_rows_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_runtime_capacity_count"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_runtime_capacity_run"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_runtime_preparation"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_inverse_reversible_mct"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_mct_prepare_decorrelation"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_mct_dependency"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_mct_decorrelation"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_mct_wavelet"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_mct_collection"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_mct_stage_prefix"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_mct_transform"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_mct_decoded_image"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_mct_prepared_tiles"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_finish_prepared_tile"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_reconstruct_planned_tile"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part1_prepared_standard_transform"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_assemble_prepared"
+        },
+        {
+          "path": "specs/cold_prepare_copies.rs",
+          "symbol": "part2_prepared_views_run"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_owner_admit"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_preflight"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_finish"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_capacity_run"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_after_visited_run"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_after_samples_run"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_run"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_result"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_value"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_count"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_prefix_run"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_body_header"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_body_run"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_owner_run"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_storage_run"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_storage_result"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_calls_run"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_decode_prepared_storage_finish"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_decode_prepared_storage_run"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_decode_prepared_storage_result"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_progression_component_transform"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_progression_after_views_run"
+        },
+        {
+          "path": "specs/cold_prepare_copies.rs",
+          "symbol": "part2_prepared_views_result"
+        },
+        {
+          "path": "specs/cold_prepare_copies.rs",
+          "symbol": "part2_prepared_view_calls_run"
+        },
+        {
+          "path": "specs/cold_prepare_copies.rs",
+          "symbol": "part2_assemble_prepared_storage_run"
+        },
+        {
+          "path": "specs/cold_prepare_copies.rs",
+          "symbol": "part2_assemble_prepared_storage_result"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_progression_finish_run"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part1_decode_prepared_image"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part1_progression_prepared_image"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_kernel_registry_lookup"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "Part2ExtractionComponentsEffect"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "Part2ExtractionTileEffect"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "Part2CoefficientReconstructionContext"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_reconstruct_component_run"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_components_run"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_components_next"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_prepared_component_capacity_run"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_prepared_component_capacity_result"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_components_after_child"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_tile_finish"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_tile_run"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_tile_result"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_tile_context"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_tile_calls_run"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_progression_finish"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_progression_run"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_coefficient_progression_result"
+        },
+        {
+          "path": "specs/cold_decode_packets.rs",
+          "symbol": "part2_planned_extraction_run"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_step_admit"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_step_run"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_steps_run"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_finish"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_reconstruction_run"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_reconstruction_result"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_pixel_after"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_pixel_run"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_pixel_result"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "Part2MctLineEffect"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_pixels_next"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_pixels_run"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_wavelet_finish"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_wavelet_run"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_wavelet_result"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_collection_run"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_collection_result"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_stage_next"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_stage_run"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_stage_result"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_transform_next"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_transform_run"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_transform_result"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_decoded_run"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_decoded_result"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_prepared_run"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_prepared_result"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_finish_after"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_finish_run"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_finish_result"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_tile_finish_run"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_result"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_run"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_prefix_requests"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_prepare_requests"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_prepare_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_prepare_value"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_requests"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_scratch_requests"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_value"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_pair_requests"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_pair_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_partition_requests"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_partition_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_after_partition_requests"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_before_partition"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_pair_admitted"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_partition_tail_requests"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_requests"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_storage_result"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_storage_run"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_value"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_wavelet_after_preparation"
+        }
       ],
       "contract_refs": [
-        {"path": "src/image/mct.rs", "symbol": "inverse_reversible_mct"},
-        {"path": "src/image/mct_decorrelation.rs", "symbol": "prepare_mct_decorrelation"},
-        {"path": "src/image/mct_dependency.rs", "symbol": "apply_mct_dependency"},
-        {"path": "src/image/mct_decorrelation.rs", "symbol": "apply_mct_decorrelation"},
-        {"path": "src/image/mct_wavelet.rs", "symbol": "apply_mct_wavelet"},
-        {"path": "src/image/mct.rs", "symbol": "apply_mct_collection"},
-        {"path": "src/image/mct.rs", "symbol": "apply_mct_stage"},
-        {"path": "src/image/mct.rs", "symbol": "apply_multiple_component_transform_components"},
-        {"path": "src/decode/reconstruction.rs", "symbol": "apply_tile_multiple_component_transform"},
-        {"path": "src/decode/execution.rs", "symbol": "finish_prepared_tile"},
-        {"path": "src/decode/execution.rs", "symbol": "reconstruct_planned_tile"},
-        {"path": "src/decode/execution.rs", "symbol": "apply_prepared_component_transform"},
-        {"path": "src/decode/reconstruction.rs", "symbol": "assemble_prepared_components"},
-        {"path": "src/decode/code_blocks.rs", "symbol": "decode_prepared_image"},
-        {"path": "src/codestream/extensions.rs", "symbol": "Part2Extensions::arbitrary_kernel"}
+        {
+          "path": "src/image/mct.rs",
+          "symbol": "inverse_reversible_mct"
+        },
+        {
+          "path": "src/image/mct_decorrelation.rs",
+          "symbol": "prepare_mct_decorrelation"
+        },
+        {
+          "path": "src/image/mct_dependency.rs",
+          "symbol": "apply_mct_dependency"
+        },
+        {
+          "path": "src/image/mct_decorrelation.rs",
+          "symbol": "apply_mct_decorrelation"
+        },
+        {
+          "path": "src/image/mct_wavelet.rs",
+          "symbol": "apply_mct_wavelet"
+        },
+        {
+          "path": "src/image/mct.rs",
+          "symbol": "apply_mct_collection"
+        },
+        {
+          "path": "src/image/mct.rs",
+          "symbol": "apply_mct_stage"
+        },
+        {
+          "path": "src/image/mct.rs",
+          "symbol": "apply_multiple_component_transform_components"
+        },
+        {
+          "path": "src/decode/reconstruction.rs",
+          "symbol": "apply_tile_multiple_component_transform"
+        },
+        {
+          "path": "src/decode/execution.rs",
+          "symbol": "finish_prepared_tile"
+        },
+        {
+          "path": "src/decode/execution.rs",
+          "symbol": "reconstruct_planned_tile"
+        },
+        {
+          "path": "src/decode/execution.rs",
+          "symbol": "apply_prepared_component_transform"
+        },
+        {
+          "path": "src/decode/reconstruction.rs",
+          "symbol": "assemble_prepared_components"
+        },
+        {
+          "path": "src/decode/code_blocks.rs",
+          "symbol": "decode_prepared_image"
+        },
+        {
+          "path": "src/codestream/extensions.rs",
+          "symbol": "Part2Extensions::arbitrary_kernel"
+        },
+        {
+          "path": "src/image/mct_dependency.rs",
+          "symbol": "mct_component_pair_indexes"
+        },
+        {
+          "path": "src/image/mct_dependency.rs",
+          "symbol": "prepare_mct_dependency"
+        },
+        {
+          "path": "src/image/mct_wavelet.rs",
+          "symbol": "prepare_mct_wavelet"
+        },
+        {
+          "path": "src/image/mct_wavelet.rs",
+          "symbol": "prepare_mct_wavelet_partition"
+        }
       ],
       "proof_refs": [
-        {"path": "src/image/mct.rs", "symbol": "reversible_mct_row"},
-        {"path": "src/image/mct_decorrelation.rs", "symbol": "decorrelation_mct_row"},
-        {"path": "src/image/mct_decorrelation.rs", "symbol": "append_mct_decorrelation_rows"},
-        {"path": "src/image/mct_decorrelation.rs", "symbol": "apply_mct_decorrelation_pixel"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_reversible_row_storage_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_scalar_storage_normal"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_collection_decorrelation_observed"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_decoded_views_error"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_prepared_views_error"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_view_observed"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_storage_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_storage_pixels"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_storage_prepare_error"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_decorrelation_storage_scratch_error"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_inverse_storage_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_inverse_storage_refused"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixel_storage_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixel_storage_rows_observed"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixels_storage_advance"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixels_storage_error_suffix"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_pixels_storage_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_storage_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_prepare_storage_refused"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_rows_storage_inverse_error"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_rows_storage_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_runtime_capacity_normal"},
-        {"path": "specs/cold_mct_runtime.rs", "symbol": "part2_mct_runtime_capacity_observed"},
-        {"path": "src/image/mct.rs", "symbol": "apply_multiple_component_transform"},
-        {"path": "src/decode/reconstruction.rs", "symbol": "decode_progression_prepared_image"},
-        {"path": "src/image/mct.rs", "symbol": "collect_decoded_transform_components"},
-        {"path": "src/decode/reconstruction.rs", "symbol": "collect_prepared_transform_components"},
-        {"path": "src/image/proof_support.rs", "symbol": "transform_components_borrow_frame"},
-        {"path": "src/decode/reconstruction.rs", "symbol": "prepared_tile_views"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_reconstruct_components_step"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_transform_step"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_wavelet_reconstruction_step"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_mct_prepared_inputs_shape"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_reconstruct_component_normal"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_reconstruct_component_observed"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_components_normal"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_components_step"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_components_error"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_prepared_component_capacity_observed"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_components_after_child_normal"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_components_publication_refused"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_tile_publication_refused"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_coefficient_progression_publication_refused"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_tile_normal"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_tile_component_error"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_tile_calls_observed"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_coefficient_progression_normal"},
-        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepared_views_observed"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_owner_observed"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_capacity_observed"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_after_visited_normal"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_after_samples_normal"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_normal"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_samples_refused"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_visited_refused"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_plane_publish_refused"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_prefix_normal"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_prefix_step"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_prefix_error"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_body_normal"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_storage_plane_error"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_storage_normal"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_storage_refused"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_assembly_calls_observed"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_decode_prepared_storage_normal"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_decode_prepared_assembly_error"},
-        {"path": "specs/cold_image_storage.rs", "symbol": "part2_decode_prepared_storage_frames"},
-        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_assemble_prepared_output_observed"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_coefficient_progression_output_observed"},
-        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_prepared_view_calls_observed"},
-        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_assemble_prepared_storage_normal"},
-        {"path": "specs/cold_prepare_copies.rs", "symbol": "part2_assemble_prepared_views_refused"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_progression_finish_normal"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_coefficient_progression_views_refused"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_coefficient_progression_error"},
-        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_planned_extraction_normal"},
-        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_planned_extraction_error"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_step_normal"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_steps_normal"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_reconstruction_normal"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_prefix_error"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_child_error"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_pixel_normal"},
-        {"path": "specs/cold_mct_wavelet_lines.rs", "symbol": "part2_mct_line_pixel_child_error"},
-        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_pixels_normal"},
-        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_wavelet_normal"},
-        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_pixels_error"},
-        {"path": "specs/cold_mct_line_pixels.rs", "symbol": "part2_mct_line_wavelet_pixel_error"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_collection_normal"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_stage_normal"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_transform_normal"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_stage_prefix_error"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_stage_child_error"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_transform_prefix_error"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_transform_child_error"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_collection_wavelet_observed"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_decoded_normal"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_decoded_observed"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_prepared_normal"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_prepared_observed"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_finish_normal"},
-        {"path": "specs/cold_mct_line_composition.rs", "symbol": "part2_mct_line_finish_observed"},
-        {"path": "specs/cold_extraction_tile.rs", "symbol": "part2_extraction_tile_finish_observed"}
+        {
+          "path": "src/image/mct.rs",
+          "symbol": "reversible_mct_row"
+        },
+        {
+          "path": "src/image/mct_decorrelation.rs",
+          "symbol": "decorrelation_mct_row"
+        },
+        {
+          "path": "src/image/mct_decorrelation.rs",
+          "symbol": "append_mct_decorrelation_rows"
+        },
+        {
+          "path": "src/image/mct_decorrelation.rs",
+          "symbol": "apply_mct_decorrelation_pixel"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_reversible_row_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_scalar_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_collection_decorrelation_observed"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_decoded_views_error"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_prepared_views_error"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_view_observed"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_storage_pixels"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_storage_prepare_error"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_decorrelation_storage_scratch_error"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_inverse_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_inverse_storage_refused"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixel_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixel_storage_rows_observed"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixels_storage_advance"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixels_storage_error_suffix"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_pixels_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_prepare_storage_refused"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_rows_storage_inverse_error"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_rows_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_runtime_capacity_normal"
+        },
+        {
+          "path": "specs/cold_mct_runtime.rs",
+          "symbol": "part2_mct_runtime_capacity_observed"
+        },
+        {
+          "path": "src/image/mct.rs",
+          "symbol": "apply_multiple_component_transform"
+        },
+        {
+          "path": "src/decode/reconstruction.rs",
+          "symbol": "decode_progression_prepared_image"
+        },
+        {
+          "path": "src/image/mct.rs",
+          "symbol": "collect_decoded_transform_components"
+        },
+        {
+          "path": "src/decode/reconstruction.rs",
+          "symbol": "collect_prepared_transform_components"
+        },
+        {
+          "path": "src/image/proof_support.rs",
+          "symbol": "transform_components_borrow_frame"
+        },
+        {
+          "path": "src/decode/reconstruction.rs",
+          "symbol": "prepared_tile_views"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_reconstruct_components_step"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_mct_transform_step"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_mct_wavelet_reconstruction_step"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_mct_prepared_inputs_shape"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_reconstruct_component_normal"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_reconstruct_component_observed"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_components_normal"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_components_step"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_components_error"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_prepared_component_capacity_observed"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_components_after_child_normal"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_components_publication_refused"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_tile_publication_refused"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_coefficient_progression_publication_refused"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_tile_normal"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_tile_component_error"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_tile_calls_observed"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_coefficient_progression_normal"
+        },
+        {
+          "path": "specs/cold_prepare_copies.rs",
+          "symbol": "part2_prepared_views_observed"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_owner_observed"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_capacity_observed"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_after_visited_normal"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_after_samples_normal"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_normal"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_samples_refused"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_visited_refused"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_plane_publish_refused"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_prefix_normal"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_prefix_step"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_prefix_error"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_body_normal"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_storage_plane_error"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_storage_normal"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_storage_refused"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_assembly_calls_observed"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_decode_prepared_storage_normal"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_decode_prepared_assembly_error"
+        },
+        {
+          "path": "specs/cold_image_storage.rs",
+          "symbol": "part2_decode_prepared_storage_frames"
+        },
+        {
+          "path": "specs/cold_prepare_copies.rs",
+          "symbol": "part2_assemble_prepared_output_observed"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_coefficient_progression_output_observed"
+        },
+        {
+          "path": "specs/cold_prepare_copies.rs",
+          "symbol": "part2_prepared_view_calls_observed"
+        },
+        {
+          "path": "specs/cold_prepare_copies.rs",
+          "symbol": "part2_assemble_prepared_storage_normal"
+        },
+        {
+          "path": "specs/cold_prepare_copies.rs",
+          "symbol": "part2_assemble_prepared_views_refused"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_progression_finish_normal"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_coefficient_progression_views_refused"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_coefficient_progression_error"
+        },
+        {
+          "path": "specs/cold_decode_packets.rs",
+          "symbol": "part2_planned_extraction_normal"
+        },
+        {
+          "path": "specs/cold_decode_packets.rs",
+          "symbol": "part2_planned_extraction_error"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_step_normal"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_steps_normal"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_reconstruction_normal"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_prefix_error"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_child_error"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_pixel_normal"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_pixel_child_error"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_pixels_normal"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_wavelet_normal"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_pixels_error"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_wavelet_pixel_error"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_collection_normal"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_stage_normal"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_transform_normal"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_stage_prefix_error"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_stage_child_error"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_transform_prefix_error"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_transform_child_error"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_collection_wavelet_observed"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_decoded_normal"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_decoded_observed"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_prepared_normal"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_prepared_observed"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_finish_normal"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_finish_observed"
+        },
+        {
+          "path": "specs/cold_extraction_tile.rs",
+          "symbol": "part2_extraction_tile_finish_observed"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_concat_member"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_child_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_error_at"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_error_info"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_normal"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_refused"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_auxiliary_program_refused_at"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_prepare_pair_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_prepare_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_storage_frames"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_storage_prepare_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_dependency_storage_scratch_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_pair_request_state"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_pair_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_pair_storage_refused"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_partition_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_partition_storage_refused"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_fraction_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_pair_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_partition_error"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_storage_frames"
+        },
+        {
+          "path": "specs/cold_mct_auxiliary.rs",
+          "symbol": "part2_mct_wavelet_prepare_storage_normal"
+        },
+        {
+          "path": "specs/cold_mct_line_composition.rs",
+          "symbol": "part2_mct_line_collection_dependency_observed"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_wavelet_from_prepared"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_wavelet_prepare_error"
+        },
+        {
+          "path": "specs/cold_mct_line_pixels.rs",
+          "symbol": "part2_mct_line_wavelet_source_error"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_reconstruction_after_capacity_frames"
+        },
+        {
+          "path": "specs/cold_mct_wavelet_lines.rs",
+          "symbol": "part2_mct_line_reconstruction_capacity_error"
+        }
       ],
       "test_refs": [
-        {"path": "src/decode/tests.rs", "symbol": "mct_runtime_storage_prepared_views_refusal_keeps_samples_metadata_work_and_retry"},
-        {"path": "src/image/tests.rs", "symbol": "mct_runtime_storage_inverse_rows_preserve_source_semantic_priority_and_retry"},
-        {"path": "src/image/tests.rs", "symbol": "mct_runtime_storage_preparation_scratch_and_pixel_refusals_keep_work_and_committed_prefix"},
-        {"path": "src/decode/tests.rs", "symbol": "complete_coefficient_reconstruction_preserves_prefix_mct_and_error_frontiers"},
-        {"path": "src/decode/tests.rs", "symbol": "complete_standard_prepare_matches_independent_wide_multilevel_reference"},
-        {"path": "src/decode/tests.rs", "symbol": "complete_standard_prepare_preserves_all_ordered_rejections"},
-        {"path": "src/decode/tests.rs", "symbol": "full_native_kernel_preparation_preserves_real_dispatch_and_lazy_validation"},
-        {"path": "src/codestream/tests.rs", "symbol": "actual_kernel_registry_retains_first_duplicates_and_every_raw_index"},
-        {"path": "src/image/tests.rs", "symbol": "native_mct_wavelet_partitions_match_signed_integer_intervals"},
-        {"path": "src/image/tests.rs", "symbol": "native_mct_wavelet_scaled_snapshot_keeps_full_precision_and_error_priority"},
-        {"path": "src/image/tests.rs", "symbol": "native_mct_wavelet_reversible_collection_matches_independent_synthesis"},
-        {"path": "src/image/tests.rs", "symbol": "native_mct_dependency_counts_and_admission_match_wide_thresholds"},
-        {"path": "src/image/tests.rs", "symbol": "native_mct_dependency_preparation_checks_destination_precision_and_exact_caps"},
-        {"path": "src/image/tests.rs", "symbol": "native_mct_dependency_collection_matches_floor_and_q32_composition"},
-        {"path": "src/image/tests.rs", "symbol": "native_mct_dependency_pixel_uses_exact_count_and_preserves_duplicate_store_errors"},
-        {"path": "src/image/tests.rs", "symbol": "native_mct_pixel_transition_preserves_raw_snapshot_and_store_error_frontiers"},
-        {"path": "src/image/tests.rs", "symbol": "native_mct_destination_precision_preserves_all_tags_and_partial_error_order"},
-        {"path": "src/image/tests.rs", "symbol": "wavelet_line_storage_public_mct_retains_actual_prior_pixel_and_restores"},
-        {"path": "src/image/mct_wavelet.rs", "symbol": "wavelet_line_storage_actual_spectral_prior_owner_and_exact_refusal_restore"}
+        {
+          "path": "src/decode/tests.rs",
+          "symbol": "mct_runtime_storage_prepared_views_refusal_keeps_samples_metadata_work_and_retry"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "mct_runtime_storage_inverse_rows_preserve_source_semantic_priority_and_retry"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "mct_runtime_storage_preparation_scratch_and_pixel_refusals_keep_work_and_committed_prefix"
+        },
+        {
+          "path": "src/decode/tests.rs",
+          "symbol": "complete_coefficient_reconstruction_preserves_prefix_mct_and_error_frontiers"
+        },
+        {
+          "path": "src/decode/tests.rs",
+          "symbol": "complete_standard_prepare_matches_independent_wide_multilevel_reference"
+        },
+        {
+          "path": "src/decode/tests.rs",
+          "symbol": "complete_standard_prepare_preserves_all_ordered_rejections"
+        },
+        {
+          "path": "src/decode/tests.rs",
+          "symbol": "full_native_kernel_preparation_preserves_real_dispatch_and_lazy_validation"
+        },
+        {
+          "path": "src/codestream/tests.rs",
+          "symbol": "actual_kernel_registry_retains_first_duplicates_and_every_raw_index"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "native_mct_wavelet_partitions_match_signed_integer_intervals"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "native_mct_wavelet_scaled_snapshot_keeps_full_precision_and_error_priority"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "native_mct_wavelet_reversible_collection_matches_independent_synthesis"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "native_mct_dependency_counts_and_admission_match_wide_thresholds"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "native_mct_dependency_preparation_checks_destination_precision_and_exact_caps"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "native_mct_dependency_collection_matches_floor_and_q32_composition"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "native_mct_dependency_pixel_uses_exact_count_and_preserves_duplicate_store_errors"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "native_mct_pixel_transition_preserves_raw_snapshot_and_store_error_frontiers"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "native_mct_destination_precision_preserves_all_tags_and_partial_error_order"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "wavelet_line_storage_public_mct_retains_actual_prior_pixel_and_restores"
+        },
+        {
+          "path": "src/image/mct_wavelet.rs",
+          "symbol": "wavelet_line_storage_actual_spectral_prior_owner_and_exact_refusal_restore"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "original_mct_dependency_storage_keeps_preflight_work_empty_and_exact_retry"
+        },
+        {
+          "path": "src/image/tests.rs",
+          "symbol": "original_mct_wavelet_storage_preserves_admission_committed_pixels_and_retry"
+        }
       ]
     },
     {
@@ -9600,175 +11682,517 @@
           "path": "specs/packet_boundaries.rs",
           "symbol": "part1_multi_payload"
         },
-        {"path": "specs/cold_packet_execute.rs", "symbol": "part2_plane_execute_run"},
-        {"path": "specs/cold_packet_execute.rs", "symbol": "part2_plane_execute_result"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_body_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_body_result"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_payload_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_payload_result"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_packet_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_packet_result"},
-        {"path": "specs/cold_single_packet.rs", "symbol": "part2_plane_single_run"},
-        {"path": "specs/cold_single_packet.rs", "symbol": "part2_plane_single_result"},
-        {"path": "specs/cold_tag_copy.rs", "symbol": "Part2TagCopyContext"},
-        {"path": "specs/cold_tag_copy.rs", "symbol": "part2_tag_copy_capacity_run"},
-        {"path": "specs/cold_tag_copy.rs", "symbol": "part2_tag_copy_capacity_result"},
-        {"path": "specs/cold_tag_copy.rs", "symbol": "part2_tag_copy_run"},
-        {"path": "specs/cold_tag_copy.rs", "symbol": "part2_tag_copy_result"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subband_copy_run"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subband_copy_result"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subbands_copy_run"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subbands_copy_result"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "Part2RollbackOwnerContext"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_owner_count"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_owner_run"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_owner_result"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_subbands_owner_run"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_snapshot_run"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_snapshot_result"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_copy_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_precinct_contributions_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_precinct_contributions_result"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_prepared_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_inline"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_finish"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_result"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_inner_caps"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_inner_run"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_copy_result"}
+        {
+          "path": "specs/cold_packet_execute.rs",
+          "symbol": "part2_plane_execute_run"
+        },
+        {
+          "path": "specs/cold_packet_execute.rs",
+          "symbol": "part2_plane_execute_result"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_multi_body_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_multi_body_result"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_multi_payload_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_multi_payload_result"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_multi_packet_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_multi_packet_result"
+        },
+        {
+          "path": "specs/cold_single_packet.rs",
+          "symbol": "part2_plane_single_run"
+        },
+        {
+          "path": "specs/cold_single_packet.rs",
+          "symbol": "part2_plane_single_result"
+        },
+        {
+          "path": "specs/cold_tag_copy.rs",
+          "symbol": "Part2TagCopyContext"
+        },
+        {
+          "path": "specs/cold_tag_copy.rs",
+          "symbol": "part2_tag_copy_capacity_run"
+        },
+        {
+          "path": "specs/cold_tag_copy.rs",
+          "symbol": "part2_tag_copy_capacity_result"
+        },
+        {
+          "path": "specs/cold_tag_copy.rs",
+          "symbol": "part2_tag_copy_run"
+        },
+        {
+          "path": "specs/cold_tag_copy.rs",
+          "symbol": "part2_tag_copy_result"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_subband_copy_run"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_subband_copy_result"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_subbands_copy_run"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_subbands_copy_result"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "Part2RollbackOwnerContext"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "part2_rollback_owner_count"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "part2_rollback_owner_run"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "part2_rollback_owner_result"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "part2_subbands_owner_run"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "part2_rollback_snapshot_run"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "part2_rollback_snapshot_result"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_copy_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_precinct_contributions_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_precinct_contributions_result"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_prepared_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_inline"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_finish"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_result"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_inner_caps"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_inner_run"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_copy_result"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inline_copy_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_after_copy_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_multi_contributions_after"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_multi_contributions_result"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_multi_contributions_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_multi_payload_after_capacity_run"
+        }
       ],
       "proof_refs": [
         {
-          "path": "src/packet/multi_packet.rs", "symbol": "decode_single_code_block_packet"
+          "path": "src/packet/multi_packet.rs",
+          "symbol": "decode_single_code_block_packet"
         },
         {
-          "path": "src/packet/multi_packet.rs", "symbol": "decode_multi_code_block_packet"
+          "path": "src/packet/multi_packet.rs",
+          "symbol": "decode_multi_code_block_packet"
         },
         {
-          "path": "src/packet/precinct.rs", "symbol": "decode_jpip_precinct_packet_inner"
+          "path": "src/packet/precinct.rs",
+          "symbol": "decode_jpip_precinct_packet_inner"
         },
         {
-          "path": "src/packet/precinct.rs", "symbol": "decode_jpip_precinct_packet"
+          "path": "src/packet/precinct.rs",
+          "symbol": "decode_jpip_precinct_packet"
         },
         {
-          "path": "src/packet/body.rs", "symbol": "preflight_packet_body_ranges"
+          "path": "src/packet/body.rs",
+          "symbol": "preflight_packet_body_ranges"
         },
         {
-          "path": "src/packet/body.rs", "symbol": "execute_packet_body_contributions"
+          "path": "src/packet/body.rs",
+          "symbol": "execute_packet_body_contributions"
         },
         {
-          "path": "src/packet/multi_packet.rs", "symbol": "validate_multi_packet_contexts"
+          "path": "src/packet/multi_packet.rs",
+          "symbol": "validate_multi_packet_contexts"
         },
         {
-          "path": "src/packet/multi_packet.rs", "symbol": "validate_multi_packet_input"
+          "path": "src/packet/multi_packet.rs",
+          "symbol": "validate_multi_packet_input"
         },
         {
-          "path": "src/packet/multi_packet.rs", "symbol": "read_multi_packet_prefix"
+          "path": "src/packet/multi_packet.rs",
+          "symbol": "read_multi_packet_prefix"
         },
         {
-          "path": "src/packet/multi_packet.rs", "symbol": "read_multi_packet_header_slot"
+          "path": "src/packet/multi_packet.rs",
+          "symbol": "read_multi_packet_header_slot"
         },
         {
-          "path": "src/packet/multi_packet.rs", "symbol": "read_multi_packet_headers"
+          "path": "src/packet/multi_packet.rs",
+          "symbol": "read_multi_packet_headers"
         },
         {
-          "path": "src/packet/multi_packet.rs", "symbol": "multi_packet_body_start"
+          "path": "src/packet/multi_packet.rs",
+          "symbol": "multi_packet_body_start"
         },
         {
-          "path": "src/packet/multi_packet.rs", "symbol": "decode_multi_packet_body"
+          "path": "src/packet/multi_packet.rs",
+          "symbol": "decode_multi_packet_body"
         },
         {
-          "path": "src/packet/multi_packet.rs", "symbol": "decode_multi_packet_payload"
+          "path": "src/packet/multi_packet.rs",
+          "symbol": "decode_multi_packet_payload"
         },
         {
           "path": "src/packet.rs",
           "symbol": "PacketSubbandState"
         },
         {
-          "path": "src/packet/proof_support.rs", "symbol": "packet_subband_view"
+          "path": "src/packet/proof_support.rs",
+          "symbol": "packet_subband_view"
         },
         {
-          "path": "proofs/spec_properties/mod.rs", "symbol": "multi_sop_omission_preserves_disabled_prefix_result"
+          "path": "proofs/spec_properties/mod.rs",
+          "symbol": "multi_sop_omission_preserves_disabled_prefix_result"
         },
-        {"path": "specs/cold_packet_execute.rs", "symbol": "part2_plane_execute_normal"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_body_normal"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_payload_normal"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_multi_packet_normal"},
-        {"path": "specs/cold_single_packet.rs", "symbol": "part2_plane_single_normal"},
         {
-          "path": "src/packet/bit_reader.rs", "symbol": "PacketBitReader::finish_packet_header"
+          "path": "specs/cold_packet_execute.rs",
+          "symbol": "part2_plane_execute_normal"
         },
-        {"path": "specs/cold_tag_copy.rs", "symbol": "part2_tag_copy_capacity_observed"},
-        {"path": "specs/cold_tag_copy.rs", "symbol": "part2_tag_copy_levels_error"},
-        {"path": "specs/cold_tag_copy.rs", "symbol": "part2_tag_copy_after_levels"},
-        {"path": "specs/cold_tag_copy.rs", "symbol": "part2_tag_copy_normal"},
-        {"path": "specs/cold_tag_copy.rs", "symbol": "part2_tag_copy_frames"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subband_copy_observed"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subband_copy_frames"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subbands_copy_step"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subbands_copy_end"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subbands_copy_join"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subband_copy_normal"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subbands_copy_normal_at"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_subbands_copy_normal"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_copy_observed"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_copy_frames"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_precinct_contributions_observed"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_prepared_normal"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_capacity_then"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_normal"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_observed"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_inner_observed"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_copy_normal"},
-        {"path": "src/packet/tag_tree.rs", "symbol": "TagTree::try_duplicate"},
-        {"path": "src/packet/precinct.rs", "symbol": "PacketSubbandState::try_duplicate"},
-        {"path": "src/packet/precinct.rs", "symbol": "try_duplicate_packet_subbands"},
-        {"path": "src/allocation.rs", "symbol": "copy_values"},
-        {"path": "src/allocation.rs", "symbol": "empty_with_capacity"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_owner_observed"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_subbands_owner_error"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_subbands_owner_start"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_subbands_owner_normal"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_snapshot_states_error"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_snapshot_contexts_error"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_snapshot_subbands"},
-        {"path": "specs/cold_rollback_snapshot.rs", "symbol": "part2_rollback_snapshot_normal"}
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_multi_body_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_multi_payload_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_multi_packet_normal"
+        },
+        {
+          "path": "specs/cold_single_packet.rs",
+          "symbol": "part2_plane_single_normal"
+        },
+        {
+          "path": "src/packet/bit_reader.rs",
+          "symbol": "PacketBitReader::finish_packet_header"
+        },
+        {
+          "path": "specs/cold_tag_copy.rs",
+          "symbol": "part2_tag_copy_capacity_observed"
+        },
+        {
+          "path": "specs/cold_tag_copy.rs",
+          "symbol": "part2_tag_copy_levels_error"
+        },
+        {
+          "path": "specs/cold_tag_copy.rs",
+          "symbol": "part2_tag_copy_after_levels"
+        },
+        {
+          "path": "specs/cold_tag_copy.rs",
+          "symbol": "part2_tag_copy_normal"
+        },
+        {
+          "path": "specs/cold_tag_copy.rs",
+          "symbol": "part2_tag_copy_frames"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_subband_copy_observed"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_subband_copy_frames"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_subbands_copy_step"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_subbands_copy_end"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_subbands_copy_join"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_subband_copy_normal"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_subbands_copy_normal_at"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_subbands_copy_normal"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_copy_observed"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_copy_frames"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_precinct_contributions_observed"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_prepared_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_capacity_then"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_observed"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_inner_observed"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_copy_normal"
+        },
+        {
+          "path": "src/packet/tag_tree.rs",
+          "symbol": "TagTree::try_duplicate"
+        },
+        {
+          "path": "src/packet/precinct.rs",
+          "symbol": "PacketSubbandState::try_duplicate"
+        },
+        {
+          "path": "src/packet/precinct.rs",
+          "symbol": "try_duplicate_packet_subbands"
+        },
+        {
+          "path": "src/allocation.rs",
+          "symbol": "copy_values"
+        },
+        {
+          "path": "src/allocation.rs",
+          "symbol": "empty_with_capacity"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "part2_rollback_owner_observed"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "part2_subbands_owner_error"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "part2_subbands_owner_start"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "part2_subbands_owner_normal"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "part2_rollback_snapshot_states_error"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "part2_rollback_snapshot_contexts_error"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "part2_rollback_snapshot_subbands"
+        },
+        {
+          "path": "specs/cold_rollback_snapshot.rs",
+          "symbol": "part2_rollback_snapshot_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inline_copy_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inline_copy_observed"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_after_copy_frames"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_copy_error"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_multi_contributions_after_capacity_frames"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_multi_contributions_observed"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_multi_contributions_refused"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_multi_payload_after_capacity_normal"
+        }
       ],
       "test_refs": [
         {
-          "path": "src/packet/tests.rs", "symbol": "actual_jpip_outer_restores_all_raw_fields_and_clone_preserves_unused_tree_words"
-        },
-        {"path": "src/packet/tests.rs", "symbol": "rollback_snapshot_storage_outer_roles_precede_children_and_restore_exact_packet"},
-        {"path": "src/packet/tests.rs", "symbol": "rollback_snapshot_storage_empty_and_independent_raw_owners_keep_error_frontiers"},
-        {"path": "src/jpip/tests.rs", "symbol": "rollback_snapshot_storage_automatic_phase_keeps_plan_then_recovers_real_packet"},
-        {"path": "src/packet/tests.rs", "symbol": "tagtree_copy_storage_levels_nodes_empty_raw_sources_and_clone_restore"},
-        {"path": "src/packet/tests.rs", "symbol": "precinct_contribution_storage_keeps_prefix_priority_header_only_and_empty_frames"},
-        {"path": "src/packet/tests.rs", "symbol": "tagtree_copy_storage_packet_rollback_keeps_prior_copies_and_source_then_restores"},
-        {"path": "src/jpip/tests.rs", "symbol": "tagtree_copy_storage_automatic_phase_refusal_keeps_plan_then_decodes_real_packet"},
-        {
-          "path": "src/packet/tests.rs", "symbol": "actual_multi_header_slot_commits_raw_owner_state_before_count_and_storage_rejections"
+          "path": "src/packet/tests.rs",
+          "symbol": "actual_jpip_outer_restores_all_raw_fields_and_clone_preserves_unused_tree_words"
         },
         {
-          "path": "src/packet/tests.rs", "symbol": "public_multi_boundary_preflights_every_body_then_keeps_prior_real_decoder_commits"
+          "path": "src/packet/tests.rs",
+          "symbol": "rollback_snapshot_storage_outer_roles_precede_children_and_restore_exact_packet"
         },
         {
-          "path": "src/packet/tests.rs", "symbol": "public_multi_uses_prefix_header_budget_and_ignores_sop_sequence_values"
+          "path": "src/packet/tests.rs",
+          "symbol": "rollback_snapshot_storage_empty_and_independent_raw_owners_keep_error_frontiers"
         },
         {
-          "path": "src/packet/tests.rs", "symbol": "public_single_boundary_keeps_whole_payload_priority_and_real_partial_header_effects"
+          "path": "src/jpip/tests.rs",
+          "symbol": "rollback_snapshot_storage_automatic_phase_keeps_plan_then_recovers_real_packet"
         },
         {
-          "path": "src/packet/tests.rs", "symbol": "precinct_skipped_execution_consumes_ranges_without_decoder_shape_or_counter_changes"
+          "path": "src/packet/tests.rs",
+          "symbol": "tagtree_copy_storage_levels_nodes_empty_raw_sources_and_clone_restore"
         },
         {
-          "path": "src/packet/tests.rs", "symbol": "public_multi_optional_sop_retains_empty_packet_state_and_budgets"
+          "path": "src/packet/tests.rs",
+          "symbol": "precinct_contribution_storage_keeps_prefix_priority_header_only_and_empty_frames"
         },
         {
-          "path": "src/decode/tests.rs", "symbol": "sarah_dev_709cd8127b_optional_sop_keeps_raw_selected_and_packed_outputs"
+          "path": "src/packet/tests.rs",
+          "symbol": "tagtree_copy_storage_packet_rollback_keeps_prior_copies_and_source_then_restores"
         },
         {
-          "path": "src/packet/tests.rs", "symbol": "sarah_dev_ea51acda28_terminal_ff_header_counts_stuffing_before_body"
+          "path": "src/jpip/tests.rs",
+          "symbol": "tagtree_copy_storage_automatic_phase_refusal_keeps_plan_then_decodes_real_packet"
+        },
+        {
+          "path": "src/packet/tests.rs",
+          "symbol": "actual_multi_header_slot_commits_raw_owner_state_before_count_and_storage_rejections"
+        },
+        {
+          "path": "src/packet/tests.rs",
+          "symbol": "public_multi_boundary_preflights_every_body_then_keeps_prior_real_decoder_commits"
+        },
+        {
+          "path": "src/packet/tests.rs",
+          "symbol": "public_multi_uses_prefix_header_budget_and_ignores_sop_sequence_values"
+        },
+        {
+          "path": "src/packet/tests.rs",
+          "symbol": "public_single_boundary_keeps_whole_payload_priority_and_real_partial_header_effects"
+        },
+        {
+          "path": "src/packet/tests.rs",
+          "symbol": "precinct_skipped_execution_consumes_ranges_without_decoder_shape_or_counter_changes"
+        },
+        {
+          "path": "src/packet/tests.rs",
+          "symbol": "public_multi_optional_sop_retains_empty_packet_state_and_budgets"
+        },
+        {
+          "path": "src/decode/tests.rs",
+          "symbol": "sarah_dev_709cd8127b_optional_sop_keeps_raw_selected_and_packed_outputs"
+        },
+        {
+          "path": "src/packet/tests.rs",
+          "symbol": "sarah_dev_ea51acda28_terminal_ff_header_counts_stuffing_before_body"
+        },
+        {
+          "path": "src/packet/tests.rs",
+          "symbol": "original_jpip_inline_copy_refusal_keeps_actual_layer_update_and_restore"
+        },
+        {
+          "path": "src/packet/tests.rs",
+          "symbol": "original_multi_packet_contribution_storage_keeps_empty_packet_state_and_retry"
         }
       ]
     },
@@ -11286,58 +13710,163 @@
           "path": "specs/packet_orchestration.rs",
           "symbol": "part1_precinct_payload_after_headers"
         },
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_after_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_after_result"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_precinct_contributions_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_precinct_contributions_result"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_prepared_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_inline"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_finish"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_result"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_inner_caps"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_inner_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_result"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_precinct_run"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_precinct_result"}
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_after_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_after_result"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_precinct_contributions_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_precinct_contributions_result"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_prepared_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_inline"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_finish"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_result"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_inner_caps"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_inner_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_result"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_precinct_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_precinct_result"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inline_copy_run"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_after_copy_run"
+        }
       ],
       "proof_refs": [
         {
-          "path": "src/packet/precinct.rs", "symbol": "decode_precinct_header_slot"
+          "path": "src/packet/precinct.rs",
+          "symbol": "decode_precinct_header_slot"
         },
         {
-          "path": "src/packet/precinct.rs", "symbol": "decode_precinct_header_members"
+          "path": "src/packet/precinct.rs",
+          "symbol": "decode_precinct_header_members"
         },
         {
-          "path": "src/packet/precinct.rs", "symbol": "decode_precinct_contribution_headers"
+          "path": "src/packet/precinct.rs",
+          "symbol": "decode_precinct_contribution_headers"
         },
         {
-          "path": "src/packet/precinct.rs", "symbol": "decode_precinct_packet"
+          "path": "src/packet/precinct.rs",
+          "symbol": "decode_precinct_packet"
         },
         {
-          "path": "src/packet/precinct.rs", "symbol": "decode_precinct_packet_payload_prefix"
+          "path": "src/packet/precinct.rs",
+          "symbol": "decode_precinct_packet_payload_prefix"
         },
         {
-          "path": "src/packet/precinct.rs", "symbol": "decode_precinct_packet_payload"
+          "path": "src/packet/precinct.rs",
+          "symbol": "decode_precinct_packet_payload"
         },
         {
-          "path": "src/packet/precinct.rs", "symbol": "decode_precinct_packet_payload_after_headers"
+          "path": "src/packet/precinct.rs",
+          "symbol": "decode_precinct_packet_payload_after_headers"
         },
         {
-          "path": "proofs/spec_properties/mod.rs", "symbol": "precinct_sop_omission_preserves_disabled_prefix_result"
+          "path": "proofs/spec_properties/mod.rs",
+          "symbol": "precinct_sop_omission_preserves_disabled_prefix_result"
         },
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_after_normal"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_precinct_contributions_observed"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_prepared_normal"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_capacity_then"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_normal"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_jpip_inner_observed"},
-        {"path": "specs/cold_packet_copy.rs", "symbol": "part2_jpip_packet_inner_observed"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_payload_normal"},
-        {"path": "specs/cold_packet_payload.rs", "symbol": "part2_plane_precinct_normal"},
         {
-          "path": "src/packet/bit_reader.rs", "symbol": "PacketBitReader::finish_packet_header"
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_after_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_precinct_contributions_observed"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_prepared_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_capacity_then"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_observed"
+        },
+        {
+          "path": "specs/cold_packet_copy.rs",
+          "symbol": "part2_jpip_packet_inner_observed"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_payload_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_plane_precinct_normal"
+        },
+        {
+          "path": "src/packet/bit_reader.rs",
+          "symbol": "PacketBitReader::finish_packet_header"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inline_copy_normal"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inline_copy_observed"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_after_copy_frames"
+        },
+        {
+          "path": "specs/cold_packet_payload.rs",
+          "symbol": "part2_jpip_inner_copy_error"
         }
       ],
       "test_refs": [
@@ -11913,108 +14442,442 @@
         {"path": "src/jp2/container.rs", "symbol": "validate_selected_header"}
       ],
       "spec_refs": [
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_channel_requests"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_convert_after_layout_requests"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_convert_alpha_requests"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_convert_color_requests"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_convert_preflight"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_convert_requests"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_convert_value"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_crop_admitted"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_crop_plane_request"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_crop_requests"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_crop_value"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_layout_alpha_admitted"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_layout_alpha_before"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_layout_requests"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_normalize_count"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_normalize_value"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_output_capacity_count"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_output_capacity_run"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_output_program_result"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_output_program_run"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_output_requests_run"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_selected_after"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_selected_storage_run"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_associated_storage_result"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_associated_storage_run"},
-        {"path": "specs/cold_output_storage.rs", "symbol": "part2_associated_output_result"},
-        {"path": "specs/cold_output_storage.rs", "symbol": "part2_associated_output_run"},
-        {"path": "specs/cold_output_storage.rs", "symbol": "part2_selected_output_result"},
-        {"path": "specs/cold_output_storage.rs", "symbol": "part2_selected_output_run"},
-        {"path": "specs/mod.rs", "symbol": "part2_selection_tile_count"},
-        {"path": "specs/mod.rs", "symbol": "part2_selection_tile_bounds"},
-        {"path": "specs/mod.rs", "symbol": "part2_selection_from_parts"},
-        {"path": "specs/mod.rs", "symbol": "part2_selection_ceil"},
-        {"path": "specs/mod.rs", "symbol": "part2_tile_list_contains"},
-        {"path": "specs/mod.rs", "symbol": "part2_rectangle_area"},
-        {"path": "specs/mod.rs", "symbol": "part2_explicit_tile_prefix"},
-        {"path": "specs/mod.rs", "symbol": "part2_validate_tile_rectangle"},
-        {"path": "specs/mod.rs", "symbol": "part2_rectangle_rows"},
-        {"path": "specs/mod.rs", "symbol": "part2_selection_region"},
-        {"path": "specs/decoder_input.rs", "symbol": "part2_intersecting_tile_count"},
-        {"path": "specs/decoder_input.rs", "symbol": "part2_select_tiles_run"},
-        {"path": "specs/decoder_input.rs", "symbol": "part2_select_tiles_result"},
-        {"path": "specs/decoder_input.rs", "symbol": "part2_validate_selection_run"},
-        {"path": "specs/decoder_input.rs", "symbol": "part2_validate_selection_result"},
-        {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_size_run"},
-        {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_size_result"},
-        {"path": "specs/mod.rs", "symbol": "part2_select_intersecting_tiles"},
-        {"path": "specs/mod.rs", "symbol": "part2_selection_explicit"},
-        {"path": "specs/mod.rs", "symbol": "part2_validate_selection"},
-        {"path": "specs/mod.rs", "symbol": "part2_color_selection_context"},
-        {"path": "specs/mod.rs", "symbol": "part2_color_context_padding"},
-        {"path": "specs/mod.rs", "symbol": "part2_crg_component_predecessor"},
-        {"path": "specs/mod.rs", "symbol": "part2_color_selection_requested"},
-        {"path": "specs/mod.rs", "symbol": "part2_apply_associated_output"},
-        {"path": "specs/mod.rs", "symbol": "part2_convert_associated"},
-        {"path": "specs/mod.rs", "symbol": "part2_convert_associated_selected"},
-        {"path": "specs/mod.rs", "symbol": "part2_finish_associated_selected_output"},
-        {"path": "specs/mod.rs", "symbol": "part2_associated_codestream_header"},
-        {"path": "specs/mod.rs", "symbol": "part2_validate_selected_header"}
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_channel_requests"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_convert_after_layout_requests"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_convert_alpha_requests"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_convert_color_requests"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_convert_preflight"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_convert_requests"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_convert_value"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_crop_admitted"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_crop_plane_request"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_crop_requests"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_crop_value"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_layout_alpha_admitted"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_layout_alpha_before"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_layout_requests"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_normalize_count"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_normalize_value"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_output_capacity_count"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_output_capacity_run"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_output_program_result"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_output_program_run"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_output_requests_run"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_selected_after"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_selected_storage_run"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_associated_storage_result"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_associated_storage_run"
+        },
+        {
+          "path": "specs/cold_output_storage.rs",
+          "symbol": "part2_associated_output_result"
+        },
+        {
+          "path": "specs/cold_output_storage.rs",
+          "symbol": "part2_associated_output_run"
+        },
+        {
+          "path": "specs/cold_output_storage.rs",
+          "symbol": "part2_selected_output_result"
+        },
+        {
+          "path": "specs/cold_output_storage.rs",
+          "symbol": "part2_selected_output_run"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_selection_tile_count"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_selection_tile_bounds"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_selection_from_parts"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_selection_ceil"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_tile_list_contains"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_rectangle_area"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_explicit_tile_prefix"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_validate_tile_rectangle"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_rectangle_rows"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_selection_region"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_intersecting_tile_count"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_select_tiles_run"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_select_tiles_result"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_validate_selection_run"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_validate_selection_result"
+        },
+        {
+          "path": "specs/container_colors.rs",
+          "symbol": "part2_color_selection_size_run"
+        },
+        {
+          "path": "specs/container_colors.rs",
+          "symbol": "part2_color_selection_size_result"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_select_intersecting_tiles"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_selection_explicit"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_validate_selection"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_color_selection_context"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_color_context_padding"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_crg_component_predecessor"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_color_selection_requested"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_apply_associated_output"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_convert_associated"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_convert_associated_selected"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_finish_associated_selected_output"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_associated_codestream_header"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part2_validate_selected_header"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_explicit_selection_storage_count"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_explicit_selection_storage_result"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_explicit_selection_storage_run"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_validate_selection_after_explicit_run"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_validate_selection_explicit_admitted"
+        }
       ],
       "proof_refs": [
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_convert_alpha_error"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_convert_channel_error"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_convert_layout_error"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_convert_storage_refused"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_output_capacity_observed"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_output_program_child_error"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_output_program_error_info"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_output_program_normal"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_output_program_refused"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_output_requests_normal"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_selected_storage_convert_error"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_selected_storage_crop_actual"},
-        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_associated_storage_normal"},
-        {"path": "specs/cold_output_storage.rs", "symbol": "part2_associated_output_normal"},
-        {"path": "specs/cold_output_storage.rs", "symbol": "part2_selected_output_normal"},
-        {"path": "src/codestream/proof_support.rs", "symbol": "selection_geometry_known_fields"},
-        {"path": "src/options.rs", "symbol": "decode_selection_view"},
-        {"path": "src/jp2/proof_support.rs", "symbol": "codestream_header_association_view"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_unsigned_remainder_bound"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_explicit_tiles_step"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_rectangle_rows_error"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_selected_region_error"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_selected_tiles_error"},
-        {"path": "specs/decoder_input.rs", "symbol": "part2_select_tiles_normal"},
-        {"path": "specs/decoder_input.rs", "symbol": "part2_select_tiles_capacity_observed"},
-        {"path": "specs/decoder_input.rs", "symbol": "part2_validate_selection_normal"},
-        {"path": "specs/decoder_input.rs", "symbol": "part2_validate_selection_from_tiles"},
-        {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_size_normal"},
-        {"path": "specs/container_colors.rs", "symbol": "part2_color_selection_size_actual"},
-        {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_sampling_error_guard"},
-        {"path": "src/refinement/geometry.rs", "symbol": "crg_component_predecessor"}
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_convert_alpha_error"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_convert_channel_error"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_convert_layout_error"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_convert_storage_refused"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_output_capacity_observed"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_output_program_child_error"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_output_program_error_info"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_output_program_normal"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_output_program_refused"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_output_requests_normal"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_selected_storage_convert_error"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_selected_storage_crop_actual"
+        },
+        {
+          "path": "specs/cold_color_conversion.rs",
+          "symbol": "part2_color_associated_storage_normal"
+        },
+        {
+          "path": "specs/cold_output_storage.rs",
+          "symbol": "part2_associated_output_normal"
+        },
+        {
+          "path": "specs/cold_output_storage.rs",
+          "symbol": "part2_selected_output_normal"
+        },
+        {
+          "path": "src/codestream/proof_support.rs",
+          "symbol": "selection_geometry_known_fields"
+        },
+        {
+          "path": "src/options.rs",
+          "symbol": "decode_selection_view"
+        },
+        {
+          "path": "src/jp2/proof_support.rs",
+          "symbol": "codestream_header_association_view"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_unsigned_remainder_bound"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_explicit_tiles_step"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_rectangle_rows_error"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_selected_region_error"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_selected_tiles_error"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_select_tiles_normal"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_select_tiles_capacity_observed"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_validate_selection_normal"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_validate_selection_from_tiles"
+        },
+        {
+          "path": "specs/container_colors.rs",
+          "symbol": "part2_color_selection_size_normal"
+        },
+        {
+          "path": "specs/container_colors.rs",
+          "symbol": "part2_color_selection_size_actual"
+        },
+        {
+          "path": "proofs/production_impl/mod.rs",
+          "symbol": "production_color_sampling_error_guard"
+        },
+        {
+          "path": "src/refinement/geometry.rs",
+          "symbol": "crg_component_predecessor"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_explicit_selection_storage_normal"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_explicit_selection_storage_observed"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_validate_selection_after_explicit_normal"
+        },
+        {
+          "path": "specs/decoder_input.rs",
+          "symbol": "part2_validate_selection_explicit_error"
+        }
       ],
       "test_refs": [
-        {"path": "src/color/tests.rs", "symbol": "color_storage_channels_normalized_and_sycc_planes_keep_limits_empty_and_exact_retry"},
-        {"path": "src/color/tests.rs", "symbol": "color_storage_crop_owner_samples_identity_and_invalid_geometry_preserve_metadata"},
-        {"path": "src/color/tests.rs", "symbol": "color_storage_layout_first_later_alpha_refusal_and_association_priority_restore"},
-        {"path": "src/decode/tests.rs", "symbol": "complete_native_selection_and_color_context_match_independent_spatial_reference"},
-        {"path": "src/decode/tests.rs", "symbol": "sarah_engineering_crg_color_context_contains_the_coded_predecessor"},
-        {"path": "src/decode/tests.rs", "symbol": "associated_native_output_composes_actual_metadata_color_crop_and_none_bypass"},
-        {"path": "src/jp2/tests.rs", "symbol": "complete_native_association_and_selected_header_validation_preserve_raw_choices"},
-        {"path": "src/decode/tests.rs", "symbol": "selected_tiles_and_regions_match_full_decode_crops"}
+        {
+          "path": "src/color/tests.rs",
+          "symbol": "color_storage_channels_normalized_and_sycc_planes_keep_limits_empty_and_exact_retry"
+        },
+        {
+          "path": "src/color/tests.rs",
+          "symbol": "color_storage_crop_owner_samples_identity_and_invalid_geometry_preserve_metadata"
+        },
+        {
+          "path": "src/color/tests.rs",
+          "symbol": "color_storage_layout_first_later_alpha_refusal_and_association_priority_restore"
+        },
+        {
+          "path": "src/decode/tests.rs",
+          "symbol": "complete_native_selection_and_color_context_match_independent_spatial_reference"
+        },
+        {
+          "path": "src/decode/tests.rs",
+          "symbol": "sarah_engineering_crg_color_context_contains_the_coded_predecessor"
+        },
+        {
+          "path": "src/decode/tests.rs",
+          "symbol": "associated_native_output_composes_actual_metadata_color_crop_and_none_bypass"
+        },
+        {
+          "path": "src/jp2/tests.rs",
+          "symbol": "complete_native_association_and_selected_header_validation_preserve_raw_choices"
+        },
+        {
+          "path": "src/decode/tests.rs",
+          "symbol": "selected_tiles_and_regions_match_full_decode_crops"
+        },
+        {
+          "path": "src/decode/tests.rs",
+          "symbol": "original_explicit_selection_storage_keeps_raw_order_empty_errors_and_retry"
+        }
       ]
     },
     {
@@ -18478,6 +21341,14 @@
         {
           "path": "proofs/spec_properties/mod.rs",
           "symbol": "converted_samples_preserve_complete_length"
+        },
+        {
+          "path": "specs/cold_quantization_outputs.rs",
+          "symbol": "part2_convert_samples_storage_normal"
+        },
+        {
+          "path": "specs/cold_quantization_outputs.rs",
+          "symbol": "part2_convert_samples_storage_refused"
         }
       ],
       "spec_refs": [
@@ -18492,12 +21363,28 @@
         {
           "path": "specs/mod.rs",
           "symbol": "part1_round_fixed"
+        },
+        {
+          "path": "specs/cold_quantization_outputs.rs",
+          "symbol": "part2_convert_samples_storage_admitted"
+        },
+        {
+          "path": "specs/cold_quantization_outputs.rs",
+          "symbol": "part2_convert_samples_storage_result"
+        },
+        {
+          "path": "specs/cold_quantization_outputs.rs",
+          "symbol": "part2_convert_samples_storage_run"
         }
       ],
       "test_refs": [
         {
           "path": "src/transform/tests.rs",
           "symbol": "complete_sample_conversion_matches_wide_reference_and_error_boundaries"
+        },
+        {
+          "path": "src/transform/tests.rs",
+          "symbol": "original_sample_conversion_storage_keeps_preflight_empty_source_and_retry"
         }
       ],
       "topic": "Existing public conversion API's complete ordered rounding, level shifting, clipping, byte-budget and checked-error semantics, with an independent concrete API consumer; not the decoder's separate image/component conversion path"

@@ -130,6 +130,46 @@ scratch or borrowed-view owner. Those remaining measured owners retain their
 separate fallibility scope; no successful-owner/allocator premise, source
 coverage percentage or broader normative claim follows.
 
+### Remaining original allocation-port cutpoints
+
+The original dependency and component-wavelet storage now reserves checked
+paired indexes, partition parity/high lengths, fraction tags, source/output
+scratch and each reconstructed low prefix at their original cutpoints.
+[`cold_mct_auxiliary.rs`](specs/cold_mct_auxiliary.rs) derives requests from
+the actual components, collection, counts and limits. Preparation refusal
+retains the original admission/work frontier; later spectral refusal retains
+the already committed pixel prefix. The real pair, partition, preparation
+and inverse-line replies compose through collection/stage/transform/public
+callers with exact arbitrary tails, not a supplied successful owner bank.
+Disabled legacy spectral code is not treated as an executing producer.
+
+General-layer inherited definitions use the existing checked full-record
+copy helper; explicit/default color and opacity records use the existing
+checked append helper. Their source/target/definition contexts interleave
+with actual normalization and final conversion requests in
+[`jpx_general.rs`](specs/jpx_general.rs). Copying preserves every raw record
+without validation; record validation and target admission still precede
+append, while later channel-count and assembled-byte errors remain later.
+No partially assembled result is returned on refusal.
+
+Explicit Index/Set selection copies retain raw order and duplicates and occur
+before later selection semantics; All and empty-set rejection make no request.
+Multi-packet contribution storage follows real prefix admission and precedes
+header mutation, retaining the original state if refused. JPIP inline metadata
+reuses the checked tile-part copier and exhausts its actual nested trace;
+failure retains the already applied context-layer update, with outer rollback
+unchanged. Progression preparation reuses existing checked per-component
+publication instead of an additional infallible upfront reservation.
+
+Manual subband assembly now checks both original filled owners; sample
+conversion checks its output after the original precision and byte admission.
+The existing scalar Results, strict errors and source values are unchanged.
+Native controls cover first/later refusal, empty ownership, preflight/later
+error priority, charged work, committed pixels and exact restoration.
+These changes do not certify every unrelated public Clone/render/JPIP
+allocation, an erasure denominator, lifetime analysis, optional orchestration
+or normative conformance; existing profile boundaries remain.
+
 ### Reached nonlinear decode owners
 
 The NLT marker program now includes its checked insertion after the original

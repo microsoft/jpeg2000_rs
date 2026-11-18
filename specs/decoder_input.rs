@@ -509,7 +509,52 @@ pub(crate) proof fn part2_select_tiles_capacity_observed(
     assert(part2_cold_prefix(|events| part2_select_tiles_run(size, explicit, region, count, events), calls, result));
 }
 
-pub(crate) open spec fn part2_validate_selection_run(
+pub(crate) open spec fn part2_explicit_selection_storage_count(source:Part2TileSelection)->nat {
+    match source {Part2TileSelection::All=>0,Part2TileSelection::Index(_)=>1,Part2TileSelection::Set(values)=>values.len()}
+}
+pub(crate) open spec fn part2_explicit_selection_storage_run(source:Part2TileSelection,events:Seq<Part2JpipSnapshotEvent>)
+    ->Part2ColdRun<Seq<u16>> {
+    let ordinary=part2_selection_explicit(source);let count=part2_explicit_selection_storage_count(source);
+    if ordinary.is_err() || count==0 {Some((ordinary,events))}else if events.len()==0 {None}else{
+        match events[0] {
+            Part2JpipSnapshotEvent::ExplicitSelectionCapacity {source:actual,elements,succeeded}=>
+                if actual!=source || elements!=count {None}else{
+                    Some((if succeeded {ordinary}else{Err(crate::DecodeError::AllocationFailed)},events.drop_first()))
+                },
+            _=>None,
+        }
+    }
+}
+pub(crate) open spec fn part2_explicit_selection_storage_result(source:Part2TileSelection,result:Result<Seq<u16>,crate::DecodeError>)->bool {
+    part2_cold_framed(|events|part2_explicit_selection_storage_run(source,events),result)
+}
+pub(crate) proof fn part2_explicit_selection_storage_observed(source:Part2TileSelection,response:Result<(),crate::DecodeError>)
+    requires part2_selection_explicit(source).is_ok(),
+        response==Ok(()) || (part2_explicit_selection_storage_count(source)>0 && response==Err(crate::DecodeError::AllocationFailed)),
+    ensures part2_explicit_selection_storage_result(source,match response {Ok(())=>part2_selection_explicit(source),Err(error)=>Err(error)}),
+{
+    let count=part2_explicit_selection_storage_count(source);
+    let result=match response {Ok(())=>part2_selection_explicit(source),Err(error)=>Err(error)};
+    let prefix=if count==0 {Seq::empty()}else{
+        seq![Part2JpipSnapshotEvent::ExplicitSelectionCapacity {source,elements:count,succeeded:response.is_ok()}]
+    };
+    assert forall|tail:Seq<Part2JpipSnapshotEvent>|part2_explicit_selection_storage_run(source,prefix+tail)==Some((result,tail)) by {
+        if count==0 {assert(prefix+tail =~= tail);}else{assert((prefix+tail).drop_first() =~= tail);}
+    }
+    assert(part2_cold_prefix(|events|part2_explicit_selection_storage_run(source,events),prefix,result));
+}
+pub(crate) proof fn part2_explicit_selection_storage_normal(source:Part2TileSelection)
+    ensures part2_explicit_selection_storage_result(source,part2_selection_explicit(source)),
+{
+    if part2_selection_explicit(source).is_ok(){part2_explicit_selection_storage_observed(source,Ok(()));}
+    else {part2_cold_pure::<Seq<u16>>(part2_selection_explicit(source));}
+}
+pub(crate) open spec fn part2_validate_selection_explicit_admitted(size:Part2SelectionGeometry)->bool {
+    size.2 as nat+size.0 as nat<=u32::MAX && size.3 as nat+size.1 as nat<=u32::MAX
+        && size.8!=0 && part2_selection_tile_count(size).is_ok()
+        && part2_selection_tile_count(size).get_Ok_0()<=u16::MAX as u64+1
+}
+pub(crate) open spec fn part2_validate_selection_after_explicit_run(
     size: Part2SelectionGeometry, requested: Part2DecodeSelection, events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Part2ValidatedSelection> {
     match part2_validate_selection(size, requested) {
@@ -520,6 +565,14 @@ pub(crate) open spec fn part2_validate_selection_run(
             |tiles: Seq<u16>, rest| Some((Ok((tiles, selected.1, selected.2)), rest))),
     }
 }
+pub(crate) open spec fn part2_validate_selection_run(
+    size:Part2SelectionGeometry,requested:Part2DecodeSelection,events:Seq<Part2JpipSnapshotEvent>,
+)->Part2ColdRun<Part2ValidatedSelection> {
+    if !part2_validate_selection_explicit_admitted(size){Some((part2_validate_selection(size,requested),events))}else{
+        part2_jpip_snapshot_bind(part2_explicit_selection_storage_run(requested.0,events),
+            |_:Seq<u16>,rest|part2_validate_selection_after_explicit_run(size,requested,rest))
+    }
+}
 
 pub(crate) open spec fn part2_validate_selection_result(
     size: Part2SelectionGeometry, requested: Part2DecodeSelection,
@@ -528,10 +581,10 @@ pub(crate) open spec fn part2_validate_selection_result(
     part2_cold_framed(|events| part2_validate_selection_run(size, requested, events), result)
 }
 
-pub(crate) proof fn part2_validate_selection_normal(
+pub(crate) proof fn part2_validate_selection_after_explicit_normal(
     size: Part2SelectionGeometry, requested: Part2DecodeSelection,
 )
-    ensures part2_validate_selection_result(size, requested, part2_validate_selection(size, requested)),
+    ensures part2_cold_framed(|events|part2_validate_selection_after_explicit_run(size,requested,events),part2_validate_selection(size,requested)),
 {
     reveal(part2_validate_selection);
     let normal = part2_validate_selection(size, requested);
@@ -549,11 +602,34 @@ pub(crate) proof fn part2_validate_selection_normal(
     }
 }
 
+pub(crate) proof fn part2_validate_selection_normal(size:Part2SelectionGeometry,requested:Part2DecodeSelection)
+    ensures part2_validate_selection_result(size,requested,part2_validate_selection(size,requested)),
+{
+    reveal(part2_validate_selection);
+    let ordinary=part2_validate_selection(size,requested);
+    if !part2_validate_selection_explicit_admitted(size){part2_cold_pure(ordinary);}else{
+        let explicit=part2_selection_explicit(requested.0);
+        part2_explicit_selection_storage_normal(requested.0);
+        part2_validate_selection_after_explicit_normal(size,requested);
+        part2_decode_eta(|events|part2_validate_selection_after_explicit_run(size,requested,events),ordinary);
+        part2_cold_bind(|events|part2_explicit_selection_storage_run(requested.0,events),
+            |_:Seq<u16>,rest|part2_validate_selection_after_explicit_run(size,requested,rest),explicit,ordinary);
+    }
+}
+pub(crate) proof fn part2_validate_selection_explicit_error(size:Part2SelectionGeometry,requested:Part2DecodeSelection,error:crate::DecodeError)
+    requires part2_validate_selection_explicit_admitted(size),part2_explicit_selection_storage_result(requested.0,Err(error)),
+    ensures part2_validate_selection_result(size,requested,Err(error)),
+{
+    part2_cold_bind(|events|part2_explicit_selection_storage_run(requested.0,events),
+        |_:Seq<u16>,rest|part2_validate_selection_after_explicit_run(size,requested,rest),Err(error),Err(error));
+}
+
 pub(crate) proof fn part2_validate_selection_from_tiles(
     size: Part2SelectionGeometry, requested: Part2DecodeSelection, explicit: Seq<u16>,
     region: Seq<u32>, count: u64, result: Result<Seq<u16>, crate::DecodeError>,
 )
     requires part2_selection_explicit(requested.0) == Ok(explicit),
+        part2_validate_selection_explicit_admitted(size),
         part2_selection_tile_count(size) == Ok(count),
         part2_validate_selection(size, requested) == match part2_select_intersecting_tiles(size, explicit, region, count) {
             Err(error) => Err(error), Ok(tiles) => Ok((tiles, region, requested.2)),
@@ -569,9 +645,13 @@ pub(crate) proof fn part2_validate_selection_from_tiles(
     part2_cold_pure(mapped);
     part2_cold_bind(child, next, result, mapped);
     assert forall|events: Seq<Part2JpipSnapshotEvent>|
-        part2_validate_selection_run(size, requested, events) == part2_jpip_snapshot_bind(child(events), next) by {};
+        part2_validate_selection_after_explicit_run(size, requested, events) == part2_jpip_snapshot_bind(child(events), next) by {};
     part2_cold_framed_extensional(|events| part2_jpip_snapshot_bind(child(events), next),
-        |events| part2_validate_selection_run(size, requested, events), mapped);
+        |events| part2_validate_selection_after_explicit_run(size, requested, events), mapped);
+    part2_explicit_selection_storage_normal(requested.0);
+    part2_decode_eta(|events|part2_validate_selection_after_explicit_run(size,requested,events),mapped);
+    part2_cold_bind(|events|part2_explicit_selection_storage_run(requested.0,events),
+        |_:Seq<u16>,rest|part2_validate_selection_after_explicit_run(size,requested,rest),Ok(explicit),mapped);
 }
 
 }

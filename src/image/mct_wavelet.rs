@@ -18,7 +18,10 @@ use crate::{DecodeError, ResourceLimits};
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures mct_wavelet_partition_outcome(result) == crate::specs::part2_mct_wavelet_partition(
+    ensures crate::specs::part2_mct_partition_storage_result(count,crate::codestream::mct_wavelet_view(wavelet),
+        mct_wavelet_partition_outcome(result)),
+    result!=Err(DecodeError::AllocationFailed) ==>
+        mct_wavelet_partition_outcome(result) == crate::specs::part2_mct_wavelet_partition(
         count, crate::codestream::mct_wavelet_view(wavelet)),
 ))]
 pub(super) fn prepare_mct_wavelet_partition(
@@ -27,8 +30,35 @@ pub(super) fn prepare_mct_wavelet_partition(
 ) -> Result<(Vec<bool>, Vec<usize>, usize), DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost style = crate::codestream::mct_wavelet_view(wavelet); }
-    let mut low_first = Vec::with_capacity(usize::from(wavelet.levels()));
-    let mut high_lengths = Vec::with_capacity(usize::from(wavelet.levels()));
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::specs::part2_mct_partition_storage_normal(count,style); }
+    let levels = usize::from(wavelet.levels());
+    let reserved = if levels == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(levels)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_mct_runtime_capacity_observed(crate::specs::Part2MctRuntimeCapacity::WaveletPartition {
+            count,wavelet:style,high:false,
+        },crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {crate::specs::part2_mct_partition_storage_refused(count,style,false,error);}
+    }
+    let mut low_first = reserved?;
+    let reserved = if levels == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(levels)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_mct_runtime_capacity_observed(crate::specs::Part2MctRuntimeCapacity::WaveletPartition {
+            count,wavelet:style,high:true,
+        },crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {crate::specs::part2_mct_partition_storage_refused(count,style,true,error);}
+    }
+    let mut high_lengths = reserved?;
     let mut canvas_start = i64::from(wavelet.component_offset());
     let signed_count = match i64::try_from(count) {
         Ok(value) => value,
@@ -52,6 +82,7 @@ pub(super) fn prepare_mct_wavelet_partition(
             count <= i64::MAX,
             initial_start == style.2 as i64,
             initial_end as int == initial_start as int + count as int,
+            crate::specs::part2_mct_partition_storage_result(count,style,crate::specs::part2_mct_wavelet_partition(count,style)),
             crate::specs::part2_mct_wavelet_intervals(initial_start, initial_end, level as nat)
                 == Ok((canvas_start, canvas_end, low_first@, high_lengths@)),
             decreases level_count - level,
@@ -123,7 +154,12 @@ fn admit_mct_wavelet(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (mct_wavelet_preparation_outcome(result), *final(work)) == crate::specs::part2_mct_prepare_wavelet(
+    ensures crate::specs::part2_mct_wavelet_prepare_storage_result(crate::specs::Part2MctRuntimeContext {
+        components:transform_components_view(components),collection:crate::codestream::mct_collection_view(collection),
+        work:*old(work),maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),
+    },(mct_wavelet_preparation_outcome(result),*final(work))),
+    result!=Err(DecodeError::AllocationFailed) ==>
+        (mct_wavelet_preparation_outcome(result), *final(work)) == crate::specs::part2_mct_prepare_wavelet(
         transform_components_view(components), crate::codestream::mct_collection_view(collection), *old(work),
         crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits)),
 ))]
@@ -138,18 +174,27 @@ fn prepare_mct_wavelet(
         let ghost before = transform_components_view(components);
         let ghost style = crate::codestream::mct_collection_view(collection);
         let ghost initial_work = *work;
+        let ghost context=crate::specs::Part2MctRuntimeContext {
+            components:before,collection:style,work:initial_work,
+            maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),
+        };
     }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_wavelet_prepare_storage_normal(context);}
     let wavelet = collection.wavelet().ok_or_else(invalid_transform)?;
     let count = collection.input_components().len();
     if count == 0 || count != collection.output_components().len() {
         return Err(invalid_transform());
     }
-    let (source_indexes, destination_indexes) = mct_component_pair_indexes(
+    let pairs = mct_component_pair_indexes(
         components,
         collection.input_components(),
         collection.output_components(),
         count,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=pairs {crate::specs::part2_mct_wavelet_prepare_pair_error(context,error);}}
+    let (source_indexes, destination_indexes) = pairs?;
     let reversible = matches!(wavelet.transform(), MctWaveletType::Reversible5x3);
     let sample_count = validate_mct_dependency_layout(
         components,
@@ -157,14 +202,36 @@ fn prepare_mct_wavelet(
         &destination_indexes,
         reversible,
     )?;
-    let (low_first, high_lengths, low_length) = prepare_mct_wavelet_partition(count, wavelet)?;
+    let partition = prepare_mct_wavelet_partition(count, wavelet);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=partition {crate::specs::part2_mct_wavelet_prepare_partition_error(
+    context,crate::codestream::mct_wavelet_view(wavelet),count,sample_count,error);}}
+    let (low_first, high_lengths, low_length) = partition?;
     admit_mct_wavelet(sample_count, count, wavelet.levels(), limits, work)?;
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::proofs::production_impl::production_mct_dependency_layout_bounds(
             before, source_indexes@, destination_indexes@, reversible, sample_count);
     }
-    let mut source_fraction_bits = Vec::with_capacity(count);
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost expected_plan=(source_indexes@,destination_indexes@,low_first@,high_lengths@,low_length,sample_count,count,
+            crate::codestream::mct_wavelet_view(wavelet),
+            Seq::new(source_indexes@.len(),|position:int|before[source_indexes@[position] as int].2));
+    }
+    let reserved = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::specs::part2_mct_wavelet_prepare_value(context)==(Ok(expected_plan),*work));
+        crate::specs::part2_mct_runtime_capacity_observed(crate::specs::Part2MctRuntimeCapacity::WaveletFractions {context},
+            crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {crate::specs::part2_mct_wavelet_prepare_fraction_error(context,expected_plan,*work,error);}
+    }
+    let mut source_fraction_bits = reserved?;
     let mut index = 0_usize;
     #[cfg_attr(
         verus_keep_ghost,
@@ -182,6 +249,10 @@ fn prepare_mct_wavelet(
                 initial_work, crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits)) == (Ok(()), *work),
             forall |position: int| 0 <= position < source_indexes@.len() ==> source_indexes@[position] < before.len(),
             source_fraction_bits@ == Seq::new(index as nat, |position: int| before[source_indexes@[position] as int].2),
+            context == (crate::specs::Part2MctRuntimeContext {components:before,collection:style,work:initial_work,
+                maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits)}),
+            crate::specs::part2_mct_wavelet_prepare_storage_result(context,crate::specs::part2_mct_prepare_wavelet(
+                before,style,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits))),
             decreases source_indexes.len() - index,
         )
     )]
@@ -297,7 +368,20 @@ fn reconstruct_mct_wavelet(
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_mct_line_reconstruction_normal(source@,high_lengths@,low_first@,reversible,low_length,count);}
     let mut cursor = low_length;
-    let mut reconstructed = Vec::with_capacity(low_length);
+    let reserved = if low_length == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(low_length)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_mct_runtime_capacity_observed(crate::specs::Part2MctRuntimeCapacity::WaveletReconstruction {
+            source:source@,high:high_lengths@,first:low_first@,reversible,low:low_length,count,
+        },crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {crate::specs::part2_mct_line_reconstruction_capacity_error(
+            source@,high_lengths@,low_first@,reversible,low_length,count,error);}
+    }
+    let mut reconstructed = reserved?;
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::proofs::production_impl::production_mct_wavelet_reconstruction_empty(source@, high_lengths@, low_first@, reversible, low_length);
@@ -417,15 +501,33 @@ pub(super) fn apply_mct_wavelet(
         let ghost before = transform_components_view(components);
         let ghost style = crate::codestream::mct_collection_view(collection);
         let ghost initial_work = *work;
+        let ghost context=crate::specs::Part2MctRuntimeContext {
+            components:before,collection:style,work:initial_work,
+            maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),
+        };
     }
     #[cfg(verus_keep_ghost)]
     proof! { crate::codestream::mct_fixed_precision_is_q32(); }
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_mct_line_wavelet_normal(before,style,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));}
-    let prepared = prepare_mct_wavelet(components, collection, limits, work)?;
+    let preparation = prepare_mct_wavelet(components, collection, limits, work);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=preparation {crate::specs::part2_mct_line_wavelet_prepare_error(context,error,*work);}}
+    let prepared = preparation?;
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost plan = mct_wavelet_preparation_view(&prepared); }
-    let mut source = Vec::with_capacity(prepared.count);
+    let reserved = if prepared.count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(prepared.count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_mct_runtime_capacity_observed(crate::specs::Part2MctRuntimeCapacity::WaveletSource {context},
+            crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {crate::specs::part2_mct_line_wavelet_source_error(context,plan,*work,error);}
+    }
+    let mut source = reserved?;
     #[cfg(verus_keep_ghost)]
     proof! { crate::proofs::production_impl::production_mct_wavelet_pixels_empty(before, plan); }
     let mut sample_index = 0_usize;
@@ -436,6 +538,8 @@ pub(super) fn apply_mct_wavelet(
         style == crate::codestream::mct_collection_view(collection),
         plan == mct_wavelet_preparation_view(&prepared),
         initial_work == *old(work),
+        context == (crate::specs::Part2MctRuntimeContext {components:before,collection:style,work:initial_work,
+            maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits)}),
         crate::specs::part2_mct_line_wavelet_result(before,style,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
             crate::specs::part2_mct_wavelet(before,style,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits))),
         (Ok(plan), *work) == crate::specs::part2_mct_prepare_wavelet(

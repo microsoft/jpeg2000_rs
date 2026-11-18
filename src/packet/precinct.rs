@@ -204,6 +204,17 @@ pub(super) fn decode_jpip_precinct_packet_inner(
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_jpip_inner_normal(initial,crate::codestream::tile_part_owned_view(template),data@,expected_sop_sequence,layer,limits);}
     set_progression_context_layer(&mut precinct.contexts, layer)?;
+    let copied = template.try_duplicate();
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_jpip_inline_copy_observed(crate::codestream::tile_part_owned_view(template),
+            crate::codestream::tile_part_copy_outcome(copied));
+        if let Err(error)=copied {
+            crate::specs::part2_jpip_inner_copy_error(initial,crate::codestream::tile_part_owned_view(template),
+                data@,expected_sop_sequence,layer,limits,error);
+        }
+    }
+    let copied = copied?;
     let inline = TilePartPayload {
         tile_index: template.tile_index,
         tile_part_index: 0,
@@ -211,11 +222,11 @@ pub(super) fn decode_jpip_precinct_packet_inner(
         coding_style: template.coding_style,
         quantization: template.quantization,
         component_coding_styles: template.component_coding_styles,
-        component_quantizations: template.component_quantizations.clone(),
+        component_quantizations: copied.component_quantizations,
         roi_shifts: template.roi_shifts,
-        progression_changes: template.progression_changes.clone(),
-        multiple_component_transform: template.multiple_component_transform.clone(),
-        part2_extensions: template.part2_extensions.clone(),
+        progression_changes: copied.progression_changes,
+        multiple_component_transform: copied.multiple_component_transform,
+        part2_extensions: copied.part2_extensions,
         packet_lengths: crate::codestream::packet_lengths_none(),
         packed_packet_headers: crate::codestream::packed_packet_headers_none(),
         has_functional_header_marker: template.has_functional_header_marker,

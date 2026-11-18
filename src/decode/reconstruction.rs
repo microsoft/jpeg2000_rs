@@ -1404,7 +1404,7 @@ pub fn decode_progression_prepared_image(
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_coefficient_progression_normal(crate::image::assembly_size_view(size),plans,precincts,plan.component_coding_styles,plan.coding_style,
     crate::limits::resource_decoded_bytes_limit(limits));}
-    let mut prepared = Vec::with_capacity(plan.components.len());
+    let mut prepared = Vec::new();
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::proofs::production_impl::production_reconstruct_components_empty(Seq::empty(), plans, precincts,

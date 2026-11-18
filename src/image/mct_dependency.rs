@@ -16,9 +16,11 @@ use crate::{DecodeError, ResourceLimits};
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures mct_component_pairs_outcome(result) == crate::specs::part2_mct_component_pairs(
-        transform_components_view(components), inputs@, outputs@, count as nat,
-    ),
+    ensures crate::specs::part2_mct_pair_storage_result(
+        transform_components_view(components), inputs@, outputs@, count, mct_component_pairs_outcome(result)),
+    result != Err(DecodeError::AllocationFailed) ==>
+        mct_component_pairs_outcome(result) == crate::specs::part2_mct_component_pairs(
+            transform_components_view(components), inputs@, outputs@, count as nat),
 ))]
 pub(super) fn mct_component_pair_indexes(
     components: &[TransformComponentMut<'_>],
@@ -28,8 +30,34 @@ pub(super) fn mct_component_pair_indexes(
 ) -> Result<(Vec<usize>, Vec<usize>), DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost before = transform_components_view(components); }
-    let mut source = Vec::with_capacity(count);
-    let mut destination = Vec::with_capacity(count);
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::specs::part2_mct_pair_storage_normal(before, inputs@, outputs@, count); }
+    let reserved = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_mct_runtime_capacity_observed(crate::specs::Part2MctRuntimeCapacity::PairIndexes {
+            components:before,inputs:inputs@,outputs:outputs@,count,destination:false,
+        },crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved { crate::specs::part2_mct_pair_storage_refused(before,inputs@,outputs@,count,false,error); }
+    }
+    let mut source = reserved?;
+    let reserved = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_mct_runtime_capacity_observed(crate::specs::Part2MctRuntimeCapacity::PairIndexes {
+            components:before,inputs:inputs@,outputs:outputs@,count,destination:true,
+        },crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved { crate::specs::part2_mct_pair_storage_refused(before,inputs@,outputs@,count,true,error); }
+    }
+    let mut destination = reserved?;
     #[cfg(verus_keep_ghost)]
     proof! { crate::proofs::production_impl::production_mct_pairs_empty(before, inputs@, outputs@); }
     let mut index = 0_usize;
@@ -38,6 +66,8 @@ pub(super) fn mct_component_pair_indexes(
         before == transform_components_view(components),
         source@.len() == index, destination@.len() == index,
         crate::specs::part2_mct_component_pairs(before, inputs@, outputs@, index as nat) == Ok((source@, destination@)),
+        crate::specs::part2_mct_pair_storage_result(before,inputs@,outputs@,count,
+            crate::specs::part2_mct_component_pairs(before,inputs@,outputs@,count as nat)),
         decreases count - index,
     ))]
     while index < count {
@@ -225,7 +255,12 @@ pub(super) fn validate_mct_dependency_layout(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (mct_dependency_preparation_outcome(result), *final(work)) == crate::specs::part2_mct_prepare_dependency(
+    ensures crate::specs::part2_mct_dependency_prepare_storage_result(crate::specs::Part2MctRuntimeContext {
+        components:transform_components_view(components),collection:crate::codestream::mct_collection_view(collection),
+        work:*old(work),maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),
+    },(mct_dependency_preparation_outcome(result),*final(work))),
+    result!=Err(DecodeError::AllocationFailed) ==>
+        (mct_dependency_preparation_outcome(result), *final(work)) == crate::specs::part2_mct_prepare_dependency(
         transform_components_view(components), crate::codestream::mct_collection_view(collection), *old(work),
         crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -241,7 +276,13 @@ pub(super) fn prepare_mct_dependency(
         let ghost before = transform_components_view(components);
         let ghost style = crate::codestream::mct_collection_view(collection);
         let ghost initial_work = *work;
+        let ghost context=crate::specs::Part2MctRuntimeContext {
+            components:before,collection:style,work:initial_work,
+            maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),
+        };
     }
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::specs::part2_mct_dependency_prepare_storage_normal(context); }
     let count = collection.input_components().len();
     if count == 0 || count != collection.output_components().len() {
         return Err(invalid_transform());
@@ -252,12 +293,19 @@ pub(super) fn prepare_mct_dependency(
     {
         return Err(invalid_transform());
     }
-    let (source_indexes, destination_indexes) = mct_component_pair_indexes(
+    let pairs = mct_component_pair_indexes(
         components,
         collection.input_components(),
         collection.output_components(),
         count,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=pairs {
+            crate::specs::part2_mct_dependency_prepare_pair_error(context,count,expected_coefficients,error);
+        }
+    }
+    let (source_indexes, destination_indexes) = pairs?;
     let sample_count = validate_mct_dependency_layout(
         components,
         &source_indexes,
@@ -375,7 +423,12 @@ pub(super) fn apply_mct_dependency_pixel(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, transform_components_view(final(components)), *final(work)) == crate::specs::part2_mct_dependency(
+    ensures crate::specs::part2_mct_dependency_storage_result(crate::specs::Part2MctRuntimeContext {
+        components:transform_components_view(old(components)),collection:crate::codestream::mct_collection_view(collection),
+        work:*old(work),maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),
+    },(result,transform_components_view(final(components)),*final(work))),
+    result!=Err(DecodeError::AllocationFailed) ==>
+        (result, transform_components_view(final(components)), *final(work)) == crate::specs::part2_mct_dependency(
         transform_components_view(old(components)), crate::codestream::mct_collection_view(collection),
         *old(work), crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -392,10 +445,22 @@ pub(super) fn apply_mct_dependency(
         let ghost before = transform_components_view(components);
         let ghost style = crate::codestream::mct_collection_view(collection);
         let ghost initial_work = *work;
+        let ghost context=crate::specs::Part2MctRuntimeContext {
+            components:before,collection:style,work:initial_work,
+            maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),
+        };
     }
     #[cfg(verus_keep_ghost)]
-    proof! { crate::codestream::mct_fixed_precision_is_q32(); }
-    let prepared = prepare_mct_dependency(components, collection, limits, work)?;
+    proof! {
+        crate::codestream::mct_fixed_precision_is_q32();
+        crate::specs::part2_mct_dependency_storage_normal(context);
+    }
+    let preparation = prepare_mct_dependency(components, collection, limits, work);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=preparation { crate::specs::part2_mct_dependency_storage_prepare_error(context,error,*work); }
+    }
+    let prepared = preparation?;
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost plan = mct_dependency_preparation_view(&prepared); }
     #[cfg(verus_keep_ghost)]
@@ -405,9 +470,48 @@ pub(super) fn apply_mct_dependency(
     }
     let count = prepared.count;
     let sample_count = prepared.sample_count;
-    let mut source = Vec::with_capacity(count);
-    let mut output = Vec::with_capacity(count);
-    let mut source_fraction_bits = Vec::with_capacity(count);
+    let reserved = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_mct_runtime_capacity_observed(crate::specs::Part2MctRuntimeCapacity::DependencyScratch {
+            context,role:crate::specs::Part2MctRuntimeRole::SourceSamples,
+        },crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved { crate::specs::part2_mct_dependency_storage_scratch_error(
+            context,plan,*work,crate::specs::Part2MctRuntimeRole::SourceSamples,error); }
+    }
+    let mut source = reserved?;
+    let reserved = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_mct_runtime_capacity_observed(crate::specs::Part2MctRuntimeCapacity::DependencyScratch {
+            context,role:crate::specs::Part2MctRuntimeRole::OutputSamples,
+        },crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved { crate::specs::part2_mct_dependency_storage_scratch_error(
+            context,plan,*work,crate::specs::Part2MctRuntimeRole::OutputSamples,error); }
+    }
+    let mut output = reserved?;
+    let reserved = if count == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(count)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_mct_runtime_capacity_observed(crate::specs::Part2MctRuntimeCapacity::DependencyScratch {
+            context,role:crate::specs::Part2MctRuntimeRole::FractionBits,
+        },crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved { crate::specs::part2_mct_dependency_storage_scratch_error(
+            context,plan,*work,crate::specs::Part2MctRuntimeRole::FractionBits,error); }
+    }
+    let mut source_fraction_bits = reserved?;
     let mut index = 0;
     #[cfg_attr(
         verus_keep_ghost,
@@ -420,12 +524,16 @@ pub(super) fn apply_mct_dependency(
             plan == mct_dependency_preparation_view(&prepared),
             count == plan.3, sample_count == plan.2,
             initial_work == *old(work),
+            context == (crate::specs::Part2MctRuntimeContext {components:before,collection:style,work:initial_work,
+                maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits)}),
             (Ok(plan), *work) == crate::specs::part2_mct_prepare_dependency(
                 before, style, initial_work, crate::limits::resource_work_limit(limits),
                 crate::limits::resource_decoded_bytes_limit(limits)),
             plan.0.len() == count, plan.1.len() == count,
             forall |position: int| 0 <= position < plan.0.len() ==> plan.0[position] < before.len(),
             source_fraction_bits@ == Seq::new(index as nat, |position: int| before[plan.0[position] as int].2),
+            crate::specs::part2_mct_dependency_storage_result(context,crate::specs::part2_mct_dependency(
+                before,style,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits))),
             decreases count - index,
         )
     )]
@@ -462,10 +570,14 @@ pub(super) fn apply_mct_dependency(
             plan == mct_dependency_preparation_view(&prepared),
             count == plan.3, sample_count == plan.2,
             initial_work == *old(work),
+            context == (crate::specs::Part2MctRuntimeContext {components:before,collection:style,work:initial_work,
+                maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits)}),
             (Ok(plan), *work) == crate::specs::part2_mct_prepare_dependency(
                 before, style, initial_work, crate::limits::resource_work_limit(limits),
                 crate::limits::resource_decoded_bytes_limit(limits)),
             source_fraction_bits@ == Seq::new(plan.0.len(), |position: int| before[plan.0[position] as int].2),
+            crate::specs::part2_mct_dependency_storage_result(context,crate::specs::part2_mct_dependency(
+                before,style,initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits))),
             crate::specs::part2_mct_dependency_pixels(before, style, plan, source_fraction_bits@, sample_index as nat)
                 == (Ok(()), transform_components_view(components)),
             decreases sample_count - sample_index,

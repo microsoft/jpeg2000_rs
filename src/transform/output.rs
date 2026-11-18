@@ -47,7 +47,9 @@ impl ReconstructedPlane {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures sequence_outcome(result) == crate::specs::part1_convert_samples(
+    ensures crate::specs::part2_convert_samples_storage_result(
+        reconstructed_plane_view(*plane),precision,signed,crate::limits::resource_decoded_bytes_limit(limits),sequence_outcome(result)),
+    sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part1_convert_samples(
         reconstructed_plane_view(*plane), precision, signed, crate::limits::resource_decoded_bytes_limit(limits),
     ),
 ))]
@@ -57,6 +59,9 @@ pub fn convert_samples(
     signed: bool,
     limits: &ResourceLimits,
 ) -> Result<Vec<i64>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::specs::part2_convert_samples_storage_normal(
+    reconstructed_plane_view(*plane),precision,signed,crate::limits::resource_decoded_bytes_limit(limits)); }
     if precision == 0 || precision > 38 || plane.fraction_bits > 62 {
         return Err(invalid_transform());
     }
@@ -80,12 +85,27 @@ pub fn convert_samples(
         0
     };
     let level_shift = crate::refinement::level_shift(precision, signed);
-    let mut converted = Vec::with_capacity(plane.samples.len());
+    let reserved = if plane.samples.is_empty() {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(plane.samples.len())
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_quantization_capacity_observed(
+            crate::specs::Part2QuantizationOwner::ConvertedSamples,plane.samples@.len(),crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {crate::specs::part2_convert_samples_storage_refused(
+            reconstructed_plane_view(*plane),precision,signed,crate::limits::resource_decoded_bytes_limit(limits),error);}
+    }
+    let mut converted = reserved?;
     let mut index = 0;
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant index <= plane.samples.len(),
+            crate::specs::part2_convert_samples_storage_result(reconstructed_plane_view(*plane),precision,signed,
+                crate::limits::resource_decoded_bytes_limit(limits),crate::specs::part1_convert_samples(
+                    reconstructed_plane_view(*plane),precision,signed,crate::limits::resource_decoded_bytes_limit(limits))),
             0 < precision <= 38,
             plane.fraction_bits <= 62,
             crate::specs::part1_quantization_budget(

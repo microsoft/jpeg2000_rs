@@ -7729,6 +7729,76 @@ fn decodes_packet_body_through_inverse_quantization() {
 }
 
 #[test]
+fn original_explicit_selection_storage_keeps_raw_order_empty_errors_and_retry() {
+    use super::selection::explicit_tiles_from_selection;
+
+    for selection in [TileSelection::Index(7), TileSelection::Set(vec![3, 1, 3])] {
+        let expected = explicit_tiles_from_selection(&selection).unwrap();
+        assert_eq!(
+            crate::allocation::with_refusal(0, || explicit_tiles_from_selection(&selection)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(explicit_tiles_from_selection(&selection).unwrap(), expected);
+    }
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            explicit_tiles_from_selection(&TileSelection::All),
+            Ok(vec![])
+        );
+        assert_eq!(
+            explicit_tiles_from_selection(&TileSelection::Set(vec![])),
+            Err(DecodeError::InvalidSelection {
+                reason: SelectionError::EmptyTileSet
+            })
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn original_subband_storage_refusals_precede_invalid_blocks_and_restore() {
+    let limits = ResourceLimits::default();
+    let blocks = [PlacedCodeBlock {
+        x: 0,
+        y: 0,
+        request: CodeBlockDecodeRequest {
+            width: 0,
+            height: 1,
+            significant_bitplanes: 1,
+            orientation: SubbandOrientation::Ll,
+            style: Tier1CodingStyle::default(),
+            layers: &[],
+            quantization_step: QuantizationStep {
+                exponent: 0,
+                mantissa: 0,
+            },
+            dynamic_range: 8,
+            reversible: true,
+            roi_shift: 0,
+        },
+    }];
+    let expected = decode_subband(1, 1, &blocks, &limits).err().unwrap();
+    assert_ne!(expected, DecodeError::AllocationFailed);
+    for after in 0..2 {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || decode_subband(1, 1, &blocks, &limits)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(decode_subband(1, 1, &blocks, &limits).err(), Some(expected));
+    }
+    crate::allocation::with_refusal(2, || {
+        assert_eq!(decode_subband(1, 1, &blocks, &limits).err(), Some(expected));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn decodes_cleanup_only_ht_packet_body_through_inverse_quantization() {
     let limits = ResourceLimits::default();
     let style = Tier1CodingStyle::from_code_block_style(0x40).unwrap();

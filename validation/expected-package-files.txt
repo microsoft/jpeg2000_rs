@@ -61,6 +61,7 @@ specs/cold_legacy_packets.rs
 specs/cold_legacy_replay.rs
 specs/cold_marker_header.rs
 specs/cold_marker_storage.rs
+specs/cold_mct_auxiliary.rs
 specs/cold_mct_copy.rs
 specs/cold_mct_line_composition.rs
 specs/cold_mct_line_pixels.rs

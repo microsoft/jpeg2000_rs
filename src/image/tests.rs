@@ -1047,6 +1047,177 @@ fn t801_reversible_decorrelation_array(values: Vec<i64>) -> crate::codestream::M
 }
 
 #[test]
+fn original_mct_dependency_storage_keeps_preflight_work_empty_and_exact_retry() {
+    use super::mct_dependency::mct_component_pair_indexes;
+
+    let collection = MctCollection::from_dependency(true, vec![0], None, None);
+    for after in 0..5 {
+        let mut samples = vec![7, 11];
+        let mut fraction = 0;
+        let mut components = [TransformComponentMut {
+            component: 0,
+            x: 0,
+            y: 0,
+            width: 2,
+            height: 1,
+            x_subsampling: 1,
+            y_subsampling: 1,
+            fraction_bits: &mut fraction,
+            samples: &mut samples,
+        }];
+        let mut work = 5;
+        assert_eq!(
+            crate::allocation::with_refusal(after, || apply_mct_dependency(
+                &mut components,
+                &collection,
+                &ResourceLimits::default(),
+                &mut work
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(samples, [7, 11]);
+        assert_eq!(fraction, 0);
+        assert_eq!(work, if after < 2 { 5 } else { 7 });
+    }
+    let mut samples = vec![7, 11];
+    let mut fraction = 0;
+    let mut components = [TransformComponentMut {
+        component: 0,
+        x: 0,
+        y: 0,
+        width: 2,
+        height: 1,
+        x_subsampling: 1,
+        y_subsampling: 1,
+        fraction_bits: &mut fraction,
+        samples: &mut samples,
+    }];
+    let mut work = 5;
+    apply_mct_dependency(
+        &mut components,
+        &collection,
+        &ResourceLimits::default(),
+        &mut work,
+    )
+    .unwrap();
+    assert_eq!(samples, [7, 11]);
+    assert_eq!(work, 7);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            mct_component_pair_indexes(&[], &[], &[], 0),
+            Ok((vec![], vec![]))
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            mct_component_pair_indexes(&[], &[0], &[0], 1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn original_mct_wavelet_storage_preserves_admission_committed_pixels_and_retry() {
+    let collection = MctCollection::from_wavelet(
+        vec![0, 1],
+        vec![0, 1],
+        crate::codestream::MctWaveletType::Reversible5x3,
+        1,
+        0,
+    );
+    let mut saw_committed_pixel = false;
+    let mut finished = false;
+    for after in 0..32 {
+        let mut samples = [vec![7, 11], vec![3, 5]];
+        let mut fractions = [0, 0];
+        let mut components: Vec<_> = samples
+            .iter_mut()
+            .zip(fractions.iter_mut())
+            .enumerate()
+            .map(
+                |(component, (samples, fraction_bits))| TransformComponentMut {
+                    component: component as u16,
+                    x: 0,
+                    y: 0,
+                    width: 2,
+                    height: 1,
+                    x_subsampling: 1,
+                    y_subsampling: 1,
+                    fraction_bits,
+                    samples,
+                },
+            )
+            .collect();
+        let mut work = 5;
+        let result = crate::allocation::with_refusal(after, || {
+            apply_mct_wavelet(
+                &mut components,
+                &collection,
+                &ResourceLimits::default(),
+                &mut work,
+            )
+        });
+        drop(components);
+        match result {
+            Ok(()) => {
+                assert_eq!(samples, [vec![5, 8], vec![8, 13]]);
+                assert!(after > 6);
+                finished = true;
+                break;
+            }
+            Err(DecodeError::AllocationFailed) => {
+                assert_eq!(fractions, [0, 0]);
+                if after < 4 {
+                    assert_eq!(work, 5);
+                } else {
+                    assert!(work > 5);
+                }
+                if samples == [vec![5, 11], vec![8, 5]] {
+                    saw_committed_pixel = true;
+                } else {
+                    assert_eq!(samples, [vec![7, 11], vec![3, 5]]);
+                }
+            }
+            Err(error) => panic!("unexpected ordinary transform error: {error:?}"),
+        }
+    }
+    assert!(finished && saw_committed_pixel);
+    let mut samples = [vec![7, 11], vec![3, 5]];
+    let mut fractions = [0, 0];
+    let mut components: Vec<_> = samples
+        .iter_mut()
+        .zip(fractions.iter_mut())
+        .enumerate()
+        .map(
+            |(component, (samples, fraction_bits))| TransformComponentMut {
+                component: component as u16,
+                x: 0,
+                y: 0,
+                width: 2,
+                height: 1,
+                x_subsampling: 1,
+                y_subsampling: 1,
+                fraction_bits,
+                samples,
+            },
+        )
+        .collect();
+    apply_mct_wavelet(
+        &mut components,
+        &collection,
+        &ResourceLimits::default(),
+        &mut 5,
+    )
+    .unwrap();
+    drop(components);
+    assert_eq!(samples, [vec![5, 8], vec![8, 13]]);
+}
+
+#[test]
 fn mct_runtime_storage_preparation_scratch_and_pixel_refusals_keep_work_and_committed_prefix() {
     let collection = MctCollection::from_arrays(
         true,
@@ -5490,7 +5661,7 @@ fn wavelet_line_storage_public_mct_retains_actual_prior_pixel_and_restores() {
         };
         let mut expected = fresh();
         apply_multiple_component_transform(&mut expected, &transform, &limits).unwrap();
-        for after in [1, 2] {
+        for (after, committed) in [(8, false), (10, true)] {
             let mut partial = fresh();
             assert_eq!(
                 crate::allocation::with_refusal(after, || apply_multiple_component_transform(
@@ -5503,7 +5674,7 @@ fn wavelet_line_storage_public_mct_retains_actual_prior_pixel_and_restores() {
             for (index, values) in source.iter().enumerate() {
                 assert_eq!(
                     partial.component(index as u16).unwrap().samples(),
-                    &[if after == 1 { values[0] } else { first[index] }, values[1]]
+                    &[if committed { first[index] } else { values[0] }, values[1]]
                 );
                 assert_eq!(partial.component(index as u16).unwrap().fraction_bits(), 0);
             }
