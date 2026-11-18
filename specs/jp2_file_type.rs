@@ -72,7 +72,8 @@ pub open spec fn part2_parse_file_type(input: Part2BoxReference, maximum_brands:
 pub open spec fn part2_validate_file_type_profile(input: Part2FileType, offset: u64)
     -> Result<(), crate::DecodeError>
 {
-    if input.0 == crate::jp2::BoxType::JP2_BRAND && part2_file_type_jpx(input) {
+    if input.0 == crate::jp2::BoxType::JP2_BRAND && part2_file_type_jpx(input)
+        && !input.2.contains(crate::jp2::BoxType::JP2_BRAND) {
         Err(crate::DecodeError::MalformedInput { offset, kind: crate::MalformedKind::InvalidFileType })
     } else if !part2_file_type_compatible(input, crate::jp2::BoxType::JPH_BRAND) { Ok(()) }
     else if !valid_jph_branding(input.0 == crate::jp2::BoxType::JPH_BRAND, input.1 as nat, input.2.len(),

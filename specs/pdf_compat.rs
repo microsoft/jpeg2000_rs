@@ -18,8 +18,9 @@ pub(crate) open spec fn part2_pdf_raw_input(input: Seq<u8>) -> bool {
 
 pub(crate) open spec fn part2_pdf_file_profile(file: Part2RawJp2File) -> bool {
     part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JP2_BRAND)
-        && !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JPX_BRAND)
-        && !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JPX_BASELINE_BRAND)
+        && (file.file_type.0 == crate::jp2::BoxType::JP2_BRAND
+            || (!part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JPX_BRAND)
+                && !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JPX_BASELINE_BRAND)))
         && !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JPH_BRAND)
         && file.streams.len() == 1
 }
