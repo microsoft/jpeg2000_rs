@@ -63,6 +63,7 @@ specs/cold_marker_storage.rs
 specs/cold_mct_copy.rs
 specs/cold_mct_line_composition.rs
 specs/cold_mct_line_pixels.rs
+specs/cold_mct_runtime.rs
 specs/cold_mct_wavelet_lines.rs
 specs/cold_nlt_regions.rs
 specs/cold_nlt_storage.rs

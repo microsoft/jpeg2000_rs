@@ -165,7 +165,22 @@ pub(super) fn apply_tile_multiple_component_transform(
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_mct_line_prepared_normal(before,codestream::image_size_component_count(size),codestream::image_size_component_infos(size),
     codestream::multiple_component_transform_view(transform),initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));}
-    let mut components = Vec::with_capacity(prepared.len());
+    let reserved = if prepared.is_empty() {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(prepared.len())
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_mct_view_observed(crate::specs::Part2MctViewSource::Prepared {source:before},
+            crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {
+            crate::specs::part2_mct_line_prepared_views_error(before,codestream::image_size_component_count(size),
+                codestream::image_size_component_infos(size),codestream::multiple_component_transform_view(transform),
+                initial_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),error);
+        }
+    }
+    let mut components = reserved?;
     let collected_result = collect_prepared_transform_components(prepared, size, &mut components);
     #[cfg(verus_keep_ghost)]
     proof! {

@@ -154,7 +154,21 @@ pub fn apply_multiple_component_transform(
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_mct_line_decoded_normal(before,crate::codestream::multiple_component_transform_view(transform),
     crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));}
-    let mut components = Vec::with_capacity(image.components.len());
+    let reserved = if image.components.is_empty() {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(image.components.len())
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_mct_view_observed(crate::specs::Part2MctViewSource::Decoded {source:before},
+            crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {
+            crate::specs::part2_mct_line_decoded_views_error(before,crate::codestream::multiple_component_transform_view(transform),
+                crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),error);
+        }
+    }
+    let mut components = reserved?;
     let collected_result =
         collect_decoded_transform_components(&mut image.components, 0, &mut components);
     match collected_result {
@@ -453,7 +467,13 @@ fn apply_mct_collection(
         MctCollectionKind::Wavelet => apply_mct_wavelet(components, collection, limits, work),
     };
     #[cfg(verus_keep_ghost)]
-    proof! {if matches!(style.3,MctCollectionKind::Wavelet){crate::specs::part2_mct_line_collection_wavelet_observed(before,style,before_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),(result,transform_components_view(components),*work));}}
+    proof! {
+        if matches!(style.3,MctCollectionKind::Wavelet){
+            crate::specs::part2_mct_line_collection_wavelet_observed(before,style,before_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),(result,transform_components_view(components),*work));
+        }else if matches!(style.3,MctCollectionKind::Decorrelation){
+            crate::specs::part2_mct_line_collection_decorrelation_observed(before,style,before_work,crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),(result,transform_components_view(components),*work));
+        }
+    }
     result
 }
 
@@ -904,7 +924,9 @@ fn apply_multiple_component_transform_legacy(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures result == crate::specs::part2_reversible_mct_row(
+    ensures crate::specs::part2_mct_reversible_row_storage_result(crate::codestream::mct_array_view(matrix),
+        crate::codestream::mct_array_option(offsets),source@,row,result),
+    result!=Err(DecodeError::AllocationFailed) ==> result == crate::specs::part2_reversible_mct_row(
         crate::codestream::mct_array_view(matrix), crate::codestream::mct_array_option(offsets), source@, row,
     ),
 ))]
@@ -914,6 +936,9 @@ pub(super) fn reversible_mct_row(
     source: &[i64],
     row: usize,
 ) -> Result<i64, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_reversible_row_storage_normal(crate::codestream::mct_array_view(matrix),
+    crate::codestream::mct_array_option(offsets),source@,row);}
     let floating_offsets = match offsets {
         Some(array) => array.fraction_bits() != 0,
         None => false,
@@ -921,8 +946,19 @@ pub(super) fn reversible_mct_row(
     if matrix.fraction_bits() != 0 || floating_offsets {
         return Err(invalid_transform());
     }
-    let values = inverse_reversible_mct(matrix, source)?;
-    reversible_mct_output(&values, offsets, row)
+    let inverted = inverse_reversible_mct(matrix, source);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=inverted {crate::specs::part2_mct_reversible_row_storage_observed(
+            crate::codestream::mct_array_view(matrix),crate::codestream::mct_array_option(offsets),source@,row,
+            crate::transform::sequence_outcome(inverted),Err(error));}
+    }
+    let values = inverted?;
+    let result = reversible_mct_output(&values, offsets, row);
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_reversible_row_storage_observed(
+    crate::codestream::mct_array_view(matrix),crate::codestream::mct_array_option(offsets),source@,row,Ok(values@),result);}
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -1048,7 +1084,9 @@ pub(super) fn reversible_mct_stage(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::transform::sequence_outcome(result) == crate::specs::part2_inverse_reversible_mct(
+    ensures crate::specs::part2_mct_inverse_storage_result(crate::codestream::mct_array_view(matrix),source@,
+        crate::transform::sequence_outcome(result)),
+    result!=Err(DecodeError::AllocationFailed) ==> crate::transform::sequence_outcome(result) == crate::specs::part2_inverse_reversible_mct(
         crate::codestream::mct_array_view(matrix), source@,
     ),
 ))]
@@ -1056,14 +1094,24 @@ pub(super) fn inverse_reversible_mct(
     matrix: &MctArray,
     source: &[i64],
 ) -> Result<Vec<i64>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_inverse_storage_normal(crate::codestream::mct_array_view(matrix),source@);}
     if matrix.fraction_bits() != 0 {
         return Err(invalid_transform());
     }
     let count = source.len();
     crate::codestream::validate_reversible_mct_coefficients(matrix.values(), count)?;
     let stages = count.checked_add(1).ok_or_else(arithmetic_overflow)?;
-    let mut values = Vec::with_capacity(count);
-    values.extend_from_slice(source);
+    let copied = crate::allocation::copy_i64_values(source);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let capacity=crate::specs::Part2MctRuntimeCapacity::Inverse {matrix:crate::codestream::mct_array_view(matrix),source:source@};
+        crate::specs::part2_mct_runtime_capacity_observed(capacity,crate::allocation::inspection_capacity_outcome(copied));
+        if let Err(error)=copied {
+            crate::specs::part2_mct_inverse_storage_refused(crate::codestream::mct_array_view(matrix),source@,error);
+        }
+    }
+    let mut values = copied?;
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(values@ =~= source@);
@@ -1074,6 +1122,8 @@ pub(super) fn inverse_reversible_mct(
     let mut stage = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant stage <= stages,
+            crate::specs::part2_mct_inverse_storage_result(crate::codestream::mct_array_view(matrix),source@,
+                crate::specs::part2_inverse_reversible_mct(crate::codestream::mct_array_view(matrix),source@)),
             count > 0,
             count == source.len(),
             stages as int == count as int + 1,

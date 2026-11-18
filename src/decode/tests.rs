@@ -3408,6 +3408,69 @@ fn complete_standard_prepare_preserves_all_ordered_rejections() {
 }
 
 #[test]
+fn mct_runtime_storage_prepared_views_refusal_keeps_samples_metadata_work_and_retry() {
+    let mut bytes = prepared_codestream(1, 1, 1, &[0, 0x40], &[0]);
+    let cod = bytes
+        .windows(2)
+        .position(|w| w == 0xff52_u16.to_be_bytes())
+        .unwrap();
+    bytes[cod + 9] = 0;
+    let bytes = add_single_component_mct(bytes, 1, 0);
+    let limits = ResourceLimits::default();
+    let layout = codestream::parse_layout(&bytes, &limits).unwrap();
+    let transform = layout.info.multiple_component_transform.as_ref().unwrap();
+    let source = || PreparedTileComponent {
+        component: 0,
+        x: 7,
+        y: 9,
+        width: 1,
+        height: 1,
+        fraction_bits: 0,
+        samples: vec![-128],
+    };
+    let mut prepared = [source()];
+    let pointer = prepared[0].samples.as_ptr();
+    let mut work = 17;
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            super::reconstruction::apply_tile_multiple_component_transform(
+                &mut prepared,
+                &layout.info.image_size,
+                transform,
+                &limits,
+                &mut work
+            ),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(work, 17);
+    assert_eq!(prepared[0].samples, [-128]);
+    assert_eq!(prepared[0].samples.as_ptr(), pointer);
+    assert_eq!(
+        (
+            prepared[0].component,
+            prepared[0].x,
+            prepared[0].y,
+            prepared[0].width,
+            prepared[0].height,
+            prepared[0].fraction_bits
+        ),
+        (0, 7, 9, 1, 1, 0)
+    );
+    super::reconstruction::apply_tile_multiple_component_transform(
+        &mut prepared,
+        &layout.info.image_size,
+        transform,
+        &limits,
+        &mut work,
+    )
+    .unwrap();
+    assert_eq!(prepared[0].samples, [-128]);
+    assert_eq!(prepared[0].samples.as_ptr(), pointer);
+    assert_eq!(work, 20);
+}
+
+#[test]
 fn prepared_view_storage_preserves_borrows_raw_metadata_empty_and_retry() {
     use super::reconstruction::prepared_tile_views;
     let prepared = [

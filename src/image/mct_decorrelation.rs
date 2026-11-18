@@ -17,7 +17,12 @@ use crate::{DecodeError, ResourceLimits};
 use vstd::prelude::*;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (mct_decorrelation_preparation_outcome(result), *final(work)) == crate::specs::part2_mct_prepare_decorrelation(
+    ensures crate::specs::part2_mct_prepare_storage_result(crate::specs::Part2MctRuntimeContext {
+        components:transform_components_view(components),collection:crate::codestream::mct_collection_view(collection),
+        work:*old(work),maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),
+    },(mct_decorrelation_preparation_outcome(result),*final(work))),
+    result!=Err(DecodeError::AllocationFailed) ==>
+        (mct_decorrelation_preparation_outcome(result), *final(work)) == crate::specs::part2_mct_prepare_decorrelation(
         transform_components_view(components), crate::codestream::mct_collection_view(collection), *old(work),
         crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -33,7 +38,12 @@ pub(super) fn prepare_mct_decorrelation(
         let ghost before = transform_components_view(components);
         let ghost style = crate::codestream::mct_collection_view(collection);
         let ghost initial_work = *work;
+        let ghost storage_context=crate::specs::Part2MctRuntimeContext {
+            components:before,collection:style,work:initial_work,
+            maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits)};
     }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_prepare_storage_normal(storage_context);}
     let rows = collection.input_components().len();
     let columns = collection.output_components().len();
     let matrix = collection.matrix();
@@ -58,8 +68,22 @@ pub(super) fn prepare_mct_decorrelation(
     if let (true, Some(matrix)) = (collection.reversible(), matrix) {
         crate::codestream::validate_reversible_mct_coefficients(matrix.values(), rows)?;
     }
-    let mut source_indexes = Vec::with_capacity(columns);
-    let mut destination_indexes = Vec::with_capacity(rows);
+    let reserved = crate::allocation::empty_with_capacity(columns);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let capacity=crate::specs::part2_mct_collection_capacity(storage_context,crate::specs::Part2MctRuntimeRole::SourceIndexes);
+        crate::specs::part2_mct_runtime_capacity_observed(capacity,crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {crate::specs::part2_mct_prepare_storage_refused(storage_context,0,error);}
+    }
+    let mut source_indexes = reserved?;
+    let reserved = crate::allocation::empty_with_capacity(rows);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let capacity=crate::specs::part2_mct_collection_capacity(storage_context,crate::specs::Part2MctRuntimeRole::DestinationIndexes);
+        crate::specs::part2_mct_runtime_capacity_observed(capacity,crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {crate::specs::part2_mct_prepare_storage_refused(storage_context,1,error);}
+    }
+    let mut destination_indexes = reserved?;
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::proofs::production_impl::production_mct_indices_empty(before);
@@ -71,6 +95,10 @@ pub(super) fn prepare_mct_decorrelation(
         verus_keep_ghost,
         verus_spec(
             invariant column <= columns,
+            storage_context==(crate::specs::Part2MctRuntimeContext {components:before,collection:style,work:initial_work,
+                maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits)}),
+            crate::specs::part2_mct_prepare_storage_result(storage_context,crate::specs::part2_mct_runtime_preparation(storage_context)),
+            initial_work==*old(work),
             before == transform_components_view(components),
             style == crate::codestream::mct_collection_view(collection),
             rows == style.1.len(), columns == style.2.len(),
@@ -110,6 +138,10 @@ pub(super) fn prepare_mct_decorrelation(
         verus_keep_ghost,
         verus_spec(
             invariant row <= rows,
+            storage_context==(crate::specs::Part2MctRuntimeContext {components:before,collection:style,work:initial_work,
+                maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits)}),
+            crate::specs::part2_mct_prepare_storage_result(storage_context,crate::specs::part2_mct_runtime_preparation(storage_context)),
+            initial_work==*old(work),
             before == transform_components_view(components),
             style == crate::codestream::mct_collection_view(collection),
             rows == style.1.len(), columns == style.2.len(),
@@ -151,12 +183,28 @@ pub(super) fn prepare_mct_decorrelation(
     } else {
         admit_mct_decorrelation(sample_count, rows, columns, limits, work)?;
     }
-    let mut source_fraction_bits = Vec::with_capacity(source_indexes.len());
+    let reserved = if source_indexes.is_empty() {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(source_indexes.len())
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::specs::part2_mct_runtime_preparation(storage_context).0.is_ok());
+        let capacity=crate::specs::part2_mct_collection_capacity(storage_context,crate::specs::Part2MctRuntimeRole::FractionBits);
+        crate::specs::part2_mct_runtime_capacity_observed(capacity,crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {crate::specs::part2_mct_prepare_storage_refused(storage_context,2,error);}
+    }
+    let mut source_fraction_bits = reserved?;
     let mut index_index = 0_usize;
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant index_index <= source_indexes.len(),
+            storage_context==(crate::specs::Part2MctRuntimeContext {components:before,collection:style,work:initial_work,
+                maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits)}),
+            crate::specs::part2_mct_prepare_storage_result(storage_context,crate::specs::part2_mct_runtime_preparation(storage_context)),
+            initial_work==*old(work),
             before == transform_components_view(components),
             style == crate::codestream::mct_collection_view(collection),
             rows == style.1.len(), columns == style.2.len(),
@@ -200,7 +248,8 @@ pub(super) fn prepare_mct_decorrelation(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures result == crate::specs::part2_mct_decorrelation_row(
+    ensures crate::specs::part2_mct_scalar_storage_result(crate::codestream::mct_collection_view(collection),source@,source_fraction_bits@,row,result),
+    result!=Err(DecodeError::AllocationFailed) ==> result == crate::specs::part2_mct_decorrelation_row(
         crate::codestream::mct_collection_view(collection), source@, source_fraction_bits@, row,
     ),
 ))]
@@ -211,11 +260,18 @@ pub(super) fn decorrelation_mct_row(
     row: usize,
 ) -> Result<i64, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { crate::codestream::mct_fixed_precision_is_q32(); }
+    proof! {
+        crate::codestream::mct_fixed_precision_is_q32();
+        crate::specs::part2_mct_scalar_storage_normal(crate::codestream::mct_collection_view(collection),source@,source_fraction_bits@,row);
+    }
     let matrix = collection.matrix();
     if collection.reversible() {
         if let Some(matrix) = matrix {
-            reversible_mct_row(matrix, collection.offsets(), source, row)
+            let result = reversible_mct_row(matrix, collection.offsets(), source, row);
+            #[cfg(verus_keep_ghost)]
+            proof! {crate::specs::part2_mct_scalar_storage_reversible_observed(
+            crate::codestream::mct_collection_view(collection),source@,source_fraction_bits@,row,result);}
+            result
         } else {
             (*source.get(row).ok_or_else(invalid_transform)?)
                 .checked_add(offset_value(collection.offsets(), row)?)
@@ -248,7 +304,11 @@ pub(super) fn decorrelation_mct_row(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, final(output)@) == crate::specs::part2_mct_decorrelation_rows(
+    ensures crate::specs::part2_mct_rows_storage_result(crate::specs::Part2MctRowsStorageContext {
+        output:old(output)@,collection:crate::codestream::mct_collection_view(collection),
+        source:source@,fractions:source_fraction_bits@,rows,
+    },(result,final(output)@)),
+    result!=Err(DecodeError::AllocationFailed) ==> (result, final(output)@) == crate::specs::part2_mct_decorrelation_rows(
         old(output)@, crate::codestream::mct_collection_view(collection), source@, source_fraction_bits@, rows as nat,
     ),
 ))]
@@ -263,9 +323,12 @@ pub(super) fn append_mct_decorrelation_rows(
     proof_decl! {
         let ghost initial = output@;
         let ghost style = crate::codestream::mct_collection_view(collection);
+        let ghost storage_context=crate::specs::Part2MctRowsStorageContext {
+            output:initial,collection:style,source:source@,fractions:source_fraction_bits@,rows};
     }
     #[cfg(verus_keep_ghost)]
     proof! {
+        crate::specs::part2_mct_rows_storage_normal(storage_context);
         crate::proofs::production_impl::production_mct_rows_empty(initial, style, source@, source_fraction_bits@);
     }
     let transformed = if rows > 0 && collection.reversible() {
@@ -280,13 +343,22 @@ pub(super) fn append_mct_decorrelation_rows(
                     }
                     return Err(invalid_transform());
                 }
-                match inverse_reversible_mct(matrix, source) {
+                let inverted = inverse_reversible_mct(matrix, source);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    if inverted==Err(DecodeError::AllocationFailed) {
+                        crate::specs::part2_mct_rows_storage_inverse_error(storage_context);
+                    }
+                }
+                match inverted {
                     Ok(values) => Some(values),
                     Err(error) => {
                         #[cfg(verus_keep_ghost)]
                         proof! {
-                            crate::proofs::production_impl::production_mct_rows_step(initial, style, source@, source_fraction_bits@, 0);
-                            crate::proofs::production_impl::production_mct_rows_error(initial, style, source@, source_fraction_bits@, 1, rows as nat);
+                            if error!=DecodeError::AllocationFailed {
+                                crate::proofs::production_impl::production_mct_rows_step(initial, style, source@, source_fraction_bits@, 0);
+                                crate::proofs::production_impl::production_mct_rows_error(initial, style, source@, source_fraction_bits@, 1, rows as nat);
+                            }
                         }
                         return Err(error);
                     }
@@ -301,6 +373,9 @@ pub(super) fn append_mct_decorrelation_rows(
         verus_keep_ghost,
         verus_spec(
             invariant row <= rows,
+            storage_context==(crate::specs::Part2MctRowsStorageContext {
+                output:initial,collection:style,source:source@,fractions:source_fraction_bits@,rows}),
+            crate::specs::part2_mct_rows_storage_result(storage_context,crate::specs::part2_mct_rows_storage_value(storage_context)),
             initial == old(output)@,
             style == crate::codestream::mct_collection_view(collection),
             match &transformed {
@@ -433,7 +508,10 @@ pub(super) fn store_mct_output_rows(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, transform_components_view(final(components)), final(source)@, final(output)@)
+    ensures crate::specs::part2_mct_pixel_storage_result(transform_components_view(old(components)),
+        crate::codestream::mct_collection_view(collection),mct_decorrelation_preparation_view(prepared),sample_index,
+        (result,transform_components_view(final(components)),final(source)@,final(output)@)),
+    result!=Err(DecodeError::AllocationFailed) ==> (result, transform_components_view(final(components)), final(source)@, final(output)@)
         == crate::specs::part2_mct_decorrelation_pixel(
             transform_components_view(old(components)), crate::codestream::mct_collection_view(collection),
             mct_decorrelation_preparation_view(prepared), sample_index,
@@ -448,6 +526,14 @@ pub(super) fn apply_mct_decorrelation_pixel(
     source: &mut Vec<i64>,
     output: &mut Vec<i64>,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost before=transform_components_view(components);
+        let ghost style=crate::codestream::mct_collection_view(collection);
+        let ghost plan=mct_decorrelation_preparation_view(prepared);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_pixel_storage_normal(before,style,plan,sample_index);}
     begin_mct_pixel(
         components,
         &prepared.source_indexes,
@@ -456,13 +542,19 @@ pub(super) fn apply_mct_decorrelation_pixel(
         source,
         output,
     )?;
-    append_mct_decorrelation_rows(
+    let rows = append_mct_decorrelation_rows(
         output,
         collection,
         source,
         &prepared.source_fraction_bits,
         prepared.rows,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::specs::part2_mct_source_snapshot(before,plan.0,sample_index,plan.0.len()).1==source@);
+        crate::specs::part2_mct_pixel_storage_rows_observed(before,style,plan,sample_index,(rows,output@));
+    }
+    rows?;
     store_mct_output_rows(
         components,
         &prepared.destination_indexes,
@@ -473,7 +565,11 @@ pub(super) fn apply_mct_decorrelation_pixel(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, transform_components_view(final(components)), *final(work)) == crate::specs::part2_mct_decorrelation(
+    ensures crate::specs::part2_mct_decorrelation_storage_result(crate::specs::Part2MctRuntimeContext {
+        components:transform_components_view(old(components)),collection:crate::codestream::mct_collection_view(collection),
+        work:*old(work),maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),
+    },(result,transform_components_view(final(components)),*final(work))),
+    result!=Err(DecodeError::AllocationFailed) ==> (result, transform_components_view(final(components)), *final(work)) == crate::specs::part2_mct_decorrelation(
         transform_components_view(old(components)), crate::codestream::mct_collection_view(collection),
         *old(work), crate::limits::resource_work_limit(limits), crate::limits::resource_decoded_bytes_limit(limits),
     ),
@@ -490,21 +586,69 @@ pub(super) fn apply_mct_decorrelation(
         let ghost before = transform_components_view(components);
         let ghost style = crate::codestream::mct_collection_view(collection);
         let ghost initial_work = *work;
+        let ghost storage_context=crate::specs::Part2MctRuntimeContext {
+            components:before,collection:style,work:initial_work,
+            maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits)};
     }
     #[cfg(verus_keep_ghost)]
     proof! { crate::codestream::mct_fixed_precision_is_q32(); }
-    let prepared = prepare_mct_decorrelation(components, collection, limits, work)?;
+    let preparing = prepare_mct_decorrelation(components, collection, limits, work);
     #[cfg(verus_keep_ghost)]
-    proof_decl! { let ghost plan = mct_decorrelation_preparation_view(&prepared); }
-    let mut source = Vec::with_capacity(prepared.columns);
-    let mut output = Vec::with_capacity(prepared.rows);
+    proof! {
+        if let Err(error)=preparing {crate::specs::part2_mct_decorrelation_storage_prepare_error(storage_context,error,*work);}
+    }
+    let prepared = preparing?;
     #[cfg(verus_keep_ghost)]
-    proof! { crate::proofs::production_impl::production_mct_pixels_empty(before, style, plan); }
+    proof_decl! {
+        let ghost plan = mct_decorrelation_preparation_view(&prepared);
+        let ghost charged=*work;
+    }
+    let reserved = if prepared.columns == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(prepared.columns)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let capacity=crate::specs::part2_mct_collection_capacity(storage_context,crate::specs::Part2MctRuntimeRole::SourceSamples);
+        crate::specs::part2_mct_runtime_capacity_observed(capacity,crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {crate::specs::part2_mct_decorrelation_storage_scratch_error(storage_context,plan,charged,
+            crate::specs::Part2MctRuntimeRole::SourceSamples,error);}
+    }
+    let mut source = reserved?;
+    let reserved = if prepared.rows == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(prepared.rows)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let capacity=crate::specs::part2_mct_collection_capacity(storage_context,crate::specs::Part2MctRuntimeRole::OutputSamples);
+        crate::specs::part2_mct_runtime_capacity_observed(capacity,crate::allocation::inspection_capacity_outcome(reserved));
+        if let Err(error)=reserved {crate::specs::part2_mct_decorrelation_storage_scratch_error(storage_context,plan,charged,
+            crate::specs::Part2MctRuntimeRole::OutputSamples,error);}
+    }
+    let mut output = reserved?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::proofs::production_impl::production_mct_pixels_empty(before, style, plan);
+        crate::specs::part2_mct_pixels_storage_normal(before,style,plan,0);
+    }
     let mut sample_index = 0_usize;
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant sample_index <= prepared.sample_count,
+            storage_context==(crate::specs::Part2MctRuntimeContext {components:before,collection:style,work:initial_work,
+                maximum_work:crate::limits::resource_work_limit(limits),maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits)}),
+            charged==*work,
+            crate::specs::part2_mct_prepare_storage_result(storage_context,(Ok(plan),charged)),
+            crate::specs::part2_mct_runtime_capacity_result(crate::specs::part2_mct_collection_capacity(storage_context,
+                crate::specs::Part2MctRuntimeRole::SourceSamples),Ok(())),
+            crate::specs::part2_mct_runtime_capacity_result(crate::specs::part2_mct_collection_capacity(storage_context,
+                crate::specs::Part2MctRuntimeRole::OutputSamples),Ok(())),
+            crate::specs::part2_mct_pixels_storage_result(before,style,plan,sample_index as nat,
+                (Ok(()),transform_components_view(components))),
             before == transform_components_view(old(components)),
             transform_components_borrow_frame(old(components)@, components@),
             style == crate::codestream::mct_collection_view(collection),
@@ -525,14 +669,28 @@ pub(super) fn apply_mct_decorrelation(
             crate::proofs::production_impl::production_mct_pixels_error(
                 before, style, plan, sample_index as nat + 1, plan.3 as nat);
         }
-        apply_mct_decorrelation_pixel(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost current=transform_components_view(components);}
+        let operation = apply_mct_decorrelation_pixel(
             components,
             collection,
             &prepared,
             sample_index,
             &mut source,
             &mut output,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_mct_pixels_storage_advance(before,style,plan,sample_index as nat,current,
+                (operation,transform_components_view(components),source@,output@));
+            if let Err(error)=operation {
+                crate::specs::part2_mct_pixels_storage_error_suffix(before,style,plan,sample_index as nat+1,plan.3 as nat,
+                    (Err(error),transform_components_view(components)));
+                crate::specs::part2_mct_decorrelation_storage_pixels(storage_context,plan,charged,
+                    (Err(error),transform_components_view(components)));
+            }
+        }
+        operation?;
         sample_index = sample_index
             .checked_add(1)
             .ok_or_else(arithmetic_overflow)?;
@@ -542,9 +700,14 @@ pub(super) fn apply_mct_decorrelation(
     } else {
         MCT_FIXED_BITS
     };
-    apply_mct_destination_precisions(
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost pixels=transform_components_view(components);}
+    let result = apply_mct_destination_precisions(
         components,
         &prepared.destination_indexes,
         output_fraction_bits,
-    )
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_mct_decorrelation_storage_pixels(storage_context,plan,charged,(Ok(()),pixels));}
+    result
 }
