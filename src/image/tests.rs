@@ -4742,6 +4742,117 @@ fn actual_nonlinear_image_mutation_preserves_every_owner_field_and_failure_prefi
 }
 
 #[test]
+fn nlt_storage_scratch_target_partial_component_frames_and_exact_source_retry() {
+    use crate::codestream::{ComponentInfo, NonlinearPointTransform};
+
+    let limits = ResourceLimits::default();
+    for signed in [false, true] {
+        let info = ComponentInfo {
+            precision: 8,
+            signed,
+            x_subsampling: 1,
+            y_subsampling: 1,
+            x_registration: 0,
+            y_registration: 0,
+        };
+        let source = || {
+            let component = || {
+                TypedComponent::from_parts(
+                    2,
+                    1,
+                    info,
+                    if signed {
+                        TypedSamples::Signed(vec![-128, -1])
+                    } else {
+                        TypedSamples::Unsigned(vec![0, 255])
+                    },
+                )
+            };
+            TypedImage::from_components(2, 1, vec![component(), component()], &limits).unwrap()
+        };
+        let unchanged = source();
+        let transform = NonlinearPointTransform::for_test(
+            8,
+            signed,
+            if signed { 3 } else { 0 },
+            None,
+            None,
+            Vec::new(),
+        );
+        let regions = [
+            NonlinearRegion {
+                component: 0,
+                x0: 0,
+                y0: 0,
+                x1: 2,
+                y1: 1,
+                transform: &transform,
+            },
+            NonlinearRegion {
+                component: 1,
+                x0: 0,
+                y0: 0,
+                x1: 2,
+                y1: 1,
+                transform: &transform,
+            },
+        ];
+        let mut expected = source();
+        expected.apply_nonlinear_regions(&regions, &limits).unwrap();
+        for after in 0..4 {
+            let mut actual = source();
+            assert_eq!(
+                crate::allocation::with_refusal(after, || actual
+                    .apply_nonlinear_regions(&regions, &limits)),
+                Err(DecodeError::AllocationFailed)
+            );
+            if after < 2 {
+                assert_eq!(actual, unchanged);
+            } else {
+                assert_eq!(actual.components[0], expected.components[0]);
+                assert_eq!(actual.components[1], unchanged.components[1]);
+            }
+            let mut retry = source();
+            retry.apply_nonlinear_regions(&regions, &limits).unwrap();
+            assert_eq!(retry, expected);
+        }
+        let mut empty = TypedComponent::from_parts(
+            0,
+            0,
+            info,
+            if signed {
+                TypedSamples::Signed(Vec::new())
+            } else {
+                TypedSamples::Unsigned(Vec::new())
+            },
+        );
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(empty.apply_nonlinear_regions(0, &[], 9, &limits), Ok(9));
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+        let tight = limits.with_maximum_work_units(0).unwrap();
+        let mut actual = source();
+        crate::allocation::with_refusal(1, || {
+            assert!(matches!(
+                actual.apply_nonlinear_regions(&regions, &tight),
+                Err(DecodeError::LimitExceeded {
+                    resource: crate::Resource::WorkUnits,
+                    ..
+                })
+            ));
+            assert_eq!(actual, unchanged);
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+}
+
+#[test]
 fn applies_tile_specific_nlt_regions_once() {
     let info = ComponentInfo {
         precision: 8,

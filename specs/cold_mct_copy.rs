@@ -25,6 +25,7 @@ pub(crate) open spec fn part1_mct_copy_site(path: MctCopyPath) -> u8 {
         MctCopyPath::ProgressionBitmap(_, _, _, _) => 81,
         MctCopyPath::CollectedQuantizations => 83,
         MctCopyPath::CollectedProgression => 84,
+        MctCopyPath::NonlinearInsert(_, _, _) => 85,
     }
 }
 

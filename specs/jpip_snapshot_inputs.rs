@@ -5,6 +5,8 @@ use super::*;
 verus! {
 
 pub enum Part2JpipSnapshotEvent {
+    NltRegionCapacity {context:Part2NltRegionAppendContext,elements:nat,succeeded:bool},
+    NltCapacity {context:Part2NltComponentStorageContext,role:Part2NltCapacityRole,elements:nat,succeeded:bool},
     InstructionCapacity {context:Part2InstructionStorageContext,elements:nat,succeeded:bool},
     InstructionSetAppendCapacity {context:Part2InstructionAppendContext,elements:nat,succeeded:bool},
     LayerMetadataCapacity {context:Part2LayerMetadataCapacityContext,elements:nat,succeeded:bool},

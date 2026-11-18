@@ -64,6 +64,8 @@ specs/cold_mct_copy.rs
 specs/cold_mct_line_composition.rs
 specs/cold_mct_line_pixels.rs
 specs/cold_mct_wavelet_lines.rs
+specs/cold_nlt_regions.rs
+specs/cold_nlt_storage.rs
 specs/cold_output_storage.rs
 specs/cold_packed_headers.rs
 specs/cold_packet_copy.rs

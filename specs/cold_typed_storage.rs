@@ -210,10 +210,70 @@ pub(crate) proof fn part2_typed_image_calls_observed(source:Part1DecodedImageMod
     assert(part2_cold_prefix(|events|part2_typed_image_calls_run(source,maximum,events),prefix,result));
     part2_decode_eta(|events|part2_typed_image_calls_run(source,maximum,events),result);
 }
+pub(crate) open spec fn part2_typed_layout_nonlinear_value(image:Part1DecodedTypedImage,regions:Seq<Part2NonlinearRegion>,
+    limits:&crate::ResourceLimits)->Result<Part1DecodedTypedImage,crate::DecodeError> {
+    if regions.len()==0 {Ok(image)}else{
+        let outcome=part2_apply_nonlinear_regions(image,regions,crate::limits::resource_decoded_bytes_limit(limits),
+            crate::limits::resource_work_limit(limits));
+        match outcome.0{Err(error)=>Err(error),Ok(())=>Ok(outcome.1)}
+    }
+}
+pub(crate) open spec fn part2_typed_layout_nonlinear_run(image:Part1DecodedTypedImage,regions:Seq<Part2NonlinearRegion>,
+    limits:&crate::ResourceLimits,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part1DecodedTypedImage> {
+    if regions.len()==0 {Some((Ok(image),events))}
+    else{part2_jpip_snapshot_bind(part2_nlt_image_storage_run(Part2NltImageStorageContext {
+        source:image,regions,maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),
+        maximum_work:crate::limits::resource_work_limit(limits)},events),
+        |outcome:(Result<(),crate::DecodeError>,Part1DecodedTypedImage),rest|
+            Some((match outcome.0 {Err(error)=>Err(error),Ok(())=>Ok(outcome.1)},rest)))}
+}
+pub(crate) open spec fn part2_typed_layout_after_typed_run(input:Part2DecoderLayoutInput,image:Part1DecodedTypedImage,
+    discard:u8,limits:&crate::ResourceLimits,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part1DecodedTypedImage> {
+    part2_jpip_snapshot_bind(part2_nlt_regions_storage_run(Part2NltRegionStorageContext {input,image,discard},events),
+        |regions:Seq<Part2NonlinearRegion>,rest|part2_typed_layout_nonlinear_run(image,regions,limits,rest))
+}
+pub(crate) proof fn part2_typed_layout_nonlinear_normal(image:Part1DecodedTypedImage,regions:Seq<Part2NonlinearRegion>,limits:&crate::ResourceLimits)
+    ensures part2_cold_framed(|events|part2_typed_layout_nonlinear_run(image,regions,limits,events),
+        part2_typed_layout_nonlinear_value(image,regions,limits)),
+        forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part1DecodedTypedImage>|
+            (forall|events| #[trigger] other(events)==part2_typed_layout_nonlinear_run(image,regions,limits,events)) ==>
+                #[trigger] part2_cold_framed(other,part2_typed_layout_nonlinear_value(image,regions,limits)),
+{
+    let context=Part2NltImageStorageContext {source:image,regions,maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),
+        maximum_work:crate::limits::resource_work_limit(limits)};
+    let outcome=part2_apply_nonlinear_regions(image,regions,context.maximum_bytes,context.maximum_work);
+    let result=if regions.len()==0{Ok(image)}else{match outcome.0{Err(error)=>Err(error),Ok(())=>Ok(outcome.1)}};
+    part2_cold_pure(result);
+    if regions.len()>0 {
+        part2_nlt_image_storage_normal(context);part2_nlt_image_storage_frames(context,outcome);
+        part2_cold_bind(|events|part2_nlt_image_storage_run(context,events),
+            |outcome:(Result<(),crate::DecodeError>,Part1DecodedTypedImage),rest|
+                Some((match outcome.0{Err(error)=>Err(error),Ok(())=>Ok(outcome.1)},rest)),Ok(outcome),result);
+    }
+    part2_decode_eta(|events|part2_typed_layout_nonlinear_run(image,regions,limits,events),result);
+}
+pub(crate) proof fn part2_typed_layout_after_typed_normal(input:Part2DecoderLayoutInput,image:Part1DecodedTypedImage,
+    discard:u8,limits:&crate::ResourceLimits)
+    ensures part2_cold_framed(|events|part2_typed_layout_after_typed_run(input,image,discard,limits,events),
+            part2_typed_layout_after_typed(input,image,discard,limits)),
+        forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part1DecodedTypedImage>|
+            (forall|events| #[trigger] other(events)==part2_typed_layout_after_typed_run(input,image,discard,limits,events)) ==>
+                #[trigger] part2_cold_framed(other,part2_typed_layout_after_typed(input,image,discard,limits)),
+{
+    let context=Part2NltRegionStorageContext {input,image,discard};
+    let regions=part2_collect_nonlinear_regions_input(input,image,discard);
+    part2_nlt_regions_storage_normal(context);part2_nlt_regions_storage_frames(context,regions);
+    if let Ok(regions)=regions {part2_typed_layout_nonlinear_normal(image,regions,limits);}
+    part2_cold_bind(|events|part2_nlt_regions_storage_run(context,events),
+        |regions:Seq<Part2NonlinearRegion>,rest|part2_typed_layout_nonlinear_run(image,regions,limits,rest),
+        regions,part2_typed_layout_after_typed(input,image,discard,limits));
+    part2_decode_eta(|events|part2_typed_layout_after_typed_run(input,image,discard,limits,events),
+        part2_typed_layout_after_typed(input,image,discard,limits));
+}
 pub(crate) open spec fn part2_typed_layout_run(input:Part2DecoderLayoutInput,source:Part1DecodedImageModel,discard:u8,limits:&crate::ResourceLimits,
     events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part1DecodedTypedImage> {
     part2_jpip_snapshot_bind(part2_typed_image_calls_run(source,crate::limits::resource_decoded_bytes_limit(limits),events),
-        |image:Part1DecodedTypedImage,rest|Some((part2_typed_layout_after_typed(input,image,discard,limits),rest)))
+        |image:Part1DecodedTypedImage,rest|part2_typed_layout_after_typed_run(input,image,discard,limits,rest))
 }
 pub closed spec fn part2_typed_layout_result(input:Part2DecoderLayoutInput,source:Part1DecodedImageModel,discard:u8,limits:&crate::ResourceLimits,
     result:Result<Part1DecodedTypedImage,crate::DecodeError>)->bool {
@@ -225,9 +285,9 @@ pub(crate) proof fn part2_typed_layout_normal(input:Part2DecoderLayoutInput,sour
     let maximum=crate::limits::resource_decoded_bytes_limit(limits);
     let converted=part1_decoded_image_typed(source,maximum);
     part2_typed_image_normal(source,maximum);part2_typed_image_calls_observed(source,maximum,converted);
-    if let Ok(image)=converted{part2_cold_pure(part2_typed_layout_after_typed(input,image,discard,limits));}
+    if let Ok(image)=converted{part2_typed_layout_after_typed_normal(input,image,discard,limits);}
     part2_cold_bind(|events|part2_typed_image_calls_run(source,maximum,events),
-        |image:Part1DecodedTypedImage,rest|Some((part2_typed_layout_after_typed(input,image,discard,limits),rest)),converted,part2_typed_layout_input(input,source,discard,limits));
+        |image:Part1DecodedTypedImage,rest|part2_typed_layout_after_typed_run(input,image,discard,limits,rest),converted,part2_typed_layout_input(input,source,discard,limits));
 }
 pub(crate) proof fn part2_typed_layout_conversion_error(input:Part2DecoderLayoutInput,source:Part1DecodedImageModel,discard:u8,limits:&crate::ResourceLimits,error:crate::DecodeError)
     requires part2_typed_image_result(source,crate::limits::resource_decoded_bytes_limit(limits),Err(error)),
@@ -235,7 +295,48 @@ pub(crate) proof fn part2_typed_layout_conversion_error(input:Part2DecoderLayout
 {
     part2_typed_image_calls_observed(source,crate::limits::resource_decoded_bytes_limit(limits),Err(error));
     part2_cold_bind(|events|part2_typed_image_calls_run(source,crate::limits::resource_decoded_bytes_limit(limits),events),
-        |image:Part1DecodedTypedImage,rest|Some((part2_typed_layout_after_typed(input,image,discard,limits),rest)),Err(error),Err(error));
+        |image:Part1DecodedTypedImage,rest|part2_typed_layout_after_typed_run(input,image,discard,limits,rest),Err(error),Err(error));
+}
+pub(crate) proof fn part2_typed_layout_regions_error(input:Part2DecoderLayoutInput,source:Part1DecodedImageModel,discard:u8,
+    limits:&crate::ResourceLimits,image:Part1DecodedTypedImage,error:crate::DecodeError)
+    requires part2_typed_image_result(source,crate::limits::resource_decoded_bytes_limit(limits),Ok(image)),
+        part2_nlt_regions_storage_result(Part2NltRegionStorageContext {input,image,discard},Err(error)),
+    ensures part2_typed_layout_result(input,source,discard,limits,Err(error)),
+{
+    let context=Part2NltRegionStorageContext {input,image,discard};
+    part2_nlt_regions_storage_frames(context,Err(error));
+    part2_cold_bind(|events|part2_nlt_regions_storage_run(context,events),
+        |regions:Seq<Part2NonlinearRegion>,rest|part2_typed_layout_nonlinear_run(image,regions,limits,rest),Err(error),Err(error));
+    part2_decode_eta(|events|part2_typed_layout_after_typed_run(input,image,discard,limits,events),Err(error));
+    part2_typed_image_calls_observed(source,crate::limits::resource_decoded_bytes_limit(limits),Ok(image));
+    part2_cold_bind(|events|part2_typed_image_calls_run(source,crate::limits::resource_decoded_bytes_limit(limits),events),
+        |image:Part1DecodedTypedImage,rest|part2_typed_layout_after_typed_run(input,image,discard,limits,rest),Ok(image),Err(error));
+}
+pub(crate) proof fn part2_typed_layout_nonlinear_error(input:Part2DecoderLayoutInput,source:Part1DecodedImageModel,discard:u8,
+    limits:&crate::ResourceLimits,image:Part1DecodedTypedImage,regions:Seq<Part2NonlinearRegion>,
+    after:Part1DecodedTypedImage,error:crate::DecodeError)
+    requires part2_typed_image_result(source,crate::limits::resource_decoded_bytes_limit(limits),Ok(image)),
+        part2_nlt_regions_storage_result(Part2NltRegionStorageContext {input,image,discard},Ok(regions)),regions.len()>0,
+        part2_nlt_image_storage_result(Part2NltImageStorageContext {source:image,regions,
+            maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),maximum_work:crate::limits::resource_work_limit(limits)},(Err(error),after)),
+    ensures part2_typed_layout_result(input,source,discard,limits,Err(error)),
+{
+    let context=Part2NltImageStorageContext {source:image,regions,
+        maximum_bytes:crate::limits::resource_decoded_bytes_limit(limits),maximum_work:crate::limits::resource_work_limit(limits)};
+    part2_nlt_image_storage_frames(context,(Err(error),after));
+    part2_cold_pure(Err::<Part1DecodedTypedImage,crate::DecodeError>(error));
+    part2_cold_bind(|events|part2_nlt_image_storage_run(context,events),
+        |outcome:(Result<(),crate::DecodeError>,Part1DecodedTypedImage),rest|
+            Some((match outcome.0{Err(error)=>Err(error),Ok(())=>Ok(outcome.1)},rest)),Ok((Err(error),after)),Err(error));
+    part2_decode_eta(|events|part2_typed_layout_nonlinear_run(image,regions,limits,events),Err(error));
+    let collected=Part2NltRegionStorageContext {input,image,discard};
+    part2_nlt_regions_storage_frames(collected,Ok(regions));
+    part2_cold_bind(|events|part2_nlt_regions_storage_run(collected,events),
+        |regions:Seq<Part2NonlinearRegion>,rest|part2_typed_layout_nonlinear_run(image,regions,limits,rest),Ok(regions),Err(error));
+    part2_decode_eta(|events|part2_typed_layout_after_typed_run(input,image,discard,limits,events),Err(error));
+    part2_typed_image_calls_observed(source,crate::limits::resource_decoded_bytes_limit(limits),Ok(image));
+    part2_cold_bind(|events|part2_typed_image_calls_run(source,crate::limits::resource_decoded_bytes_limit(limits),events),
+        |image:Part1DecodedTypedImage,rest|part2_typed_layout_after_typed_run(input,image,discard,limits,rest),Ok(image),Err(error));
 }
 pub(crate) proof fn part2_typed_layout_frames(input:Part2DecoderLayoutInput,source:Part1DecodedImageModel,discard:u8,limits:&crate::ResourceLimits,
     result:Result<Part1DecodedTypedImage,crate::DecodeError>)

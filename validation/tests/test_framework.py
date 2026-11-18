@@ -5267,6 +5267,93 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "storage|whole raw|actual native owners|executable Verus"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_nlt_storage_binds_source_roles_counts_replies_partial_owners_and_tails(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        read_text = Path.read_text
+        marker = "part2-complete-native-raw-nonlinear-bytes"
+        component = "part2-complete-native-nonlinear-owner-mutation"
+        regions = "part2-complete-native-nonlinear-region-production"
+        layout = "part2-complete-native-full-selected-typed-layout-decoding"
+        mutations = (
+            (marker, "specs/cold_part2_fresh.rs",
+             "count>extensions.nonlinear.len()", "count>=extensions.nonlinear.len()"),
+            (marker, "specs/cold_part2_fresh.rs",
+             "MctCopyPath::NonlinearInsert(segment.offset,replacement.component,count),1",
+             "MctCopyPath::NonlinearInsert(segment.offset,replacement.component,count),2"),
+            (marker, "src/codestream/part2_transforms.rs",
+             "_path,1,super::mct_copy::copy_outcome(reserved)", "_path,1,Ok(())"),
+            (component, "specs/cold_nlt_storage.rs",
+             "Part2NltCapacityRole::Scratch=>part2_nlt_sample_count(context.source.samples)",
+             "Part2NltCapacityRole::Scratch=>0"),
+            (component, "specs/cold_nlt_storage.rs",
+             "part1_image_byte_budget(state.output.len(),8,context.maximum_bytes)",
+             "part1_image_byte_budget(state.output.len(),4,context.maximum_bytes)"),
+            (component, "specs/cold_nlt_storage.rs",
+             "actual!=context || actual_role!=role || elements!=count {None}",
+             "actual!=context || elements!=count {None}"),
+            (component, "specs/cold_nlt_storage.rs",
+             "events.drop_first()", "events"),
+            (component, "specs/cold_nlt_storage.rs",
+             "result.0.is_err() ==> result.1==context.source", "result.0.is_err() ==> true"),
+            (component, "specs/cold_nlt_storage.rs",
+             "source:image.1[position as int],number:position as u16",
+             "source:context.source.1[position as int],number:position as u16"),
+            (component, "specs/cold_nlt_storage.rs",
+             "Err(error)=>Some((Ok((Err(error),image)),rest))",
+             "Err(error)=>Some((Ok((Err(error),context.source)),rest))"),
+            (component, "src/image/nonlinear.rs",
+             "crate::allocation::inspection_capacity_outcome(scratch)", "Ok(())"),
+            (regions, "specs/cold_nlt_regions.rs",
+             "actual!=context || elements!=1 {None}", "actual!=context || elements!=2 {None}"),
+            (regions, "specs/cold_nlt_regions.rs",
+             "Ok(Some(context.region))", "Ok(None)"),
+            (regions, "specs/cold_nlt_regions.rs",
+             "before:regions,region},events", "before:Seq::empty(),region},events"),
+            (regions, "src/decode/api.rs",
+             "crate::specs::part2_nlt_regions_append_error(", "unrelated_nlt_regions_error("),
+            (layout, "specs/cold_typed_storage.rs",
+             "part2_typed_layout_nonlinear_run(image,regions,limits,rest)",
+             "part2_typed_layout_nonlinear_run(image,regions,limits,events)"),
+        )
+        for ident, relative, before, after in mutations:
+            entry = next(item for item in coverage["requirements"] if item["id"] == ident)
+            source = framework.ROOT / relative
+            original = read_text(source)
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(ident=ident, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "storage|actual native|executable Verus"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_nlt_storage_requires_its_result_normal_prefix_and_refusal_links(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        for ident, field, relative, symbol in (
+            ("part2-complete-native-raw-nonlinear-bytes", "spec_refs",
+             "specs/cold_part2_fresh.rs", "part1_nlt_insert_requests"),
+            ("part2-complete-native-raw-nonlinear-bytes", "proof_refs",
+             "specs/cold_part2_fresh.rs", "part1_nlt_insert_refused"),
+            ("part2-complete-native-nonlinear-owner-mutation", "spec_refs",
+             "specs/cold_nlt_storage.rs", "part2_nlt_component_storage_result"),
+            ("part2-complete-native-nonlinear-owner-mutation", "proof_refs",
+             "specs/cold_nlt_storage.rs", "part2_nlt_image_storage_advance"),
+            ("part2-complete-native-nonlinear-region-production", "proof_refs",
+             "specs/cold_nlt_regions.rs", "part2_nlt_regions_storage_normal"),
+            ("part2-complete-native-full-selected-typed-layout-decoding", "spec_refs",
+             "specs/cold_typed_storage.rs", "part2_typed_layout_after_typed_run"),
+        ):
+            entry = next(item for item in coverage["requirements"] if item["id"] == ident)
+            changed = dict(entry, **{field: [
+                ref for ref in entry[field] if (ref["path"], ref["symbol"]) != (relative, symbol)
+            ]})
+            self.assertEqual(len(changed[field]), len(entry[field]) - 1)
+            with self.subTest(ident=ident, symbol=symbol), \
+                    self.assertRaisesRegex(ValueError, "storage|executable Verus"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
+
     def test_inventory_composition_storage_binds_records_child_count_limits_actual_replies_and_tails(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         read_text = Path.read_text
@@ -10709,6 +10796,12 @@ class FrameworkTests(WorkingFiles):
                         {"path": path, "symbol": symbol} for path, symbol in sorted(framework._TILE_METADATA_STORAGE_TESTS)
                         if {"path": path, "symbol": symbol} not in isolated["test_refs"]
                     ]
+                if key == ("src/decode/api.rs", "typed_layout") or isolated["id"] in {
+                        "part2-complete-native-raw-nonlinear-bytes",
+                        "part2-complete-native-nonlinear-owner-mutation",
+                        "part2-complete-native-nonlinear-region-production"}:
+                    for field in ("implementation_refs", "spec_refs", "proof_refs", "test_refs"):
+                        isolated[field] += [ref for ref in entry[field] if ref not in isolated[field]]
             self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
             header = framework._coverage_function_header(
                 original, reference["symbol"],

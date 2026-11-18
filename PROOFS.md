@@ -85,6 +85,30 @@ count/actual-reply frames preserve first errors and arbitrary tails through
 admitted container calls. No successful instruction bank or capacity premise
 is supplied; physical spare-capacity reuse is checked natively.
 
+### Reached nonlinear decode owners
+
+The NLT marker program now includes its checked insertion after the original
+metadata/work charge, actual payload construction, local-prefix scan and
+counter admission. Replacement within the existing local prefix remains
+request-free. A refused insertion preserves the charged parser/metadata and
+prior transforms/local count.
+
+[`cold_nlt_regions.rs`](specs/cold_nlt_regions.rs) derives the actual
+component/tile/last-header/registered-clipping traversal and appends only
+source-produced nonempty regions. [`cold_nlt_storage.rs`](specs/cold_nlt_storage.rs)
+binds optional-i128 scratch and signed/unsigned target ownership, preserving
+the original scalar/overlap/numeric/work/byte/coverage order and committed
+component prefix on failure. Empty owners make no request; source components
+are unchanged when their own storage is refused. No physical capacity follows
+from sequence length.
+
+Actual normalized replies compose through typed-layout, selected/raw/container
+and PDF callers with exact source/region/component/role/count/work/error/tail
+frames. Scratch retains the original fill without additional periodic charges;
+only existing checked-storage helper checkpoints are introduced. Centered NLT
+and profile restrictions are unchanged. This is not a broader NLT/normative or
+allocation-surface completion claim.
+
 ### JP2 output metadata and sample copies
 
 The direct-copy and mapped component vectors now reserve checked metadata
