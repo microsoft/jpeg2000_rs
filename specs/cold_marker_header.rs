@@ -4,6 +4,18 @@ use super::*;
 
 verus! {
 
+pub(crate) open spec fn part1_fresh_main_mct_array_requests(
+    raw: Part1MainHeaderAccumulator, segment: Part1CodestreamSegment,
+) -> Seq<Part1MctCopyRequest> {
+    part1_fresh_leaf(crate::codestream::FreshMarkerPath::MctRetainedMain(segment.offset, raw.arrays.len() as usize), 1)
+}
+
+pub(crate) open spec fn part1_fresh_main_mcc_record_requests(
+    raw: Part1MainHeaderAccumulator, segment: Part1CodestreamSegment,
+) -> Seq<Part1MctCopyRequest> {
+    part1_fresh_leaf(crate::codestream::FreshMarkerPath::MccRetainedMain(segment.offset, raw.records.len() as usize), 1)
+}
+
 #[verifier::opaque]
 pub(crate) open spec fn part1_fresh_main_payload<'a>(
     reader: Part1CodestreamReader<'a>, raw: Part1MainHeaderAccumulator,
@@ -13,27 +25,37 @@ pub(crate) open spec fn part1_fresh_main_payload<'a>(
         0xff74 => match part1_fresh_consume_mct_run(segment, reader.limits, raw.pending_mct, raw.completed_mct, events) {
             None => None, Some((result, rest)) => {
                 let changed = Part1MainHeaderAccumulator { pending_mct: result.1, completed_mct: result.2, ..raw };
-                Some((match result.0 {
-                    Err(error) => (Err(error), reader, changed),
-                    Ok(None) => (Ok(()), reader, changed),
-                    Ok(Some(array)) => {
-                        let arrays = raw.arrays.push(array);
-                        (part1_mct_registry_unique_array(arrays, segment.offset), reader, Part1MainHeaderAccumulator { arrays, ..changed })
+                match result.0 {
+                    Err(error) => Some(((Err(error), reader, changed), rest)),
+                    Ok(None) => Some(((Ok(()), reader, changed), rest)),
+                    Ok(Some(array)) => match part1_mct_copy_run(part1_fresh_main_mct_array_requests(raw, segment), rest) {
+                        None => None,
+                        Some((Err(error), tail)) => Some(((Err(error), reader, changed), tail)),
+                        Some((Ok(()), tail)) => {
+                            let arrays = raw.arrays.push(array);
+                            Some(((part1_mct_registry_unique_array(arrays, segment.offset), reader,
+                                Part1MainHeaderAccumulator { arrays, ..changed }), tail))
+                        },
                     },
-                }, rest))
+                }
             },
         },
         0xff75 => match part1_fresh_consume_mcc_run(segment, raw.image_size.components, reader.limits, raw.pending_mcc, raw.completed_mcc, events) {
             None => None, Some((result, rest)) => {
                 let changed = Part1MainHeaderAccumulator { pending_mcc: result.1, completed_mcc: result.2, ..raw };
-                Some((match result.0 {
-                    Err(error) => (Err(error), reader, changed),
-                    Ok(None) => (Ok(()), reader, changed),
-                    Ok(Some(record)) => {
-                        let records = raw.records.push(record);
-                        (part1_mct_registry_unique_record(records, segment.offset), reader, Part1MainHeaderAccumulator { records, ..changed })
+                match result.0 {
+                    Err(error) => Some(((Err(error), reader, changed), rest)),
+                    Ok(None) => Some(((Ok(()), reader, changed), rest)),
+                    Ok(Some(record)) => match part1_mct_copy_run(part1_fresh_main_mcc_record_requests(raw, segment), rest) {
+                        None => None,
+                        Some((Err(error), tail)) => Some(((Err(error), reader, changed), tail)),
+                        Some((Ok(()), tail)) => {
+                            let records = raw.records.push(record);
+                            Some(((part1_mct_registry_unique_record(records, segment.offset), reader,
+                                Part1MainHeaderAccumulator { records, ..changed }), tail))
+                        },
                     },
-                }, rest))
+                }
             },
         },
         0xff77 => if raw.order.is_some() {
@@ -104,8 +126,16 @@ pub(crate) open spec fn part1_fresh_main_calls(
     reader: Part1CodestreamReader<'_>, raw: Part1MainHeaderAccumulator, segment: Part1CodestreamSegment,
 ) -> Seq<Part1ColdStorageEvent> {
     match segment.marker {
-        0xff74 => part1_fresh_consume_mct_calls(segment, reader.limits, raw.pending_mct, raw.completed_mct),
-        0xff75 => part1_fresh_consume_mcc_calls(segment, raw.image_size.components, reader.limits, raw.pending_mcc, raw.completed_mcc),
+        0xff74 => part1_fresh_consume_mct_calls(segment, reader.limits, raw.pending_mct, raw.completed_mct)
+            + part1_mct_copy_normal_calls(
+                if matches!(part1_consume_mct_fragment(segment, reader.limits, raw.pending_mct, raw.completed_mct).0, Ok(Some(_))) {
+                    part1_fresh_main_mct_array_requests(raw, segment)
+                } else { Seq::empty() }),
+        0xff75 => part1_fresh_consume_mcc_calls(segment, raw.image_size.components, reader.limits, raw.pending_mcc, raw.completed_mcc)
+            + part1_mct_copy_normal_calls(
+                if matches!(part1_consume_mcc_fragment(segment, raw.image_size.components, reader.limits, raw.pending_mcc, raw.completed_mcc).0, Ok(Some(_))) {
+                    part1_fresh_main_mcc_record_requests(raw, segment)
+                } else { Seq::empty() }),
         0xff77 => if raw.order.is_some() { Seq::empty() } else { part1_mct_copy_normal_calls(part1_fresh_mco_requests(segment)) },
         _ => Seq::empty(),
     }
@@ -129,8 +159,28 @@ pub(crate) proof fn part1_fresh_main_normal<'a>(
 {
     reveal(part1_fresh_main_payload); reveal(part1_main_header_mct_payload);
     match segment.marker {
-        0xff74 => part1_fresh_consume_mct_normal(segment, reader.limits, raw.pending_mct, raw.completed_mct, tail),
-        0xff75 => part1_fresh_consume_mcc_normal(segment, raw.image_size.components, reader.limits, raw.pending_mcc, raw.completed_mcc, tail),
+        0xff74 => {
+            let requests=if matches!(part1_consume_mct_fragment(segment, reader.limits, raw.pending_mct, raw.completed_mct).0, Ok(Some(_))) {
+                part1_fresh_main_mct_array_requests(raw, segment)
+            } else {Seq::empty()};
+            let calls=part1_mct_copy_normal_calls(requests);
+            part1_mct_copy_normal(requests,tail);
+            part1_fresh_consume_mct_normal(segment, reader.limits, raw.pending_mct, raw.completed_mct, calls+tail);
+            if requests.len()==0 {assert(calls =~= Seq::<Part1ColdStorageEvent>::empty());}
+            assert((part1_fresh_consume_mct_calls(segment,reader.limits,raw.pending_mct,raw.completed_mct)+calls)+tail
+                =~=part1_fresh_consume_mct_calls(segment,reader.limits,raw.pending_mct,raw.completed_mct)+(calls+tail));
+        },
+        0xff75 => {
+            let requests=if matches!(part1_consume_mcc_fragment(segment,raw.image_size.components,reader.limits,raw.pending_mcc,raw.completed_mcc).0,Ok(Some(_))) {
+                part1_fresh_main_mcc_record_requests(raw,segment)
+            } else {Seq::empty()};
+            let calls=part1_mct_copy_normal_calls(requests);
+            part1_mct_copy_normal(requests,tail);
+            part1_fresh_consume_mcc_normal(segment,raw.image_size.components,reader.limits,raw.pending_mcc,raw.completed_mcc,calls+tail);
+            if requests.len()==0 {assert(calls =~= Seq::<Part1ColdStorageEvent>::empty());}
+            assert((part1_fresh_consume_mcc_calls(segment,raw.image_size.components,reader.limits,raw.pending_mcc,raw.completed_mcc)+calls)+tail
+                =~=part1_fresh_consume_mcc_calls(segment,raw.image_size.components,reader.limits,raw.pending_mcc,raw.completed_mcc)+(calls+tail));
+        },
         0xff77 => { if raw.order.is_none() { part1_mct_copy_normal(part1_fresh_mco_requests(segment), tail); } },
         _ => {},
     }
@@ -163,9 +213,21 @@ pub(crate) proof fn part1_fresh_main_frame<'a>(
     match segment.marker {
         0xff74 => if let Some((parsed, after)) = part1_fresh_consume_mct_run(segment, reader.limits, raw.pending_mct, raw.completed_mct, events) {
             part1_fresh_consume_mct_frame(segment, reader.limits, raw.pending_mct, raw.completed_mct, events, parsed, after, tail);
+            if matches!(parsed.0,Ok(Some(_))) {
+                let requests=part1_fresh_main_mct_array_requests(raw,segment);
+                if let Some((capacity,last))=part1_mct_copy_run(requests,after) {
+                    part1_mct_copy_frame(requests,after,capacity,last,tail);
+                }
+            }
         },
         0xff75 => if let Some((parsed, after)) = part1_fresh_consume_mcc_run(segment, raw.image_size.components, reader.limits, raw.pending_mcc, raw.completed_mcc, events) {
             part1_fresh_consume_mcc_frame(segment, raw.image_size.components, reader.limits, raw.pending_mcc, raw.completed_mcc, events, parsed, after, tail);
+            if matches!(parsed.0,Ok(Some(_))) {
+                let requests=part1_fresh_main_mcc_record_requests(raw,segment);
+                if let Some((capacity,last))=part1_mct_copy_run(requests,after) {
+                    part1_mct_copy_frame(requests,after,capacity,last,tail);
+                }
+            }
         },
         0xff77 => if raw.order.is_none() { if let Some((parsed, after)) = part1_fresh_mco_run(segment, events) { part1_fresh_mco_frame(segment, events, parsed, after, tail); } },
         _ => {},
@@ -201,9 +263,21 @@ pub(crate) proof fn part1_fresh_main_projection<'a>(
     match segment.marker {
         0xff74 => if let Some((parsed, after)) = part1_fresh_consume_mct_run(segment, reader.limits, raw.pending_mct, raw.completed_mct, events) {
             part1_fresh_consume_mct_projection(segment, reader.limits, raw.pending_mct, raw.completed_mct, events, parsed, after);
+            if matches!(parsed.0,Ok(Some(_))) {
+                let requests=part1_fresh_main_mct_array_requests(raw,segment);
+                if let Some((capacity,last))=part1_mct_copy_run(requests,after) {
+                    part1_mct_copy_projection(requests,after,capacity,last);
+                }
+            }
         },
         0xff75 => if let Some((parsed, after)) = part1_fresh_consume_mcc_run(segment, raw.image_size.components, reader.limits, raw.pending_mcc, raw.completed_mcc, events) {
             part1_fresh_consume_mcc_projection(segment, raw.image_size.components, reader.limits, raw.pending_mcc, raw.completed_mcc, events, parsed, after);
+            if matches!(parsed.0,Ok(Some(_))) {
+                let requests=part1_fresh_main_mcc_record_requests(raw,segment);
+                if let Some((capacity,last))=part1_mct_copy_run(requests,after) {
+                    part1_mct_copy_projection(requests,after,capacity,last);
+                }
+            }
         },
         0xff77 => if raw.order.is_none() { if let Some((parsed, after)) = part1_fresh_mco_run(segment, events) { part1_fresh_mco_projection(segment, events, parsed, after); } },
         _ => {},
@@ -286,6 +360,64 @@ pub(crate) proof fn part1_fresh_tile_error<'a>(
                 == Some(((Err(error), reader, Part1TileHeaderAccumulator { tile_mco_seen: true, ..raw }), Seq::empty())));
         },
     }
+}
+
+pub(crate) proof fn part1_cold_main_mct_array_error<'a>(
+    initial: Part1CodestreamReader<'a>, reader: Part1CodestreamReader<'a>, raw: Part1MainHeaderAccumulator,
+    segment: Part1CodestreamSegment, array: Part2MctArray, pending: Seq<Part1MctFragment>, completed: Seq<u8>,
+    error: crate::DecodeError,
+)
+    requires part1_cold_main_prefix(initial, reader, raw), segment.marker==0xff74,
+        part1_read_main_header_segment(reader, raw.segments).0 == Ok(Some(segment)),
+        part1_fresh_consume_mct_result(segment, part1_read_main_header_segment(reader, raw.segments).1.limits,
+            raw.pending_mct, raw.completed_mct, (Ok(Some(array)),pending,completed)),
+        part1_mct_copy_result(part1_fresh_main_mct_array_requests(raw,segment),Err(error)),
+    ensures part1_cold_layout_result(initial,Err(error)),
+{
+    reveal(part1_cold_main_prefix); reveal(part1_fresh_main_payload);
+    reveal(part1_fresh_consume_mct_result); reveal(part1_mct_copy_result);
+    let prefix=choose|prefix:Seq<Part1ColdStorageEvent>|part1_cold_main_prefix_at(initial,reader,raw,prefix);
+    let admitted=part1_read_main_header_segment(reader,raw.segments);
+    let copied=choose|calls:Seq<Part1ColdStorageEvent>|part1_fresh_consume_mct_run(segment,admitted.1.limits,
+        raw.pending_mct,raw.completed_mct,calls)==Some(((Ok(Some(array)),pending,completed),Seq::empty()));
+    let last=choose|calls:Seq<Part1ColdStorageEvent>|part1_mct_copy_run(part1_fresh_main_mct_array_requests(raw,segment),calls)
+        ==Some((Err(error),Seq::empty()));
+    part1_fresh_consume_mct_frame(segment,admitted.1.limits,raw.pending_mct,raw.completed_mct,
+        copied,(Ok(Some(array)),pending,completed),Seq::empty(),last);
+    assert(Seq::<Part1ColdStorageEvent>::empty()+last =~= last);
+    reveal_with_fuel(part1_main_progression_continuation,1);
+    assert(part1_prepare_main_progression_run(initial,prefix+(copied+last))==Some((Err(error),Seq::empty())));
+    reveal(part1_cold_layout_result);
+    assert(part1_layout_with_cold_storage(initial,prefix+(copied+last))==Some((Err(error),Seq::empty())));
+}
+
+pub(crate) proof fn part1_cold_main_mcc_record_error<'a>(
+    initial: Part1CodestreamReader<'a>, reader: Part1CodestreamReader<'a>, raw: Part1MainHeaderAccumulator,
+    segment: Part1CodestreamSegment, record: Part1MctRecord, pending: Seq<Part1MccFragment>, completed: Seq<u8>,
+    error: crate::DecodeError,
+)
+    requires part1_cold_main_prefix(initial, reader, raw), segment.marker==0xff75,
+        part1_read_main_header_segment(reader, raw.segments).0 == Ok(Some(segment)),
+        part1_fresh_consume_mcc_result(segment,raw.image_size.components,part1_read_main_header_segment(reader,raw.segments).1.limits,
+            raw.pending_mcc,raw.completed_mcc,(Ok(Some(record)),pending,completed)),
+        part1_mct_copy_result(part1_fresh_main_mcc_record_requests(raw,segment),Err(error)),
+    ensures part1_cold_layout_result(initial,Err(error)),
+{
+    reveal(part1_cold_main_prefix); reveal(part1_fresh_main_payload);
+    reveal(part1_fresh_consume_mcc_result); reveal(part1_mct_copy_result);
+    let prefix=choose|prefix:Seq<Part1ColdStorageEvent>|part1_cold_main_prefix_at(initial,reader,raw,prefix);
+    let admitted=part1_read_main_header_segment(reader,raw.segments);
+    let copied=choose|calls:Seq<Part1ColdStorageEvent>|part1_fresh_consume_mcc_run(segment,raw.image_size.components,admitted.1.limits,
+        raw.pending_mcc,raw.completed_mcc,calls)==Some(((Ok(Some(record)),pending,completed),Seq::empty()));
+    let last=choose|calls:Seq<Part1ColdStorageEvent>|part1_mct_copy_run(part1_fresh_main_mcc_record_requests(raw,segment),calls)
+        ==Some((Err(error),Seq::empty()));
+    part1_fresh_consume_mcc_frame(segment,raw.image_size.components,admitted.1.limits,raw.pending_mcc,raw.completed_mcc,
+        copied,(Ok(Some(record)),pending,completed),Seq::empty(),last);
+    assert(Seq::<Part1ColdStorageEvent>::empty()+last =~= last);
+    reveal_with_fuel(part1_main_progression_continuation,1);
+    assert(part1_prepare_main_progression_run(initial,prefix+(copied+last))==Some((Err(error),Seq::empty())));
+    reveal(part1_cold_layout_result);
+    assert(part1_layout_with_cold_storage(initial,prefix+(copied+last))==Some((Err(error),Seq::empty())));
 }
 
 pub(crate) proof fn part1_cold_main_fresh_error<'a>(
