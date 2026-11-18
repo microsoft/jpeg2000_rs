@@ -1,8 +1,51 @@
 //! Real ordered MCT collection/stage composition of spectral line responses.
 use super::*;
 verus! {
+pub(crate) enum Part2MctViewSource {
+    Decoded {source:Part1DecodedImageModel},
+    Prepared {source:Seq<Part1AssemblyTile>},
+}
+pub(crate) open spec fn part2_mct_view_count(source:Part2MctViewSource)->nat {
+    match source {Part2MctViewSource::Decoded {source}=>source.4.len(),Part2MctViewSource::Prepared {source}=>source.len()}
+}
+pub(crate) open spec fn part2_mct_view_run(source:Part2MctViewSource,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<()> {
+    let count=part2_mct_view_count(source);
+    if count==0 {Some((Ok(()),calls))}else if calls.len()==0 {None}else{
+        match calls[0] {
+            Part2Tier1StorageEvent::MctViewCapacity {source:actual,elements,succeeded}=>
+                if actual!=source || elements!=count {None}else{
+                    Some((if succeeded {Ok(())}else{Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))
+                },
+            _=>None,
+        }
+    }
+}
+pub(crate) open spec fn part2_mct_view_result(source:Part2MctViewSource,result:Result<(),crate::DecodeError>)->bool {
+    part2_tier1_storage_framed(|calls|part2_mct_view_run(source,calls),result)
+}
+pub(crate) proof fn part2_mct_view_observed(source:Part2MctViewSource,result:Result<(),crate::DecodeError>)
+    requires result==Ok(()) || (part2_mct_view_count(source)>0 && result==Err(crate::DecodeError::AllocationFailed)),
+    ensures part2_mct_view_result(source,result),
+{
+    let count=part2_mct_view_count(source);
+    let prefix=if count==0 {Seq::empty()}else{
+        seq![Part2Tier1StorageEvent::MctViewCapacity {source,elements:count,succeeded:result.is_ok()}]
+    };
+    assert forall|tail:Seq<Part2Tier1StorageEvent>|
+        part2_mct_view_run(source,prefix+tail)==Some((result,tail)) by {
+        if count==0 {assert(prefix+tail =~= tail);}else{assert((prefix+tail).drop_first() =~= tail);}
+    }
+    assert(part2_tier1_storage_prefix(|calls|part2_mct_view_run(source,calls),prefix,result));
+}
+pub(crate) proof fn part2_mct_view_normal(source:Part2MctViewSource)
+    ensures part2_mct_view_result(source,Ok(())),
+{part2_mct_view_observed(source,Ok(()));}
+
 pub(crate) open spec fn part2_mct_line_collection_run(before:Seq<Part2MctComponent>,collection:Part2MctCollection,work:u64,maximum_work:u64,maximum_bytes:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2MctLineEffect> {
     if matches!(collection.3,crate::codestream::MctCollectionKind::Wavelet){part2_mct_line_wavelet_run(before,collection,work,maximum_work,maximum_bytes,calls)}
+    else if matches!(collection.3,crate::codestream::MctCollectionKind::Decorrelation){
+        part2_mct_decorrelation_storage_run(Part2MctRuntimeContext {components:before,collection,work,maximum_work,maximum_bytes},calls)
+    }
     else{Some((Ok(part2_mct_collection(before,collection,work,maximum_work,maximum_bytes)),calls))}
 }
 pub(crate) open spec fn part2_mct_line_collection_result(before:Seq<Part2MctComponent>,collection:Part2MctCollection,work:u64,maximum_work:u64,maximum_bytes:u64,result:Part2MctLineEffect)->bool {
@@ -47,6 +90,10 @@ pub(crate) proof fn part2_mct_line_collection_normal(before:Seq<Part2MctComponen
     if matches!(collection.3,crate::codestream::MctCollectionKind::Wavelet){
         part2_mct_line_wavelet_normal(before,collection,work,maximum_work,maximum_bytes);
         part2_tier1_storage_eta(|calls|part2_mct_line_wavelet_run(before,collection,work,maximum_work,maximum_bytes,calls),Ok(result));
+    }else if matches!(collection.3,crate::codestream::MctCollectionKind::Decorrelation){
+        let context=Part2MctRuntimeContext {components:before,collection,work,maximum_work,maximum_bytes};
+        part2_mct_decorrelation_storage_normal(context);
+        part2_tier1_storage_eta(|calls|part2_mct_decorrelation_storage_run(context,calls),Ok(result));
     }else{part2_tier1_storage_pure(Ok(result));}
 }
 pub(crate) proof fn part2_mct_line_stage_normal(before:Seq<Part2MctComponent>,collections:Seq<Part2MctCollection>,work:u64,maximum_work:u64,maximum_bytes:u64,count:nat)
@@ -135,16 +182,32 @@ pub(crate) proof fn part2_mct_line_collection_wavelet_observed(before:Seq<Part2M
     requires matches!(collection.3,crate::codestream::MctCollectionKind::Wavelet),part2_mct_line_wavelet_result(before,collection,work,maximum_work,maximum_bytes,result),
     ensures part2_mct_line_collection_result(before,collection,work,maximum_work,maximum_bytes,result),
 {part2_tier1_storage_eta(|calls|part2_mct_line_wavelet_run(before,collection,work,maximum_work,maximum_bytes,calls),Ok(result));}
-pub(crate) open spec fn part2_mct_line_decoded_run(before:Part1DecodedImageModel,stages:Seq<Part2MctStage>,maximum_work:u64,maximum_bytes:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Result<(),crate::DecodeError>,Part1DecodedImageModel)> {
+pub(crate) proof fn part2_mct_line_collection_decorrelation_observed(before:Seq<Part2MctComponent>,collection:Part2MctCollection,work:u64,maximum_work:u64,maximum_bytes:u64,result:Part2MctLineEffect)
+    requires matches!(collection.3,crate::codestream::MctCollectionKind::Decorrelation),
+        part2_mct_decorrelation_storage_result(Part2MctRuntimeContext {components:before,collection,work,maximum_work,maximum_bytes},result),
+    ensures part2_mct_line_collection_result(before,collection,work,maximum_work,maximum_bytes,result),
+{
+    part2_tier1_storage_eta(|calls|part2_mct_decorrelation_storage_run(
+        Part2MctRuntimeContext {components:before,collection,work,maximum_work,maximum_bytes},calls),Ok(result));
+}
+pub(crate) open spec fn part2_mct_line_decoded_after_views(before:Part1DecodedImageModel,stages:Seq<Part2MctStage>,maximum_work:u64,maximum_bytes:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Result<(),crate::DecodeError>,Part1DecodedImageModel)> {
     if before.4.len()>u16::MAX{Some((Ok((Err(part1_transform_error(true)),before)),calls))}
     else{part2_tier1_storage_bind(part2_mct_line_transform_run(part2_mct_decoded_inputs(before.4),stages,0,maximum_work,maximum_bytes,stages.len(),calls),
         |effect:Part2MctLineEffect,rest|Some((Ok((effect.0,part2_mct_decoded_result(before,effect.1))),rest)))}
 }
+pub(crate) open spec fn part2_mct_line_decoded_run(before:Part1DecodedImageModel,stages:Seq<Part2MctStage>,maximum_work:u64,maximum_bytes:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Result<(),crate::DecodeError>,Part1DecodedImageModel)> {
+    part2_tier1_storage_resume(part2_mct_view_run(Part2MctViewSource::Decoded {source:before},calls),
+        |capacity:Result<(),crate::DecodeError>,rest|match capacity {
+            Err(error)=>Some((Ok((Err(error),before)),rest)),
+            Ok(())=>part2_mct_line_decoded_after_views(before,stages,maximum_work,maximum_bytes,rest),
+        })
+}
 pub closed spec fn part2_mct_line_decoded_result(before:Part1DecodedImageModel,stages:Seq<Part2MctStage>,maximum_work:u64,maximum_bytes:u64,result:(Result<(),crate::DecodeError>,Part1DecodedImageModel))->bool {
     part2_tier1_storage_framed(|calls|part2_mct_line_decoded_run(before,stages,maximum_work,maximum_bytes,calls),Ok(result))
 }
-pub(crate) proof fn part2_mct_line_decoded_normal(before:Part1DecodedImageModel,stages:Seq<Part2MctStage>,maximum_work:u64,maximum_bytes:u64)
-    ensures part2_mct_line_decoded_result(before,stages,maximum_work,maximum_bytes,part2_mct_decoded_image(before,stages,maximum_work,maximum_bytes)),
+pub(crate) proof fn part2_mct_line_decoded_after_views_normal(before:Part1DecodedImageModel,stages:Seq<Part2MctStage>,maximum_work:u64,maximum_bytes:u64)
+    ensures part2_tier1_storage_framed(|calls|part2_mct_line_decoded_after_views(before,stages,maximum_work,maximum_bytes,calls),
+        Ok(part2_mct_decoded_image(before,stages,maximum_work,maximum_bytes))),
 {
     let result=part2_mct_decoded_image(before,stages,maximum_work,maximum_bytes);
     part2_tier1_storage_pure(Ok(result));
@@ -156,16 +219,51 @@ pub(crate) proof fn part2_mct_line_decoded_normal(before:Part1DecodedImageModel,
             Ok(part2_mct_transform(input,stages,0,maximum_work,maximum_bytes)),Ok(result));
     }
 }
+pub(crate) proof fn part2_mct_line_decoded_views_success(before:Part1DecodedImageModel,stages:Seq<Part2MctStage>,maximum_work:u64,maximum_bytes:u64,
+    result:(Result<(),crate::DecodeError>,Part1DecodedImageModel))
+    requires part2_mct_view_result(Part2MctViewSource::Decoded {source:before},Ok(())),
+        part2_tier1_storage_framed(|calls|part2_mct_line_decoded_after_views(before,stages,maximum_work,maximum_bytes,calls),Ok(result)),
+    ensures part2_mct_line_decoded_result(before,stages,maximum_work,maximum_bytes,result),
+{
+    let source=Part2MctViewSource::Decoded {source:before};
+    let next=|capacity:Result<(),crate::DecodeError>,rest|match capacity {
+        Err(error)=>Some((Ok((Err(error),before)),rest)),
+        Ok(())=>part2_mct_line_decoded_after_views(before,stages,maximum_work,maximum_bytes,rest),
+    };
+    part2_tier1_storage_eta(|calls|part2_mct_line_decoded_after_views(before,stages,maximum_work,maximum_bytes,calls),Ok(result));
+    part2_tier1_resume_frame(|calls|part2_mct_view_run(source,calls),next,Ok(()),Ok(result));
+}
+pub(crate) proof fn part2_mct_line_decoded_normal(before:Part1DecodedImageModel,stages:Seq<Part2MctStage>,maximum_work:u64,maximum_bytes:u64)
+    ensures part2_mct_line_decoded_result(before,stages,maximum_work,maximum_bytes,part2_mct_decoded_image(before,stages,maximum_work,maximum_bytes)),
+{
+    part2_mct_view_normal(Part2MctViewSource::Decoded {source:before});
+    part2_mct_line_decoded_after_views_normal(before,stages,maximum_work,maximum_bytes);
+    part2_mct_line_decoded_views_success(before,stages,maximum_work,maximum_bytes,part2_mct_decoded_image(before,stages,maximum_work,maximum_bytes));
+}
+pub(crate) proof fn part2_mct_line_decoded_views_error(before:Part1DecodedImageModel,stages:Seq<Part2MctStage>,maximum_work:u64,maximum_bytes:u64,error:crate::DecodeError)
+    requires part2_mct_view_result(Part2MctViewSource::Decoded {source:before},Err(error)),
+    ensures part2_mct_line_decoded_result(before,stages,maximum_work,maximum_bytes,(Err(error),before)),
+{
+    let source=Part2MctViewSource::Decoded {source:before};
+    let next=|capacity:Result<(),crate::DecodeError>,rest|match capacity {
+        Err(error)=>Some((Ok((Err(error),before)),rest)),
+        Ok(())=>part2_mct_line_decoded_after_views(before,stages,maximum_work,maximum_bytes,rest),
+    };
+    part2_tier1_storage_pure(Ok((Err::<(),crate::DecodeError>(error),before)));
+    part2_tier1_resume_frame(|calls|part2_mct_view_run(source,calls),next,Err(error),Ok((Err(error),before)));
+}
 pub(crate) proof fn part2_mct_line_decoded_observed(before:Part1DecodedImageModel,stages:Seq<Part2MctStage>,maximum_work:u64,maximum_bytes:u64,effect:Part2MctLineEffect)
     requires before.4.len()<=u16::MAX,part2_mct_line_transform_result(part2_mct_decoded_inputs(before.4),stages,0,maximum_work,maximum_bytes,effect),
+        part2_mct_view_result(Part2MctViewSource::Decoded {source:before},Ok(())),
     ensures part2_mct_line_decoded_result(before,stages,maximum_work,maximum_bytes,(effect.0,part2_mct_decoded_result(before,effect.1))),
 {
     let input=part2_mct_decoded_inputs(before.4);
     part2_tier1_storage_pure(Ok((effect.0,part2_mct_decoded_result(before,effect.1))));
     part2_tier1_storage_bind_frame(|calls|part2_mct_line_transform_run(input,stages,0,maximum_work,maximum_bytes,stages.len(),calls),
         |effect:Part2MctLineEffect,rest|Some((Ok((effect.0,part2_mct_decoded_result(before,effect.1))),rest)),Ok(effect),Ok((effect.0,part2_mct_decoded_result(before,effect.1))));
+    part2_mct_line_decoded_views_success(before,stages,maximum_work,maximum_bytes,(effect.0,part2_mct_decoded_result(before,effect.1)));
 }
-pub(crate) open spec fn part2_mct_line_prepared_run(before:Seq<Part1AssemblyTile>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,stages:Seq<Part2MctStage>,work:u64,maximum_work:u64,maximum_bytes:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2ExtractionTileEffect> {
+pub(crate) open spec fn part2_mct_line_prepared_after_views(before:Seq<Part1AssemblyTile>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,stages:Seq<Part2MctStage>,work:u64,maximum_work:u64,maximum_bytes:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2ExtractionTileEffect> {
     let input=part2_mct_prepared_inputs(before,component_count,infos);
     match input.0{
         Err(error)=>Some((Ok((Err(error),before,work)),calls)),
@@ -173,11 +271,19 @@ pub(crate) open spec fn part2_mct_line_prepared_run(before:Seq<Part1AssemblyTile
             |effect:Part2MctLineEffect,rest|Some((Ok((effect.0,part2_mct_prepared_result(before,effect.1),effect.2)),rest))),
     }
 }
+pub(crate) open spec fn part2_mct_line_prepared_run(before:Seq<Part1AssemblyTile>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,stages:Seq<Part2MctStage>,work:u64,maximum_work:u64,maximum_bytes:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2ExtractionTileEffect> {
+    part2_tier1_storage_resume(part2_mct_view_run(Part2MctViewSource::Prepared {source:before},calls),
+        |capacity:Result<(),crate::DecodeError>,rest|match capacity {
+            Err(error)=>Some((Ok((Err(error),before,work)),rest)),
+            Ok(())=>part2_mct_line_prepared_after_views(before,component_count,infos,stages,work,maximum_work,maximum_bytes,rest),
+        })
+}
 pub(crate) open spec fn part2_mct_line_prepared_result(before:Seq<Part1AssemblyTile>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,stages:Seq<Part2MctStage>,work:u64,maximum_work:u64,maximum_bytes:u64,result:Part2ExtractionTileEffect)->bool {
     part2_tier1_storage_framed(|calls|part2_mct_line_prepared_run(before,component_count,infos,stages,work,maximum_work,maximum_bytes,calls),Ok(result))
 }
-pub(crate) proof fn part2_mct_line_prepared_normal(before:Seq<Part1AssemblyTile>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,stages:Seq<Part2MctStage>,work:u64,maximum_work:u64,maximum_bytes:u64)
-    ensures part2_mct_line_prepared_result(before,component_count,infos,stages,work,maximum_work,maximum_bytes,part2_mct_prepared_tiles(before,component_count,infos,stages,work,maximum_work,maximum_bytes)),
+pub(crate) proof fn part2_mct_line_prepared_after_views_normal(before:Seq<Part1AssemblyTile>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,stages:Seq<Part2MctStage>,work:u64,maximum_work:u64,maximum_bytes:u64)
+    ensures part2_tier1_storage_framed(|calls|part2_mct_line_prepared_after_views(before,component_count,infos,stages,work,maximum_work,maximum_bytes,calls),
+        Ok(part2_mct_prepared_tiles(before,component_count,infos,stages,work,maximum_work,maximum_bytes))),
 {
     let input=part2_mct_prepared_inputs(before,component_count,infos);
     let result=part2_mct_prepared_tiles(before,component_count,infos,stages,work,maximum_work,maximum_bytes);
@@ -189,15 +295,52 @@ pub(crate) proof fn part2_mct_line_prepared_normal(before:Seq<Part1AssemblyTile>
             Ok(part2_mct_transform(input.1,stages,work,maximum_work,maximum_bytes)),Ok(result));
     }
 }
+pub(crate) proof fn part2_mct_line_prepared_views_success(before:Seq<Part1AssemblyTile>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,stages:Seq<Part2MctStage>,work:u64,maximum_work:u64,maximum_bytes:u64,
+    result:Part2ExtractionTileEffect)
+    requires part2_mct_view_result(Part2MctViewSource::Prepared {source:before},Ok(())),
+        part2_tier1_storage_framed(|calls|part2_mct_line_prepared_after_views(before,component_count,infos,stages,work,maximum_work,maximum_bytes,calls),Ok(result)),
+    ensures part2_mct_line_prepared_result(before,component_count,infos,stages,work,maximum_work,maximum_bytes,result),
+{
+    let source=Part2MctViewSource::Prepared {source:before};
+    let next=|capacity:Result<(),crate::DecodeError>,rest|match capacity {
+        Err(error)=>Some((Ok((Err(error),before,work)),rest)),
+        Ok(())=>part2_mct_line_prepared_after_views(before,component_count,infos,stages,work,maximum_work,maximum_bytes,rest),
+    };
+    part2_tier1_storage_eta(|calls|part2_mct_line_prepared_after_views(before,component_count,infos,stages,work,maximum_work,maximum_bytes,calls),Ok(result));
+    part2_tier1_resume_frame(|calls|part2_mct_view_run(source,calls),next,Ok(()),Ok(result));
+}
+pub(crate) proof fn part2_mct_line_prepared_normal(before:Seq<Part1AssemblyTile>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,stages:Seq<Part2MctStage>,work:u64,maximum_work:u64,maximum_bytes:u64)
+    ensures part2_mct_line_prepared_result(before,component_count,infos,stages,work,maximum_work,maximum_bytes,part2_mct_prepared_tiles(before,component_count,infos,stages,work,maximum_work,maximum_bytes)),
+{
+    part2_mct_view_normal(Part2MctViewSource::Prepared {source:before});
+    part2_mct_line_prepared_after_views_normal(before,component_count,infos,stages,work,maximum_work,maximum_bytes);
+    part2_mct_line_prepared_views_success(before,component_count,infos,stages,work,maximum_work,maximum_bytes,
+        part2_mct_prepared_tiles(before,component_count,infos,stages,work,maximum_work,maximum_bytes));
+}
+pub(crate) proof fn part2_mct_line_prepared_views_error(before:Seq<Part1AssemblyTile>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,stages:Seq<Part2MctStage>,work:u64,maximum_work:u64,maximum_bytes:u64,error:crate::DecodeError)
+    requires part2_mct_view_result(Part2MctViewSource::Prepared {source:before},Err(error)),
+    ensures part2_mct_line_prepared_result(before,component_count,infos,stages,work,maximum_work,maximum_bytes,(Err(error),before,work)),
+{
+    let source=Part2MctViewSource::Prepared {source:before};
+    let next=|capacity:Result<(),crate::DecodeError>,rest|match capacity {
+        Err(error)=>Some((Ok((Err(error),before,work)),rest)),
+        Ok(())=>part2_mct_line_prepared_after_views(before,component_count,infos,stages,work,maximum_work,maximum_bytes,rest),
+    };
+    part2_tier1_storage_pure(Ok((Err::<(),crate::DecodeError>(error),before,work)));
+    part2_tier1_resume_frame(|calls|part2_mct_view_run(source,calls),next,Err(error),Ok((Err(error),before,work)));
+}
 pub(crate) proof fn part2_mct_line_prepared_observed(before:Seq<Part1AssemblyTile>,component_count:u16,infos:Seq<crate::codestream::ComponentInfo>,stages:Seq<Part2MctStage>,work:u64,maximum_work:u64,maximum_bytes:u64,effect:Part2MctLineEffect)
     requires part2_mct_prepared_inputs(before,component_count,infos).0.is_ok(),
         part2_mct_line_transform_result(part2_mct_prepared_inputs(before,component_count,infos).1,stages,work,maximum_work,maximum_bytes,effect),
+        part2_mct_view_result(Part2MctViewSource::Prepared {source:before},Ok(())),
     ensures part2_mct_line_prepared_result(before,component_count,infos,stages,work,maximum_work,maximum_bytes,(effect.0,part2_mct_prepared_result(before,effect.1),effect.2)),
 {
     let input=part2_mct_prepared_inputs(before,component_count,infos);
     part2_tier1_storage_pure(Ok((effect.0,part2_mct_prepared_result(before,effect.1),effect.2)));
     part2_tier1_storage_bind_frame(|calls|part2_mct_line_transform_run(input.1,stages,work,maximum_work,maximum_bytes,stages.len(),calls),
         |effect:Part2MctLineEffect,rest|Some((Ok((effect.0,part2_mct_prepared_result(before,effect.1),effect.2)),rest)),Ok(effect),Ok((effect.0,part2_mct_prepared_result(before,effect.1),effect.2)));
+    part2_mct_line_prepared_views_success(before,component_count,infos,stages,work,maximum_work,maximum_bytes,
+        (effect.0,part2_mct_prepared_result(before,effect.1),effect.2));
 }
 pub(crate) open spec fn part2_mct_line_finish_after(effect:Part2ExtractionTileEffect,standard:(bool,bool))->Part2ExtractionTileEffect {
     match effect.0{Err(_)=>effect,Ok(())=>{

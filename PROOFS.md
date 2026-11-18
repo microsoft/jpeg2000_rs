@@ -85,6 +85,29 @@ count/actual-reply frames preserve first errors and arbitrary tails through
 admitted container calls. No successful instruction bank or capacity premise
 is supplied; physical spare-capacity reuse is checked natively.
 
+### Reached active-MCT decode storage
+
+[`cold_mct_runtime.rs`](specs/cold_mct_runtime.rs) derives the actual
+source/destination-index, source-fraction-tag, source/output-scratch and
+reversible-copy requests from the original components, collection, work and
+limits. Dimension/coefficient checks still precede index storage; fraction
+tags follow original layout/work/byte admission and retain charged work on
+refusal. No successful preparation or scratch bank is supplied as input.
+
+The actual prepared and decoded-image borrowed-view owners have distinct
+source-derived capacity events in
+[`cold_mct_line_composition.rs`](specs/cold_mct_line_composition.rs). Empty
+owners are request-free. Actual normalized replies compose through inverse
+rows, source snapshots, individual pixels, ordered collections/stages and
+tile/public callers with exact error/work/owner/tail frames. A refused later
+pixel preserves earlier committed pixels, not an earlier whole-image copy;
+exact retry tests restart from the original source.
+
+The ordinary arithmetic projections remain guarded only against the newly
+represented storage failure. Existing numeric, profile, deadline and proof
+boundaries are unchanged; these finite reached controls do not establish
+universal allocation-surface completeness or standards conformance.
+
 ### Reached MCT/MCC marker registries
 
 The fresh marker program includes checked pending-fragment admission after

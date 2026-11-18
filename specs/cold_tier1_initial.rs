@@ -2,6 +2,8 @@
 use super::*;
 verus! {
 pub enum Part2Tier1StorageEvent {
+    MctRuntimeCapacity {context:Part2MctRuntimeCapacity,elements:nat,succeeded:bool},
+    MctViewCapacity {source:Part2MctViewSource,elements:nat,succeeded:bool},
     TypedOutputCapacity {context:Part2TypedCapacityContext,elements:nat,succeeded:bool},
     AssemblyPlaneCapacity {context:Part2AssemblyPlaneContext,stage:Part2AssemblyPlaneStage,elements:nat,succeeded:bool},
     AssemblyOwnerCapacity {context:Part2AssemblyOwnerContext,elements:nat,succeeded:bool},

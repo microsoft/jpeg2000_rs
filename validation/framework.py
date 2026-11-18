@@ -835,6 +835,15 @@ def _reconstruction_contracts() -> dict[tuple[str, str], tuple[str, str, str | N
     prepared_map_final = view("Seq::new", final("prepared") + owner_array,
         r"\|\s*index\s*:\s*int\s*\|\s*" + view("prepared_component_view", final("prepared") + r"\s*@\s*\[\s*index\s*\]"))
     image_contracts = {
+        "reversible_mct_row": ("part2_reversible_mct_row", r"\1", None,
+            args(view("crate::codestream::mct_array_view", "matrix"), view("crate::codestream::mct_array_option", "offsets"), "source@", "row")),
+        "decorrelation_mct_row": ("part2_mct_decorrelation_row", r"\1", None,
+            args(collection, "source@", "source_fraction_bits@", "row")),
+        "append_mct_decorrelation_rows": ("part2_mct_decorrelation_rows", r"\1", final("output") + r"@",
+            args(old("output") + r"@", collection, "source@", "source_fraction_bits@", r"rows\s+as\s+nat")),
+        "apply_mct_decorrelation_pixel": ("part2_mct_decorrelation_pixel", r"\1",
+            args(view("transform_components_view", final("components")), final("source") + r"@", final("output") + r"@"),
+            args(components_old, collection, view("mct_decorrelation_preparation_view", "prepared"), "sample_index")),
         "inverse_reversible_mct": ("part2_inverse_reversible_mct",
             view("crate::transform::sequence_outcome", r"\1"), None,
             args(view("crate::codestream::mct_array_view", "matrix"), "source@")),
@@ -891,6 +900,10 @@ def _reconstruction_contracts() -> dict[tuple[str, str], tuple[str, str, str | N
 
 _RECONSTRUCTION_CONTRACTS = _reconstruction_contracts()
 _RECONSTRUCTION_PROVED_BOUNDARY_APIS = frozenset({
+    ("src/image/mct.rs", "reversible_mct_row"),
+    ("src/image/mct_decorrelation.rs", "decorrelation_mct_row"),
+    ("src/image/mct_decorrelation.rs", "append_mct_decorrelation_rows"),
+    ("src/image/mct_decorrelation.rs", "apply_mct_decorrelation_pixel"),
     ("src/image/mct.rs", "apply_multiple_component_transform"),
     ("src/decode/reconstruction.rs", "decode_progression_prepared_image"),
 })
@@ -5015,6 +5028,13 @@ _RAW_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadat
 _RAW_COMPOSITION_RENDER_PROOFS |= {("specs/jpx_raw_frame.rs", "part2_render_raw_cold_metadata_error")}
 
 _PLANE_ROLE_MODEL_INFO = {
+    "part2_inverse_reversible_mct": ("part2_mct_inverse_storage_result", "specs/cold_mct_runtime.rs", "part2_mct_inverse_storage_normal"),
+    "part2_reversible_mct_row": ("part2_mct_reversible_row_storage_result", "specs/cold_mct_runtime.rs", "part2_mct_reversible_row_storage_normal"),
+    "part2_mct_decorrelation_row": ("part2_mct_scalar_storage_result", "specs/cold_mct_runtime.rs", "part2_mct_scalar_storage_normal"),
+    "part2_mct_decorrelation_rows": ("part2_mct_rows_storage_result", "specs/cold_mct_runtime.rs", "part2_mct_rows_storage_normal"),
+    "part2_mct_decorrelation_pixel": ("part2_mct_pixel_storage_result", "specs/cold_mct_runtime.rs", "part2_mct_pixel_storage_normal"),
+    "part2_mct_prepare_decorrelation": ("part2_mct_prepare_storage_result", "specs/cold_mct_runtime.rs", "part2_mct_prepare_storage_normal"),
+    "part2_mct_decorrelation": ("part2_mct_decorrelation_storage_result", "specs/cold_mct_runtime.rs", "part2_mct_decorrelation_storage_normal"),
     "part1_prepare_copy_plane": ("part2_prepare_plane_copy_result", "specs/cold_prepare_copies.rs", "part2_prepare_plane_copy_normal"),
     "part1_collect_column": ("part2_wavelet_gather_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_gather_normal"),
     "part1_interleaved": ("part2_wavelet_interleave_result", "specs/cold_wavelet_lines.rs", "part2_wavelet_interleave_normal"),
@@ -5085,6 +5105,13 @@ _PLANE_ROLE_RESULT_RUNS = {
     for old, (model, _, _) in _PLANE_ROLE_MODEL_INFO.items()
 }
 _PLANE_ROLE_RESULT_RUNS.update({
+    "part2_mct_inverse_storage_result": ("part2_mct_inverse_storage_run", False),
+    "part2_mct_reversible_row_storage_result": ("part2_mct_reversible_row_storage_run", False),
+    "part2_mct_scalar_storage_result": ("part2_mct_scalar_storage_run", False),
+    "part2_mct_rows_storage_result": ("part2_mct_rows_storage_run", True),
+    "part2_mct_pixel_storage_result": ("part2_mct_pixel_storage_run", True),
+    "part2_mct_prepare_storage_result": ("part2_mct_prepare_storage_run", True),
+    "part2_mct_decorrelation_storage_result": ("part2_mct_decorrelation_storage_run", True),
     "part2_palette_component_storage_result": ("part2_palette_component_storage_run", False),
     "part2_output_copy_result": ("part2_output_copy_run", False),
     "part2_output_storage_result": ("part2_output_storage_run", False),
@@ -5396,6 +5423,23 @@ def _coverage_cold_relation(
 ) -> tuple[str, str]:
     model, outcome, state, inputs = legacy
     cold_model = _COLD_RESULT_MODELS[model][0]
+    if model in {"part2_mct_prepare_decorrelation", "part2_mct_decorrelation"}:
+        component = (_coverage_call("transform_components_view", "components") if model == "part2_mct_prepare_decorrelation"
+                     else _coverage_call("transform_components_view", _coverage_call("old", "components")))
+        inputs = (
+            r"crate::specs::Part2MctRuntimeContext\s*\{\s*components\s*:\s*" + component
+            + r"\s*,\s*collection\s*:\s*" + _coverage_call("crate::codestream::mct_collection_view", "collection")
+            + r"\s*,\s*work\s*:\s*\*\s*" + _coverage_call("old", "work")
+            + r"\s*,\s*maximum_work\s*:\s*" + _coverage_call("crate::limits::resource_work_limit", "limits")
+            + r"\s*,\s*maximum_bytes\s*:\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
+            + r"\s*,?\s*\}"
+        )
+    if model == "part2_mct_decorrelation_rows":
+        inputs = (
+            r"crate::specs::Part2MctRowsStorageContext\s*\{\s*output\s*:\s*" + _coverage_call("old", "output") + r"@"
+            + r"\s*,\s*collection\s*:\s*" + _coverage_call("crate::codestream::mct_collection_view", "collection")
+            + r"\s*,\s*source\s*:\s*source@\s*,\s*fractions\s*:\s*source_fraction_bits@\s*,\s*rows\s*,?\s*\}"
+        )
     if model == "part2_parse_jp2_header":
         inputs += r"\s*,\s*false"
     if model == "part2_parse_channel_definition":
@@ -6003,6 +6047,14 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model in {
+                "part2_mct_inverse_storage_result", "part2_mct_reversible_row_storage_result",
+                "part2_mct_scalar_storage_result", "part2_mct_rows_storage_result",
+                "part2_mct_pixel_storage_result", "part2_mct_prepare_storage_result",
+                "part2_mct_decorrelation_storage_result", "part2_mct_line_decoded_result",
+                "part2_mct_line_prepared_result"}:
+            models |= set(_MCT_RUNTIME_GUARDS)
+            proofs |= _MCT_RUNTIME_PROOFS
         if model in ("part2_typed_samples_result", "part2_typed_image_result", "part2_typed_layout_result"):
             models |= _TYPED_STORAGE_MODELS
             proofs |= _TYPED_STORAGE_PROOFS
@@ -6186,6 +6238,8 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
             + ("Ok(result)" if wrapped else "result") + ")"
         if model == "part2_ht_replay_result":
             expected += "&&(result.0!=Err(crate::DecodeError::AllocationFailed)==>result==ht_decode_refinement_contribution(before,input,passes,maximum_bytes,work))"
+        if model == "part2_mct_scalar_storage_result":
+            expected += "&&((!collection.0||collection.4.is_none())==>result==part2_mct_decorrelation_row(collection,source,fractions,row))"
     elif model in ("part2_jpip_packet_copy_result", "part2_jpip_phase_copy_result", "part2_trailer_packet_result",
                    "part2_nlt_image_storage_result"):
         expected = "part2_cold_framed(|events|" + call + ",Ok(result))"
@@ -7940,11 +7994,11 @@ _WAVELET_LINE_GUARDS = {
         "part2_mct_line_step_admit(previous,source,high,first,index)", "Err(error)=>Some((Err(error),calls))",
         "part2_wavelet_sequence_run(previous.1,input,parity,!reversible,None,calls)", "Some((Ok((end,values)),rest))",
     ),
-    ("specs/cold_mct_line_composition.rs", "part2_mct_line_decoded_run"): (
+    ("specs/cold_mct_line_composition.rs", "part2_mct_line_decoded_after_views"): (
         "before.4.len()>u16::MAX", "part2_mct_line_transform_run(part2_mct_decoded_inputs(before.4),stages,0,maximum_work,maximum_bytes,stages.len(),calls)",
         "part2_mct_decoded_result(before,effect.1)",
     ),
-    ("specs/cold_mct_line_composition.rs", "part2_mct_line_prepared_run"): (
+    ("specs/cold_mct_line_composition.rs", "part2_mct_line_prepared_after_views"): (
         "part2_mct_prepared_inputs(before,component_count,infos)", "Err(error)=>Some((Ok((Err(error),before,work)),calls))",
         "part2_mct_line_transform_run(input.1,stages,work,maximum_work,maximum_bytes,stages.len(),calls)", "part2_mct_prepared_result(before,effect.1),effect.2",
     ),
@@ -9281,6 +9335,162 @@ _TYPED_STORAGE_NATIVE_ORDER = {
         "let collected = collect_nonlinear_regions(layout, &image, discard_levels)",
         "part2_typed_layout_regions_error(", "let regions = collected?",
         "let applied = image.apply_nonlinear_regions(", "part2_typed_layout_nonlinear_error(", "applied?",
+    ),
+}
+
+_MCT_RUNTIME_GUARDS = {
+    ("specs/cold_mct_runtime.rs", "part2_mct_runtime_preparation"): (
+        "part2_mct_prepare_decorrelation(context.components,context.collection,context.work,context.maximum_work,context.maximum_bytes)",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_inverse_storage_admitted"): (
+        "matrix.3==0", "part2_validate_reversible_mct_coefficients(matrix.4,source.len() as usize)==Ok(())", "source.len()<usize::MAX",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_runtime_capacity_count"): (
+        "Inverse {matrix,source}=>if part2_mct_inverse_storage_admitted(matrix,source){source.len()}else{0}",
+        "SourceIndexes=>match part2_mct_decorrelation_dimensions(context.collection){Ok((_,columns))=>columns as nat,_=>0}",
+        "DestinationIndexes=>match part2_mct_decorrelation_dimensions(context.collection){Ok((rows,_))=>rows as nat,_=>0}",
+        "match part2_mct_runtime_preparation(context).0", "FractionBits=>plan.0.len()",
+        "SourceSamples=>plan.5 as nat", "OutputSamples=>plan.4 as nat",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_runtime_capacity_run"): (
+        "let count=part2_mct_runtime_capacity_count(capacity)", "if count==0 {Some((Ok(()),calls))}",
+        "actual!=capacity || elements!=count {None}", "calls.drop_first()",
+        "if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)}",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_prepare_storage_roles"): (
+        "part2_mct_decorrelation_dimensions(context.collection).is_err(){Seq::empty()}",
+        "seq![Part2MctRuntimeRole::SourceIndexes,Part2MctRuntimeRole::DestinationIndexes]",
+        "if part2_mct_runtime_preparation(context).0.is_ok(){seq![Part2MctRuntimeRole::FractionBits]}else{Seq::empty()}",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_prepare_refused_work"): (
+        "role==Part2MctRuntimeRole::FractionBits {part2_mct_runtime_preparation(context).1}else{context.work}",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_prepare_storage_requests_run"): (
+        "roles.len()==0 {Some((Ok(part2_mct_runtime_preparation(context)),calls))}",
+        "part2_mct_runtime_capacity_run(part2_mct_collection_capacity(context,roles[0]),calls)",
+        "part2_mct_prepare_storage_next(context,roles,capacity,rest)",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_prepare_storage_next"): (
+        "Err(error)=>Some((Ok((Err(error),part2_mct_prepare_refused_work(context,roles[0]))),calls))",
+        "part2_mct_prepare_storage_requests_run(context,roles.drop_first(),calls)",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_inverse_storage_run"): (
+        "!part2_mct_inverse_storage_admitted(matrix,source)", "part2_mct_runtime_capacity_run(Part2MctRuntimeCapacity::Inverse {matrix,source},calls)",
+        "Some((part2_inverse_reversible_mct(matrix,source),rest))",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_rows_storage_run"): (
+        "!part2_mct_rows_uses_inverse(context)", "part2_mct_inverse_storage_run(context.collection.4.unwrap(),context.source,calls)",
+        "part2_mct_rows_storage_after(context,result)",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_rows_storage_after"): (
+        "result==Err(crate::DecodeError::AllocationFailed){(Err(crate::DecodeError::AllocationFailed),context.output)}",
+        "else{part2_mct_rows_storage_value(context)}",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_pixel_rows_context"): (
+        "part2_mct_source_snapshot(before,plan.0,sample,plan.0.len())",
+        "output:Seq::empty(),collection,source:snapshot.1,fractions:plan.2,rows:plan.4",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_pixel_storage_after_rows"): (
+        "Err(error)=>(Err(error),before,source,rows.1)",
+        "part2_mct_store_output_rows(before,plan.1,rows.1,sample,plan.4 as nat)", "(stored.0,stored.1,source,rows.1)",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_pixel_storage_run"): (
+        "part2_mct_source_snapshot(before,plan.0,sample,plan.0.len())",
+        "part2_mct_rows_storage_run(part2_mct_pixel_rows_context(before,collection,plan,sample),calls)",
+        "part2_mct_pixel_storage_after_rows(before,plan,sample,snapshot.1,rows)",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_pixels_storage_next"): (
+        "previous.0.is_err(){Some((Ok(previous),calls))}",
+        "part2_mct_pixel_storage_run(previous.1,collection,plan,index as usize,calls)",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_pixels_storage_run"): (
+        "count==0 {Some((Ok((Ok(()),before)),calls))}",
+        "part2_mct_pixels_storage_run(before,collection,plan,(count-1) as nat,calls)",
+        "part2_mct_pixels_storage_next(previous,collection,plan,(count-1) as nat,rest)",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_decorrelation_after_preparation"): (
+        "Err(error)=>Some((Ok((Err(error),context.components,prepared.1)),calls))",
+        "part2_mct_collection_capacity(context,Part2MctRuntimeRole::SourceSamples)",
+        "part2_mct_decorrelation_after_source(context,plan,prepared.1,capacity,rest)",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_decorrelation_after_source"): (
+        "Err(error)=>Some((Ok((Err(error),context.components,charged)),calls))",
+        "part2_mct_collection_capacity(context,Part2MctRuntimeRole::OutputSamples)",
+        "part2_mct_decorrelation_after_output(context,plan,charged,capacity,rest)",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_decorrelation_after_output"): (
+        "Err(error)=>Some((Ok((Err(error),context.components,charged)),calls))",
+        "part2_mct_pixels_storage_run(context.components,context.collection,plan,plan.3 as nat,calls)",
+        "part2_mct_decorrelation_storage_finish(plan,charged,pixels,context.collection.0)",
+    ),
+    ("specs/cold_mct_runtime.rs", "part2_mct_decorrelation_storage_finish"): (
+        "Err(error)=>(Err(error),pixels.1,charged)", "part2_mct_destination_precisions(pixels.1,plan.1,if reversible{0}else{32},plan.1.len())",
+    ),
+    ("specs/cold_mct_line_composition.rs", "part2_mct_view_run"): (
+        "part2_mct_view_count(source)", "count==0 {Some((Ok(()),calls))}",
+        "actual!=source || elements!=count {None}", "calls.drop_first()",
+    ),
+    ("specs/cold_mct_line_composition.rs", "part2_mct_line_collection_run"): (
+        "MctCollectionKind::Decorrelation", "part2_mct_decorrelation_storage_run(Part2MctRuntimeContext {components:before,collection,work,maximum_work,maximum_bytes},calls)",
+    ),
+    ("specs/cold_mct_line_composition.rs", "part2_mct_line_prepared_run"): (
+        "part2_mct_view_run(Part2MctViewSource::Prepared {source:before},calls)",
+        "Err(error)=>Some((Ok((Err(error),before,work)),rest))",
+        "part2_mct_line_prepared_after_views(before,component_count,infos,stages,work,maximum_work,maximum_bytes,rest)",
+    ),
+    ("specs/cold_mct_line_composition.rs", "part2_mct_line_decoded_run"): (
+        "part2_mct_view_run(Part2MctViewSource::Decoded {source:before},calls)",
+        "Err(error)=>Some((Ok((Err(error),before)),rest))",
+        "part2_mct_line_decoded_after_views(before,stages,maximum_work,maximum_bytes,rest)",
+    ),
+}
+_MCT_RUNTIME_PROOFS = {("specs/cold_mct_runtime.rs", name) for name in (
+    "part2_mct_runtime_capacity_observed", "part2_mct_runtime_capacity_normal",
+    "part2_mct_prepare_storage_normal", "part2_mct_prepare_storage_refused",
+    "part2_mct_inverse_storage_normal", "part2_mct_inverse_storage_refused",
+    "part2_mct_rows_storage_normal", "part2_mct_rows_storage_inverse_error",
+    "part2_mct_pixel_storage_normal", "part2_mct_pixel_storage_rows_observed",
+    "part2_mct_pixels_storage_normal", "part2_mct_pixels_storage_advance", "part2_mct_pixels_storage_error_suffix",
+    "part2_mct_decorrelation_storage_normal", "part2_mct_decorrelation_storage_prepare_error",
+    "part2_mct_decorrelation_storage_scratch_error", "part2_mct_decorrelation_storage_pixels",
+)} | {("specs/cold_mct_line_composition.rs", name) for name in (
+    "part2_mct_view_observed", "part2_mct_line_prepared_views_error", "part2_mct_line_decoded_views_error",
+    "part2_mct_line_collection_decorrelation_observed",
+)}
+_MCT_RUNTIME_TESTS = {
+    ("src/image/tests.rs", "mct_runtime_storage_preparation_scratch_and_pixel_refusals_keep_work_and_committed_prefix"),
+    ("src/image/tests.rs", "mct_runtime_storage_inverse_rows_preserve_source_semantic_priority_and_retry"),
+    ("src/decode/tests.rs", "mct_runtime_storage_prepared_views_refusal_keeps_samples_metadata_work_and_retry"),
+}
+_MCT_RUNTIME_NATIVE_ORDER = {
+    ("src/image/mct_decorrelation.rs", "prepare_mct_decorrelation"): (
+        "validate_reversible_mct_coefficients(", "empty_with_capacity(columns)", "Part2MctRuntimeRole::SourceIndexes",
+        "inspection_capacity_outcome(reserved)", "part2_mct_prepare_storage_refused(storage_context,0,error)",
+        "let mut source_indexes = reserved?", "empty_with_capacity(rows)", "Part2MctRuntimeRole::DestinationIndexes",
+        "inspection_capacity_outcome(reserved)", "let mut destination_indexes = reserved?",
+        "validate_mct_components_layout(", "admit_reversible_mct_decorrelation(",
+        "empty_with_capacity(source_indexes.len())", "Part2MctRuntimeRole::FractionBits",
+        "inspection_capacity_outcome(reserved)", "part2_mct_prepare_storage_refused(storage_context,2,error)",
+        "let mut source_fraction_bits = reserved?",
+    ),
+    ("src/image/mct.rs", "inverse_reversible_mct"): (
+        "matrix.fraction_bits() != 0", "validate_reversible_mct_coefficients(", "count.checked_add(1)",
+        "copy_i64_values(source)", "Part2MctRuntimeCapacity::Inverse", "inspection_capacity_outcome(copied)",
+        "part2_mct_inverse_storage_refused(", "let mut values = copied?", "while stage < stages",
+    ),
+    ("src/image/mct_decorrelation.rs", "apply_mct_decorrelation"): (
+        "let preparing = prepare_mct_decorrelation(", "part2_mct_decorrelation_storage_prepare_error(",
+        "let prepared = preparing?", "empty_with_capacity(prepared.columns)", "Part2MctRuntimeRole::SourceSamples",
+        "inspection_capacity_outcome(reserved)", "let mut source = reserved?",
+        "empty_with_capacity(prepared.rows)", "Part2MctRuntimeRole::OutputSamples",
+        "inspection_capacity_outcome(reserved)", "let mut output = reserved?",
+        "let operation=apply_mct_decorrelation_pixel(", "part2_mct_pixels_storage_advance(",
+        "part2_mct_pixels_storage_error_suffix(", "operation?", "apply_mct_destination_precisions(",
+    ),
+    ("src/decode/reconstruction.rs", "apply_tile_multiple_component_transform"): (
+        "prepared.is_empty()", "empty_with_capacity(prepared.len())", "Part2MctViewSource::Prepared {source:before}",
+        "inspection_capacity_outcome(reserved)", "part2_mct_line_prepared_views_error(", "let mut components = reserved?",
+        "collect_prepared_transform_components(",
     ),
 }
 
@@ -16780,17 +16990,14 @@ def validate_normative_coverage(
                     normal_inputs += r"\s*,\s*" + _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
                     if not _coverage_extraction_normal_arguments(contract, "decoded_image_outcome", normal_model, normal_inputs):
                         raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact ordinary assembly projection")
-                if old_mct is not None and old_mct[0].startswith(("part2_mct_", "part2_finish_prepared")):
-                    guard = re.search(
-                        r"\b(?P<name>\w+)\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*", contract,
-                    )
-                    normal = None if guard is None else re.match(
-                        r"\(\s*" + re.escape(guard["name"]) + r"\s*,\s*" + old_mct[2] + r"\s*\)\s*==\s*"
-                        r"crate::specs::" + old_mct[0] + r"\s*\(\s*" + old_mct[3] + r"\s*,?\s*\)",
-                        contract[guard.end():],
-                    )
-                    bound_name = re.search(named_prefix, contract)
-                    if normal is None or bound_name is None or guard["name"] != bound_name[1]:
+                if old_mct is not None and old_mct[0].startswith(
+                        ("part2_mct_", "part2_finish_prepared", "part2_inverse_reversible", "part2_reversible_mct")):
+                    projected = (old_mct[1] if old_mct[2] is None else
+                                 r"\(\s*" + old_mct[1] + r"\s*,\s*" + old_mct[2] + r"\s*\)")
+                    ordinary = (r"\1\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*"
+                                + projected + r"\s*==\s*"
+                                + _coverage_call("crate::specs::" + old_mct[0], old_mct[3] + r"\s*,?"))
+                    if re.search(named_prefix + r".*?" + ordinary, contract, re.S) is None:
                         raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact first ordinary MCT state/work projection")
                 if (reference["path"], reference["symbol"]) in _LEGACY_PACKET_STORAGE_CONTRACTS:
                     guard = re.search(named_prefix + r".*?\1\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*", contract, re.S)
@@ -18044,6 +18251,31 @@ def validate_normative_coverage(
                 found = compact.find(token, position)
                 if found < 0:
                     raise ValueError("checked palette storage requires original preflight/descriptor/length/record/lookup order and actual propagated allocation Results")
+                position = found + len(token)
+    for ident in ("part2-complete-native-reversible-decorrelation-engineering",
+                  "part2-complete-native-coefficient-component-reconstruction"):
+        if ident not in ids:
+            continue
+        entry = next(item for item in coverage["requirements"] if item["id"] == ident)
+        if not set(_MCT_RUNTIME_GUARDS).issubset({(r["path"], r["symbol"]) for r in entry["spec_refs"]}) \
+                or not _MCT_RUNTIME_PROOFS.issubset({(r["path"], r["symbol"]) for r in entry["proof_refs"]}) \
+                or not _MCT_RUNTIME_TESTS.issubset({(r["path"], r["symbol"]) for r in entry["test_refs"]}):
+            raise ValueError("checked MCT runtime storage requires complete source/role/count/work/error/prefix/tail models and controls")
+        for (relative, symbol), fragments in _MCT_RUNTIME_GUARDS.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            compact = "".join(body.split()) if body is not None else ""
+            if any("".join(fragment.split()) not in compact for fragment in fragments):
+                raise ValueError("checked MCT runtime storage requires exact source-derived capacity, admitted work, partial owner and tail programs")
+        for (relative, symbol), fragments in _MCT_RUNTIME_NATIVE_ORDER.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(body.split()) if body is not None else ""
+            position = 0
+            for fragment in fragments:
+                token = "".join(fragment.split())
+                found = compact.find(token, position)
+                if found < 0:
+                    raise ValueError("checked MCT runtime storage requires actual normalized replies and original admission/work/numeric/owner order")
                 position = found + len(token)
     marker_owner_programs = [
         (f"part2-complete-native-{family}-fragment-production", guards, _MARKER_OWNER_PROOFS[family],

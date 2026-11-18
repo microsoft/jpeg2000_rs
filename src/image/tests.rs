@@ -1047,6 +1047,140 @@ fn t801_reversible_decorrelation_array(values: Vec<i64>) -> crate::codestream::M
 }
 
 #[test]
+fn mct_runtime_storage_preparation_scratch_and_pixel_refusals_keep_work_and_committed_prefix() {
+    let collection = MctCollection::from_arrays(
+        true,
+        vec![0],
+        vec![0],
+        t801_reversible_decorrelation_array(vec![1, 1]),
+        Some(t801_reversible_decorrelation_array(vec![3])),
+    );
+    let limits = ResourceLimits::default();
+    for after in 0..7 {
+        let mut samples = vec![7, 11];
+        let mut fraction_bits = 0;
+        let mut components = [TransformComponentMut {
+            component: 0,
+            x: 0,
+            y: 0,
+            width: 2,
+            height: 1,
+            x_subsampling: 1,
+            y_subsampling: 1,
+            fraction_bits: &mut fraction_bits,
+            samples: &mut samples,
+        }];
+        let mut work = 5;
+        crate::allocation::with_refusal(after, || {
+            assert_eq!(
+                apply_mct_decorrelation(&mut components, &collection, &limits, &mut work),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+        assert_eq!(work, if after < 2 { 5 } else { 11 });
+        assert_eq!(
+            samples,
+            if after == 6 {
+                vec![10, 11]
+            } else {
+                vec![7, 11]
+            }
+        );
+        assert_eq!(fraction_bits, 0);
+        let mut retry = vec![7, 11];
+        let mut tag = 0;
+        let mut components = [TransformComponentMut {
+            component: 0,
+            x: 0,
+            y: 0,
+            width: 2,
+            height: 1,
+            x_subsampling: 1,
+            y_subsampling: 1,
+            fraction_bits: &mut tag,
+            samples: &mut retry,
+        }];
+        let mut retry_work = 5;
+        apply_mct_decorrelation(&mut components, &collection, &limits, &mut retry_work).unwrap();
+        assert_eq!(retry, [10, 14]);
+        assert_eq!(retry_work, 11);
+    }
+    let mut samples = vec![7, 11];
+    let mut fraction_bits = 0;
+    let components = [TransformComponentMut {
+        component: 0,
+        x: 0,
+        y: 0,
+        width: 2,
+        height: 1,
+        x_subsampling: 1,
+        y_subsampling: 1,
+        fraction_bits: &mut fraction_bits,
+        samples: &mut samples,
+    }];
+    let tight = limits.with_maximum_work_units(10).unwrap();
+    let mut work = 5;
+    crate::allocation::with_refusal(2, || {
+        assert_eq!(
+            prepare_mct_decorrelation(&components, &collection, &tight, &mut work).err(),
+            Some(DecodeError::LimitExceeded {
+                resource: Resource::WorkUnits,
+                limit: 10,
+                actual: 11
+            })
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(work, 11);
+}
+
+#[test]
+fn mct_runtime_storage_inverse_rows_preserve_source_semantic_priority_and_retry() {
+    let matrix = t801_reversible_decorrelation_array(vec![1, 1]);
+    let source = [7, 11];
+    let wide = t801_reversible_decorrelation_array(vec![0, 1, 1, 0, 0, 1]);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            super::mct::inverse_reversible_mct(&wide, &source),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(source, [7, 11]);
+    assert_eq!(
+        super::mct::inverse_reversible_mct(&wide, &source).unwrap(),
+        source
+    );
+    let invalid = t801_reversible_decorrelation_array(vec![0, 1]);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            super::mct::inverse_reversible_mct(&invalid, &[7]),
+            Err(DecodeError::MalformedInput {
+                offset: 0,
+                kind: MalformedKind::InvalidTransform
+            })
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let collection = MctCollection::from_arrays(true, vec![0], vec![0], matrix, None);
+    let mut output = vec![123];
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            append_mct_decorrelation_rows(&mut output, &collection, &[7], &[0], 1),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(output, [123]);
+    });
+    append_mct_decorrelation_rows(&mut output, &collection, &[7], &[0], 1).unwrap();
+    assert_eq!(output, [123, 7]);
+}
+
+#[test]
 fn t801_reversible_mct_stages_keep_order_signed_ties_and_post_transform_offsets() {
     let matrix = t801_reversible_decorrelation_array(vec![3, 2, 4, -1, 5, -8]);
     assert_eq!(
@@ -5356,7 +5490,7 @@ fn wavelet_line_storage_public_mct_retains_actual_prior_pixel_and_restores() {
         };
         let mut expected = fresh();
         apply_multiple_component_transform(&mut expected, &transform, &limits).unwrap();
-        for after in [0, 1] {
+        for after in [1, 2] {
             let mut partial = fresh();
             assert_eq!(
                 crate::allocation::with_refusal(after, || apply_multiple_component_transform(
@@ -5369,7 +5503,7 @@ fn wavelet_line_storage_public_mct_retains_actual_prior_pixel_and_restores() {
             for (index, values) in source.iter().enumerate() {
                 assert_eq!(
                     partial.component(index as u16).unwrap().samples(),
-                    &[if after == 0 { values[0] } else { first[index] }, values[1]]
+                    &[if after == 1 { values[0] } else { first[index] }, values[1]]
                 );
                 assert_eq!(partial.component(index as u16).unwrap().fraction_bits(), 0);
             }

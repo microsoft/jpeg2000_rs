@@ -1698,7 +1698,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_complete_coefficient_reconstruction_and_real_mct_owners(self):
         self._assert_complete_packet_contract_bindings(
             {"part2-complete-native-coefficient-component-reconstruction"},
-            framework._RECONSTRUCTION_CONTRACTS, 17,
+            framework._RECONSTRUCTION_CONTRACTS, 21,
         )
 
     def test_inventory_binds_complete_native_chroma_key_owner_and_inputs(self):
@@ -5266,6 +5266,76 @@ class FrameworkTests(WorkingFiles):
             with self.subTest(ident=ident, before=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "storage|whole raw|actual native owners|executable Verus"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_mct_runtime_storage_binds_source_roles_work_partial_pixels_and_tail(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part2-complete-native-coefficient-component-reconstruction")
+        read_text = Path.read_text
+        mutations = (
+            ("specs/cold_mct_runtime.rs", "part2_mct_runtime_capacity_count",
+             "FractionBits=>plan.0.len()", "FractionBits=>plan.1.len()+1"),
+            ("specs/cold_mct_runtime.rs", "part2_mct_runtime_capacity_run",
+             "actual!=capacity || elements!=count {None}", "actual!=capacity || elements!=count+1 {None}"),
+            ("specs/cold_mct_runtime.rs", "part2_mct_runtime_capacity_run",
+             "calls.drop_first()", "calls"),
+            ("specs/cold_mct_runtime.rs", "part2_mct_prepare_storage_roles",
+             "part2_mct_runtime_preparation(context).0.is_ok()", "true"),
+            ("specs/cold_mct_runtime.rs", "part2_mct_prepare_refused_work",
+             "part2_mct_runtime_preparation(context).1", "context.work"),
+            ("specs/cold_mct_runtime.rs", "part2_mct_inverse_storage_admitted",
+             "source.len()<usize::MAX", "source.len()<=usize::MAX"),
+            ("specs/cold_mct_runtime.rs", "part2_mct_pixel_rows_context",
+             "source:snapshot.1", "source:Seq::empty()"),
+            ("specs/cold_mct_runtime.rs", "part2_mct_pixel_storage_after_rows",
+             "Err(error)=>(Err(error),before,source,rows.1)", "Err(error)=>(Err(error),Seq::empty(),source,rows.1)"),
+            ("specs/cold_mct_runtime.rs", "part2_mct_pixels_storage_next",
+             "part2_mct_pixel_storage_run(previous.1,collection,plan,index as usize,calls)",
+             "part2_mct_pixel_storage_run(Seq::empty(),collection,plan,index as usize,calls)"),
+            ("specs/cold_mct_line_composition.rs", "part2_mct_line_prepared_run",
+             "stages,work,maximum_work,maximum_bytes,rest)", "stages,work,maximum_work,maximum_bytes,calls)"),
+            ("src/image/mct_decorrelation.rs", "prepare_mct_decorrelation",
+             "inspection_capacity_outcome(reserved)", "Ok(())"),
+            ("src/image/mct_decorrelation.rs", "apply_mct_decorrelation",
+             "empty_with_capacity(prepared.rows)", "empty_with_capacity(prepared.columns)"),
+            ("src/image/mct.rs", "inverse_reversible_mct",
+             "copy_i64_values(source)", "copy_i64_values(&[])"),
+            ("src/decode/reconstruction.rs", "apply_tile_multiple_component_transform",
+             "inspection_capacity_outcome(reserved)", "Ok(())"),
+        )
+        for relative, symbol, before, after in mutations:
+            source = framework.ROOT / relative
+            original = read_text(source)
+            body = (framework._coverage_spec_function_body(original, symbol) if relative.startswith("specs/") else
+                    framework._coverage_function_body(original, framework._coverage_function_header(original, symbol)))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "MCT runtime storage|executable Verus|wavelet-line"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_mct_runtime_storage_requires_actual_normal_refusal_and_prefix_links(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part2-complete-native-coefficient-component-reconstruction")
+        for field, path, symbol in (
+            ("spec_refs", "specs/cold_mct_runtime.rs", "part2_mct_runtime_capacity_count"),
+            ("spec_refs", "specs/cold_mct_runtime.rs", "part2_mct_prepare_refused_work"),
+            ("proof_refs", "specs/cold_mct_runtime.rs", "part2_mct_prepare_storage_normal"),
+            ("proof_refs", "specs/cold_mct_runtime.rs", "part2_mct_pixels_storage_error_suffix"),
+            ("proof_refs", "specs/cold_mct_line_composition.rs", "part2_mct_line_prepared_views_error"),
+        ):
+            changed = dict(entry, **{field: [
+                ref for ref in entry[field] if (ref["path"], ref["symbol"]) != (path, symbol)
+            ]})
+            self.assertEqual(len(changed[field]), len(entry[field]) - 1)
+            with self.subTest(field=field, symbol=symbol), \
+                    self.assertRaisesRegex(ValueError, "MCT runtime storage|executable Verus"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[changed]))
 
     def test_inventory_mct_marker_storage_binds_families_counts_partial_owners_actual_replies_and_tails(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
@@ -9780,8 +9850,8 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_wavelet_line_planes.rs", "part2_wavelet_column_run", "a,high,x", "Seq::empty(),high,x"),
             ("specs/cold_wavelet_line_planes.rs", "part2_wavelet_column_after_low", "low,b,first", "b,low,first"),
             ("specs/cold_mct_wavelet_lines.rs", "part2_mct_line_step_run", "previous.1,input", "input,previous.1"),
-            ("specs/cold_mct_line_composition.rs", "part2_mct_line_decoded_run", "part2_mct_decoded_inputs(before.4)", "Seq::empty()"),
-            ("specs/cold_mct_line_composition.rs", "part2_mct_line_prepared_run", "before,effect.1", "before,input.1"),
+            ("specs/cold_mct_line_composition.rs", "part2_mct_line_decoded_after_views", "part2_mct_decoded_inputs(before.4)", "Seq::empty()"),
+            ("specs/cold_mct_line_composition.rs", "part2_mct_line_prepared_after_views", "before,effect.1", "before,input.1"),
             ("specs/cold_extraction_tile.rs", "part2_extraction_tile_finish_run", "initial+finished.1", "finished.1"),
             ("src/transform/geometry.rs", "collect_column", "empty_with_capacity(count)", "empty_with_capacity(1)"),
             ("src/transform/wavelets.rs", "interleave", "empty_with_capacity(length)", "empty_with_capacity(1)"),
@@ -10888,6 +10958,8 @@ class FrameworkTests(WorkingFiles):
                         if {"path": path, "symbol": symbol} not in isolated["test_refs"]
                     ]
                 if key == ("src/decode/api.rs", "typed_layout") or isolated["id"] in {
+                        "part2-complete-native-reversible-decorrelation-engineering",
+                        "part2-complete-native-coefficient-component-reconstruction",
                         "part1-complete-native-raw-layout-result",
                         "part1-complete-native-raw-main-header-result",
                         "part2-complete-native-mct-fragment-production",
