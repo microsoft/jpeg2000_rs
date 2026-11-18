@@ -5267,6 +5267,63 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "storage|whole raw|actual native owners|executable Verus"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_composition_storage_binds_records_child_count_limits_actual_replies_and_tails(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        read_text = Path.read_text
+        mutations = (
+            (framework._RAW_COMPOSITION_ENTRY, "specs/cold_composition_storage.rs",
+             "count=remaining/bytes;", "count=remaining/bytes+1;"),
+            (framework._RAW_COMPOSITION_ENTRY, "specs/cold_composition_storage.rs",
+             "actual!=context || elements!=count {None}", "actual!=context || elements!=count+1 {None}"),
+            (framework._RAW_COMPOSITION_ENTRY, "specs/cold_composition_storage.rs",
+             "events.drop_first()", "events"),
+            (framework._RAW_COMPOSITION_ENTRY, "specs/cold_composition_storage.rs",
+             "count=context.before.len()+1;", "count=context.before.len()+2;"),
+            (framework._RAW_COMPOSITION_ENTRY, "specs/cold_composition_storage.rs",
+             "actual!=context || elements!=1 {None}", "actual!=context || elements!=2 {None}"),
+            (framework._RAW_COMPOSITION_ENTRY, "specs/cold_composition_storage.rs",
+             "!part2_instruction_append_count_admitted(context) {Some((Ok(()),events))}",
+             "part2_instruction_append_count_admitted(context) {Some((Ok(()),events))}"),
+            (framework._RAW_COMPOSITION_ENTRY, "specs/cold_composition_storage.rs",
+             "part2_instruction_append_capacity_run(Part2InstructionAppendContext {request:context,parsed},events)",
+             "Some((Ok(()),events))"),
+            (framework._RAW_COMPOSITION_ENTRY, "specs/cold_composition_storage.rs",
+             "limits},before:state.1", "limits},before:Seq::empty()"),
+            (framework._RAW_COMPOSITION_ENTRY, "specs/cold_palette_storage.rs",
+             "InstructionSet {context}=>part2_instruction_request_run(context,events)",
+             "InstructionSet {context}=>Some((Ok(()),events))"),
+            (framework._RAW_COMPOSITION_ENTRY, "src/jp2/composition.rs",
+             "empty_with_capacity(count)", "empty_with_capacity(count+1)"),
+            (framework._RAW_COMPOSITION_ENTRY, "src/jp2/composition.rs",
+             "crate::allocation::inspection_capacity_outcome(reserved)", "Ok(())"),
+            (framework._RAW_COMPOSITION_ENTRY, "src/jp2/composition.rs",
+             "reserve_additional(&mut instruction_sets, 1)", "reserve_additional(&mut instruction_sets, 2)"),
+            (framework._RAW_COMPOSITION_ENTRY, "src/jp2/composition.rs",
+             "part2_instruction_append_capacity_observed(", "unrelated_instruction_reply("),
+            (framework._RAW_CONTAINER_ENTRY, "src/jp2/container.rs",
+             "part2_container_composition_error(", "unrelated_composition_error("),
+            (framework._RAW_CONTAINER_ENTRY, "src/jp2/container.rs",
+             "super::channel_storage_box_kinds_known()", "()"),
+        )
+        for ident, relative, before, after in mutations:
+            entry = next(item for item in coverage["requirements"] if item["id"] == ident)
+            source = framework.ROOT / relative
+            original = read_text(source)
+            self.assertIn(before, original)
+            if relative == "src/jp2/composition.rs" and before in {
+                    "empty_with_capacity(count)", "crate::allocation::inspection_capacity_outcome(reserved)"}:
+                start = original.index("pub(super) fn parse_instruction_set(")
+                changed = original[:start] + original[start:].replace(before, after, 1)
+            else:
+                changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(ident=ident, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "storage|whole raw|actual native owners|executable Verus"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
     def test_inventory_raw_color_header_keeps_fresh_actual_color_and_model_caches(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._COLOR_HEADER_ENTRY)
