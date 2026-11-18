@@ -154,9 +154,14 @@ The `pdf_common` native controls use the actual typed/centered/inspection export
 for raw and container EOC loss, contradictory dimensions, combined sole-tile and
 trailer damage, exact repair/report bytes, full-canvas limits, real grids/fractions,
 metadata/profile errors and refusal restoration. Complete-framing inspection is
-explicitly distinguished from packet decoding. Framework controls bind all eight
-runtime contracts, require all four complete programs/normal links, and reject
-lost copy input/count/verdict/tail checks.
+explicitly distinguished from packet decoding. The terminal-EOL control also
+compares strict rejection with typed/centered/inspection recovery and exact
+pixels/reports for raw and boxed input, original input limits, first refusal,
+truncated/extra-suffix negatives and a valid final opaque-box payload.
+Framework controls bind all thirteen wrapper/base/helper contracts, retain the
+old complete programs/normal links, and require the new source-fixed error,
+boundary, retry, report and exact-tail composition. Both copy and EOL mutation
+controls must remain rejected.
 
 ### Bounded terminal trailers
 

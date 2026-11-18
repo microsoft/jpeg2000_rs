@@ -2107,6 +2107,16 @@ This is the implemented common EOC/dimension/tile/trailer/output capability, not
 initial-empty-MQ compatibility, cooperative deadlines, complete allocation
 coverage, saved entropy state, lifetime verification or independent conformance.
 
+`specs/pdf_eol.rs` additionally composes the actual original call, its exact
+boundary error, a single source-derived EOC/EOL cut and the actual complete
+prefix call. Only one LF, CR or CRLF is eligible, and its length is reported;
+strict parsing is unchanged. The old untrimmed producers retain their complete
+contracts and ordinary projections. Generic observed-prefix proofs concatenate
+the two real event prefixes and preserve arbitrary tails and child failures;
+no successful result bank, arbitrary error allowance or availability premise
+is introduced. Typed, centered and inspection callers share this exact policy.
+Original input/limit/refusal errors remain first and never trigger a retry.
+
 ## Bounded terminal-trailer recovery
 
 The four explicit raw/JP2 typed/centered trailer APIs compose actual parsing,

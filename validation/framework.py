@@ -2099,14 +2099,104 @@ _PDF_COMMON_CONTRACTS = {
             r"input@\s*,\s*" + _coverage_call("crate::options::decode_selection_view", "requested")
             + r"\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
         ) for name, model, projection in (
-            ("decode_pdf_compatible", "part2_pdf_typed_value", "pdf_typed_outcome"),
-            ("decode_pdf_reconstructed", "part2_pdf_reconstructed_value", "pdf_reconstructed_outcome"),
+            ("decode_pdf_compatible", "part2_pdf_eol_typed_value", "pdf_typed_outcome"),
+            ("decode_pdf_reconstructed", "part2_pdf_eol_reconstructed_value", "pdf_reconstructed_outcome"),
+            ("decode_pdf_compatible_untrimmed", "part2_pdf_typed_value", "pdf_typed_outcome"),
+            ("decode_pdf_reconstructed_untrimmed", "part2_pdf_reconstructed_value", "pdf_reconstructed_outcome"),
         )
     },
     ("src/decode/pdf_compat.rs", "inspect_pdf_compatible"): (
+        "part2_pdf_eol_inspect_value", _coverage_call("codestream::complete_codestream_info_outcome", r"\1"), None,
+        r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+    ("src/decode/pdf_compat.rs", "inspect_pdf_compatible_untrimmed"): (
         "part2_pdf_inspect_value", _coverage_call("codestream::complete_codestream_info_outcome", r"\1"), None,
         r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
     ),
+    ("src/decode/pdf_compat.rs", "pdf_eol_end"): (
+        "part2_pdf_eol_end", _coverage_call("pdf_eol_end_outcome", r"\1"), None, r"input@\s*,\s*error",
+    ),
+    ("src/decode/pdf_compat.rs", "record_pdf_eol"): (
+        "part2_pdf_eol_report", r"\1", None, r"report\s*,\s*count",
+    ),
+}
+_PDF_EOL_MODEL_BODIES = {
+    "part2_pdf_eol_end": """
+        let count = if input.len() >= 4
+            && input[input.len() - 2] == 13 && input[input.len() - 1] == 10 { 2nat }
+            else if input.len() >= 3 && (input[input.len() - 1] == 10 || input[input.len() - 1] == 13) { 1nat }
+            else { 0nat };
+        if count == 0 { None } else {
+            let end = (input.len() - count) as nat;
+            if end < 2 || end > u64::MAX || input[end - 2] != 255 || input[end - 1] != 217 { None }
+            else { match error {
+                crate::DecodeError::MalformedInput { offset, kind } =>
+                    if offset == end && (kind == crate::MalformedKind::TrailingData
+                        || kind == crate::MalformedKind::InvalidBoxLength) { Some(end) } else { None },
+                _ => None,
+            }}
+        }
+    """,
+    "part2_pdf_eol_reply": """
+        match reply { Err(error) => Err(error), Ok(value) => Ok(finish(value, count)) }
+    """,
+    "part2_pdf_eol_run": """
+        match base(input, events) {
+            Some((Err(error), rest)) => match part2_pdf_eol_end(input, error) {
+                None => Some((Err(error), rest)),
+                Some(end) => match base(input.take(end as int), rest) {
+                    None => None,
+                    Some((reply, tail)) => Some((part2_pdf_eol_reply(reply, (input.len() - end) as u8, finish), tail)),
+                },
+            },
+            other => other,
+        }
+    """,
+    "part2_pdf_eol_report": """
+        crate::PdfRecovery {
+            appended_eoc: report.appended_eoc,
+            ignored_container_dimensions: report.ignored_container_dimensions,
+            selected_present_tile: report.selected_present_tile,
+            empty_initial_mq_prefixes: report.empty_initial_mq_prefixes,
+            discarded_tile_trailer_bytes: report.discarded_tile_trailer_bytes,
+            discarded_pdf_eol_bytes: count,
+            original_codestream_bytes: report.original_codestream_bytes,
+            effective_codestream_bytes: report.effective_codestream_bytes,
+            preflight_work_units: report.preflight_work_units,
+            repair_copy_bytes: report.repair_copy_bytes,
+            full_canvas_sample_bytes: report.full_canvas_sample_bytes,
+        }
+    """,
+    "part2_pdf_eol_typed_run": """
+        part2_pdf_eol_run(input, |bytes, calls| part2_pdf_typed_run(bytes, requested, limits, calls),
+            |value: Part2PdfTyped, count| (value.0, part2_pdf_eol_report(value.1, count)), events)
+    """,
+    "part2_pdf_eol_reconstructed_run": """
+        part2_pdf_eol_run(input, |bytes, calls| part2_pdf_reconstructed_run(bytes, requested, limits, calls),
+            |value: Part2PdfReconstructed, count| (value.0, part2_pdf_eol_report(value.1, count)), events)
+    """,
+    "part2_pdf_eol_inspect_run": """
+        part2_pdf_eol_run(input, |bytes, calls| part2_pdf_inspect_run(bytes, limits, calls),
+            |value: Part2RawCodestreamInfo, _count| value, events)
+    """,
+}
+_PDF_EOL_PROOFS = {
+    ("specs/pdf_compat.rs", "part2_pdf_contracts_unfold"),
+    *(("specs/pdf_eol.rs", name) for name in (
+        "part2_pdf_eol_passthrough", "part2_pdf_eol_retried", "part2_pdf_eol_contracts_unfold",
+        "part2_pdf_eol_typed_normal", "part2_pdf_eol_reconstructed_normal", "part2_pdf_eol_inspect_normal",
+    )),
+}
+_PDF_EOL_TEST = ("src/decode/raw_typed_result_tests.rs", "pdf_terminal_eol_recovery_is_reported_bounded_and_consistent")
+_PDF_EOL_NATIVE_ORDER = {
+    "decode_pdf_compatible": ("decode_pdf_compatible_untrimmed(input,options,requested)",
+        "pdf_eol_end(input,error)", "decode_pdf_compatible_untrimmed(&input[..end],options,requested)",
+        "record_pdf_eol(image.recovery,(input.len()-end)asu8)"),
+    "decode_pdf_reconstructed": ("decode_pdf_reconstructed_untrimmed(input,options,requested)",
+        "pdf_eol_end(input,error)", "decode_pdf_reconstructed_untrimmed(&input[..end],options,requested)",
+        "record_pdf_eol(image.recovery,(input.len()-end)asu8)"),
+    "inspect_pdf_compatible": ("inspect_pdf_compatible_untrimmed(input,options)",
+        "pdf_eol_end(input,error)", "inspect_pdf_compatible_untrimmed(&input[..end],options)"),
 }
 _PDF_TRAILERS_CONTRACTS = {
     **{
@@ -5431,6 +5521,11 @@ _COLD_RESULT_MODELS = {
             ("prepare", "prepare_normal"), ("typed", "normal"), ("reconstructed", "normal"), ("inspect", "normal"),
         )
     },
+    **{
+        "part2_pdf_eol_" + name + "_value": (
+            "part2_pdf_eol_" + name + "_result", "specs/pdf_eol.rs", "part2_pdf_eol_" + name + "_normal",
+        ) for name in ("typed", "reconstructed", "inspect")
+    },
     "part2_present_raw_typed_value": (
         "part2_present_raw_typed_result", "specs/pdf_present_tile.rs", "part2_present_raw_normal",
     ),
@@ -6195,6 +6290,9 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         }.get(model, model.removesuffix("_result") + "_run")
         models.update(((path, model), (path, run)))
         proofs.add((path, normal))
+        if model.startswith("part2_pdf_eol_"):
+            models |= {("specs/pdf_eol.rs", name) for name in _PDF_EOL_MODEL_BODIES}
+            proofs |= _PDF_EOL_PROOFS
         if model in _COLOR_OUTPUT_RESULT_MODELS:
             guards, color_proofs = _coverage_color_storage_guards(model)
             models |= set(guards)
@@ -11851,6 +11949,26 @@ def validate_normative_coverage(
             actual_body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
             if actual_body is None or "".join(actual_body.split()) != "".join(expected_body.split()):
                 raise ValueError(diagnostic)
+        if entry["id"] == _PDF_COMMON_ENTRY:
+            eol_source = source_text((ROOT / "specs/pdf_eol.rs").resolve())
+            for symbol, expected_body in _PDF_EOL_MODEL_BODIES.items():
+                body = _coverage_spec_function_body(eol_source, symbol)
+                if body is None or "".join(body.split()) != "".join(expected_body.split()):
+                    raise ValueError("common PDF EOL requires exact boundary/error/source/reply/report/tail composition")
+            if _PDF_EOL_TEST not in {(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}:
+                raise ValueError("common PDF EOL requires strict/recovery/pixel/limit/negative controls")
+            native_path = (ROOT / "src/decode/pdf_compat.rs").resolve()
+            native_source = source_text(native_path)
+            for symbol, fragments in _PDF_EOL_NATIVE_ORDER.items():
+                header = function_header(native_path, symbol)
+                body = _coverage_function_body(native_source, header) if header is not None else None
+                compact = "".join(body.split()) if body is not None else ""
+                position = 0
+                for fragment in fragments:
+                    found = compact.find("".join(fragment.split()), position)
+                    if found < 0:
+                        raise ValueError("common PDF EOL requires original call, actual error gate, one bounded prefix call and report order")
+                    position = found + len("".join(fragment.split()))
         if entry["id"] in (_RAW_LAYOUT_ENTRY, "part1-complete-native-raw-main-header-result",
                             "part1-complete-native-persistent-tile-configuration-commit"):
             diagnostic = ("whole raw layout" if entry["id"] == _RAW_LAYOUT_ENTRY
