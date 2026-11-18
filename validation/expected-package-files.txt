@@ -168,6 +168,7 @@ specs/packet_progression.rs
 specs/packet_tile.rs
 specs/pdf_compat.rs
 specs/pdf_dimensions.rs
+specs/pdf_eol.rs
 specs/pdf_present_tile.rs
 specs/pdf_trailers.rs
 specs/persistent_tile_configuration.rs

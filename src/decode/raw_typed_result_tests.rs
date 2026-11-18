@@ -187,6 +187,92 @@ fn pdf_common_accepts_jp2_primary_with_additional_jpx_compatibility() {
 }
 
 #[test]
+fn pdf_terminal_eol_recovery_is_reported_bounded_and_consistent() {
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let raw = dimension_recovery_codestream();
+    let container = jp2_for_codestream(&raw, 1, 1);
+    let expected = decode_codestream(&raw, &options).unwrap();
+    let centered = decode_codestream_reconstructed_selected(&raw, &options, &selection).unwrap();
+    for (original, boxed) in [(&raw, false), (&container, true)] {
+        for eol in [b"\n".as_slice(), b"\r".as_slice(), b"\r\n".as_slice()] {
+            let mut input = original.clone();
+            input.extend_from_slice(eol);
+            let strict = if boxed {
+                decode_jp2(&input, &options)
+            } else {
+                decode_codestream(&input, &options)
+            };
+            assert!(strict.is_err());
+            let decoded = crate::decode_pdf_compatible(&input, &options, &selection).unwrap();
+            assert_eq!(decoded.image, expected);
+            assert_eq!(decoded.recovery.discarded_pdf_eol_bytes, eol.len() as u8);
+            assert!(!decoded.recovery.appended_eoc);
+            assert_eq!(decoded.recovery.original_codestream_bytes, raw.len() as u64);
+            assert_eq!(
+                decoded.recovery.effective_codestream_bytes,
+                raw.len() as u64
+            );
+            assert_eq!(decoded.recovery.repair_copy_bytes, 0);
+            let wide = crate::decode_pdf_reconstructed(&input, &options, &selection).unwrap();
+            assert_eq!(wide.image, centered);
+            assert_eq!(wide.recovery, decoded.recovery);
+            let info = crate::inspect_pdf_compatible(&input, &options).unwrap();
+            assert_eq!((info.image_size.width, info.image_size.height), (1, 1));
+            let limited = DecodeOptions::new(
+                ResourceLimits::default()
+                    .with_maximum_input_bytes(original.len() as u64)
+                    .unwrap(),
+            );
+            assert!(matches!(
+                crate::decode_pdf_compatible(&input, &limited, &selection),
+                Err(DecodeError::LimitExceeded {
+                    resource: Resource::InputBytes,
+                    ..
+                })
+            ));
+        }
+        for suffix in [
+            b"\n\n".as_slice(),
+            b"\r\r".as_slice(),
+            b"X\n".as_slice(),
+            b" ".as_slice(),
+            b"\0".as_slice(),
+        ] {
+            let mut input = original.clone();
+            input.extend_from_slice(suffix);
+            assert!(crate::inspect_pdf_compatible(&input, &options).is_err());
+            assert!(crate::decode_pdf_compatible(&input, &options, &selection).is_err());
+        }
+        let mut truncated = original[..original.len() - 1].to_vec();
+        truncated.push(b'\n');
+        assert!(crate::inspect_pdf_compatible(&truncated, &options).is_err());
+        assert!(crate::decode_pdf_compatible(&truncated, &options, &selection).is_err());
+    }
+    let mut valid = container;
+    valid.extend(box32(*b"free", &[255, 217, b'\n']));
+    let strict = decode_jp2(&valid, &options).unwrap();
+    let decoded = crate::decode_pdf_compatible(&valid, &options, &selection).unwrap();
+    assert_eq!(decoded.image, strict);
+    assert_eq!(decoded.recovery.discarded_pdf_eol_bytes, 0);
+    let mut refused = raw;
+    refused.push(b'\n');
+    assert_eq!(
+        crate::allocation::with_refusal(0, || crate::decode_pdf_compatible(
+            &refused, &options, &selection
+        ))
+        .unwrap_err(),
+        DecodeError::AllocationFailed,
+    );
+    assert_eq!(
+        crate::decode_pdf_compatible(&refused, &options, &selection)
+            .unwrap()
+            .image,
+        expected,
+    );
+}
+
+#[test]
 fn pdf_common_keeps_headroom_output_metadata_profiles_and_reduced_grids() {
     let options = DecodeOptions::default();
     let selection = DecodeSelection::full_image();
