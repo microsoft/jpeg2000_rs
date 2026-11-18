@@ -11305,7 +11305,7 @@ class FrameworkTests(WorkingFiles):
             ("src/decode/output.rs", "color_selection_for_size", "color_selection_outcome", "part2_color_selection_requested", ("decode_selection_view(requested)", "decode_selection_view(unrelated)")),
             ("src/decode/output.rs", "apply_associated_output", "associated_typed_outcome", "part2_apply_associated_output", ("typed_image_value_view(decoded)", "typed_image_value_view(unrelated)")),
             ("src/decode/output.rs", "convert_associated_color", "crate::color::converted_image_result", "part2_convert_associated", ("typed_image_value_view(*image)", "typed_image_value_view(*unrelated)")),
-            ("src/decode/output.rs", "convert_associated_selected_color", "crate::color::converted_image_result", "part2_convert_associated_selected", ("header), target", "header), unrelated")),
+            ("src/decode/output.rs", "convert_associated_selected_color", "crate::color::converted_image_result", "part2_convert_associated_selected", ("Some(target)", "Some(unrelated)")),
             ("src/decode/output.rs", "finish_associated_selected_output", "crate::color::converted_image_result", "part2_finish_associated_selected_output", ("typed_image_value_view(decoded)", "typed_image_value_view(unrelated)")),
             ("src/jp2/container.rs", "associated_header_for_codestream", "associated_header_outcome", "part2_associated_codestream_header", ("associated_header_view(fallback)", "associated_header_view(unrelated)")),
             ("src/jp2/container.rs", "validate_container_codestream", None, "part2_validate_selected_header", ("header.image, codestream.image_size.width", "header.image, 0")),
