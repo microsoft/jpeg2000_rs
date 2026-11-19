@@ -5,6 +5,9 @@
 #[cfg(all(verus_keep_ghost, feature = "experimental-word-refinement"))]
 compile_error!("experimental-word-refinement is not covered by pinned Verus verification");
 
+#[cfg(all(verus_keep_ghost, feature = "experimental-vector-wavelets"))]
+compile_error!("experimental-vector-wavelets is not covered by pinned Verus verification");
+
 #[cfg(all(verus_keep_ghost, not(feature = "verus")))]
 compile_error!(
     "Enable the verification feature: cargo verus verify --features verus -- --no-lifetime"
