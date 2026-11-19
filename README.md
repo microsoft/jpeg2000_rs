@@ -162,6 +162,14 @@ The feature is off by default and outside pinned Verus qualification; combined
 proof/profile builds fail explicitly. See [profiles](SUPPORTED.md) and
 [incremental validation](validation/VALIDATION.md#incremental-input-profile).
 
+### Experimental checked-word legacy refinement
+
+The default-off `experimental-word-refinement` feature updates the low
+magnitude word directly when all higher limbs are zero and the addition
+fits in that word. Otherwise it uses the existing wide path. This feature
+does not change coefficient storage size and is not qualified by the
+pinned Verus workflow.
+
 ### Opt-in cooperative deadlines (native-only profile)
 
 Enable the `cooperative-deadlines` Cargo feature to export
