@@ -162,6 +162,7 @@ impl<'a> HtForwardMagSgnReader<'a> {
             ensures (result, ht_magsgn_view(final(self))) == crate::specs::ht_magsgn_read(ht_magsgn_view(old(self))),
         )
     )]
+    #[inline(always)]
     pub(super) fn read_bit(&mut self) -> Result<bool, DecodeError> {
         if !self.has_byte || self.next_bit > self.last_bit {
             self.load_byte()?;
