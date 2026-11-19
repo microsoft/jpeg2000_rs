@@ -50,6 +50,7 @@ pub enum Part2JpipSnapshotEvent {
     TagCopyCapacity {context:Part2TagCopyContext,nodes:bool,elements:nat,succeeded:bool},
     RollbackOwnerCapacity {context:Part2RollbackOwnerContext,elements:nat,succeeded:bool},
     PdfEocCopy { input: Seq<u8>, elements: usize, succeeded: bool },
+    PdfCountCapacity { input: Seq<u8>, error: crate::DecodeError, role: u8, elements: usize, succeeded: bool },
 }
 
 pub(crate) open spec fn part2_jpip_snapshot_normalized_events(

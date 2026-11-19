@@ -273,6 +273,176 @@ fn pdf_terminal_eol_recovery_is_reported_bounded_and_consistent() {
 }
 
 #[test]
+fn pdf_count_recovery_decodes_complete_interleaved_tiles_and_reports_only_counts() {
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let correct = count_recovery_codestream(6);
+    let expected = decode_codestream(&correct, &options).unwrap();
+    assert_eq!((expected.width(), expected.height()), (2, 1));
+    assert_eq!(
+        expected.component(0).unwrap().samples(),
+        &crate::TypedSamples::Unsigned(vec![128, 128])
+    );
+    let centered =
+        decode_codestream_reconstructed_selected(&correct, &options, &selection).unwrap();
+    for declared in [0, 6] {
+        let valid = count_recovery_codestream(declared);
+        assert_eq!(decode_codestream(&valid, &options).unwrap(), expected);
+        let decoded = crate::decode_pdf_compatible(&valid, &options, &selection).unwrap();
+        assert_eq!(decoded.image, expected);
+        assert_eq!(decoded.recovery.corrected_tile_part_count_fields, 0);
+    }
+    let damaged = count_recovery_codestream(5);
+    let boxed = jp2_for_codestream(&damaged, 2, 1);
+    for (input, container) in [(&damaged, false), (&boxed, true)] {
+        let strict = if container {
+            decode_jp2(input, &options)
+        } else {
+            decode_codestream(input, &options)
+        };
+        assert!(matches!(
+            strict,
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidTilePart,
+                ..
+            })
+        ));
+        let decoded = crate::decode_pdf_compatible(input, &options, &selection).unwrap();
+        assert_eq!(decoded.image, expected);
+        assert_eq!(decoded.recovery.corrected_tile_part_count_fields, 12);
+        assert_eq!(
+            decoded.recovery.tile_part_count_repair_copy_bytes,
+            input.len() as u64
+        );
+        let work_bound = input.len() as u64 * 4 + 14;
+        assert_eq!(
+            decoded.recovery.tile_part_count_repair_work_bound,
+            work_bound
+        );
+        assert_eq!(decoded.recovery.discarded_pdf_eol_bytes, 0);
+        assert!(!decoded.recovery.appended_eoc);
+        let wide = crate::decode_pdf_reconstructed(input, &options, &selection).unwrap();
+        assert_eq!(wide.image, centered);
+        assert_eq!(wide.recovery, decoded.recovery);
+        let info = crate::inspect_pdf_compatible(input, &options).unwrap();
+        assert_eq!(
+            (
+                info.image_size.width,
+                info.image_size.height,
+                info.tile_parts
+            ),
+            (2, 1, 12)
+        );
+        let limited = DecodeOptions::new(
+            ResourceLimits::default()
+                .with_maximum_input_bytes(input.len() as u64 - 1)
+                .unwrap(),
+        );
+        assert!(matches!(
+            crate::decode_pdf_compatible(input, &limited, &selection),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::InputBytes,
+                ..
+            })
+        ));
+        let limited = DecodeOptions::new(
+            ResourceLimits::default()
+                .with_maximum_work_units(work_bound - 1)
+                .unwrap(),
+        );
+        assert_eq!(
+            crate::decode_pdf_compatible(input, &limited, &selection).unwrap_err(),
+            DecodeError::LimitExceeded {
+                resource: Resource::WorkUnits,
+                limit: work_bound - 1,
+                actual: work_bound,
+            },
+        );
+    }
+    let starts: Vec<usize> = damaged
+        .windows(2)
+        .enumerate()
+        .filter_map(|(i, value)| (value == [255, 144]).then_some(i))
+        .collect();
+    assert_eq!(starts.len(), 12);
+    let mut truncated = damaged.clone();
+    truncated.pop();
+    let missing_eoc = &damaged[..damaged.len() - 2];
+    let mut inconsistent = damaged.clone();
+    inconsistent[starts[3] + 11] = 4;
+    let mut out_of_order = damaged.clone();
+    out_of_order[starts[4] + 10] = 3;
+    let mut missing = damaged.clone();
+    missing.drain(starts[11]..starts[11] + 15);
+    let mut unknown_tail = damaged.clone();
+    unknown_tail.push(0);
+    for input in [
+        truncated.as_slice(),
+        missing_eoc,
+        inconsistent.as_slice(),
+        out_of_order.as_slice(),
+        missing.as_slice(),
+        unknown_tail.as_slice(),
+    ] {
+        assert!(crate::inspect_pdf_compatible(input, &options).is_err());
+        assert!(crate::decode_pdf_compatible(input, &options, &selection).is_err());
+    }
+    let limited = DecodeOptions::new(
+        ResourceLimits::default()
+            .with_maximum_tile_parts(11)
+            .unwrap(),
+    );
+    assert!(matches!(
+        crate::decode_pdf_compatible(&damaged, &limited, &selection),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::TileParts,
+            ..
+        })
+    ));
+    let limited = DecodeOptions::new(
+        ResourceLimits::default()
+            .with_maximum_work_units(1)
+            .unwrap(),
+    );
+    assert!(matches!(
+        crate::decode_pdf_compatible(&damaged, &limited, &selection),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            ..
+        })
+    ));
+}
+
+fn count_recovery_codestream(declared: u8) -> Vec<u8> {
+    let mut input = prepared_codestream(2, 1, 1, &[0x40, 0x40], &[0]);
+    let siz = input
+        .windows(2)
+        .position(|value| value == [255, 81])
+        .unwrap();
+    input[siz + 22..siz + 26].copy_from_slice(&1_u32.to_be_bytes());
+    let cod = input
+        .windows(2)
+        .position(|value| value == [255, 82])
+        .unwrap();
+    input[cod + 6..cod + 8].copy_from_slice(&6_u16.to_be_bytes());
+    input[cod + 9] = 0;
+    let first = input
+        .windows(2)
+        .position(|value| value == [255, 144])
+        .unwrap();
+    input.truncate(first);
+    for index in 0..6_u8 {
+        for tile in 0..2_u8 {
+            input.extend_from_slice(&[
+                255, 144, 0, 10, 0, tile, 0, 0, 0, 15, index, declared, 255, 147, 0,
+            ]);
+        }
+    }
+    input.extend_from_slice(&[255, 217]);
+    input
+}
+
+#[test]
 fn pdf_common_keeps_headroom_output_metadata_profiles_and_reduced_grids() {
     let options = DecodeOptions::default();
     let selection = DecodeSelection::full_image();

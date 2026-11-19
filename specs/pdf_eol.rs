@@ -27,6 +27,9 @@ pub(crate) open spec fn part2_pdf_eol_report(report: crate::PdfRecovery, count: 
         empty_initial_mq_prefixes: report.empty_initial_mq_prefixes,
         discarded_tile_trailer_bytes: report.discarded_tile_trailer_bytes,
         discarded_pdf_eol_bytes: count,
+        corrected_tile_part_count_fields: report.corrected_tile_part_count_fields,
+        tile_part_count_repair_copy_bytes: report.tile_part_count_repair_copy_bytes,
+        tile_part_count_repair_work_bound: report.tile_part_count_repair_work_bound,
         original_codestream_bytes: report.original_codestream_bytes,
         effective_codestream_bytes: report.effective_codestream_bytes,
         preflight_work_units: report.preflight_work_units,
@@ -135,6 +138,20 @@ pub closed spec fn part2_pdf_eol_inspect_result(input: Seq<u8>, limits: &crate::
     result: Result<Part2RawCodestreamInfo, crate::DecodeError>) -> bool {
     part2_cold_framed(|events| part2_pdf_eol_inspect_run(input, limits, events), result)
 }
+
+pub(crate) proof fn part2_pdf_eol_frames(input: Seq<u8>, requested: Part2DecodeSelection,
+    limits: &crate::ResourceLimits)
+    ensures
+        forall|reply: Result<Part2PdfTyped, crate::DecodeError>|
+            #[trigger] part2_pdf_eol_typed_result(input, requested, limits, reply)
+                == part2_cold_framed(|events| part2_pdf_eol_typed_run(input, requested, limits, events), reply),
+        forall|reply: Result<Part2PdfReconstructed, crate::DecodeError>|
+            #[trigger] part2_pdf_eol_reconstructed_result(input, requested, limits, reply)
+                == part2_cold_framed(|events| part2_pdf_eol_reconstructed_run(input, requested, limits, events), reply),
+        forall|reply: Result<Part2RawCodestreamInfo, crate::DecodeError>|
+            #[trigger] part2_pdf_eol_inspect_result(input, limits, reply)
+                == part2_cold_framed(|events| part2_pdf_eol_inspect_run(input, limits, events), reply),
+{}
 
 pub closed spec fn part2_pdf_eol_typed_value(input: Seq<u8>, requested: Part2DecodeSelection,
     limits: &crate::ResourceLimits) -> Result<Part2PdfTyped, crate::DecodeError> {
