@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "adapters/image"]
+members = [".", "adapters/image", "adapters/openjpeg-capi"]
 default-members = ["."]
 exclude = ["fuzz", "validation/image-consumer-probe"]
 resolver = "3"

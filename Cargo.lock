@@ -76,6 +76,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "jpeg2000-openjpeg-compat"
+version = "0.0.0"
+dependencies = [
+ "jpeg2000-decoder",
+]
+
+[[package]]
 name = "moxcms"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
