@@ -170,6 +170,14 @@ fits in that word. Otherwise it uses the existing wide path. This feature
 does not change coefficient storage size and is not qualified by the
 pinned Verus workflow.
 
+### Experimental vector-friendly reversible wavelets
+
+The default-off `experimental-vector-wavelets` feature applies vertical 5/3
+lifting across contiguous rows so the compiler can vectorize independent
+columns. It uses the existing checked path for small or out-of-range bands,
+irreversible and custom transforms, and cooperative-deadline builds. This
+feature is not qualified by the pinned Verus workflow.
+
 ### Opt-in cooperative deadlines (native-only profile)
 
 Enable the `cooperative-deadlines` Cargo feature to export
