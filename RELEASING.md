@@ -96,9 +96,9 @@ and bounded maintenance [version 0.1.1](https://crates.io/crates/jpeg2000-decode
 are published. Confirm current ownership and appropriate token or publisher
 permissions before preparing any subsequent version.
 
-## Experimental 0.2 release preparation
+## Experimental 0.2 release line
 
-The `release/0.2` decoder manifest is version 0.2.0 with
+The `release/0.2` decoder manifest is version 0.2.1 with
 `publish = ["crates-io"]`; `main` advances separately to unpublished 0.3
 development with publication disabled. This release includes
 the newer PDF recovery/centered-output APIs and default-off deadline,
@@ -117,6 +117,33 @@ Release preparation does not approve an immutable tag or upload. Qualify the
 reviewed candidate and actual integrated source/archive, then obtain the
 separate exact tag and publication approvals described above. No tag,
 workflow dispatch or upload follows merely from this manifest change.
+
+### Experimental 0.2.1 patch release
+
+This patch builds on the published experimental 0.2.0 baseline:
+
+- Strict JP2 admission now permits additional registered JPX compatibility
+  entries when the primary JP2 brand and required JP2 compatibility remain.
+- The existing explicit PDF-compatible APIs can discard one reported terminal
+  LF, CR or CRLF only after the original error identifies the validated EOC
+  boundary. Strict entry points retain their rejection.
+- The same PDF policy can correct uniform off-by-one `TNsot` declarations only
+  for complete sequential per-tile parts, the actual failing SOT offset,
+  validated lengths and exact EOC. Only count bytes change; checked
+  scratch/copy/work limits and strict repaired-layout validation remain.
+  Recovery reports expose the corrected fields, copy bytes and work bound.
+
+The patch does not change coefficient midpoints, inverse 9/7 normalization,
+component transforms or sample rounding to imitate OpenJPEG. Known small
+sample-intensity differences on the FRC and action/123 inputs remain; this is
+not a claim of bit-exact rendering parity or normative conformance.
+
+Native regressions and full crate CI/proof gates do not substitute for the
+exact prepared PDFium integration. Its GN/Ninja builds, strict/compatible
+full-page selectors and complete five-suite run were unavailable in this
+workspace. GN integrations must include the new native module
+`src/pdf_tile_count.rs`; PDFium adapter changes, dependency pins, image
+expectations and suppressions are not part of this crate patch.
 
 ## Published bounded maintenance 0.1.1
 
