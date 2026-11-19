@@ -705,8 +705,6 @@ impl Tier1CodeBlockDecoder {
             #[cfg(verus_keep_ghost)]
             proof! {
                 assert(crate::tier1::code_block_plane_view(&self.plane) == source.plane);
-                crate::specs::part2_nested_plane_observed(
-                    source.plane, super::HtRefinementCopyRole::LegacyRestore, Ok(()));
             }
         } else {
             let copied = segment.plane.try_duplicate_raw(
@@ -727,6 +725,8 @@ impl Tier1CodeBlockDecoder {
         );
         #[cfg(verus_keep_ghost)]
         proof! {
+            crate::specs::part2_nested_plane_observed(
+                source.plane, super::HtRefinementCopyRole::LegacyRestore, Ok(()));
             assert(tier1_decoder_state(self)==crate::specs::part2_legacy_restore_partial(before,source));
             crate::specs::part2_legacy_restore_observed(before,source,super::legacy_bitplane_option_outcome(copied));
         }
