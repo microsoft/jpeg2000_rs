@@ -445,13 +445,13 @@ pub(super) const fn is_allowed_tile_header(marker: u16) -> bool {
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part1_marker_value(bytes[0], bytes[1]),
 ))]
-pub(super) fn read_u16(bytes: [u8; 2]) -> u16 {
+pub(crate) fn read_u16(bytes: [u8; 2]) -> u16 {
     crate::refinement::marker_value(bytes[0], bytes[1])
 }
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part1_codestream_u32(bytes[0], bytes[1], bytes[2], bytes[3]),
 ))]
-pub(super) fn read_u32(bytes: [u8; 4]) -> u32 {
+pub(crate) fn read_u32(bytes: [u8; 4]) -> u32 {
     (u32::from(bytes[0]) << 24)
         | (u32::from(bytes[1]) << 16)
         | (u32::from(bytes[2]) << 8)

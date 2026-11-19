@@ -22,6 +22,11 @@ pub struct PdfRecovery {
     pub discarded_tile_trailer_bytes: u64,
     /// One PDF end-of-line marker discarded after a validated image boundary.
     pub discarded_pdf_eol_bytes: u8,
+    /// TNsot fields corrected after complete sequential per-tile framing.
+    pub corrected_tile_part_count_fields: u32,
+    pub tile_part_count_repair_copy_bytes: u64,
+    /// Conservative charged bound for framing, scratch initialization and copy.
+    pub tile_part_count_repair_work_bound: u64,
     pub original_codestream_bytes: u64,
     pub effective_codestream_bytes: u64,
     pub preflight_work_units: u64,
@@ -231,6 +236,9 @@ fn finish_recovery(
         empty_initial_mq_prefixes: 0,
         discarded_tile_trailer_bytes: u64::from(trailer),
         discarded_pdf_eol_bytes: 0,
+        corrected_tile_part_count_fields: 0,
+        tile_part_count_repair_copy_bytes: 0,
+        tile_part_count_repair_work_bound: 0,
         original_codestream_bytes: prepared.original.len() as u64,
         effective_codestream_bytes: effective,
         preflight_work_units: prepared.preflight_work,
@@ -592,7 +600,7 @@ fn record_pdf_eol(mut report: PdfRecovery, count: u8) -> PdfRecovery {
             pdf_typed_outcome(result) == crate::specs::part2_pdf_eol_typed_value(input@,
                 crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options)),
 ))]
-pub fn decode_pdf_compatible(
+fn decode_pdf_eol_compatible(
     input: &[u8],
     options: &DecodeOptions,
     requested: &DecodeSelection,
@@ -660,7 +668,7 @@ pub fn decode_pdf_compatible(
             pdf_reconstructed_outcome(result) == crate::specs::part2_pdf_eol_reconstructed_value(input@,
                 crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options)),
 ))]
-pub fn decode_pdf_reconstructed(
+fn decode_pdf_eol_reconstructed(
     input: &[u8],
     options: &DecodeOptions,
     requested: &DecodeSelection,
@@ -728,7 +736,7 @@ pub fn decode_pdf_reconstructed(
             codestream::complete_codestream_info_outcome(result) == crate::specs::part2_pdf_eol_inspect_value(
                 input@, crate::options::decode_options_limits(options)),
 ))]
-pub fn inspect_pdf_compatible(
+fn inspect_pdf_eol_compatible(
     input: &[u8],
     options: &DecodeOptions,
 ) -> Result<codestream::CodestreamInfo, DecodeError> {
@@ -783,6 +791,334 @@ pub fn inspect_pdf_compatible(
         crate::specs::part2_pdf_eol_retried(input@,
             |bytes, calls| crate::specs::part2_pdf_inspect_run(bytes, crate::options::decode_options_limits(options), calls),
             |value: crate::specs::Part2RawCodestreamInfo, _count| value, error, end as nat, codestream::complete_codestream_info_outcome(inspected));
+    }
+    inspected
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_count_prepared_base(prepared_pdf_input_view(prepared), error),
+))]
+fn count_repair_base(
+    prepared: &PreparedPdfInput<'_>,
+    error: DecodeError,
+) -> Result<usize, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(prepared_pdf_input_view); }
+    if prepared.repaired.is_some() {
+        return Err(error);
+    }
+    match &prepared.file {
+        None => Ok(0),
+        Some(file) => {
+            #[cfg(verus_keep_ghost)]
+            proof! { jp2::raw_render_file_known(file); }
+            if !file.file_type().is_jp2_primary() || file.codestream_count() != 1 {
+                return Err(error);
+            }
+            let source = file.codestream(0)?;
+            let header = source.box_header();
+            let base = header.payload_offset()?;
+            usize::try_from(base).map_err(
+                #[cfg_attr(verus_keep_ghost, verus_spec(result: DecodeError => ensures result == error,))]
+                |_failure| error,
+            )
+        }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_count_prepare_result(input@,
+        crate::options::decode_options_limits(options), error, crate::pdf_tile_count::count_repair_outcome(result)),
+        crate::pdf_tile_count::count_repair_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            crate::pdf_tile_count::count_repair_outcome(result) == crate::specs::part2_count_prepare_value(input@,
+                crate::options::decode_options_limits(options), error),
+))]
+fn prepare_pdf_count_repair(
+    input: &[u8],
+    options: &DecodeOptions,
+    error: DecodeError,
+) -> Result<crate::pdf_tile_count::PdfCountRepair, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_count_prepare_value_unfold(input@,
+            crate::options::decode_options_limits(options), error);
+    }
+    let admitted = crate::pdf_tile_count::admit_input(input.len(), options.limits(), error);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(failure) = admitted {
+            crate::specs::part2_count_prepare_admission_error(input@,
+                crate::options::decode_options_limits(options), error, failure);
+        }
+    }
+    let _offset = admitted?;
+    let prepared = prepare_pdf_input(input, options);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(failure) = prepared {
+            crate::specs::part2_count_prepare_lift(input@,
+                crate::options::decode_options_limits(options), error, _offset,
+                prepared_pdf_input_outcome(prepared), Err(failure));
+        }
+    }
+    let prepared = prepared?;
+    let base = count_repair_base(&prepared, error);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(failure) = base {
+            crate::specs::part2_count_prepare_lift(input@,
+                crate::options::decode_options_limits(options), error, _offset,
+                Ok(prepared_pdf_input_view(&prepared)), Err(failure));
+        }
+    }
+    let base = base?;
+    let repaired = crate::pdf_tile_count::recover_pdf_tile_part_counts(
+        input,
+        prepared.original,
+        base,
+        options,
+        error,
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_count_prepare_lift(input@,
+            crate::options::decode_options_limits(options), error, _offset,
+            Ok(prepared_pdf_input_view(&prepared)), crate::pdf_tile_count::count_repair_outcome(repaired));
+    }
+    repaired
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_count_report(report, fields, bytes, work),
+))]
+fn record_pdf_counts(mut report: PdfRecovery, fields: u32, bytes: u64, work: u64) -> PdfRecovery {
+    report.corrected_tile_part_count_fields = fields;
+    report.tile_part_count_repair_copy_bytes = bytes;
+    report.tile_part_count_repair_work_bound = work;
+    report
+}
+
+/// Compose the explicit PDF policies, including complete off-by-one TNsot recovery.
+///
+/// Strict entry points retain their original rejection. A count correction
+/// requires complete per-tile sequences, a uniform declaration and the actual
+/// failing SOT offset; the repaired input is parsed and decoded normally.
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_pdf_count_typed_result(input@, crate::options::decode_selection_view(requested),
+        crate::options::decode_options_limits(options), pdf_typed_outcome(result)),
+        pdf_typed_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            pdf_typed_outcome(result) == crate::specs::part2_pdf_count_typed_value(input@,
+                crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options)),
+))]
+pub fn decode_pdf_compatible(
+    input: &[u8],
+    options: &DecodeOptions,
+    requested: &DecodeSelection,
+) -> Result<PdfDecodedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost base = |bytes, calls| crate::specs::part2_pdf_eol_typed_run(bytes,
+            crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options), calls);
+        let ghost finish = |value, repaired| crate::specs::part2_count_finish_typed(value, repaired);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_pdf_eol_frames(input@, crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options));
+        crate::specs::part2_pdf_count_contracts_unfold(input@, crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options));
+    }
+    let first = decode_pdf_eol_compatible(input, options, requested);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_eta(|events| crate::specs::part2_pdf_eol_typed_run(input@,
+            crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options), events), pdf_typed_outcome(first));
+    }
+    let error = match first {
+        Err(
+            error @ DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidTilePart,
+                ..
+            },
+        ) => error,
+        other => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_count_passthrough(input@, crate::options::decode_options_limits(options),
+                    base, finish, pdf_typed_outcome(other));
+            }
+            return other;
+        }
+    };
+    let repaired = prepare_pdf_count_repair(input, options, error);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(failure) = repaired {
+            crate::specs::part2_count_retried(input@, crate::options::decode_options_limits(options),
+                base, finish, error, Err(failure), Err(failure));
+        }
+    }
+    let repaired = repaired?;
+    let decoded = decode_pdf_eol_compatible(&repaired.bytes, options, requested);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let repaired_value = (repaired.bytes@, repaired.fields, repaired.work_units);
+        crate::specs::part2_pdf_eol_frames(repaired.bytes@, crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options));
+        crate::specs::part2_decode_eta(|events| crate::specs::part2_pdf_eol_typed_run(repaired.bytes@,
+            crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options), events), pdf_typed_outcome(decoded));
+        crate::specs::part2_count_finished(repaired_value, base, finish, pdf_typed_outcome(decoded));
+        crate::specs::part2_count_retried(input@, crate::options::decode_options_limits(options),
+            base, finish, error, Ok(repaired_value), crate::specs::part2_count_reply(pdf_typed_outcome(decoded), repaired_value, finish));
+    }
+    let mut decoded = decoded?;
+    decoded.recovery = record_pdf_counts(
+        decoded.recovery,
+        repaired.fields,
+        repaired.bytes.len() as u64,
+        repaired.work_units,
+    );
+    Ok(decoded)
+}
+
+/// The same reported count correction while retaining centered sample headroom.
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_pdf_count_reconstructed_result(input@, crate::options::decode_selection_view(requested),
+        crate::options::decode_options_limits(options), pdf_reconstructed_outcome(result)),
+        pdf_reconstructed_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            pdf_reconstructed_outcome(result) == crate::specs::part2_pdf_count_reconstructed_value(input@,
+                crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options)),
+))]
+pub fn decode_pdf_reconstructed(
+    input: &[u8],
+    options: &DecodeOptions,
+    requested: &DecodeSelection,
+) -> Result<PdfReconstructedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost base = |bytes, calls| crate::specs::part2_pdf_eol_reconstructed_run(bytes,
+            crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options), calls);
+        let ghost finish = |value, repaired| crate::specs::part2_count_finish_reconstructed(value, repaired);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_pdf_eol_frames(input@, crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options));
+        crate::specs::part2_pdf_count_contracts_unfold(input@, crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options));
+    }
+    let first = decode_pdf_eol_reconstructed(input, options, requested);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_eta(|events| crate::specs::part2_pdf_eol_reconstructed_run(input@,
+            crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options), events), pdf_reconstructed_outcome(first));
+    }
+    let error = match first {
+        Err(
+            error @ DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidTilePart,
+                ..
+            },
+        ) => error,
+        other => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_count_passthrough(input@, crate::options::decode_options_limits(options),
+                    base, finish, pdf_reconstructed_outcome(other));
+            }
+            return other;
+        }
+    };
+    let repaired = prepare_pdf_count_repair(input, options, error);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(failure) = repaired {
+            crate::specs::part2_count_retried(input@, crate::options::decode_options_limits(options),
+                base, finish, error, Err(failure), Err(failure));
+        }
+    }
+    let repaired = repaired?;
+    let decoded = decode_pdf_eol_reconstructed(&repaired.bytes, options, requested);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let repaired_value = (repaired.bytes@, repaired.fields, repaired.work_units);
+        crate::specs::part2_pdf_eol_frames(repaired.bytes@, crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options));
+        crate::specs::part2_decode_eta(|events| crate::specs::part2_pdf_eol_reconstructed_run(repaired.bytes@,
+            crate::options::decode_selection_view(requested), crate::options::decode_options_limits(options), events), pdf_reconstructed_outcome(decoded));
+        crate::specs::part2_count_finished(repaired_value, base, finish, pdf_reconstructed_outcome(decoded));
+        crate::specs::part2_count_retried(input@, crate::options::decode_options_limits(options),
+            base, finish, error, Ok(repaired_value), crate::specs::part2_count_reply(pdf_reconstructed_outcome(decoded), repaired_value, finish));
+    }
+    let mut decoded = decoded?;
+    decoded.recovery = record_pdf_counts(
+        decoded.recovery,
+        repaired.fields,
+        repaired.bytes.len() as u64,
+        repaired.work_units,
+    );
+    Ok(decoded)
+}
+
+/// Inspect with the same bounded count and EOL admission as PDF decoding.
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_pdf_count_inspect_result(input@, crate::options::decode_options_limits(options),
+        codestream::complete_codestream_info_outcome(result)),
+        codestream::complete_codestream_info_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            codestream::complete_codestream_info_outcome(result) == crate::specs::part2_pdf_count_inspect_value(
+                input@, crate::options::decode_options_limits(options)),
+))]
+pub fn inspect_pdf_compatible(
+    input: &[u8],
+    options: &DecodeOptions,
+) -> Result<codestream::CodestreamInfo, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost base = |bytes, calls| crate::specs::part2_pdf_eol_inspect_run(bytes, crate::options::decode_options_limits(options), calls);
+        let ghost finish = |value: crate::specs::Part2RawCodestreamInfo, _repaired| value;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::complete_codestream_info_errors_known();
+        crate::specs::part2_pdf_eol_frames(input@, (crate::specs::Part2TileSelection::All, None, 0u8), crate::options::decode_options_limits(options));
+        crate::specs::part2_pdf_count_contracts_unfold(input@, (crate::specs::Part2TileSelection::All, None, 0u8), crate::options::decode_options_limits(options));
+    }
+    let first = inspect_pdf_eol_compatible(input, options);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_decode_eta(|events| crate::specs::part2_pdf_eol_inspect_run(input@,
+            crate::options::decode_options_limits(options), events), codestream::complete_codestream_info_outcome(first));
+    }
+    let error = match first {
+        Err(
+            error @ DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidTilePart,
+                ..
+            },
+        ) => error,
+        other => {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Ok(info) = other { codestream::complete_codestream_info_known_fields(&info); }
+                crate::specs::part2_count_passthrough(input@, crate::options::decode_options_limits(options),
+                    base, finish, codestream::complete_codestream_info_outcome(other));
+            }
+            return other;
+        }
+    };
+    let repaired = prepare_pdf_count_repair(input, options, error);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(failure) = repaired {
+            crate::specs::part2_count_retried(input@, crate::options::decode_options_limits(options),
+                base, finish, error, Err(failure), Err(failure));
+        }
+    }
+    let repaired = repaired?;
+    let inspected = inspect_pdf_eol_compatible(&repaired.bytes, options);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let repaired_value = (repaired.bytes@, repaired.fields, repaired.work_units);
+        crate::specs::part2_pdf_eol_frames(repaired.bytes@, (crate::specs::Part2TileSelection::All, None, 0u8), crate::options::decode_options_limits(options));
+        crate::specs::part2_decode_eta(|events| crate::specs::part2_pdf_eol_inspect_run(repaired.bytes@,
+            crate::options::decode_options_limits(options), events), codestream::complete_codestream_info_outcome(inspected));
+        crate::specs::part2_count_finished(repaired_value, base, finish, codestream::complete_codestream_info_outcome(inspected));
+        crate::specs::part2_count_retried(input@, crate::options::decode_options_limits(options),
+            base, finish, error, Ok(repaired_value), codestream::complete_codestream_info_outcome(inspected));
     }
     inspected
 }

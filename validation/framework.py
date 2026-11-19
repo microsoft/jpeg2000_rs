@@ -2099,13 +2099,19 @@ _PDF_COMMON_CONTRACTS = {
             r"input@\s*,\s*" + _coverage_call("crate::options::decode_selection_view", "requested")
             + r"\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
         ) for name, model, projection in (
-            ("decode_pdf_compatible", "part2_pdf_eol_typed_value", "pdf_typed_outcome"),
-            ("decode_pdf_reconstructed", "part2_pdf_eol_reconstructed_value", "pdf_reconstructed_outcome"),
+            ("decode_pdf_compatible", "part2_pdf_count_typed_value", "pdf_typed_outcome"),
+            ("decode_pdf_reconstructed", "part2_pdf_count_reconstructed_value", "pdf_reconstructed_outcome"),
+            ("decode_pdf_eol_compatible", "part2_pdf_eol_typed_value", "pdf_typed_outcome"),
+            ("decode_pdf_eol_reconstructed", "part2_pdf_eol_reconstructed_value", "pdf_reconstructed_outcome"),
             ("decode_pdf_compatible_untrimmed", "part2_pdf_typed_value", "pdf_typed_outcome"),
             ("decode_pdf_reconstructed_untrimmed", "part2_pdf_reconstructed_value", "pdf_reconstructed_outcome"),
         )
     },
     ("src/decode/pdf_compat.rs", "inspect_pdf_compatible"): (
+        "part2_pdf_count_inspect_value", _coverage_call("codestream::complete_codestream_info_outcome", r"\1"), None,
+        r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
+    ),
+    ("src/decode/pdf_compat.rs", "inspect_pdf_eol_compatible"): (
         "part2_pdf_eol_inspect_value", _coverage_call("codestream::complete_codestream_info_outcome", r"\1"), None,
         r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options"),
     ),
@@ -2118,6 +2124,22 @@ _PDF_COMMON_CONTRACTS = {
     ),
     ("src/decode/pdf_compat.rs", "record_pdf_eol"): (
         "part2_pdf_eol_report", r"\1", None, r"report\s*,\s*count",
+    ),
+    ("src/decode/pdf_compat.rs", "count_repair_base"): (
+        "part2_count_prepared_base", r"\1", None,
+        _coverage_call("prepared_pdf_input_view", "prepared") + r"\s*,\s*error",
+    ),
+    ("src/decode/pdf_compat.rs", "prepare_pdf_count_repair"): (
+        "part2_count_prepare_value", _coverage_call("crate::pdf_tile_count::count_repair_outcome", r"\1"), None,
+        r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options") + r"\s*,\s*error",
+    ),
+    ("src/decode/pdf_compat.rs", "record_pdf_counts"): (
+        "part2_count_report", r"\1", None, r"report\s*,\s*fields\s*,\s*bytes\s*,\s*work",
+    ),
+    ("src/pdf_tile_count.rs", "recover_pdf_tile_part_counts"): (
+        "part2_count_repair_value", _coverage_call("count_repair_outcome", r"\1"), None,
+        r"input@\s*,\s*stream@\s*,\s*base\s*,\s*"
+        + _coverage_call("crate::options::decode_options_limits", "options") + r"\s*,\s*error",
     ),
 }
 _PDF_EOL_MODEL_BODIES = {
@@ -2160,6 +2182,9 @@ _PDF_EOL_MODEL_BODIES = {
             empty_initial_mq_prefixes: report.empty_initial_mq_prefixes,
             discarded_tile_trailer_bytes: report.discarded_tile_trailer_bytes,
             discarded_pdf_eol_bytes: count,
+            corrected_tile_part_count_fields: report.corrected_tile_part_count_fields,
+            tile_part_count_repair_copy_bytes: report.tile_part_count_repair_copy_bytes,
+            tile_part_count_repair_work_bound: report.tile_part_count_repair_work_bound,
             original_codestream_bytes: report.original_codestream_bytes,
             effective_codestream_bytes: report.effective_codestream_bytes,
             preflight_work_units: report.preflight_work_units,
@@ -2189,14 +2214,173 @@ _PDF_EOL_PROOFS = {
 }
 _PDF_EOL_TEST = ("src/decode/raw_typed_result_tests.rs", "pdf_terminal_eol_recovery_is_reported_bounded_and_consistent")
 _PDF_EOL_NATIVE_ORDER = {
-    "decode_pdf_compatible": ("decode_pdf_compatible_untrimmed(input,options,requested)",
+    "decode_pdf_eol_compatible": ("decode_pdf_compatible_untrimmed(input,options,requested)",
         "pdf_eol_end(input,error)", "decode_pdf_compatible_untrimmed(&input[..end],options,requested)",
         "record_pdf_eol(image.recovery,(input.len()-end)asu8)"),
-    "decode_pdf_reconstructed": ("decode_pdf_reconstructed_untrimmed(input,options,requested)",
+    "decode_pdf_eol_reconstructed": ("decode_pdf_reconstructed_untrimmed(input,options,requested)",
         "pdf_eol_end(input,error)", "decode_pdf_reconstructed_untrimmed(&input[..end],options,requested)",
         "record_pdf_eol(image.recovery,(input.len()-end)asu8)"),
-    "inspect_pdf_compatible": ("inspect_pdf_compatible_untrimmed(input,options)",
+    "inspect_pdf_eol_compatible": ("inspect_pdf_compatible_untrimmed(input,options)",
         "pdf_eol_end(input,error)", "inspect_pdf_compatible_untrimmed(&input[..end],options)"),
+}
+_PDF_COUNT_MODEL_BODIES = {
+    "part2_count_report": """
+        crate::PdfRecovery {
+            appended_eoc: report.appended_eoc,
+            ignored_container_dimensions: report.ignored_container_dimensions,
+            selected_present_tile: report.selected_present_tile,
+            empty_initial_mq_prefixes: report.empty_initial_mq_prefixes,
+            discarded_tile_trailer_bytes: report.discarded_tile_trailer_bytes,
+            discarded_pdf_eol_bytes: report.discarded_pdf_eol_bytes,
+            corrected_tile_part_count_fields: fields,
+            tile_part_count_repair_copy_bytes: bytes,
+            tile_part_count_repair_work_bound: work,
+            original_codestream_bytes: report.original_codestream_bytes,
+            effective_codestream_bytes: report.effective_codestream_bytes,
+            preflight_work_units: report.preflight_work_units,
+            repair_copy_bytes: report.repair_copy_bytes,
+            full_canvas_sample_bytes: report.full_canvas_sample_bytes,
+        }
+    """,
+    "part2_count_retry": """
+        match error {
+            crate::DecodeError::MalformedInput { kind: crate::MalformedKind::InvalidTilePart, .. } => true,
+            _ => false,
+        }
+    """,
+    "part2_count_source_matches": """
+        base as nat + stream.len() <= input.len()
+            && stream == input.subrange(base as int, base as int + stream.len() as int)
+    """,
+    "part2_count_shape_walk": """
+        if pos + 2 == input.len() && input[pos as int] == 255 && input[pos as int + 1] == 217 {
+            if !matched || declared.is_none() { Err(error) } else {
+                Ok(crate::pdf_tile_count::CountShape { first, declared: declared.unwrap(),
+                    parts: parts as usize, max_tile: max_tile as usize })
+            }
+        } else if pos + 12 > input.len() || pos + 12 > usize::MAX
+            || input[pos as int] != 255 || input[pos as int + 1] != 144
+            || input[pos as int + 2] != 0 || input[pos as int + 3] != 10
+            || input[pos as int + 11] == 0 || input[pos as int + 11] == 255
+            || (declared.is_some() && declared.unwrap() != input[pos as int + 11]) {
+            Err(error)
+        } else if parts >= crate::limits::resource_tile_part_limit(limits) {
+            Err(crate::DecodeError::LimitExceeded { resource: crate::Resource::TileParts,
+                limit: crate::limits::resource_tile_part_limit(limits) as u64, actual: (parts + 1) as u64 })
+        } else if part2_count_tile(input, pos) >= crate::limits::resource_tile_limit(limits) {
+            Err(crate::DecodeError::LimitExceeded { resource: crate::Resource::Tiles,
+                limit: crate::limits::resource_tile_limit(limits) as u64,
+                actual: (part2_count_tile(input, pos) + 1) as u64 })
+        } else {
+            let length = part2_count_part_length(input, pos);
+            if length < 14 || pos + length > input.len() || pos + length > usize::MAX
+                || parts + 1 > usize::MAX { Err(error) }
+            else {
+                let tile = part2_count_tile(input, pos);
+                part2_count_shape_walk(input, offset, limits, error, pos + length, first,
+                    Some(input[pos as int + 11]), parts + 1, if tile > max_tile { tile } else { max_tile },
+                    matched || (input[pos as int + 10] == input[pos as int + 11] && pos == offset))
+            }
+        }
+    """,
+    "part2_count_validate": """
+        if fields.len() >= shape.parts {
+            if pos + 2 == input.len() && input[pos as int] == 255 && input[pos as int + 1] == 217
+                && forall|i:int| 0 <= i < next.len() ==> next[i] == 0 || next[i] == shape.declared as nat + 1 {
+                Ok(fields)
+            } else { Err(error) }
+        } else if pos + 12 > input.len() || pos + 12 > usize::MAX
+            || input[pos as int] != 255 || input[pos as int + 1] != 144 || input[pos as int + 2] != 0
+            || input[pos as int + 3] != 10 || input[pos as int + 11] != shape.declared { Err(error) }
+        else {
+            let tile = part2_count_tile(input, pos);
+            let length = part2_count_part_length(input, pos);
+            if tile >= next.len() || next[tile as int] != input[pos as int + 10] as nat
+                || input[pos as int + 10] > shape.declared || shape.declared == 255
+                || pos + 11 > usize::MAX || length < 14 || pos + length > input.len() || pos + length > usize::MAX {
+                Err(error)
+            } else {
+                part2_count_validate(input, shape, error, pos + length,
+                    next.update(tile as int, (next[tile as int] + 1) as u16),
+                    fields.push((pos + 11) as usize))
+            }
+        }
+    """,
+    "part2_count_capacity_run": """
+        if events.len() == 0 { None } else {
+            match events[0] {
+                Part2JpipSnapshotEvent::PdfCountCapacity { input: actual, error: actual_error,
+                    role: actual_role, elements: actual_elements, succeeded } =>
+                    if actual != input || actual_error != error || actual_role != role || actual_elements != elements { None }
+                    else { Some((if succeeded { Ok(()) } else { Err(crate::DecodeError::AllocationFailed) },
+                        events.drop_first())) },
+                _ => None,
+            }
+        }
+    """,
+    "part2_count_patch": """
+        if index >= positions.len() { Ok(bytes) }
+        else {
+            let at = base as nat + positions[index as int] as nat;
+            if at > usize::MAX || at >= bytes.len() || declared == 255 { Err(error) }
+            else { part2_count_patch(bytes.update(at as int, (declared + 1) as u8),
+                base, positions, declared, error, index + 1) }
+        }
+    """,
+    "part2_count_repair_after_copy": """
+        if base as nat + stream.len() > bytes.len() || base as nat + stream.len() > usize::MAX {
+            Some((Err(error), events))
+        } else {
+            part2_jpip_snapshot_bind(part2_cold_parse(bytes.subrange(base as int, base as int + stream.len() as int),
+                limits, 14, 0, events), |_, tail| Some((Ok((bytes, fields.len() as u32, work)), tail)))
+        }
+    """,
+    "part2_pdf_count_run": """
+        match base(input, events) {
+            Some((Err(error), rest)) => if !part2_count_retry(error) { Some((Err(error), rest)) } else {
+                part2_jpip_snapshot_bind(part2_count_prepare_run(input, limits, error, rest),
+                    |repaired, tail| part2_count_finish_run(repaired, base, finish, tail))
+            },
+            other => other,
+        }
+    """,
+    "part2_count_finish_run": """
+        match base(repaired.0, events) {
+            None => None,
+            Some((reply, tail)) => Some((part2_count_reply(reply, repaired, finish), tail)),
+        }
+    """,
+}
+_PDF_COUNT_PROOFS = {
+    ("specs/pdf_compat.rs", "part2_pdf_prepare_frames"),
+    ("specs/pdf_eol.rs", "part2_pdf_eol_frames"),
+    *(("specs/pdf_tile_count.rs", name) for name in (
+        "part2_count_passthrough", "part2_count_finished", "part2_count_retried",
+        "part2_count_repair_normal", "part2_count_prepare_normal",
+        "part2_count_fields_normal", "part2_count_fields_refused",
+        "part2_count_copy_normal", "part2_count_copy_refused",
+        "part2_count_prepare_lift", "part2_count_repair_fields_lift",
+        "part2_count_repair_copy_lift", "part2_count_repair_parsed_lift",
+        "part2_pdf_count_contracts_unfold",
+    )),
+}
+_PDF_COUNT_TESTS = {
+    ("src/decode/raw_typed_result_tests.rs", "pdf_count_recovery_decodes_complete_interleaved_tiles_and_reports_only_counts"),
+    ("src/pdf_tile_count.rs", "count_fields_require_complete_ordered_parts_at_the_reported_offset"),
+    ("src/pdf_tile_count.rs", "count_storage_refusals_propagate_and_restore_without_changing_other_bytes"),
+}
+_PDF_COUNT_NATIVE_ORDER = {
+    "decode_pdf_compatible": (
+        "decode_pdf_eol_compatible(input,options,requested)", "kind:MalformedKind::InvalidTilePart",
+        "prepare_pdf_count_repair(input,options,error)", "decode_pdf_eol_compatible(&repaired.bytes,options,requested)",
+        "record_pdf_counts(decoded.recovery,repaired.fields,repaired.bytes.len()asu64,repaired.work_units,)"),
+    "decode_pdf_reconstructed": (
+        "decode_pdf_eol_reconstructed(input,options,requested)", "kind:MalformedKind::InvalidTilePart",
+        "prepare_pdf_count_repair(input,options,error)", "decode_pdf_eol_reconstructed(&repaired.bytes,options,requested)",
+        "record_pdf_counts(decoded.recovery,repaired.fields,repaired.bytes.len()asu64,repaired.work_units,)"),
+    "inspect_pdf_compatible": (
+        "inspect_pdf_eol_compatible(input,options)", "kind:MalformedKind::InvalidTilePart",
+        "prepare_pdf_count_repair(input,options,error)", "inspect_pdf_eol_compatible(&repaired.bytes,options)"),
 }
 _PDF_TRAILERS_CONTRACTS = {
     **{
@@ -5526,6 +5710,16 @@ _COLD_RESULT_MODELS = {
             "part2_pdf_eol_" + name + "_result", "specs/pdf_eol.rs", "part2_pdf_eol_" + name + "_normal",
         ) for name in ("typed", "reconstructed", "inspect")
     },
+    **{
+        "part2_pdf_count_" + name + "_value": (
+            "part2_pdf_count_" + name + "_result", "specs/pdf_tile_count.rs", "part2_pdf_count_" + name + "_normal",
+        ) for name in ("typed", "reconstructed", "inspect")
+    },
+    **{
+        "part2_count_" + name + "_value": (
+            "part2_count_" + name + "_result", "specs/pdf_tile_count.rs", "part2_count_" + name + "_normal",
+        ) for name in ("prepare", "repair")
+    },
     "part2_present_raw_typed_value": (
         "part2_present_raw_typed_result", "specs/pdf_present_tile.rs", "part2_present_raw_normal",
     ),
@@ -6293,6 +6487,9 @@ def _coverage_cold_links(keys: set[tuple[str, str]]) -> tuple[set[tuple[str, str
         if model.startswith("part2_pdf_eol_"):
             models |= {("specs/pdf_eol.rs", name) for name in _PDF_EOL_MODEL_BODIES}
             proofs |= _PDF_EOL_PROOFS
+        if model.startswith(("part2_pdf_count_", "part2_count_")):
+            models |= {("specs/pdf_tile_count.rs", name) for name in _PDF_COUNT_MODEL_BODIES}
+            proofs |= _PDF_COUNT_PROOFS
         if model in _COLOR_OUTPUT_RESULT_MODELS:
             guards, color_proofs = _coverage_color_storage_guards(model)
             models |= set(guards)
@@ -11968,6 +12165,23 @@ def validate_normative_coverage(
                     found = compact.find("".join(fragment.split()), position)
                     if found < 0:
                         raise ValueError("common PDF EOL requires original call, actual error gate, one bounded prefix call and report order")
+                    position = found + len("".join(fragment.split()))
+            count_source = source_text((ROOT / "specs/pdf_tile_count.rs").resolve())
+            for symbol, expected_body in _PDF_COUNT_MODEL_BODIES.items():
+                body = _coverage_spec_function_body(count_source, symbol)
+                if body is None or "".join(body.split()) != "".join(expected_body.split()):
+                    raise ValueError("common PDF counts require exact source/error/framing/order/copy/report/tail composition")
+            if not _PDF_COUNT_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
+                raise ValueError("common PDF counts require strict/recovery/pixel/budget/refusal/negative controls")
+            for symbol, fragments in _PDF_COUNT_NATIVE_ORDER.items():
+                header = function_header(native_path, symbol)
+                body = _coverage_function_body(native_source, header) if header is not None else None
+                compact = "".join(body.split()) if body is not None else ""
+                position = 0
+                for fragment in fragments:
+                    found = compact.find("".join(fragment.split()), position)
+                    if found < 0:
+                        raise ValueError("common PDF counts require original call, actual count error, checked repair and real retry/report order")
                     position = found + len("".join(fragment.split()))
         if entry["id"] in (_RAW_LAYOUT_ENTRY, "part1-complete-native-raw-main-header-result",
                             "part1-complete-native-persistent-tile-configuration-commit"):

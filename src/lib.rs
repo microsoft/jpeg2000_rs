@@ -136,7 +136,5 @@ pub use jpx::{
 pub use limits::ResourceLimits;
 pub use options::{DecodeOptions, DecodeSelection, ImageRegion, TileSelection};
 
-#[cfg(not(verus_keep_ghost))]
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod pdf_tile_count;
-#[cfg(not(verus_keep_ghost))]
-pub use pdf_tile_count::recover_pdf_tile_part_counts;

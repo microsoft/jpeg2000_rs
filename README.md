@@ -229,7 +229,8 @@ They do not supply the separate deadline, absent-tile, MQ or trailer policies.
 `decode_pdf_reconstructed(input, options, selection)` compose the implemented
 policies in one explicit call for raw input or a single-codestream Part1 JP2:
 bounded missing-EOC repair, SIZ dimension authority, genuine sole-present-tile
-selection and cumulative terminal-trailer admission. JP2-primary fallback files
+selection, cumulative terminal-trailer admission and complete off-by-one
+tile-part-count correction. JP2-primary fallback files
 may advertise additional JPX compatibility. Non-JP2-primary JPX/JPH containers
 and Part15 codestreams remain outside this facade; use their explicit APIs.
 
@@ -237,7 +238,7 @@ The result carries `PdfRecovery` flags, exact trailer bytes, original/effective
 **codestream** byte counts, preflight/copy accounting and any full intended-canvas
 sample bound. Whole JP2 input limits are still enforced. A repair makes one
 fallible raw-codestream copy of length plus two after the accepted structural
-preflight. The only boundary retry is the explicit PDF EOL case below; there
+preflight. The only boundary retries are the explicit PDF cases below; there
 is no general failed-decode retry, prefix search or container rewrite.
 Component/precision/sign/BPCC checks and centered-output metadata guards remain.
 Missing canvas pixels are never synthesized.
@@ -252,8 +253,20 @@ input/resource checks, and allocation, limit and deadline errors are not retried
 Codestream byte/work counters describe the successful normalized input, not
 the failed attempt or a new global work budget.
 
+After an original `InvalidTilePart` rejection, a separate recovery admits
+uniform, nonzero `TNsot` declarations that encode the final zero-based index
+instead of the number of parts. Every observed tile must have its complete,
+sequential `0..=TNsot` sequence, with the reported failing SOT at the final index,
+validated `Psot` boundaries and an exact terminal EOC. Only count bytes change;
+the corrected codestream is strictly parsed before ordinary PDF decoding.
+No missing parts are inferred. `corrected_tile_part_count_fields`,
+`tile_part_count_repair_copy_bytes` and `tile_part_count_repair_work_bound`
+report the actual correction and its separately admitted copy/scratch/work
+envelope. Strict decoding remains unchanged. Truncated, inconsistent,
+out-of-order, zero/maximum-count and over-budget cases are not repaired.
+
 `inspect_pdf_compatible(input, options)` returns owned full-SIZ coding metadata
-under the same bounded container/EOC admission. It does not execute packets or
+under the same bounded container/EOC/count admission. It does not execute packets or
 entropy, select a crop, discard a trailer or promise a decoded image.
 Initial empty MQ contributions are rejected by default. The optional native-only
 `pdf-mq-recovery` feature allows only a first, exactly one-pass, unterminated
