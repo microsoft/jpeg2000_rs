@@ -6888,8 +6888,48 @@ class FrameworkTests(WorkingFiles):
 
     def test_inventory_binds_common_pdf_results_to_actual_input_layout_and_reports(self):
         self._assert_complete_packet_contract_bindings(
-            {framework._PDF_COMMON_ENTRY}, framework._PDF_COMMON_CONTRACTS, 13, isolate=False,
+            {framework._PDF_COMMON_ENTRY}, framework._PDF_COMMON_CONTRACTS, 20, isolate=False,
         )
+
+    def test_inventory_pdf_counts_keep_original_boundaries_order_refusals_and_reports(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == framework._PDF_COMMON_ENTRY)
+        source = framework.ROOT / "specs/pdf_tile_count.rs"
+        original, read_text = source.read_text(), Path.read_text
+        for symbol, before, after in (
+            ("part2_count_retry", "InvalidTilePart", "TrailingData"),
+            ("part2_count_source_matches", "stream == input.subrange", "stream != input.subrange"),
+            ("part2_count_shape_walk", "pos == offset", "true"),
+            ("part2_count_shape_walk", "pos + length > input.len()", "false"),
+            ("part2_count_validate", "next[tile as int] != input[pos as int + 10] as nat", "false"),
+            ("part2_count_validate", "next[i] == shape.declared as nat + 1", "true"),
+            ("part2_count_capacity_run", "actual != input", "false"),
+            ("part2_count_capacity_run", "actual_elements != elements", "false"),
+            ("part2_count_capacity_run", "if succeeded", "if true"),
+            ("part2_count_capacity_run", "events.drop_first()", "events"),
+            ("part2_count_patch", "(declared + 1) as u8", "0"),
+            ("part2_count_repair_after_copy", "limits, 14, 0, events", "limits, 14, 0, Seq::empty()"),
+            ("part2_pdf_count_run", "error, rest", "error, events"),
+            ("part2_count_finish_run", "base(repaired.0, events)", "base(Seq::empty(), events)"),
+            ("part2_count_report", "corrected_tile_part_count_fields: fields", "corrected_tile_part_count_fields: 0"),
+        ):
+            body = framework._coverage_spec_function_body(original, symbol)
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "common PDF counts"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+        for ref in framework._PDF_COUNT_TESTS:
+            changed_entry = copy.deepcopy(entry)
+            changed_entry["test_refs"] = [item for item in changed_entry["test_refs"]
+                                         if (item["path"], item["symbol"]) != ref]
+            with self.subTest(test=ref), self.assertRaisesRegex(ValueError, "common PDF counts.*controls"):
+                framework.validate_normative_coverage(dict(coverage, requirements=[changed_entry]))
 
     def test_inventory_common_pdf_requires_copy_input_verdict_and_exact_tail(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())

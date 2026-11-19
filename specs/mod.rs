@@ -237,6 +237,8 @@ mod pdf_compat;
 pub use pdf_compat::*;
 mod pdf_eol;
 pub use pdf_eol::*;
+mod pdf_tile_count;
+pub use pdf_tile_count::*;
 mod container_colors;
 pub use container_colors::*;
 mod jpx_public_images;

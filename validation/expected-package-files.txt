@@ -170,6 +170,7 @@ specs/pdf_compat.rs
 specs/pdf_dimensions.rs
 specs/pdf_eol.rs
 specs/pdf_present_tile.rs
+specs/pdf_tile_count.rs
 specs/pdf_trailers.rs
 specs/persistent_tile_configuration.rs
 specs/raw_decode.rs
@@ -338,6 +339,7 @@ src/packet/tests.rs
 src/packet/tile.rs
 src/packet.rs
 src/pdf_mq.rs
+src/pdf_tile_count.rs
 src/recovery/tests.rs
 src/recovery.rs
 src/refinement/composition.rs
