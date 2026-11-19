@@ -458,7 +458,11 @@ fn inverse_columns(
         && checked_area(low.width, low.height) == Ok(low.samples.len())
         && checked_area(high.width, high.height) == Ok(high.samples.len())
         && checked_area(low.width, output_height) == Ok(output_len)
-        && low.samples.iter().chain(high.samples).all(|v| v.unsigned_abs() <= (1 << 60))
+        && low
+            .samples
+            .iter()
+            .chain(high.samples)
+            .all(|v| v.unsigned_abs() <= (1 << 60))
     {
         inverse_vertical_rows(&mut samples, low, high, low_pass_first);
         return Ok(samples);
@@ -561,7 +565,11 @@ fn inverse_vertical_rows(
     let height = samples.len() / width;
     let parity = usize::from(!low_first);
     for (i, dst) in samples.chunks_exact_mut(width).enumerate() {
-        let src = if i % 2 == parity { low.samples } else { high.samples };
+        let src = if i % 2 == parity {
+            low.samples
+        } else {
+            high.samples
+        };
         dst.copy_from_slice(&src[(i / 2) * width..(i / 2 + 1) * width]);
     }
     // Independent columns share the same neighbors in adjacent rows.
@@ -570,7 +578,9 @@ fn inverse_vertical_rows(
         for y in (if update { parity } else { 1 - parity }..height).step_by(2) {
             let (before, tail) = samples.split_at_mut(y * width);
             let (row, after) = tail.split_at_mut(width);
-            let left = before.get(before.len().saturating_sub(width)..).filter(|s| !s.is_empty());
+            let left = before
+                .get(before.len().saturating_sub(width)..)
+                .filter(|s| !s.is_empty());
             let right = after.get(..width);
             let upper = left.or(right).expect("at least two rows");
             let lower = right.or(left).expect("at least two rows");
