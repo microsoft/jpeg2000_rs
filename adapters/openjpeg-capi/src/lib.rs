@@ -1,4 +1,7 @@
-use jpeg2000_decoder::{DecodeOptions, DecodeSelection, TypedImage, TypedSamples, codestream, jp2};
+use jpeg2000_decoder::{
+    DecodeError, DecodeOptions, DecodeSelection, MalformedKind, TypedImage, TypedSamples,
+    codestream, jp2,
+};
 
 #[repr(C)]
 pub struct Header {
@@ -26,10 +29,44 @@ unsafe fn input<'a>(data: *const u8, size: usize) -> Option<&'a [u8]> {
     Some(unsafe { std::slice::from_raw_parts(data, size) })
 }
 
-fn inspect(data: &[u8], boxed: bool, indexed: bool) -> Option<(codestream::ImageSize, i32)> {
-    let limits = jpeg2000_decoder::ResourceLimits::default();
+// The caller must have validated lenient input with the crate's recovery API
+// before reopening the JP2 metadata prefix.
+fn parse_container<'a>(
+    data: &'a [u8],
+    limits: &jpeg2000_decoder::ResourceLimits,
+    recovered: bool,
+) -> Option<jp2::Jp2File<'a>> {
+    match jp2::parse(data, limits) {
+        Ok(file) => Some(file),
+        Err(DecodeError::MalformedInput {
+            offset,
+            kind: MalformedKind::InvalidBoxLength | MalformedKind::TrailingData,
+        }) if recovered => {
+            let (prefix, suffix) = data.split_at_checked(usize::try_from(offset).ok()?)?;
+            if !prefix.ends_with(&[0xff, 0xd9]) || !matches!(suffix, b"\r" | b"\n" | b"\r\n") {
+                return None;
+            }
+            jp2::parse(prefix, limits).ok()
+        }
+        Err(_) => None,
+    }
+}
+
+fn inspect(
+    data: &[u8],
+    boxed: bool,
+    indexed: bool,
+    strict: bool,
+) -> Option<(codestream::ImageSize, i32)> {
+    let options = DecodeOptions::default();
+    let limits = options.limits();
+    let recovered = if strict {
+        None
+    } else {
+        Some(jpeg2000_decoder::inspect_pdf_compatible(data, &options).ok()?)
+    };
     let (stream, color) = if boxed {
-        let file = jp2::parse(data, &limits).ok()?;
+        let file = parse_container(data, limits, recovered.is_some())?;
         if file.file_type().brand != jp2::BoxType::JP2_BRAND
             || file.codestream_count() != 1
             || (!indexed
@@ -46,9 +83,15 @@ fn inspect(data: &[u8], boxed: bool, indexed: bool) -> Option<(codestream::Image
         };
         (file.codestream(0).ok()?.data(), color)
     } else {
+        if !data.starts_with(&[0xff, 0x4f]) {
+            return None;
+        }
         (data, 0)
     };
-    let size = codestream::parse(stream, &limits).ok()?.image_size;
+    let size = match recovered {
+        Some(info) => info.image_size,
+        None => codestream::parse(stream, limits).ok()?.image_size,
+    };
     if size.x_origin != 0
         || size.y_origin != 0
         || size.components == 0
@@ -71,12 +114,13 @@ pub unsafe extern "C" fn jpeg2000_compat_inspect(
     len: usize,
     boxed: bool,
     indexed: bool,
+    strict: bool,
     index: u32,
     header: &mut Header,
     plane: &mut Plane,
 ) -> bool {
     let Some((size, color)) =
-        (unsafe { input(data, len) }).and_then(|bytes| inspect(bytes, boxed, indexed))
+        (unsafe { input(data, len) }).and_then(|bytes| inspect(bytes, boxed, indexed, strict))
     else {
         return false;
     };
@@ -109,6 +153,7 @@ pub unsafe extern "C" fn jpeg2000_compat_decode(
     len: usize,
     boxed: bool,
     indexed: bool,
+    strict: bool,
     reduce: u8,
 ) -> *mut TypedImage {
     let Some(bytes) = (unsafe { input(data, len) }) else {
@@ -122,13 +167,26 @@ pub unsafe extern "C" fn jpeg2000_compat_decode(
     let options = DecodeOptions::new(limits);
     let selection = DecodeSelection::default().with_discard_levels(reduce);
     let result = if boxed && indexed {
-        jp2::parse(bytes, options.limits()).and_then(|file| {
-            jpeg2000_decoder::decode_codestream_selected(
-                file.codestream(0)?.data(),
-                &options,
-                &selection,
-            )
+        let recovered =
+            !strict && jpeg2000_decoder::inspect_pdf_compatible(bytes, &options).is_ok();
+        if !strict && !recovered {
+            return std::ptr::null_mut();
+        }
+        let Some(file) = parse_container(bytes, options.limits(), recovered) else {
+            return std::ptr::null_mut();
+        };
+        file.codestream(0).and_then(|stream| {
+            let stream = stream.data();
+            if !recovered {
+                jpeg2000_decoder::decode_codestream_selected(stream, &options, &selection)
+            } else {
+                jpeg2000_decoder::decode_pdf_compatible(stream, &options, &selection)
+                    .map(|decoded| decoded.image)
+            }
         })
+    } else if !strict {
+        jpeg2000_decoder::decode_pdf_compatible(bytes, &options, &selection)
+            .map(|decoded| decoded.image)
     } else if boxed {
         jpeg2000_decoder::decode_jp2_selected(bytes, &options, &selection)
     } else {
