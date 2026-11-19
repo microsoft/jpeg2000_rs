@@ -346,7 +346,12 @@ fn legacy_snapshot_storage_restore_refusal_exposes_exact_partial_fields_without_
     partial.bitplane = source.bitplane;
     let mut complete = target.clone();
     complete.restore_legacy_segment(&source).unwrap();
-    for after in [0, 1, 2] {
+    let requests = if cfg!(feature = "cooperative-deadlines") {
+        3
+    } else {
+        2
+    };
+    for after in 0..requests {
         let mut current = target.clone();
         assert_eq!(
             crate::allocation::with_refusal(after, || current.restore_legacy_segment(&source)),
@@ -354,7 +359,7 @@ fn legacy_snapshot_storage_restore_refusal_exposes_exact_partial_fields_without_
         );
         assert_eq!(
             format!("{current:?}"),
-            if after == 0 {
+            if cfg!(feature = "cooperative-deadlines") && after == 0 {
                 before.clone()
             } else {
                 format!("{partial:?}")
@@ -364,6 +369,31 @@ fn legacy_snapshot_storage_restore_refusal_exposes_exact_partial_fields_without_
         current.restore_legacy_segment(&source).unwrap();
         assert_eq!(format!("{current:?}"), format!("{complete:?}"));
     }
+    #[cfg(not(feature = "cooperative-deadlines"))]
+    {
+        let mut current = target.clone();
+        let storage = current.plane.coefficients.as_ptr();
+        crate::allocation::with_refusal(2, || {
+            current.restore_legacy_segment(&source).unwrap();
+            assert_eq!(
+                crate::allocation::copy_values(&[1_u8]),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+        assert_eq!(current.plane.coefficients.as_ptr(), storage);
+        assert_eq!(format!("{current:?}"), format!("{complete:?}"));
+    }
+    let mut different_length = target.clone();
+    different_length
+        .plane
+        .coefficients
+        .push(CoefficientState::default());
+    let different_before = format!("{different_length:?}");
+    assert_eq!(
+        crate::allocation::with_refusal(0, || { different_length.restore_legacy_segment(&source) }),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{different_length:?}"), different_before);
     source.plane.coefficients.clear();
     let flags = source.bitplane_state.as_mut().unwrap();
     flags.significant_before.clear();
@@ -385,7 +415,12 @@ fn legacy_snapshot_storage_real_replay_refusal_retains_admission_and_partial_res
     source.bitplane_state = Some(legacy_bitplane_from_plane(&source.plane, 2).unwrap());
     let mut admitted = source.clone();
     admitted.legacy_decode_work = 2;
-    for after in [0, 1, 2, 3, 4, 5] {
+    let initial_requests = if cfg!(feature = "cooperative-deadlines") {
+        6
+    } else {
+        4
+    };
+    for after in 0..initial_requests {
         let mut current = source.clone();
         assert_eq!(
             crate::allocation::with_refusal(after, || current.decode_legacy_contribution(
@@ -396,6 +431,21 @@ fn legacy_snapshot_storage_real_replay_refusal_retains_admission_and_partial_res
             Err(DecodeError::AllocationFailed)
         );
         assert_eq!(format!("{current:?}"), format!("{admitted:?}"));
+    }
+    #[cfg(not(feature = "cooperative-deadlines"))]
+    {
+        let mut current = source.clone();
+        crate::allocation::with_refusal(4, || {
+            current
+                .decode_legacy_contribution(&[0xaa], 1, &limits)
+                .unwrap();
+            assert_eq!(
+                crate::allocation::copy_values(&[1_u8]),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+        assert!(current.legacy_segment.is_some());
+        assert_eq!(current.next_pass(), source.next_pass() + 1);
     }
     source
         .decode_legacy_contribution(&[0xaa], 1, &limits)
@@ -408,7 +458,12 @@ fn legacy_snapshot_storage_real_replay_refusal_retains_admission_and_partial_res
     partial.plane = retained.plane.clone();
     partial.next_pass = retained.next_pass;
     partial.bitplane = retained.bitplane;
-    for after in [0, 1, 2] {
+    let requests = if cfg!(feature = "cooperative-deadlines") {
+        3
+    } else {
+        2
+    };
+    for after in 0..requests {
         let mut current = source.clone();
         assert_eq!(
             crate::allocation::with_refusal(after, || current.decode_legacy_contribution(
@@ -420,7 +475,7 @@ fn legacy_snapshot_storage_real_replay_refusal_retains_admission_and_partial_res
         );
         assert_eq!(
             format!("{current:?}"),
-            if after == 0 {
+            if cfg!(feature = "cooperative-deadlines") && after == 0 {
                 format!("{cleared:?}")
             } else {
                 format!("{partial:?}")
