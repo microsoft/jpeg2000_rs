@@ -52,7 +52,7 @@ fn inspect(data: &[u8], boxed: bool, indexed: bool) -> Option<(codestream::Image
     if size.x_origin != 0
         || size.y_origin != 0
         || size.components == 0
-        || u64::from(size.width) * u64::from(size.height) > 4_000_000 / u64::from(size.components)
+        || u64::from(size.width) * u64::from(size.height) > 32_000_000 / u64::from(size.components)
     {
         return None;
     }
@@ -115,7 +115,7 @@ pub unsafe extern "C" fn jpeg2000_compat_decode(
         return std::ptr::null_mut();
     };
     let Ok(limits) =
-        jpeg2000_decoder::ResourceLimits::default().with_maximum_decoded_bytes(64 * 1024 * 1024)
+        jpeg2000_decoder::ResourceLimits::default().with_maximum_decoded_bytes(256 * 1024 * 1024)
     else {
         return std::ptr::null_mut();
     };
