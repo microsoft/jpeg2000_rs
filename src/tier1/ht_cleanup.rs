@@ -105,16 +105,14 @@ fn read_ht_payload_word(
                 vstd::arithmetic::power2::lemma_pow2_strictly_increases(bit as nat + 1, 64);
             }
         }
-        if reader.read_bit()? {
-            if crate::refinement::ht_magnitude_sign(bit, true) {
-                negative = true;
-            }
-            word = word
-                .checked_add(1_u64 << bit)
-                .ok_or_else(arithmetic_overflow)?;
-            exponent = bit.checked_add(1).ok_or_else(arithmetic_overflow)?;
+        let set = reader.read_bit()?;
+        let digit = if set { 1_u64 << bit } else { 0 };
+        word += digit;
+        negative |= crate::refinement::ht_magnitude_sign(bit, set);
+        if set {
+            exponent = bit + 1;
         }
-        bit = bit.checked_add(1).ok_or_else(arithmetic_overflow)?;
+        bit += 1;
     }
     #[cfg(verus_keep_ghost)]
     proof! {

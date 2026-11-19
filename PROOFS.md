@@ -6127,6 +6127,14 @@ The complete `reconstruct_ht_magnitude` contract is unchanged. These are exact
 integer representation optimizations, not new reconstruction parameters,
 assumed success premises or verification exclusions.
 
+The word payload loop forms a zero-or-single-bit digit on every iteration.
+Its existing `word < 2^bit` invariant and `bit < 64` guard prove that the
+addition cannot overflow; the bit and exponent advances are similarly bounded.
+This removes unreachable overflow branches and permits branchless native
+accumulation while retaining the exact original payload fold and partial reader
+state on errors. The inlined MagSgn bit reader still performs its original
+byte-stuffing, physical/fill accounting and checked work-limit transitions.
+
 ### Guarded native neighbor aggregation
 
 Tier 1 neighbor summaries can aggregate significant/sign flags from three
