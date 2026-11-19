@@ -6127,6 +6127,18 @@ The complete `reconstruct_ht_magnitude` contract is unchanged. These are exact
 integer representation optimizations, not new reconstruction parameters,
 assumed success premises or verification exclusions.
 
+### Guarded native neighbor aggregation
+
+Tier 1 neighbor summaries can aggregate significant/sign flags from three
+borrowed rows when the point is interior, every row is present and vertical
+causality does not suppress the lower stripe. Checked offset/range admission
+selects the fast path; edges, causal stripe boundaries and incomplete raw
+storage retain the original ordered traversal and its typed errors.
+Derived coordinate-lookup and bounded-update lemmas prove that the direct
+flag sums equal the unchanged `ht_neighbors` fold. The complete native
+neighbor contract has no new premise, cached-state invariant or numerical
+convention. This path does not alter incremental MQ replay.
+
 ### Bounded supplied-coefficient reconstruction
 
 `transform::inverse_quantize_values` and `transform::inverse_quantize_plane`
