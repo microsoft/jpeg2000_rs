@@ -591,7 +591,23 @@ impl Tier1CodeBlockDecoder {
                 input: replay_model.input + input@, passes: replay_passes, ..replay_model
             }));
         }
-        let restored = self.restore_legacy_segment(&segment);
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        let restore_needed = true;
+        #[cfg(any(not(feature = "cooperative-deadlines"), verus_keep_ghost))]
+        let restore_needed = had_segment;
+        let restored = if restore_needed {
+            self.restore_legacy_segment(&segment)
+        } else {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_legacy_restore_normal(
+                    tier1_decoder_state(self), legacy_segment_view(&segment));
+                assert(crate::specs::part1_legacy_restore(
+                    tier1_decoder_state(self), legacy_segment_view(&segment))
+                        == tier1_decoder_state(self));
+            }
+            Ok(())
+        };
         #[cfg(verus_keep_ghost)]
         proof! {if restored.is_err(){crate::specs::part2_legacy_replay_restored(before_replay,input@,replay_passes,super::legacy_storage_limits(limits),(restored,tier1_decoder_state(self)));}}
         restored?;
@@ -676,14 +692,32 @@ impl Tier1CodeBlockDecoder {
     ) -> Result<(), DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof_decl! {let ghost before=tier1_decoder_state(self);let ghost source=legacy_segment_view(segment);}
-        let copied = segment.plane.try_duplicate_raw(
-            super::HtRefinementCopyRole::LegacyRestore,
-            false,
-            true,
-        );
-        #[cfg(verus_keep_ghost)]
-        proof! {if let Err(error)=copied{crate::specs::part2_legacy_restore_plane_error(before,source,error);}}
-        self.plane = copied?;
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        let reuse_plane = false;
+        #[cfg(any(not(feature = "cooperative-deadlines"), verus_keep_ghost))]
+        let reuse_plane = self.plane.coefficients.len() == segment.plane.coefficients.len();
+        if reuse_plane {
+            self.plane
+                .coefficients
+                .copy_from_slice(&segment.plane.coefficients);
+            self.plane.width = segment.plane.width;
+            self.plane.height = segment.plane.height;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(crate::tier1::code_block_plane_view(&self.plane) == source.plane);
+                crate::specs::part2_nested_plane_observed(
+                    source.plane, super::HtRefinementCopyRole::LegacyRestore, Ok(()));
+            }
+        } else {
+            let copied = segment.plane.try_duplicate_raw(
+                super::HtRefinementCopyRole::LegacyRestore,
+                false,
+                true,
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {if let Err(error)=copied{crate::specs::part2_legacy_restore_plane_error(before,source,error);}}
+            self.plane = copied?;
+        }
         self.next_pass = segment.next_pass;
         self.bitplane = segment.bitplane;
         let copied = super::legacy_passes::try_duplicate_bitplane(
