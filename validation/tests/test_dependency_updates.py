@@ -47,7 +47,7 @@ class DependencyUpdateTests(unittest.TestCase):
         self.assertNotIn("/validation/image-consumer-probe",
                          self.updates["cargo"]["directories"])
         manifest = (ROOT / "validation/image-consumer-probe/Cargo.toml").read_text(encoding="utf-8")
-        self.assertIn('path = "../../target/package/jpeg2000-decoder-0.2.0"', manifest)
+        self.assertIn('path = "../../target/package/jpeg2000-decoder-0.2.1"', manifest)
 
 
 if __name__ == "__main__":
