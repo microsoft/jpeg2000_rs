@@ -1,0 +1,13 @@
+[package]
+name = "jpeg2000-openjpeg-compat"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88.0"
+publish = false
+license = "MIT"
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+jpeg2000-decoder = { path = "../.." }
