@@ -6,16 +6,16 @@
 
 struct Header { uint32_t width, height, count; int32_t color; };
 struct Plane { uint32_t width, height, precision, signedness, dx, dy; };
-extern bool jpeg2000_compat_inspect(const uint8_t *, size_t, bool, bool, uint32_t,
+extern bool jpeg2000_compat_inspect(const uint8_t *, size_t, bool, bool, bool, uint32_t,
                           struct Header *, struct Plane *);
-extern void *jpeg2000_compat_decode(const uint8_t *, size_t, bool, bool, uint8_t);
+extern void *jpeg2000_compat_decode(const uint8_t *, size_t, bool, bool, bool, uint8_t);
 extern bool jpeg2000_compat_plane(const void *, uint32_t, struct Plane *);
 extern bool jpeg2000_compat_copy_plane(const void *, uint32_t, int32_t *, size_t,
                              const struct Plane *);
 extern void jpeg2000_compat_destroy(void *);
 
 struct Codec {
-    bool boxed, configured, indexed, decoded;
+    bool boxed, configured, indexed, strict, decoded;
     uint8_t reduce;
     opj_msg_callback error;
     void *error_user;
@@ -60,8 +60,10 @@ opj_codec_t *opj_create_decompress(OPJ_CODEC_FORMAT format) {
     if (format != OPJ_CODEC_J2K && format != OPJ_CODEC_JP2)
         return NULL;
     struct Codec *codec = calloc(1, sizeof(*codec));
-    if (codec)
+    if (codec) {
         codec->boxed = format == OPJ_CODEC_JP2;
+        codec->strict = true;
+    }
     return (opj_codec_t *)codec;
 }
 
@@ -85,8 +87,11 @@ OPJ_BOOL opj_setup_decoder(opj_codec_t *handle, opj_dparameters_t *params) {
 }
 
 OPJ_BOOL opj_decoder_set_strict_mode(opj_codec_t *handle, OPJ_BOOL strict) {
-    return strict && handle != NULL ? OPJ_TRUE :
-        fail((struct Codec *)handle, "Non-strict decoding is not supported");
+    struct Codec *codec = (struct Codec *)handle;
+    if (!codec)
+        return OPJ_FALSE;
+    codec->strict = strict != OPJ_FALSE;
+    return OPJ_TRUE;
 }
 
 opj_stream_t *opj_stream_create(OPJ_SIZE_T buffer_size, OPJ_BOOL read) {
@@ -185,7 +190,7 @@ OPJ_BOOL opj_read_header(opj_stream_t *stream_handle, opj_codec_t *codec_handle,
     struct Header header;
     struct Plane plane;
     if (!jpeg2000_compat_inspect(stream->bytes, stream->size, codec->boxed,
-                                codec->indexed, 0, &header, &plane))
+                                codec->indexed, codec->strict, 0, &header, &plane))
         return fail(codec, "Unsupported or invalid JPEG 2000 header");
     opj_image_t *image = calloc(1, sizeof(*image));
     if (!image)
@@ -201,7 +206,7 @@ OPJ_BOOL opj_read_header(opj_stream_t *stream_handle, opj_codec_t *codec_handle,
     image->color_space = (OPJ_COLOR_SPACE)header.color;
     for (uint32_t i = 0; i < image->numcomps; ++i) {
         if (i && !jpeg2000_compat_inspect(stream->bytes, stream->size, codec->boxed,
-                                         codec->indexed, i, &header, &plane)) {
+                                         codec->indexed, codec->strict, i, &header, &plane)) {
             opj_image_destroy(image);
             return OPJ_FALSE;
         }
@@ -226,7 +231,7 @@ OPJ_BOOL opj_decode(opj_codec_t *codec_handle, opj_stream_t *stream_handle,
         if (image->comps[i].data)
             return OPJ_FALSE;
     void *decoded = jpeg2000_compat_decode(stream->bytes, stream->size, codec->boxed,
-                                          codec->indexed, codec->reduce);
+                                          codec->indexed, codec->strict, codec->reduce);
     if (!decoded)
         return fail(codec, "JPEG 2000 decode failed");
     bool ok = true;

@@ -6,7 +6,7 @@ Build `jpeg2000-openjpeg-compat` as a Rust static library, then compile
 `shim.c` against the consumer's matching `openjpeg.h` and link both into the
 consumer. Do not link the adapter and OpenJPEG into the same program.
 
-The adapter supports strict, full-image J2K and single-codestream JP2 decoding
+The adapter supports full-image J2K and single-codestream JP2 decoding
 over synchronous read callbacks, including resolution reduction. It buffers
 the declared stream length (up to 16 MiB); it does not call seek or skip
 callbacks. Decoded planes use C allocations and are released with
@@ -17,11 +17,16 @@ Information and warning callbacks are accepted but not invoked; decoder
 errors are reported through the error callback.
 
 Encoding, partial areas, individual tile extraction, quality-layer selection,
-ICC profiles, non-zero image origins, and non-strict recovery are not
+ICC profiles and non-zero image origins are not
 supported. Indexed input can expose raw codestream components when the caller
 sets `OPJ_DPARAMETERS_IGNORE_PCLR_CMAP_CDEF_FLAG`; general palette expansion is
 not supported. Output uses a separate C sample allocation, so peak memory is
 not expected to match the direct Rust API.
+
+Strict decoding is the default. Calling `opj_decoder_set_strict_mode(codec,
+OPJ_FALSE)` before reading the header opts into the crate's bounded PDF recovery
+for inspection and decoding. This supports the crate's documented recoveries,
+not every permissive behavior of OpenJPEG.
 
 `probe.c` is a small standalone consumer that exercises the header, stream,
 decode, and destruction sequence. Build it once against the OpenJPEG header

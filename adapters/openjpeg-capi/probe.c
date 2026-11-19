@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static OPJ_SIZE_T read_file(void *buffer, OPJ_SIZE_T size, void *user) {
     size_t read = fread(buffer, 1, size, user);
@@ -11,7 +12,7 @@ static OPJ_SIZE_T read_file(void *buffer, OPJ_SIZE_T size, void *user) {
 static void close_file(void *user) { fclose(user); }
 
 int main(int argc, char **argv) {
-    if (argc != 3)
+    if (argc != 3 && (argc != 4 || strcmp(argv[3], "lenient") != 0))
         return 2;
     FILE *file = fopen(argv[2], "rb");
     if (!file)
@@ -40,6 +41,7 @@ int main(int argc, char **argv) {
     opj_image_t *image = NULL;
     int status = 1;
     if (!codec || !opj_setup_decoder(codec, &parameters) ||
+        (argc == 4 && !opj_decoder_set_strict_mode(codec, OPJ_FALSE)) ||
         !opj_read_header(stream, codec, &image))
         goto cleanup;
 
