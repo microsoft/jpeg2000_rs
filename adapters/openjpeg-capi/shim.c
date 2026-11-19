@@ -238,7 +238,7 @@ OPJ_BOOL opj_decode(opj_codec_t *codec_handle, opj_stream_t *stream_handle,
             break;
         }
         uint64_t count = (uint64_t)plane.width * plane.height;
-        if (!count || count > 4000000 ||
+        if (!count || count > 32000000 ||
             !(c->data = opj_image_data_alloc((size_t)count * sizeof(*c->data))) ||
             !jpeg2000_compat_copy_plane(decoded, i, c->data, (size_t)count, &plane)) {
             ok = false;

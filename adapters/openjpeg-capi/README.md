@@ -11,6 +11,8 @@ over synchronous read callbacks, including resolution reduction. It buffers
 the declared stream length (up to 16 MiB); it does not call seek or skip
 callbacks. Decoded planes use C allocations and are released with
 `opj_image_data_free` or `opj_image_destroy`. Rust-owned images stay internal.
+The adapter admits up to 32 million reference-grid samples across components
+and sets the decoder's decoded-bytes limit to 256 MiB.
 Information and warning callbacks are accepted but not invoked; decoder
 errors are reported through the error callback.
 
