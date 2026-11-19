@@ -6147,6 +6147,19 @@ flag sums equal the unchanged `ht_neighbors` fold. The complete native
 neighbor contract has no new premise, cached-state invariant or numerical
 convention. This path does not alter incremental MQ replay.
 
+### Legacy replay storage reuse
+
+A newly captured legacy segment already describes the current decoder, so
+the first replay can omit its identity restore. Retained segments still replay
+their full bounded prefix; no virtual-fill arithmetic state is resumed.
+Subsequent restores can copy an equal-length coefficient plane into its
+existing storage. Different lengths retain the fallible duplicate path.
+Both paths refine the unchanged complete replay/restore models, including
+work admission, raw fields and partial state at remaining allocation failures.
+Tests check the reduced allocation requests, source preservation, backing-store
+reuse, different-length fallback and retries. Clock-enabled native decoding
+retains the original restore path and checkpoint cadence.
+
 ### Bounded supplied-coefficient reconstruction
 
 `transform::inverse_quantize_values` and `transform::inverse_quantize_plane`
