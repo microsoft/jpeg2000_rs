@@ -6117,6 +6117,28 @@ order, and the existing carry-prefix algebra is reused for borrow propagation,
 including incoming borrow with an all-ones subtrahend word. Independent bit
 borrow tests compare complete results across sparse, boundary and dense pairs.
 
+HT magnitude reconstruction uses a checked-word path for payloads of at most
+64 bits. Its native accumulator refines the same `ht_numeric_payload` fold,
+including reader transitions, sign, exponent and work-limit errors. Checked
+word centering returns a result only when its shifts, additions and product
+fit; the result is proved equal to `ht_numeric_center`. Wider payloads and
+unrepresentable intermediates retain the existing 384-bit implementation.
+The complete `reconstruct_ht_magnitude` contract is unchanged. These are exact
+integer representation optimizations, not new reconstruction parameters,
+assumed success premises or verification exclusions.
+
+### Guarded native neighbor aggregation
+
+Tier 1 neighbor summaries can aggregate significant/sign flags from three
+borrowed rows when the point is interior, every row is present and vertical
+causality does not suppress the lower stripe. Checked offset/range admission
+selects the fast path; edges, causal stripe boundaries and incomplete raw
+storage retain the original ordered traversal and its typed errors.
+Derived coordinate-lookup and bounded-update lemmas prove that the direct
+flag sums equal the unchanged `ht_neighbors` fold. The complete native
+neighbor contract has no new premise, cached-state invariant or numerical
+convention. This path does not alter incremental MQ replay.
+
 ### Bounded supplied-coefficient reconstruction
 
 `transform::inverse_quantize_values` and `transform::inverse_quantize_plane`

@@ -334,6 +334,144 @@ fn ht_neighbor_summary_zero() -> NeighborSummary {
     }
 }
 
+#[inline(always)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == if !coefficient_raw_view(*coefficient).significant { 0i8 }
+        else if coefficient_raw_view(*coefficient).negative { -1i8 } else { 1i8 },
+        -1 <= result <= 1,
+))]
+fn neighbor_sign(coefficient: &CoefficientState) -> i8 {
+    if !coefficient.significant {
+        0
+    } else if coefficient.negative {
+        -1
+    } else {
+        1
+    }
+}
+
+#[cfg(verus_keep_ghost)]
+verus! {
+    spec fn interior_neighbor_value(plane: crate::specs::Tier1RawPlane, center: usize) -> NeighborSummary {
+        let c = center as int;
+        let w = plane.width as int;
+        let left = plane.coefficients[c - 1];
+        let right = plane.coefficients[c + 1];
+        let above = plane.coefficients[c - w];
+        let below = plane.coefficients[c + w];
+        NeighborSummary {
+            horizontal_significant: ((if left.significant { 1int } else { 0 })
+                + (if right.significant { 1int } else { 0 })) as u8,
+            vertical_significant: ((if above.significant { 1int } else { 0 })
+                + (if below.significant { 1int } else { 0 })) as u8,
+            diagonal_significant: ((if plane.coefficients[c-w-1].significant { 1int } else { 0 })
+                + (if plane.coefficients[c-w+1].significant { 1int } else { 0 })
+                + (if plane.coefficients[c+w-1].significant { 1int } else { 0 })
+                + (if plane.coefficients[c+w+1].significant { 1int } else { 0 })) as u8,
+            horizontal_sign_balance: ((if !left.significant { 0int } else if left.negative { -1 } else { 1 })
+                + (if !right.significant { 0int } else if right.negative { -1 } else { 1 })) as i8,
+            vertical_sign_balance: ((if !above.significant { 0int } else if above.negative { -1 } else { 1 })
+                + (if !below.significant { 0int } else if below.negative { -1 } else { 1 })) as i8,
+        }
+    }
+
+    proof fn interior_neighbor_lookup(plane: crate::specs::Tier1RawPlane,
+        x: u16, y: u16, center: usize, dx: int, dy: int, index: int)
+        requires crate::specs::tier1_raw_plane_index(plane,x,y) == Ok(center),
+            0 < x, 0 < y, x as int + 1 < plane.width, y as int + 1 < plane.height,
+            -1 <= dx <= 1, -1 <= dy <= 1,
+            index == center as int + dy as int * plane.width as int + dx as int,
+            0 <= index < plane.coefficients.len(), index <= usize::MAX,
+        ensures crate::specs::tier1_raw_plane_coefficient(plane,
+            (x as int + dx as int) as u16, (y as int + dy as int) as u16)
+                == Ok(plane.coefficients[index]),
+    {
+        assert((y as int + dy as int) * plane.width as int + x as int + dx as int == index)
+            by(nonlinear_arith)
+            requires center as int == y as int * plane.width as int + x as int,
+                index == center as int + dy as int * plane.width as int + dx as int;
+    }
+
+    spec fn neighbor_summary_add(state: NeighborSummary, kind: u8,
+        coefficient: crate::specs::Tier1RawCoefficient) -> NeighborSummary {
+        let count = if coefficient.significant { 1int } else { 0 };
+        let sign = if !coefficient.significant { 0int } else if coefficient.negative { -1 } else { 1 };
+        NeighborSummary {
+            horizontal_significant: (state.horizontal_significant as int + if kind == 0 { count } else { 0 }) as u8,
+            vertical_significant: (state.vertical_significant as int + if kind == 1 { count } else { 0 }) as u8,
+            diagonal_significant: (state.diagonal_significant as int + if kind == 2 { count } else { 0 }) as u8,
+            horizontal_sign_balance: (state.horizontal_sign_balance as int + if kind == 0 { sign } else { 0 }) as i8,
+            vertical_sign_balance: (state.vertical_sign_balance as int + if kind == 1 { sign } else { 0 }) as i8,
+        }
+    }
+
+    proof fn neighbor_step_known(plane: crate::specs::Tier1RawPlane, x:u16,y:u16,
+        dx:int,dy:int,kind:u8,state:NeighborSummary,coefficient:crate::specs::Tier1RawCoefficient)
+        requires -1 <= dx <= 1, -1 <= dy <= 1, kind <= 2,
+            0 <= x as int + dx < plane.width, 0 <= y as int + dy < plane.height,
+            crate::specs::tier1_raw_plane_coefficient(plane,(x as int+dx) as u16,(y as int+dy) as u16) == Ok(coefficient),
+            state.horizontal_significant <= 4, state.vertical_significant <= 4, state.diagonal_significant <= 4,
+            -4 <= state.horizontal_sign_balance <= 4, -4 <= state.vertical_sign_balance <= 4,
+        ensures crate::specs::ht_accumulate_neighbor(plane,x,y,dx as i8,dy as i8,kind,state)
+                == (Ok(()),neighbor_summary_add(state,kind,coefficient)),
+            crate::specs::ht_neighbor_then((Ok(()),state),plane,x,y,dx as i8,dy as i8,kind)
+                == (Ok(()),neighbor_summary_add(state,kind,coefficient)),
+    {}
+
+    proof fn interior_neighbor_value_matches(plane: crate::specs::Tier1RawPlane,
+        x: u16, y: u16, center: usize, vertical_causal: bool)
+        requires crate::specs::tier1_raw_plane_index(plane,x,y) == Ok(center),
+            0 < x, 0 < y, x as int + 1 < plane.width, y as int + 1 < plane.height,
+            !vertical_causal || y % 4 != 3,
+            center as int - plane.width as int - 1 >= 0,
+            center as int + plane.width as int + 1 < plane.coefficients.len(),
+            center as int + plane.width as int + 1 <= usize::MAX,
+        ensures crate::specs::ht_neighbors(plane,x,y,vertical_causal) == Ok(interior_neighbor_value(plane,center)),
+    {
+        hide(crate::specs::ht_neighbors);
+        hide(crate::specs::ht_neighbor_then);
+        hide(crate::specs::ht_accumulate_neighbor);
+        hide(crate::specs::ht_neighbor_update);
+        let c = center as int;
+        let w = plane.width as int;
+        interior_neighbor_lookup(plane,x,y,center,-1,0,c-1);
+        interior_neighbor_lookup(plane,x,y,center,1,0,c+1);
+        interior_neighbor_lookup(plane,x,y,center,0,-1,c-w);
+        interior_neighbor_lookup(plane,x,y,center,-1,-1,c-w-1);
+        interior_neighbor_lookup(plane,x,y,center,1,-1,c-w+1);
+        interior_neighbor_lookup(plane,x,y,center,0,1,c+w);
+        interior_neighbor_lookup(plane,x,y,center,-1,1,c+w-1);
+        interior_neighbor_lookup(plane,x,y,center,1,1,c+w+1);
+        let s0 = crate::specs::ht_neighbor_zero();
+        let left = plane.coefficients[c-1];
+        let right = plane.coefficients[c+1];
+        let above = plane.coefficients[c-w];
+        let ul = plane.coefficients[c-w-1];
+        let ur = plane.coefficients[c-w+1];
+        let below = plane.coefficients[c+w];
+        let dl = plane.coefficients[c+w-1];
+        let dr = plane.coefficients[c+w+1];
+        neighbor_step_known(plane,x,y,-1,0,0,s0,left);
+        let s1 = neighbor_summary_add(s0,0,left);
+        neighbor_step_known(plane,x,y,1,0,0,s1,right);
+        let s2 = neighbor_summary_add(s1,0,right);
+        neighbor_step_known(plane,x,y,0,-1,1,s2,above);
+        let s3 = neighbor_summary_add(s2,1,above);
+        neighbor_step_known(plane,x,y,-1,-1,2,s3,ul);
+        let s4 = neighbor_summary_add(s3,2,ul);
+        neighbor_step_known(plane,x,y,1,-1,2,s4,ur);
+        let s5 = neighbor_summary_add(s4,2,ur);
+        neighbor_step_known(plane,x,y,0,1,1,s5,below);
+        let s6 = neighbor_summary_add(s5,1,below);
+        neighbor_step_known(plane,x,y,-1,1,2,s6,dl);
+        let s7 = neighbor_summary_add(s6,2,dl);
+        neighbor_step_known(plane,x,y,1,1,2,s7,dr);
+        let s8 = neighbor_summary_add(s7,2,dr);
+        assert(s8 == interior_neighbor_value(plane,center));
+        reveal(crate::specs::ht_neighbors);
+    }
+}
+
 impl Clone for CodeBlockPlane {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures code_block_plane_view(&result) == code_block_plane_view(self),
@@ -805,7 +943,11 @@ impl CodeBlockPlane {
         y: u16,
         vertical_causal_context: bool,
     ) -> Result<NeighborSummary, DecodeError> {
-        self.index(x, y)?;
+        let center = self.index(x, y)?;
+        if let Some(summary) = self.interior_neighbor_summary(x, y, center, vertical_causal_context)
+        {
+            return Ok(summary);
+        }
         let mut summary = ht_neighbor_summary_zero();
         self.accumulate_neighbor(x, y, (-1, 0), NeighborKind::Horizontal, &mut summary)?;
         self.accumulate_neighbor(x, y, (1, 0), NeighborKind::Horizontal, &mut summary)?;
@@ -818,6 +960,53 @@ impl CodeBlockPlane {
             self.accumulate_neighbor(x, y, (1, 1), NeighborKind::Diagonal, &mut summary)?;
         }
         Ok(summary)
+    }
+
+    #[inline(always)]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        requires crate::specs::tier1_raw_plane_index(code_block_plane_view(self), x, y) == Ok(center),
+        ensures match result { None => true, Some(summary) =>
+            crate::specs::ht_neighbors(code_block_plane_view(self), x, y, vertical_causal_context)
+                == Ok(summary) },
+    ))]
+    fn interior_neighbor_summary(
+        &self,
+        x: u16,
+        y: u16,
+        center: usize,
+        vertical_causal_context: bool,
+    ) -> Option<NeighborSummary> {
+        if x == 0
+            || y == 0
+            || u32::from(x) + 1 >= u32::from(self.width)
+            || u32::from(y) + 1 >= u32::from(self.height)
+            || (vertical_causal_context && y % 4 == 3)
+        {
+            return None;
+        }
+        let stride = usize::from(self.width);
+        let upper = center.checked_sub(stride)?.checked_sub(1)?;
+        let middle = center.checked_sub(1)?;
+        let lower = center.checked_add(stride)?.checked_sub(1)?;
+        let upper = self.coefficients.get(upper..upper.checked_add(3)?)?;
+        let middle = self.coefficients.get(middle..middle.checked_add(3)?)?;
+        let lower = self.coefficients.get(lower..lower.checked_add(3)?)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(code_block_plane_view);
+            reveal(coefficient_raw_view);
+            interior_neighbor_value_matches(code_block_plane_view(self), x, y, center, vertical_causal_context);
+        }
+        Some(NeighborSummary {
+            horizontal_significant: middle[0].significant as u8 + middle[2].significant as u8,
+            vertical_significant: upper[1].significant as u8 + lower[1].significant as u8,
+            diagonal_significant: upper[0].significant as u8
+                + upper[2].significant as u8
+                + lower[0].significant as u8
+                + lower[2].significant as u8,
+            horizontal_sign_balance: neighbor_sign(&middle[0]) + neighbor_sign(&middle[2]),
+            vertical_sign_balance: neighbor_sign(&upper[1]) + neighbor_sign(&lower[1]),
+        })
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -897,5 +1086,62 @@ impl CodeBlockPlane {
                 .ok_or_else(arithmetic_overflow)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn interior_neighbor_rows_preserve_exact_flags_and_guarded_fallbacks() {
+        let mut plane = CodeBlockPlane {
+            width: 3,
+            height: 3,
+            coefficients: vec![CoefficientState::default(); 9],
+        };
+        for index in [0, 1, 2, 3, 5, 8] {
+            plane.coefficients[index].magnitude = 1;
+            plane.coefficients[index].significant = true;
+        }
+        for index in [0, 1, 5] {
+            plane.coefficients[index].negative = true;
+        }
+        let expected = NeighborSummary {
+            horizontal_significant: 2,
+            vertical_significant: 1,
+            diagonal_significant: 3,
+            horizontal_sign_balance: 0,
+            vertical_sign_balance: -1,
+        };
+        assert_eq!(
+            plane.interior_neighbor_summary(1, 1, 4, false),
+            Some(expected)
+        );
+        assert_eq!(
+            plane.neighbor_summary_with_causality(1, 1, false),
+            Ok(expected)
+        );
+        assert_eq!(plane.interior_neighbor_summary(0, 1, 3, false), None);
+
+        let mut short = plane.clone();
+        short.coefficients.truncate(8);
+        assert_eq!(short.interior_neighbor_summary(1, 1, 4, false), None);
+        assert_eq!(
+            short.neighbor_summary_with_causality(1, 1, false),
+            Err(invalid_code_block())
+        );
+
+        let stripe = CodeBlockPlane {
+            width: 3,
+            height: 5,
+            coefficients: vec![CoefficientState::default(); 15],
+        };
+        assert!(stripe.interior_neighbor_summary(1, 3, 10, true).is_none());
+        assert!(stripe.interior_neighbor_summary(1, 3, 10, false).is_some());
+        assert_eq!(
+            stripe.neighbor_summary_with_causality(1, 3, true),
+            Ok(NeighborSummary::default())
+        );
     }
 }
