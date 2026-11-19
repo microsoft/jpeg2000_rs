@@ -19,6 +19,15 @@ use crate::{DecodeError, ResourceLimits};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg(verus_keep_ghost)]
+verus! {
+    spec fn ht_payload_word_outcome(result: Result<(u64, bool, u8), DecodeError>)
+        -> Result<(nat, bool, u8), DecodeError> {
+        match result { Err(error) => Err(error), Ok((word, negative, exponent)) =>
+            Ok((word as nat, negative, exponent)) }
+    }
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::ht_complete_kappa(
         u_base, significance, north_west_exponent, north_east_exponent, maximum_u),
@@ -43,6 +52,152 @@ pub fn complete_ht_kappa(
         return Err(invalid_code_block());
     }
     Ok(completed)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires magnitude_bits <= 64,
+    ensures (ht_payload_word_outcome(result), ht_magsgn_view(final(reader)))
+        == crate::specs::ht_numeric_payload(ht_magsgn_view(old(reader)), magnitude_bits as nat,
+            0, 0, false, 0),
+))]
+fn read_ht_payload_word(
+    reader: &mut HtForwardMagSgnReader<'_>,
+    magnitude_bits: u8,
+) -> Result<(u64, bool, u8), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost start = ht_magsgn_view(reader); }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        vstd::arithmetic::power2::lemma2_to64();
+        vstd::arithmetic::power2::lemma2_to64_rest();
+        vstd::arithmetic::power2::lemma_pow2_strictly_increases(64, 384);
+    }
+    let mut word = 0_u64;
+    let mut negative = false;
+    let mut exponent = 0_u8;
+    let mut bit = 0_u8;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant bit <= magnitude_bits <= 64,
+            vstd::arithmetic::power2::pow2(0) == 1,
+            vstd::arithmetic::power2::pow2(1) == 2,
+            vstd::arithmetic::power2::pow2(64) == 18446744073709551616,
+            (word as nat) < vstd::arithmetic::power2::pow2(bit as nat),
+            crate::specs::part1_magnitude_capacity() > u64::MAX,
+            start == ht_magsgn_view(old(reader)),
+            crate::specs::ht_numeric_payload(start, magnitude_bits as nat, 0, 0, false, 0)
+                == crate::specs::ht_numeric_payload(ht_magsgn_view(reader),
+                    (magnitude_bits - bit) as nat, bit as nat, word as nat, negative, exponent),
+        decreases magnitude_bits - bit,
+    ))]
+    while bit < magnitude_bits {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::proofs::production_impl::production_ht_numeric_payload_unfold(
+                ht_magsgn_view(reader), (magnitude_bits - bit) as nat, bit as nat,
+                word as nat, negative, exponent);
+            vstd::bits::lemma_u64_pow2_no_overflow(bit as nat);
+            vstd::bits::lemma_u64_shl_is_mul(1, bit as u64);
+            assert((1u64 << bit) == (1u64 << (bit as u64))) by(bit_vector)
+                requires bit < 64;
+            vstd::arithmetic::power2::lemma_pow2_adds(bit as nat, 1);
+            vstd::arithmetic::power2::lemma2_to64_rest();
+            if bit < 63 {
+                vstd::arithmetic::power2::lemma_pow2_strictly_increases(bit as nat + 1, 64);
+            }
+        }
+        if reader.read_bit()? {
+            if crate::refinement::ht_magnitude_sign(bit, true) {
+                negative = true;
+            }
+            word = word
+                .checked_add(1_u64 << bit)
+                .ok_or_else(arithmetic_overflow)?;
+            exponent = bit.checked_add(1).ok_or_else(arithmetic_overflow)?;
+        }
+        bit = bit.checked_add(1).ok_or_else(arithmetic_overflow)?;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::proofs::production_impl::production_ht_numeric_payload_unfold(
+            ht_magsgn_view(reader), 0, bit as nat, word as nat, negative, exponent);
+    }
+    Ok((word, negative, exponent))
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires magnitude_bits <= 75, 1 <= decoded_bitplanes <= 292,
+    ensures match result {
+        None => true,
+        Some((value, sign, exp)) =>
+            crate::specs::ht_numeric_center(base as nat, negative, initial_exponent,
+                magnitude_bits, embedded_value, decoded_bitplanes)
+                    == Ok((crate::magnitude::magnitude_value(value), sign, exp))
+            && crate::magnitude::magnitude_value(value) > 0
+            && crate::magnitude::magnitude_value(value) < crate::specs::part1_magnitude_capacity()
+            && crate::magnitude::magnitude_limbs(value)
+                == crate::specs::tier1_value_limbs(crate::magnitude::magnitude_value(value)),
+    },
+))]
+fn try_center_ht_word(
+    base: u64,
+    negative: bool,
+    initial_exponent: u8,
+    magnitude_bits: u8,
+    embedded_value: bool,
+    decoded_bitplanes: u16,
+) -> Option<(Magnitude, bool, u8)> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        vstd::arithmetic::power2::lemma2_to64();
+        vstd::arithmetic::power2::lemma2_to64_rest();
+        vstd::arithmetic::power2::lemma_pow2_strictly_increases(64, 384);
+    }
+    let mut word = base;
+    let mut exponent = initial_exponent;
+    if embedded_value {
+        if magnitude_bits >= 64 {
+            return None;
+        }
+        let embedded = 1_u64 << magnitude_bits;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            vstd::bits::lemma_u64_pow2_no_overflow(magnitude_bits as nat);
+            vstd::bits::lemma_u64_shl_is_mul(1, magnitude_bits as u64);
+            assert((1u64 << magnitude_bits) == (1u64 << (magnitude_bits as u64))) by(bit_vector)
+                requires magnitude_bits < 64;
+        }
+        word = word.checked_add(embedded)?;
+        exponent = magnitude_bits.checked_add(1)?;
+    }
+    if crate::refinement::ht_bin_center_odd(word) != word {
+        word = word.checked_add(1)?;
+        exponent = exponent.max(1);
+    }
+    let centered = word.checked_add(2)?;
+    let shift = decoded_bitplanes - 1;
+    if shift >= 64 {
+        return None;
+    }
+    let scale = 1_u64 << shift;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        vstd::bits::lemma_u64_pow2_no_overflow(shift as nat);
+        vstd::bits::lemma_u64_shl_is_mul(1, shift as u64);
+        assert((1u64 << shift) == (1u64 << (shift as u64))) by(bit_vector)
+            requires shift < 64;
+    }
+    let scaled = centered.checked_mul(scale)?;
+    let value = scaled / 2;
+    if value == 0 {
+        return None;
+    }
+    let magnitude = crate::magnitude::magnitude_from_u64(value);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::magnitude::representation_proofs::magnitude_limbs_shape(magnitude);
+        crate::proofs::production_impl::production_tier1_value_limbs(crate::magnitude::magnitude_limbs(magnitude));
+    }
+    Some((magnitude, negative, exponent))
 }
 
 #[cfg_attr(
@@ -142,6 +297,27 @@ pub(super) fn reconstruct_ht_magnitude(
         return Err(invalid_code_block());
     }
     let magnitude_bits = crate::refinement::ht_magnitude_payload_bits(completed_u, embedded_bit);
+    if magnitude_bits <= 64 {
+        let (word, negative, exponent) = read_ht_payload_word(reader, magnitude_bits)?;
+        if let Some(centered) = try_center_ht_word(
+            word,
+            negative,
+            exponent,
+            magnitude_bits,
+            embedded_value,
+            decoded_bitplanes,
+        ) {
+            return Ok(centered);
+        }
+        return center_ht_numeric_magnitude(
+            crate::magnitude::magnitude_from_u64(word),
+            negative,
+            exponent,
+            magnitude_bits,
+            embedded_value,
+            decoded_bitplanes,
+        );
+    }
     let mut bin_center = crate::magnitude::magnitude_zero();
     let mut negative = false;
     let mut exponent = 0_u8;
@@ -623,4 +799,95 @@ pub(super) fn ht_significant_bitplanes(maximum_passes: u32) -> Result<u16, Decod
         return Err(arithmetic_overflow());
     }
     Ok(significant as u16)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn checked_word_centering_matches_wide_arithmetic_and_declines_overflow() {
+        let cases: &[(u64, u8, bool, u16, bool)] = &[
+            (0, 0, false, 1, true),
+            (0, 0, true, 1, true),
+            (u64::MAX - 2, 64, false, 1, true),
+            (u64::MAX, 64, false, 1, false),
+            (0, 64, true, 1, false),
+            (1, 1, false, 64, false),
+            (1, 1, false, 65, false),
+            (u64::MAX, 75, false, 292, false),
+            (0, 75, true, 292, false),
+        ];
+        for &(base, bits, embedded, planes, fits) in cases {
+            let actual = try_center_ht_word(base, true, 255, bits, embedded, planes);
+            assert_eq!(actual.is_some(), fits);
+            let expected = center_ht_numeric_magnitude(
+                Magnitude::from_u64(base),
+                true,
+                255,
+                bits,
+                embedded,
+                planes,
+            )
+            .unwrap();
+            if let Some(actual) = actual {
+                assert_eq!(actual, expected);
+            }
+        }
+    }
+
+    #[test]
+    fn ht_payload_word_and_wide_paths_preserve_bits_and_work_errors() {
+        let bytes = [0x55; 16];
+        let limits = ResourceLimits::default();
+        let pattern = 0x5555_5555_5555_5555_u64;
+        for bits in [0_u8, 1, 39, 63, 64] {
+            let mut reader = HtForwardMagSgnReader::new(&bytes, &limits).unwrap();
+            let word = pattern
+                & if bits == 64 {
+                    u64::MAX
+                } else {
+                    (1_u64 << bits) - 1
+                };
+            assert_eq!(
+                read_ht_payload_word(&mut reader, bits).unwrap(),
+                (word, bits > 0, (64 - word.leading_zeros()) as u8)
+            );
+            assert_eq!(reader.physical_bits_read(), u64::from(bits));
+            assert_eq!(reader.fill_bits_read(), 0);
+        }
+        for bits in [1_u8, 39, 63, 64, 65, 75] {
+            let low = pattern
+                & if bits >= 64 {
+                    u64::MAX
+                } else {
+                    (1_u64 << bits) - 1
+                };
+            let high = if bits > 64 {
+                pattern & ((1_u64 << (bits - 64)) - 1)
+            } else {
+                0
+            };
+            let base = Magnitude::from_limbs([low, high, 0, 0, 0, 0]);
+            let exponent = if bits % 2 == 1 { bits } else { bits - 1 };
+            for planes in [1_u16, 17, 292] {
+                let mut reader = HtForwardMagSgnReader::new(&bytes, &limits).unwrap();
+                let actual =
+                    reconstruct_ht_magnitude(&mut reader, bits, false, false, planes).unwrap();
+                let expected =
+                    center_ht_numeric_magnitude(base, true, exponent, bits, false, planes).unwrap();
+                assert_eq!(actual, expected);
+                assert_eq!(reader.physical_bits_read(), u64::from(bits));
+            }
+        }
+        let limited = limits.with_maximum_work_units(1).unwrap();
+        let mut reader = HtForwardMagSgnReader::new(&bytes, &limited).unwrap();
+        assert!(matches!(
+            reconstruct_ht_magnitude(&mut reader, 64, false, false, 1),
+            Err(DecodeError::LimitExceeded {
+                resource: crate::Resource::WorkUnits,
+                ..
+            })
+        ));
+    }
 }
