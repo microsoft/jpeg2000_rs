@@ -259,6 +259,9 @@ pub(crate) open spec fn part2_pdf_finish_recovery(
         empty_initial_mq_prefixes: 0,
         discarded_tile_trailer_bytes: trailer as u64,
         discarded_pdf_eol_bytes: 0,
+        corrected_tile_part_count_fields: 0,
+        tile_part_count_repair_copy_bytes: 0,
+        tile_part_count_repair_work_bound: 0,
         original_codestream_bytes: prepared.original.len() as u64,
         effective_codestream_bytes: effective,
         preflight_work_units: prepared.preflight_work,
@@ -492,6 +495,17 @@ pub(crate) proof fn part2_pdf_contracts_unfold(input: Seq<u8>, requested: Part2D
             #[trigger] part2_pdf_inspect_result(input, limits, reply)
                 == part2_cold_framed(|events| part2_pdf_inspect_run(input, limits, events), reply),
 {}
+
+pub(crate) proof fn part2_pdf_prepare_frames(input: Seq<u8>, limits: &crate::ResourceLimits,
+    result: Result<Part2PdfPrepared, crate::DecodeError>)
+    requires part2_pdf_prepare_result(input, limits, result),
+    ensures part2_cold_framed(|events| part2_pdf_prepare_run(input, limits, events), result),
+        forall|other: spec_fn(Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part2PdfPrepared>|
+            (forall|events| #[trigger] other(events) == part2_pdf_prepare_run(input, limits, events))
+                ==> #[trigger] part2_cold_framed(other, result),
+{
+    part2_decode_eta(|events| part2_pdf_prepare_run(input, limits, events), result);
+}
 
 pub(crate) open spec fn part2_pdf_typed_parsed_value(
     input: Seq<u8>, prepared: Part2PdfPrepared, parsed: Part1CompleteLayout, requested: Part2DecodeSelection, limits: &crate::ResourceLimits,

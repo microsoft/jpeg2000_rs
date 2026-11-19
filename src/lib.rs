@@ -135,3 +135,6 @@ pub use jpx::{
 };
 pub use limits::ResourceLimits;
 pub use options::{DecodeOptions, DecodeSelection, ImageRegion, TileSelection};
+
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod pdf_tile_count;

@@ -103,6 +103,7 @@ pub(crate) fn associated_header_for_codestream<'a>(
 impl<'a> CodestreamBox<'a> {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures super::box_header_offset(result) == super::codestream_source_view(self).1,
+            super::box_header_view(result) == super::raw_codestream_view(self).0,
     ))]
     pub const fn box_header(&self) -> BoxHeader {
         self.header
