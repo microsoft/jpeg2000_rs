@@ -443,31 +443,6 @@ fn inverse_columns(
         if let Err(error)=allocated{crate::specs::part2_wavelet_columns_refused(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len,error);}
     }
     let mut samples = allocated?;
-    #[cfg(all(
-        feature = "experimental-vector-wavelets",
-        not(verus_keep_ghost),
-        not(feature = "cooperative-deadlines")
-    ))]
-    if kernel.is_none()
-        && low.width >= 16
-        && high.width == low.width
-        && output_height >= 2
-        && low.height == low_count(output_height, low_pass_first)
-        && high.height == output_height - low.height
-        && checked_area(low.width, low.height) == Ok(low.samples.len())
-        && checked_area(high.width, high.height) == Ok(high.samples.len())
-        && checked_area(low.width, output_height) == Ok(output_len)
-        && {
-            let bound = if irreversible { 1 << 32 } else { 1 << 60 };
-            low.samples
-                .iter()
-                .chain(high.samples)
-                .all(|v| v.unsigned_abs() <= bound)
-        }
-    {
-        inverse_vertical_rows(&mut samples, low, high, low_pass_first, irreversible);
-        return Ok(samples);
-    }
     #[cfg(verus_keep_ghost)]
     proof! { assert(samples@ =~= Seq::new(output_len as nat, |i: int| 0i64)); }
     let mut x = 0_u32;
@@ -549,66 +524,6 @@ fn inverse_columns(
         x = x.checked_add(1).ok_or_else(arithmetic_overflow)?;
     }
     Ok(samples)
-}
-
-#[cfg(all(
-    feature = "experimental-vector-wavelets",
-    not(verus_keep_ghost),
-    not(feature = "cooperative-deadlines")
-))]
-fn inverse_vertical_rows(
-    samples: &mut [i64],
-    low: WaveletBand<'_>,
-    high: WaveletBand<'_>,
-    low_first: bool,
-    irreversible: bool,
-) {
-    let width = low.width as usize;
-    let height = samples.len() / width;
-    let parity = usize::from(!low_first);
-    for (i, dst) in samples.chunks_exact_mut(width).enumerate() {
-        let src = if i % 2 == parity {
-            low.samples
-        } else {
-            high.samples
-        };
-        dst.copy_from_slice(&src[(i / 2) * width..(i / 2 + 1) * width]);
-        if irreversible {
-            let factor = crate::refinement::nine_seven_scale(i % 2 == parity);
-            for value in dst {
-                *value = (*value * factor + (1 << 15)) >> 16;
-            }
-        }
-    }
-    // At |input| <= 2^32, scaling grows the bound by at most 3x and each
-    // fixed-point lift by at most 5x, including rounding. All products fit i64.
-    for stage in 0..if irreversible { 4 } else { 2 } {
-        let update = stage % 2 == 0;
-        let factor = crate::refinement::nine_seven_lift(stage);
-        for y in (if update { parity } else { 1 - parity }..height).step_by(2) {
-            let (before, tail) = samples.split_at_mut(y * width);
-            let (row, after) = tail.split_at_mut(width);
-            let left = before
-                .get(before.len().saturating_sub(width)..)
-                .filter(|s| !s.is_empty());
-            let right = after.get(..width);
-            let upper = left.or(right).expect("at least two rows");
-            let lower = right.or(left).expect("at least two rows");
-            if irreversible {
-                for ((value, &a), &b) in row.iter_mut().zip(upper).zip(lower) {
-                    *value -= ((a + b) * factor + (1 << 15)) >> 16;
-                }
-            } else if update {
-                for ((value, &a), &b) in row.iter_mut().zip(upper).zip(lower) {
-                    *value -= (a + b + 2) >> 2;
-                }
-            } else {
-                for ((value, &a), &b) in row.iter_mut().zip(upper).zip(lower) {
-                    *value += (a + b) >> 1;
-                }
-            }
-        }
-    }
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

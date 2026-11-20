@@ -38,7 +38,6 @@ verus = ["dep:vstd"]
 cooperative-deadlines = []
 pdf-mq-recovery = []
 incremental-input = []
-experimental-vector-wavelets = []
 
 [dependencies]
 vstd = { version = "=0.0.0-2026-10-04-0306", optional = true }
