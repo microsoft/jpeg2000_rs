@@ -13,11 +13,12 @@ part of that bounded maintenance release. The decoder manifest permits only
 crates.io publication; an upload still requires exact source/archive
 qualification and separately approved tag and publication requests.
 
-Version 0.2.1 corrects JP2 compatibility-list admission and adds bounded,
-reported PDF-only terminal-EOL and complete tile-part-count recovery.
+Version 0.2.2 adds verified performance improvements, valid empty-axis and
+mixed-resolution spatial-packet fixes, reserved header-marker handling,
+PIMA e-sRGB conversion, and narrow reported compatibility recovery.
 Irreversible numerical conventions are unchanged: known sample-intensity
 differences from OpenJPEG remain, and exact PDFium full-page rendering parity
-is not claimed. See the [0.2.1 notes](RELEASING.md#experimental-021-patch-release)
+is not claimed. See the [0.2.2 notes](RELEASING.md#experimental-022-patch-release)
 for the integration and validation boundaries.
 
 The library decodes raw codestreams and JP2/JPH containers, provides explicit
