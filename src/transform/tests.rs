@@ -2207,6 +2207,25 @@ fn row_major_vertical_lifting_matches_scalar_across_edges_and_large_values() {
                     reference_vertical(low_band, high_band, height, low_first, false, u64::MAX)
                 );
             }
+            for first in [-(1_i64 << 32), 1_i64 << 32, (1_i64 << 32) + 1] {
+                low[0] = first;
+                let low_band = WaveletBand {
+                    width,
+                    height: low_height,
+                    samples: &low,
+                };
+                let high_band = WaveletBand {
+                    width,
+                    height: high_height,
+                    samples: &high,
+                };
+                assert_eq!(
+                    observed_reconstruction(inverse_vertical_9_7(
+                        low_band, high_band, height, low_first, &limits,
+                    )),
+                    reference_vertical(low_band, high_band, height, low_first, true, u64::MAX)
+                );
+            }
         }
     }
 }
