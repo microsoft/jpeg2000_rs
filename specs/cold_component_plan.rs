@@ -55,7 +55,7 @@ pub(crate) proof fn part2_plan_after_grid_normal(size:&crate::codestream::ImageS
     styles:&crate::codestream::ComponentCodingStyles,quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,
     selection:(u16,u8),policy:(bool,u8,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid)
     requires part2_selection_tile_bounds(crate::codestream::selection_geometry_view(size),selection.0).is_ok(),
-        part2_packet_grid_from_components(size,styles,style.layers,limits,Some(selection.0),selection.1)==Ok(grid),
+        part2_spatial_packet_grid_from_components(size,styles,style.layers,limits,Some(selection.0),selection.1)==Ok(grid),
     ensures part2_cold_framed(|events|part2_plan_after_grid_run(size,style,styles,quantizations,roi,selection,policy,limits,grid,events),
         part2_progression_tile_plan_owned(size,style,styles,quantizations,roi,selection,policy,limits)),
 {
@@ -73,31 +73,31 @@ pub(crate) proof fn part2_plan_component_owner_refused(size:&crate::codestream::
     styles:&crate::codestream::ComponentCodingStyles,quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,
     selection:(u16,u8),policy:(bool,u8,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid)
     requires part2_selection_tile_bounds(crate::codestream::selection_geometry_view(size),selection.0).is_ok(),
-        part2_derived_grid_result(size,styles,style.layers,limits,Some(selection.0),selection.1,Ok(grid)),
+        part2_spatial_derived_grid_result(size,styles,style.layers,limits,Some(selection.0),selection.1,Ok(grid)),
         part2_component_capacity_result(part2_component_owner_context(size,style,styles,quantizations,roi,selection,policy),Err(crate::DecodeError::AllocationFailed)),
     ensures part2_grid_plan_result(size,style,styles,quantizations,roi,selection,policy,limits,Err(crate::DecodeError::AllocationFailed)),
 {
-    reveal(part2_grid_plan_result);reveal(part2_grid_plan_run);reveal(part2_derived_grid_result);reveal(part2_component_capacity_result);
+    reveal(part2_grid_plan_result);reveal(part2_grid_plan_run);reveal(part2_spatial_derived_grid_result);reveal(part2_component_capacity_result);
     let context=part2_component_owner_context(size,style,styles,quantizations,roi,selection,policy);
     let initial=Part2TilePlanBuffers {precincts:Seq::empty(),components:Seq::empty(),planned_code_blocks:0};
     part2_cold_bind(|events|part2_component_capacity_run(context,events),
         |_:(),rest|part2_component_plan_fold(size,style,styles,quantizations,roi,selection,policy,limits,grid,0,initial,rest),Err(crate::DecodeError::AllocationFailed),Err(crate::DecodeError::AllocationFailed));
     part2_decode_eta(|events|part2_plan_after_grid_run(size,style,styles,quantizations,roi,selection,policy,limits,grid,events),Err(crate::DecodeError::AllocationFailed));
-    part2_cold_bind(|events|part2_derived_grid_run(size,styles,style.layers,limits,Some(selection.0),selection.1,events),
+    part2_cold_bind(|events|part2_spatial_derived_grid_run(size,styles,style.layers,limits,Some(selection.0),selection.1,events),
         |grid:Part1PacketGrid,rest|part2_plan_after_grid_run(size,style,styles,quantizations,roi,selection,policy,limits,grid,rest),Ok(grid),Err(crate::DecodeError::AllocationFailed));
 }
 pub(crate) proof fn part2_plan_component_prefix(size:&crate::codestream::ImageSize,style:crate::codestream::CodingStyle,
     styles:&crate::codestream::ComponentCodingStyles,quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,
     selection:(u16,u8),policy:(bool,u8,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid)->(prefix:Seq<Part2JpipSnapshotEvent>)
     requires part2_selection_tile_bounds(crate::codestream::selection_geometry_view(size),selection.0).is_ok(),
-        part2_derived_grid_result(size,styles,style.layers,limits,Some(selection.0),selection.1,Ok(grid)),
+        part2_spatial_derived_grid_result(size,styles,style.layers,limits,Some(selection.0),selection.1,Ok(grid)),
         part2_component_capacity_result(part2_component_owner_context(size,style,styles,quantizations,roi,selection,policy),Ok(())),
     ensures forall|events| #[trigger] part2_grid_plan_run(size,style,styles,quantizations,roi,selection,policy,limits,prefix+events)
         ==part2_component_plan_fold(size,style,styles,quantizations,roi,selection,policy,limits,grid,0,
             Part2TilePlanBuffers {precincts:Seq::empty(),components:Seq::empty(),planned_code_blocks:0},events),
 {
-    reveal(part2_grid_plan_run);reveal(part2_derived_grid_result);reveal(part2_component_capacity_result);
-    let first=|events|part2_derived_grid_run(size,styles,style.layers,limits,Some(selection.0),selection.1,events);
+    reveal(part2_grid_plan_run);reveal(part2_spatial_derived_grid_result);reveal(part2_component_capacity_result);
+    let first=|events|part2_spatial_derived_grid_run(size,styles,style.layers,limits,Some(selection.0),selection.1,events);
     let second=|events|part2_component_capacity_run(part2_component_owner_context(size,style,styles,quantizations,roi,selection,policy),events);
     let before=part2_cold_witness(first,Ok(grid));let after=part2_cold_witness(second,Ok(()));
     assert forall|events:Seq<Part2JpipSnapshotEvent>|
