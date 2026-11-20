@@ -98,7 +98,7 @@ permissions before preparing any subsequent version.
 
 ## Experimental 0.2 release line
 
-The `release/0.2` decoder manifest is version 0.2.1 with
+The `release/0.2` decoder manifest is version 0.2.2 with
 `publish = ["crates-io"]`; `main` advances separately to unpublished 0.3
 development with publication disabled. This release includes
 the newer PDF recovery/centered-output APIs and default-off deadline,
@@ -117,6 +117,44 @@ Release preparation does not approve an immutable tag or upload. Qualify the
 reviewed candidate and actual integrated source/archive, then obtain the
 separate exact tag and publication approvals described above. No tag,
 workflow dispatch or upload follows merely from this manifest change.
+
+### Experimental 0.2.2 patch release
+
+This patch builds on the published experimental 0.2.1 baseline:
+
+- Valid single-row and large-origin codestreams can reconstruct empty
+  intermediate wavelet axes. Mixed-component/mixed-resolution RPCL, PCRL and
+  CPRL packet ordering uses actual reference-grid positions, not local
+  precinct ordinals.
+- Reserved parameterless FF30-FF3F header markers are skipped, including in
+  retained-header and recovery framing paths.
+- Legal JPX PIMA 7667:2001 e-sRGB uses the defined unsigned 10/12/16-bit
+  encoded-RGB conversion with default RGB clipping and documented half-up
+  sRGB16 quantization. Alpha associations remain explicitly unsupported.
+  The original nonconforming eight-bit EnumCS20 input stays rejected by
+  strict color APIs; explicit compatible APIs report their narrow
+  OpenJPEG-compatible RGB interpretation.
+- Existing explicit raw/PDF recovery can append a reported missing EOC only
+  at the validated finite final-part boundary. Strict entry points retain
+  their rejection; matching lengths alone do not prove packet completeness.
+- Verified exact-result fast paths cover checked-word HT operations, interior
+  MQ neighbor aggregation, replay-plane storage reuse, bounded Q16 wavelet
+  products and contiguous eight-bit color normalization. Unqualified
+  resumption/parallelism and below-threshold storage experiments are not
+  included.
+
+The experimental OpenJPEG-compatible C adapter remains a separate unpublished
+workspace package; this decoder publication neither publishes it nor adds an
+external decoder dependency or fallback.
+
+The patch retains the existing irreversible midpoint, inverse 9/7, MCT and
+rounding conventions and documented numerical differences. It does not claim
+bit-exact OpenJPEG/PDFium rendering, official conformance, selected-edition
+reconciliation, lifetime verification or measured source-function coverage.
+The existing default-off native-only profile boundaries and five documented
+Rust-only proof adapters are unchanged. Independent inputs and Verus model
+refinement remain distinct evidence; see [PROOFS.md](PROOFS.md),
+[SUPPORTED.md](SUPPORTED.md) and the existing 0.2.1 integration limits below.
 
 ### Experimental 0.2.1 patch release
 
