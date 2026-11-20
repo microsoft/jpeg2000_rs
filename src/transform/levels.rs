@@ -449,7 +449,6 @@ fn inverse_columns(
         not(feature = "cooperative-deadlines")
     ))]
     if kernel.is_none()
-        && !irreversible
         && low.width >= 16
         && high.width == low.width
         && output_height >= 2
@@ -458,13 +457,15 @@ fn inverse_columns(
         && checked_area(low.width, low.height) == Ok(low.samples.len())
         && checked_area(high.width, high.height) == Ok(high.samples.len())
         && checked_area(low.width, output_height) == Ok(output_len)
-        && low
-            .samples
-            .iter()
-            .chain(high.samples)
-            .all(|v| v.unsigned_abs() <= (1 << 60))
+        && {
+            let bound = if irreversible { 1 << 32 } else { 1 << 60 };
+            low.samples
+                .iter()
+                .chain(high.samples)
+                .all(|v| v.unsigned_abs() <= bound)
+        }
     {
-        inverse_vertical_rows(&mut samples, low, high, low_pass_first);
+        inverse_vertical_rows(&mut samples, low, high, low_pass_first, irreversible);
         return Ok(samples);
     }
     #[cfg(verus_keep_ghost)]
@@ -560,6 +561,7 @@ fn inverse_vertical_rows(
     low: WaveletBand<'_>,
     high: WaveletBand<'_>,
     low_first: bool,
+    irreversible: bool,
 ) {
     let width = low.width as usize;
     let height = samples.len() / width;
@@ -571,10 +573,18 @@ fn inverse_vertical_rows(
             high.samples
         };
         dst.copy_from_slice(&src[(i / 2) * width..(i / 2 + 1) * width]);
+        if irreversible {
+            let factor = crate::refinement::nine_seven_scale(i % 2 == parity);
+            for value in dst {
+                *value = (*value * factor + (1 << 15)) >> 16;
+            }
+        }
     }
-    // Independent columns share the same neighbors in adjacent rows.
-    // Bounded input keeps both lifting steps within i64 without lane checks.
-    for update in [true, false] {
+    // At |input| <= 2^32, scaling grows the bound by at most 3x and each
+    // fixed-point lift by at most 5x, including rounding. All products fit i64.
+    for stage in 0..if irreversible { 4 } else { 2 } {
+        let update = stage % 2 == 0;
+        let factor = crate::refinement::nine_seven_lift(stage);
         for y in (if update { parity } else { 1 - parity }..height).step_by(2) {
             let (before, tail) = samples.split_at_mut(y * width);
             let (row, after) = tail.split_at_mut(width);
@@ -584,7 +594,11 @@ fn inverse_vertical_rows(
             let right = after.get(..width);
             let upper = left.or(right).expect("at least two rows");
             let lower = right.or(left).expect("at least two rows");
-            if update {
+            if irreversible {
+                for ((value, &a), &b) in row.iter_mut().zip(upper).zip(lower) {
+                    *value -= ((a + b) * factor + (1 << 15)) >> 16;
+                }
+            } else if update {
                 for ((value, &a), &b) in row.iter_mut().zip(upper).zip(lower) {
                     *value -= (a + b + 2) >> 2;
                 }
