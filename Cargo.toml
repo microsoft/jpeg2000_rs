@@ -40,6 +40,7 @@ pdf-mq-recovery = []
 incremental-input = []
 experimental-word-refinement = []
 experimental-vector-wavelets = []
+experimental-contiguous-color = []
 
 [dependencies]
 vstd = { version = "=0.0.0-2026-10-04-0306", optional = true }

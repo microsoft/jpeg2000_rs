@@ -59,6 +59,30 @@ pub(crate) fn normalize_component(
         if let Err(error)=allocated {crate::specs::part2_color_normalize_storage_refused(storage_context,error);}
     }
     let mut output = allocated?;
+    #[cfg(all(feature = "experimental-contiguous-color", not(verus_keep_ghost)))]
+    {
+        let info = component.info();
+        if info.precision == 8
+            && !info.signed
+            && info.x_subsampling == 1
+            && info.y_subsampling == 1
+            && info.x_registration == 0
+            && info.y_registration == 0
+            && component.width() == width
+            && component.height() == height
+            && x_origin.checked_add(width).is_some()
+            && y_origin.checked_add(height).is_some()
+            && let TypedSamples::Unsigned(samples) = component.samples()
+            && samples.len() == count
+        {
+            if samples.iter().any(|&value| value > 255) {
+                return Err(invalid_color_input());
+            }
+            // 65535 / 255 is exactly 257, so the scalar rounding is redundant.
+            output.extend(samples.iter().map(|&value| value as u16 * 257));
+            return Ok(output);
+        }
+    }
     let mut pixel = 0_usize;
     #[cfg(verus_keep_ghost)]
     proof! {
