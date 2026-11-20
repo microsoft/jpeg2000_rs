@@ -11,14 +11,21 @@ use super::{color_specification_method, palette_view};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures color_specification_method(&result) == (ColorMethod::Enumerated { color_space }),
+))]
+pub(crate) const fn enumerated_color_specification(color_space: u32) -> ColorSpecification {
+    ColorSpecification {
+        method: ColorMethod::Enumerated { color_space },
+        precedence: 0,
+        approximation: 0,
+        icc_profile: None,
+    }
+}
+
 impl ColorSpecification {
     pub const fn enumerated(color_space: u32) -> Self {
-        Self {
-            method: ColorMethod::Enumerated { color_space },
-            precedence: 0,
-            approximation: 0,
-            icc_profile: None,
-        }
+        enumerated_color_specification(color_space)
     }
 
     #[cfg_attr(

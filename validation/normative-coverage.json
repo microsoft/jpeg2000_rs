@@ -4,6 +4,74 @@
   "scope": "Technical reference inventory; not exhaustive standards-clause coverage or a conformance claim.",
   "requirements": [
     {
+      "id": "part2-pima-esrgb-encoded-rgb-conversion",
+      "topic": "PIMA 7667:2001 section 4.1 and normative Annex A encoded-RGB default clipping for unsigned uniform 10/12/16-bit e-sRGB (T.801 Table M.25 EnumCS20). Exact source-derived scalar, complete raster/channel metadata, nominal sampling/registration, CDEF ordering, limits and ordered fallible storage outcomes. Half-up sRGB16 quantization is an implementation policy; alpha associations remain explicitly unsupported. Strict JP2 color profile validation excludes JP2-only EnumCS20 without changing native-plane APIs. Independent PIMA fixture regressions and source-model refinement are separate evidence, not exhaustive standards conformance.",
+      "implementation_refs": [
+        {"path": "src/color/conversion.rs", "symbol": "convert_jp2_color"},
+        {"path": "src/color/esrgb.rs", "symbol": "esrgb_sample_to_srgb16"},
+        {"path": "src/color/esrgb_image.rs", "symbol": "convert_pixel"},
+        {"path": "src/color/esrgb_image.rs", "symbol": "convert_esrgb_color"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2_color"},
+        {"path": "src/decode/api.rs", "symbol": "decode_jp2_color_selected"},
+        {"path": "src/decode/color_profile.rs", "symbol": "validate_esrgb_color_display_profile"}
+      ],
+      "contract_refs": [
+        {"path": "src/color/esrgb.rs", "symbol": "esrgb_sample_to_srgb16"},
+        {"path": "src/color/esrgb_image.rs", "symbol": "convert_esrgb_color"},
+        {"path": "src/decode/color_profile.rs", "symbol": "validate_esrgb_color_display_profile"}
+      ],
+      "spec_refs": [
+        {"path": "specs/esrgb.rs", "symbol": "color_esrgb_sample_to_srgb16"},
+        {"path": "specs/esrgb_image.rs", "symbol": "color_convert_esrgb"},
+        {"path": "specs/esrgb_image.rs", "symbol": "part2_esrgb_convert_requests"},
+        {"path": "specs/cold_color_conversion.rs", "symbol": "part2_color_convert_storage_run"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_esrgb_color_display_profile"}
+      ],
+      "proof_refs": [
+        {"path": "specs/esrgb.rs", "symbol": "color_esrgb_embedded_byte_roundtrip"},
+        {"path": "specs/esrgb_image.rs", "symbol": "part2_esrgb_plane_normal"},
+        {"path": "specs/esrgb_image.rs", "symbol": "part2_esrgb_plane_refused"},
+        {"path": "specs/esrgb_image.rs", "symbol": "part2_esrgb_child_error"},
+        {"path": "specs/container_colors.rs", "symbol": "part2_decode_color_profile_error"}
+      ],
+      "test_refs": [
+        {"path": "src/color/esrgb.rs", "symbol": "every_embedded_srgb_byte_recovers_exactly_at_every_pima_precision"},
+        {"path": "src/color/esrgb_image.rs", "symbol": "pima_images_clip_and_keep_fractional_codes_at_all_supported_precisions"},
+        {"path": "src/color/esrgb_image.rs", "symbol": "sampling_obeys_raw_origins_subsampling_and_registration"},
+        {"path": "src/color/esrgb_image.rs", "symbol": "every_reached_output_owner_can_refuse_and_retry_exactly"}
+      ]
+    },
+    {
+      "id": "part2-explicit-eight-bit-esrgb-compatibility",
+      "topic": "Explicit reported OpenJPEG-compatible RGB passthrough for three full-resolution unregistered unsigned 8-bit EnumCS20 planes; not a PIMA encoding or a strict-mode relaxation. Exact native-to-metadata-reparse-to-conversion caller composition, actual ordered storage/errors, sRGB16 image and observable assumption flag; every other case retains strict color conversion.",
+      "implementation_refs": [
+        {"path": "src/color/compatible.rs", "symbol": "convert_jp2_color_compatible"},
+        {"path": "src/decode/color_compatible.rs", "symbol": "decode_jp2_color_compatible"}
+      ],
+      "contract_refs": [
+        {"path": "src/color/compatible.rs", "symbol": "convert_jp2_color_compatible"},
+        {"path": "src/decode/color_compatible.rs", "symbol": "decode_jp2_color_compatible"}
+      ],
+      "spec_refs": [
+        {"path": "specs/color_compatible.rs", "symbol": "color_compatible_value"},
+        {"path": "specs/color_compatible.rs", "symbol": "color_compatible_run"},
+        {"path": "specs/color_compatible.rs", "symbol": "color_compatible_result"},
+        {"path": "specs/container_color_compatible.rs", "symbol": "compatible_decode_run"},
+        {"path": "specs/container_color_compatible.rs", "symbol": "compatible_decode_result"},
+        {"path": "specs/container_color_compatible.rs", "symbol": "compatible_decode_value"}
+      ],
+      "proof_refs": [
+        {"path": "specs/color_compatible.rs", "symbol": "color_compatible_actual"},
+        {"path": "specs/container_color_compatible.rs", "symbol": "compatible_after_native_actual"},
+        {"path": "specs/container_color_compatible.rs", "symbol": "compatible_decode_actual"}
+      ],
+      "test_refs": [
+        {"path": "src/color/compatible.rs", "symbol": "explicit_eight_bit_passthrough_matches_rgb_and_reports_assumption"},
+        {"path": "src/color/compatible.rs", "symbol": "precision_and_registration_do_not_trigger_blanket_fallback"},
+        {"path": "src/color/compatible.rs", "symbol": "compatible_conversion_preserves_output_limit_refusal"}
+      ]
+    },
+    {
       "id": "part9-complete-actual-automatic-progressive-public-result",
       "topic": "Complete actual automatic progressive update/update_selected and sole update_inner Result, image and final decoder/cache state from actual cache/codestream/caller options/selection/components. Existing automatic snapshot run and accepted full/selected raw image producer compute outputs, not supplied images/layouts/outcomes. Checked snapshot-first error projection/current-state framing, ready-None, metadata validity before no-advance, suppressed image production, image-error rollback and single successful layer commit retain exact status/previous/available/missing/image fields, codestream identity and immutable cache. Checked temporary/constructor/getter contracts preserve original native ownership/evaluation/drop order with no new domains or verifier settings. Caller-planned/#279 work unchanged. This completes the automatic-JPIP public group; semantic-container/public assembly remains a separate #130 follow-on.",
       "implementation_refs": [

@@ -4,6 +4,13 @@ use super::*;
 
 verus! {
 
+pub(crate) open spec fn part2_esrgb_color_display_profile(file:Part2RawJp2File)->Result<(),crate::DecodeError> {
+    if color_is_esrgb(part2_raw_associated_header(file.header).2)
+        && !part2_file_type_compatible(file.file_type,crate::jp2::BoxType::JPX_BRAND) {
+        Err(crate::DecodeError::UnsupportedColorConversion {reason:crate::UnsupportedColorConversion::EnumeratedColorSpace})
+    } else {Ok(())}
+}
+
 pub(crate) open spec fn part2_color_selection_size_run(
     size: Part2SelectionGeometry, components: Seq<crate::codestream::ComponentInfo>, count: u16,
     requested: Part2DecodeSelection, events: Seq<Part2JpipSnapshotEvent>,
@@ -214,6 +221,8 @@ pub(crate) open spec fn part2_color_file_cold_run(
 ) -> Part2ColdRun<Part2ConvertedImage> {
     if (jph && file.streams.len() != 1) || (!jph && part2_validate_jp2_display_profile(file).is_err()) {
         Some((Err(part2_container_error(0, crate::MalformedKind::InvalidProfile)), events))
+    } else if !jph && part2_esrgb_color_display_profile(file).is_err() {
+        Some((Err(part2_esrgb_color_display_profile(file).get_Err_0()),events))
     } else {
         match requested {
             None => part2_jpip_snapshot_bind(part2_decode_raw_value_cold_run(file.streams[0].1, limits, None, events),
@@ -284,6 +293,8 @@ pub(crate) proof fn part2_color_file_cold_normal(
 {
     if (jph && file.streams.len() != 1) || (!jph && part2_validate_jp2_display_profile(file).is_err()) {
         part2_cold_pure::<Part2ConvertedImage>(Err(part2_container_error(0, crate::MalformedKind::InvalidProfile)));
+    } else if !jph && part2_esrgb_color_display_profile(file).is_err() {
+        part2_cold_pure::<Part2ConvertedImage>(Err(part2_esrgb_color_display_profile(file).get_Err_0()));
     } else {
         match requested {
             None => {
@@ -343,6 +354,23 @@ pub(crate) proof fn part2_decode_color_inspection_error(
         Err(error), Err(error));
 }
 
+pub(crate) proof fn part2_decode_color_profile_error(
+    input:Seq<u8>,limits:&crate::ResourceLimits,requested:Option<Part2DecodeSelection>,
+    inspected:Part2RawInspectedContainer,error:crate::DecodeError,
+)
+    requires part2_inspection_cold_result(input,limits,true,Ok(inspected)),
+        part2_single_profile(inspected,false)==Ok(()),
+        part2_esrgb_color_display_profile(inspected.0)==Err(error),
+    ensures part2_decode_color_cold_result(input,limits,requested,false,Err(error)),
+{
+    reveal(part2_decode_color_cold_result);
+    part2_single_inspection_actual(input,limits,false,Ok(inspected));
+    part2_cold_pure::<Part2ConvertedImage>(Err(error));
+    part2_cold_bind(|events|part2_single_inspection_run(input,limits,false,events),
+        |value:Part2RawInspectedContainer,rest|part2_color_file_cold_run(value.0,limits,requested,false,rest),
+        Ok(inspected),Err(error));
+}
+
 pub(crate) proof fn part2_decode_color_source_error(
     input: Seq<u8>, limits: &crate::ResourceLimits, requested: Option<Part2DecodeSelection>, jph: bool,
     inspected: Part2RawInspectedContainer, expanded: Option<(Part2DecodeSelection, Seq<u32>)>,
@@ -351,6 +379,7 @@ pub(crate) proof fn part2_decode_color_source_error(
     requires if jph { part2_inspect_jph_cold_result(input, limits, Ok(inspected)) }
         else { part2_inspection_cold_result(input, limits, true, Ok(inspected)) },
         part2_single_profile(inspected, jph) == Ok(()),
+        jph || part2_esrgb_color_display_profile(inspected.0)==Ok(()),
         match requested {
             None => expanded.is_none() &&
                 part2_decode_raw_value_cold_result(inspected.0.streams[0].1, limits, None, Err(error)),
@@ -397,6 +426,7 @@ pub(crate) proof fn part2_decode_color_output_error(input:Seq<u8>,limits:&crate:
     inspected:Part2RawInspectedContainer,expanded:Option<(Part2DecodeSelection,Seq<u32>)>,image:Part1DecodedTypedImage,error:crate::DecodeError)
     requires if jph{part2_inspect_jph_cold_result(input,limits,Ok(inspected))}else{part2_inspection_cold_result(input,limits,true,Ok(inspected))},
         part2_single_profile(inspected,jph)==Ok(()),
+        jph || part2_esrgb_color_display_profile(inspected.0)==Ok(()),
         match requested {
             None=>expanded.is_none() && part2_decode_raw_value_cold_result(inspected.0.streams[0].1,limits,None,Ok(image))
                 &&part2_output_storage_result(Part2OutputStorageContext {image,header:part2_raw_associated_header(inspected.0.header).0,
@@ -444,6 +474,7 @@ pub(crate) proof fn part2_decode_color_conversion_error(input:Seq<u8>,limits:&cr
     inspected:Part2RawInspectedContainer,image:Part1DecodedTypedImage,mapped:Part1DecodedTypedImage,error:crate::DecodeError)
     requires if jph{part2_inspect_jph_cold_result(input,limits,Ok(inspected))}else{part2_inspection_cold_result(input,limits,true,Ok(inspected))},
         part2_single_profile(inspected,jph)==Ok(()),
+        jph || part2_esrgb_color_display_profile(inspected.0)==Ok(()),
         part2_decode_raw_value_cold_result(inspected.0.streams[0].1,limits,None,Ok(image)),
         part2_output_storage_result(Part2OutputStorageContext {image,header:part2_raw_associated_header(inspected.0.header).0,
             components:crate::limits::resource_component_limit(limits),maximum:crate::limits::resource_decoded_bytes_limit(limits)},Ok(mapped)),
@@ -493,6 +524,8 @@ pub(crate) open spec fn part2_decode_file_color(
     if (jph && file.streams.len() != 1)
         || (!jph && part2_validate_jp2_display_profile(file).is_err()) {
         Err(part2_container_error(0, crate::MalformedKind::InvalidProfile))
+    } else if !jph && part2_esrgb_color_display_profile(file).is_err() {
+        Err(part2_esrgb_color_display_profile(file).get_Err_0())
     } else {
         let header = part2_raw_associated_header(file.header);
         match requested {

@@ -67,6 +67,15 @@ pub closed spec fn part2_decode_single_cold_result(
 ) -> bool {
     part2_cold_framed(|events| part2_decode_single_cold_run(input, limits, selection, jph, events), result)
 }
+pub(crate) proof fn part2_decode_single_cold_frames(
+    input: Seq<u8>, limits: &crate::ResourceLimits, selection: Option<&crate::DecodeSelection>, jph: bool,
+    result: Result<Part1DecodedTypedImage, crate::DecodeError>,
+)
+    requires part2_decode_single_cold_result(input,limits,selection,jph,result),
+    ensures part2_cold_framed(|events|part2_decode_single_cold_run(input,limits,selection,jph,events),result),
+{
+    reveal(part2_decode_single_cold_result);
+}
 
 pub(crate) proof fn part2_single_inspection_actual(
     input: Seq<u8>, limits: &crate::ResourceLimits, jph: bool,

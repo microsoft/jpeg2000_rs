@@ -87,7 +87,8 @@ mod specs;
 mod proofs;
 
 pub use color::{
-    ConvertedChannel, ConvertedChannelType, ConvertedColorSpace, ConvertedImage, convert_jp2_color,
+    ColorRecovery, CompatibleColorImage, ConvertedChannel, ConvertedChannelType,
+    ConvertedColorSpace, ConvertedImage, convert_jp2_color, convert_jp2_color_compatible,
 };
 pub use decode::{
     Jp2DimensionInspection, Jp2DimensionRecoveredImage, Jp2DimensionRecoveredReconstructedImage,
@@ -99,8 +100,8 @@ pub use decode::{
     decode_codestream_reconstructed_recover_trailer_selected,
     decode_codestream_reconstructed_selected, decode_codestream_recover_present_tile_selected,
     decode_codestream_recover_trailer_selected, decode_codestream_selected, decode_jp2,
-    decode_jp2_color, decode_jp2_color_selected, decode_jp2_reconstructed,
-    decode_jp2_reconstructed_recover_dimensions,
+    decode_jp2_color, decode_jp2_color_compatible, decode_jp2_color_selected,
+    decode_jp2_reconstructed, decode_jp2_reconstructed_recover_dimensions,
     decode_jp2_reconstructed_recover_present_tile_selected,
     decode_jp2_reconstructed_recover_trailer_selected, decode_jp2_reconstructed_selected,
     decode_jp2_recover_dimensions, decode_jp2_recover_present_tile_selected,

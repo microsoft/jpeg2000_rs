@@ -1887,7 +1887,7 @@ fn conversion_validates_alpha_association_samples_and_output_bound() {
 #[test]
 fn esrgb_is_not_silently_relabelled_or_normalized_as_srgb() {
     let specification = ColorSpecification::enumerated(20);
-    for precision in [8, 10, 12, 16] {
+    for precision in [8, 9, 11, 13, 15] {
         let maximum = (1_u64 << precision) - 1;
         let input = image(
             3,

@@ -283,6 +283,11 @@ struct ValidatedSelection {
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod api;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod color_compatible;
+pub use color_compatible::decode_jp2_color_compatible;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod color_profile;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod pdf_compat;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod pdf_dimensions;
