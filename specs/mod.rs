@@ -1,6 +1,8 @@
 use vstd::arithmetic::power2::pow2;
 use vstd::prelude::*;
 
+mod esrgb;
+pub(crate) use esrgb::*;
 mod allocation;
 pub use allocation::*;
 mod cold_prepare_copies;
