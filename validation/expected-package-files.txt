@@ -182,6 +182,7 @@ specs/raw_decode.rs
 specs/raw_layout.rs
 specs/raw_recovery.rs
 specs/replay_finish.rs
+specs/rowwise_wavelet.rs
 specs/selected_reconstruction.rs
 specs/spatial_geometry.rs
 specs/spatial_grid_composition.rs
@@ -389,6 +390,7 @@ src/transform/levels.rs
 src/transform/output.rs
 src/transform/proof_support.rs
 src/transform/quantization.rs
+src/transform/rowwise.rs
 src/transform/tests.rs
 src/transform/wavelets.rs
 src/transform.rs

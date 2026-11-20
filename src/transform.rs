@@ -110,6 +110,8 @@ mod geometry;
 pub(crate) use geometry::transform_offset;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod levels;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod rowwise;
 pub(crate) use levels::inverse_empty_level;
 pub use levels::{
     inverse_horizontal_5_3, inverse_horizontal_9_7, inverse_horizontal_arbitrary,

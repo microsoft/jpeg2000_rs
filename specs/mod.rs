@@ -182,6 +182,8 @@ mod cold_quantization_outputs;
 pub use cold_quantization_outputs::*;
 mod cold_wavelet_planes;
 pub use cold_wavelet_planes::*;
+mod rowwise_wavelet;
+pub(crate) use rowwise_wavelet::*;
 mod cold_wavelet_prepare;
 pub use cold_wavelet_prepare::*;
 mod cold_wavelet_lines;

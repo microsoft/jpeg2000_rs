@@ -458,14 +458,53 @@ fn inverse_columns(
     kernel: Option<&ArbitraryKernel>,
     output_len: usize,
 ) -> Result<Vec<i64>, DecodeError> {
+    if !irreversible
+        && kernel.is_none()
+        && super::rowwise::eligible(low, high, output_height, low_pass_first, output_len)?
+    {
+        let result = super::rowwise::inverse(low, high, output_height, low_pass_first, output_len);
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_wavelet_columns_observed(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len,sequence_outcome(result));}
+        return result;
+    }
+    let result = inverse_columns_scalar(
+        low,
+        high,
+        output_height,
+        low_pass_first,
+        irreversible,
+        kernel,
+        output_len,
+    );
     #[cfg(verus_keep_ghost)]
-    proof! {crate::specs::part2_wavelet_columns_normal(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len);}
+    proof! {crate::specs::part2_wavelet_columns_observed(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len,sequence_outcome(result));}
+    result
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_wavelet_scalar_columns_result(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len,sequence_outcome(result)),
+        kernel.is_none() && sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part1_vertical_prefix(
+            wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,output_len,low.width as nat),
+        arbitrary_kernel_supplied(kernel) && sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part2_atk_vertical_prefix(
+            wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,arbitrary_kernel_option(kernel).unwrap(),output_len,low.width as nat),
+))]
+fn inverse_columns_scalar(
+    low: WaveletBand<'_>,
+    high: WaveletBand<'_>,
+    output_height: u32,
+    low_pass_first: bool,
+    irreversible: bool,
+    kernel: Option<&ArbitraryKernel>,
+    output_len: usize,
+) -> Result<Vec<i64>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::part2_wavelet_scalar_columns_normal(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len);}
     let allocated = crate::allocation::zero_i64_values(output_len);
     #[cfg(verus_keep_ghost)]
     proof! {
         let unit=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
         crate::specs::part2_wavelet_capacity_observed(crate::specs::Part2WaveletPlaneOwner::Columns,output_len as nat,unit);
-        if let Err(error)=allocated{crate::specs::part2_wavelet_columns_refused(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len,error);}
+        if let Err(error)=allocated{crate::specs::part2_wavelet_scalar_columns_refused(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len,error);}
     }
     let mut samples = allocated?;
     #[cfg(verus_keep_ghost)]
@@ -475,7 +514,7 @@ fn inverse_columns(
         verus_keep_ghost,
         verus_spec(
             invariant x <= low.width,
-            crate::specs::part2_wavelet_columns_result(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len,
+            crate::specs::part2_wavelet_scalar_columns_result(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len,
                 crate::specs::part2_wavelet_columns_value(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len)),
             kernel.is_none() ==> crate::specs::part1_vertical_prefix(
                 wavelet_band_view(low), wavelet_band_view(high), output_height, low_pass_first, irreversible,

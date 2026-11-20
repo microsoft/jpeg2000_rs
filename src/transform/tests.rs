@@ -1,6 +1,152 @@
 use super::*;
 
 #[test]
+fn rowwise_vertical_five_three_exact_boundaries_origins_and_single_output_owner() {
+    let limits = ResourceLimits::default();
+    let boundary = 1_i64 << 30;
+    let values = [
+        -boundary,
+        -boundary + 1,
+        -3,
+        -1,
+        0,
+        1,
+        3,
+        boundary - 1,
+        boundary,
+    ];
+    for width in [2, 3, 17, 1025] {
+        for height in [1, 2, 3, 6, 9] {
+            for first in [false, true] {
+                let low_height = geometry::low_count(height, first);
+                let a: Vec<_> = (0..width * low_height)
+                    .map(|i| values[i as usize % values.len()])
+                    .collect();
+                let b: Vec<_> = (0..width * (height - low_height))
+                    .map(|i| values[(i as usize + 3) % values.len()])
+                    .collect();
+                let low = WaveletBand {
+                    width,
+                    height: low_height,
+                    samples: &a,
+                };
+                let high = WaveletBand {
+                    width,
+                    height: height - low_height,
+                    samples: &b,
+                };
+                let length = width as usize * height as usize;
+                assert_eq!(
+                    rowwise::eligible(low, high, height, first, length),
+                    Ok(true)
+                );
+                let expected = reference_vertical(low, high, height, first, false, u64::MAX);
+                assert_eq!(
+                    crate::allocation::with_refusal(0, || inverse_vertical_5_3(
+                        low, high, height, first, &limits
+                    )),
+                    Err(DecodeError::AllocationFailed),
+                );
+                crate::allocation::with_refusal(1, || {
+                    assert_eq!(
+                        observed_reconstruction(inverse_vertical_5_3(
+                            low, high, height, first, &limits
+                        )),
+                        expected
+                    );
+                    assert_eq!(
+                        crate::allocation::empty_with_capacity::<u8>(1),
+                        Err(DecodeError::AllocationFailed)
+                    );
+                });
+                assert_eq!(low.samples, a);
+                assert_eq!(high.samples, b);
+            }
+        }
+    }
+}
+
+#[test]
+fn rowwise_vertical_fallback_keeps_scalar_refusal_and_error_order() {
+    let limits = ResourceLimits::default();
+    let kernel = ArbitraryKernel::for_test(true, 0, false, false, false, None, vec![]);
+    let boundary = 1_i64 << 30;
+    for values in [
+        [boundary + 1, -boundary - 1, 0, 0],
+        [i64::MAX, i64::MIN, 0, 0],
+        [7, -3, 0, 0],
+    ] {
+        // The last case has a surplus sample: the scalar adapter historically
+        // ignores it, so it must not be reclassified as invalid.
+        let low = WaveletBand {
+            width: 2,
+            height: 1,
+            samples: if values[0] == 7 {
+                &values[..3]
+            } else {
+                &values[..2]
+            },
+        };
+        let high = WaveletBand {
+            width: 2,
+            height: 1,
+            samples: &values[2..],
+        };
+        assert_eq!(rowwise::eligible(low, high, 2, true, 4), Ok(false));
+        let expected = reference_vertical(low, high, 2, true, false, u64::MAX);
+        for after in 0..4 {
+            assert_eq!(
+                crate::allocation::with_refusal(after, || inverse_vertical_5_3(
+                    low, high, 2, true, &limits
+                )),
+                Err(DecodeError::AllocationFailed)
+            );
+        }
+        assert_eq!(
+            observed_reconstruction(inverse_vertical_5_3(low, high, 2, true, &limits)),
+            expected
+        );
+    }
+    let low = WaveletBand {
+        width: 2,
+        height: 1,
+        samples: &[7, -3],
+    };
+    let high = WaveletBand {
+        width: 2,
+        height: 1,
+        samples: &[2, -1],
+    };
+    // Both independent 9/7 and arbitrary kernels retain all real line owners.
+    for after in 0..7 {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || inverse_vertical_9_7(
+                low, high, 2, true, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(
+            crate::allocation::with_refusal(after, || inverse_vertical_arbitrary(
+                low, high, 2, true, &kernel, &limits
+            )),
+            Err(DecodeError::AllocationFailed)
+        );
+    }
+    let capped = limits.with_maximum_decoded_bytes(8).unwrap();
+    let expected = inverse_vertical_5_3(low, high, 2, true, &capped).unwrap_err();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            inverse_vertical_5_3(low, high, 2, true, &capped),
+            Err(expected)
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn internal_empty_levels_validate_every_band_without_allocating_or_scanning() {
     let limits = ResourceLimits::default();
     for (width, height) in [(0, 0), (0, 7), (9, 0), (0, u32::MAX)] {

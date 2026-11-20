@@ -276,6 +276,21 @@ fn inverse_lifting_value(
     } else {
         samples[index - 1]
     };
+    inverse_lifting_neighbors(samples[index], left, right, step)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part1_lifting_sample(
+        seq![left, current, right], 1, false, lifting_step_view(step).0, lifting_step_view(step).1,
+    ),
+))]
+#[inline]
+pub(super) fn inverse_lifting_neighbors(
+    current: i64,
+    left: i64,
+    right: i64,
+    step: InverseLiftingStep,
+) -> Result<i64, DecodeError> {
     let sum = left.checked_add(right).ok_or_else(arithmetic_overflow)?;
     let adjustment = match step {
         InverseLiftingStep::Fixed(coefficient) => fixed_mul(sum, coefficient)?,
@@ -286,11 +301,11 @@ fn inverse_lifting_value(
         InverseLiftingStep::ReversiblePredict => crate::refinement::five_three_predict(sum),
     };
     if matches!(step, InverseLiftingStep::ReversiblePredict) {
-        samples[index]
+        current
             .checked_add(adjustment)
             .ok_or_else(arithmetic_overflow)
     } else {
-        samples[index]
+        current
             .checked_sub(adjustment)
             .ok_or_else(arithmetic_overflow)
     }
