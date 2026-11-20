@@ -16668,7 +16668,7 @@ def validate_normative_coverage(
                 + _coverage_call("crate::specs::part1_prepare_main_quantization", "initial_reader") + r"\s*;",
                 r"let\s+ghost\s+main_initial\s*=\s*" + raw_view + r"\s*;",
                 r"let\s+ghost\s+raw_main\s*=\s*" + raw_view + r"\s*;",
-                r"verus_spec\s*\(\s*invariant\s+initial_reader\s*==\s*" + initial_reader
+                r"verus_spec\s*\(\s*invariant_except_break\s+initial_reader\s*==\s*" + initial_reader
                 + r"\s*,\s*" + _coverage_call("crate::specs::part1_cold_main_prefix",
                     "initial_reader", _coverage_call("parser_view", r"&\s*parser"), raw_view)
                 + r"\s*,\s*" + _coverage_call("crate::specs::part1_cold_layout_result", "initial_reader",

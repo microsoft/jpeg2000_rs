@@ -38,15 +38,56 @@ pub(super) fn new_parser<'a>(
 }
 impl<'a> Parser<'a> {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (result, parser_view(final(self)))
+            == crate::specs::part1_skip_reserved_markers(parser_view(old(self))),
+            parser_view(final(self)).input == parser_view(old(self)).input,
+    ))]
+    pub(super) fn skip_reserved_markers(&mut self) -> Result<(), DecodeError> {
+        let mut remaining = self.input.len();
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost initial = parser_view(self); }
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(crate::specs::part1_skip_reserved_markers); }
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant initial == parser_view(old(self)),
+                initial.input == parser_view(self).input,
+                crate::specs::part1_skip_reserved_markers(initial)
+                    == crate::specs::part1_skip_reserved_markers_run(parser_view(self), remaining as nat),
+            decreases remaining,
+        ))]
+        loop {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part1_skip_reserved_markers);
+                reveal(crate::specs::part1_skip_reserved_markers_run);
+                reveal(crate::specs::part1_codestream_expect_standalone);
+                reveal(crate::specs::part1_codestream_peek_marker);
+            }
+            let marker = self.peek_marker()?;
+            if !matches!(marker, 0xff30..=0xff3f) {
+                return Ok(());
+            }
+            if remaining == 0 {
+                return Err(self.malformed_here(MalformedKind::InvalidMarkerLength));
+            }
+            remaining -= 1;
+            self.expect_standalone(marker)?;
+        }
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures (main_header_segment_outcome(result), parser_view(final(self)))
             == crate::specs::part1_read_tile_header_segment(parser_view(old(self))),
+            parser_view(final(self)).input == parser_view(old(self)).input,
     ))]
     pub(super) fn read_tile_header_segment(&mut self) -> Result<Option<Segment<'a>>, DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(crate::specs::part1_read_tile_header_segment);
+            reveal(crate::specs::part1_read_tile_header_segment_body);
             reveal(main_header_segment_outcome);
         }
+        self.skip_reserved_markers()?;
         let marker = self.peek_marker()?;
         if marker == SOD {
             self.expect_standalone(SOD)?;
@@ -75,6 +116,7 @@ impl<'a> Parser<'a> {
         ensures (main_header_segment_outcome(result), parser_view(final(self)), *final(main_header_segments))
             == crate::specs::part1_read_main_header_segment(
                 parser_view(old(self)), *old(main_header_segments)),
+            parser_view(final(self)).input == parser_view(old(self)).input,
     ))]
     pub(super) fn read_main_header_segment(
         &mut self,
@@ -83,8 +125,10 @@ impl<'a> Parser<'a> {
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(crate::specs::part1_read_main_header_segment);
+            reveal(crate::specs::part1_read_main_header_segment_body);
             reveal(main_header_segment_outcome);
         }
+        self.skip_reserved_markers()?;
         let marker = self.peek_marker()?;
         if marker == SOT {
             return Ok(None);
@@ -230,6 +274,7 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures (segment_outcome(result), parser_view(final(self))) == crate::specs::part1_codestream_read_segment(parser_view(old(self))),
+            parser_view(final(self)).input == parser_view(old(self)).input,
     ))]
     pub(super) fn read_segment(&mut self) -> Result<Segment<'a>, DecodeError> {
         #[cfg(verus_keep_ghost)]
@@ -275,6 +320,7 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures (result, parser_view(final(self))) == crate::specs::part1_codestream_expect_standalone(parser_view(old(self)), expected),
+            parser_view(final(self)).input == parser_view(old(self)).input,
     ))]
     pub(super) fn expect_standalone(&mut self, expected: u16) -> Result<(), DecodeError> {
         #[cfg(verus_keep_ghost)]
@@ -308,6 +354,7 @@ impl<'a> Parser<'a> {
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures (result, parser_view(final(self))) == crate::specs::part1_codestream_charge_work(parser_view(old(self)), amount),
+            parser_view(final(self)).input == parser_view(old(self)).input,
     ))]
     pub(super) fn charge_work(&mut self, amount: u64) -> Result<(), DecodeError> {
         #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]

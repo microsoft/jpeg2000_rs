@@ -6084,29 +6084,51 @@ fn sarah_engineering_nine_seven_coded_singleton_matches_actual_reference_pixels(
 
 #[test]
 fn top_level_raw_and_jp2_decode_packed_packet_headers() {
-    for ppm in [true, false] {
-        let mut codestream = prepared_codestream(1, 1, 1, &[0, 0x40], &[0]);
-        let cod = codestream
-            .windows(2)
-            .position(|window| window == 0xff52_u16.to_be_bytes())
-            .unwrap();
-        codestream[cod + 9] = 0;
-        let mut packed = pack_packet_header(codestream, ppm, &[0]);
-        if ppm {
-            let sot = packed
+    for reserved in [None].into_iter().chain((0xff30_u16..=0xff3f).map(Some)) {
+        for ppm in [true, false] {
+            let mut codestream = prepared_codestream(1, 1, 1, &[0, 0x40], &[0]);
+            let cod = codestream
                 .windows(2)
-                .position(|window| window == 0xff90_u16.to_be_bytes())
+                .position(|window| window == 0xff52_u16.to_be_bytes())
                 .unwrap();
-            packed.splice(sot..sot, segment(0xff57, &[0, 1, 1]));
-        }
+            codestream[cod + 9] = 0;
+            let mut packed = pack_packet_header(codestream, ppm, &[0]);
+            if ppm {
+                let sot = packed
+                    .windows(2)
+                    .position(|window| window == 0xff90_u16.to_be_bytes())
+                    .unwrap();
+                packed.splice(sot..sot, segment(0xff57, &[0, 1, 1]));
+            } else if reserved.is_some() {
+                packed = add_plt(packed, &[1]);
+            }
+            if let Some(marker) = reserved {
+                let sot = packed
+                    .windows(2)
+                    .position(|window| window == 0xff90_u16.to_be_bytes())
+                    .unwrap();
+                packed.splice(sot..sot, marker.to_be_bytes());
+                let sod = packed
+                    .windows(2)
+                    .position(|window| window == 0xff93_u16.to_be_bytes())
+                    .unwrap();
+                packed.splice(sod..sod, marker.to_be_bytes());
+                let sot = packed
+                    .windows(2)
+                    .position(|window| window == 0xff90_u16.to_be_bytes())
+                    .unwrap();
+                let tile_length = u32::try_from(packed.len() - 2 - sot).unwrap();
+                packed[sot + 6..sot + 10].copy_from_slice(&tile_length.to_be_bytes());
+            }
 
-        let raw = decode_codestream(&packed, &DecodeOptions::default()).unwrap();
-        assert_eq!(
-            raw.component(0).unwrap().samples(),
-            &crate::image::TypedSamples::Unsigned(vec![128])
-        );
-        let jp2 = jp2_for_codestream(&packed, 1, 1);
-        assert_eq!(decode_jp2(&jp2, &DecodeOptions::default()).unwrap(), raw);
+            let raw = decode_codestream(&packed, &DecodeOptions::default()).unwrap();
+            assert_eq!(
+                raw.component(0).unwrap().samples(),
+                &crate::image::TypedSamples::Unsigned(vec![128])
+            );
+            let jp2 = jp2_for_codestream(&packed, 1, 1);
+            assert_eq!(decode_jp2(&jp2, &DecodeOptions::default()).unwrap(), raw);
+        }
     }
 }
 

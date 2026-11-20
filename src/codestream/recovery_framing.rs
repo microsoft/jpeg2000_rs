@@ -84,9 +84,6 @@ impl<'a> Parser<'a> {
                 reveal_with_fuel(crate::specs::raw_recovery_main_loop, 1);
                 reveal(main_header_segment_outcome);
                 reveal(parser_view);
-                reveal(crate::specs::part1_read_main_header_segment);
-                reveal(crate::specs::part1_codestream_read_segment);
-                reveal(crate::specs::part1_codestream_charge_work);
             }
             let before = self.position;
             match self.read_main_header_segment(&mut count)? {
@@ -154,10 +151,6 @@ impl<'a> Parser<'a> {
                 reveal_with_fuel(crate::specs::raw_recovery_tile_loop, 1);
                 reveal(main_header_segment_outcome);
                 reveal(parser_view);
-                reveal(crate::specs::part1_read_tile_header_segment);
-                reveal(crate::specs::part1_codestream_read_segment);
-                reveal(crate::specs::part1_codestream_expect_standalone);
-                reveal(crate::specs::part1_codestream_charge_work);
             }
             let before = self.position;
             match self.read_tile_header_segment()? {
