@@ -341,6 +341,8 @@ mod execution;
 use execution::{decode_layout, decode_layout_selected};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod geometry;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+pub(crate) mod spatial;
 pub use geometry::{
     derive_component_resolution_geometry, derive_component_subbands, derive_packet_grid,
     quantization_step_for_subband,

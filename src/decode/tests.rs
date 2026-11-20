@@ -62,6 +62,70 @@ fn bitplane_initial_storage_raw_reference() -> [u8; 86] {
 }
 
 #[test]
+fn spatial_geometry_refusal_restores_and_cross_axis_scan_is_work_bounded() {
+    let bytes = bitplane_initial_storage_raw_reference();
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    let size = &layout.info.image_size;
+    let style = layout.info.coding_style;
+    let grid = PacketGrid::new(2, 1, 1, vec![1], &limits).unwrap();
+    let source = super::spatial::PacketSpatialStyles::Uniform(style);
+    let expected =
+        super::spatial::attach_packet_spatial_grid(grid.clone(), size, source, Some(0)).unwrap();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            super::spatial::attach_packet_spatial_grid(grid.clone(), size, source, Some(0)),
+            Err(DecodeError::AllocationFailed),
+        );
+        assert_eq!(
+            super::spatial::attach_packet_spatial_grid(grid.clone(), size, source, Some(0))
+                .unwrap(),
+            expected
+        );
+    });
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            super::spatial::attach_packet_spatial_grid(grid.clone(), size, source, Some(u16::MAX)),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidImageGeometry,
+                ..
+            }),
+        ));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+
+    let mut size = *size;
+    size.width = 64;
+    size.height = 64;
+    size.tile_width = 64;
+    size.tile_height = 64;
+    let mut style = style;
+    style.decomposition_levels = 1;
+    style.precinct_exponents[0] = (0, 6);
+    style.precinct_exponents[1] = (6, 0);
+    let tight = limits.with_maximum_work_units(1000).unwrap();
+    let grid = derive_packet_grid(&size, style, &tight).unwrap();
+    assert_eq!(
+        crate::packet::PacketIterator::new(&grid, ProgressionOrder::Pcrl).next_packet(),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            limit: 1000,
+            actual: 8192
+        }),
+    );
+    assert_eq!(
+        crate::packet::PacketIterator::new(&grid, ProgressionOrder::Lrcp)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .len(),
+        192,
+    );
+}
+
+#[test]
 fn bitplane_initial_storage_real_raw_selected_jp2_first_later_refusals_restore_images() {
     let reference = bitplane_initial_storage_raw_reference();
     let options = DecodeOptions::default();
@@ -6020,29 +6084,51 @@ fn sarah_engineering_nine_seven_coded_singleton_matches_actual_reference_pixels(
 
 #[test]
 fn top_level_raw_and_jp2_decode_packed_packet_headers() {
-    for ppm in [true, false] {
-        let mut codestream = prepared_codestream(1, 1, 1, &[0, 0x40], &[0]);
-        let cod = codestream
-            .windows(2)
-            .position(|window| window == 0xff52_u16.to_be_bytes())
-            .unwrap();
-        codestream[cod + 9] = 0;
-        let mut packed = pack_packet_header(codestream, ppm, &[0]);
-        if ppm {
-            let sot = packed
+    for reserved in [None].into_iter().chain((0xff30_u16..=0xff3f).map(Some)) {
+        for ppm in [true, false] {
+            let mut codestream = prepared_codestream(1, 1, 1, &[0, 0x40], &[0]);
+            let cod = codestream
                 .windows(2)
-                .position(|window| window == 0xff90_u16.to_be_bytes())
+                .position(|window| window == 0xff52_u16.to_be_bytes())
                 .unwrap();
-            packed.splice(sot..sot, segment(0xff57, &[0, 1, 1]));
-        }
+            codestream[cod + 9] = 0;
+            let mut packed = pack_packet_header(codestream, ppm, &[0]);
+            if ppm {
+                let sot = packed
+                    .windows(2)
+                    .position(|window| window == 0xff90_u16.to_be_bytes())
+                    .unwrap();
+                packed.splice(sot..sot, segment(0xff57, &[0, 1, 1]));
+            } else if reserved.is_some() {
+                packed = add_plt(packed, &[1]);
+            }
+            if let Some(marker) = reserved {
+                let sot = packed
+                    .windows(2)
+                    .position(|window| window == 0xff90_u16.to_be_bytes())
+                    .unwrap();
+                packed.splice(sot..sot, marker.to_be_bytes());
+                let sod = packed
+                    .windows(2)
+                    .position(|window| window == 0xff93_u16.to_be_bytes())
+                    .unwrap();
+                packed.splice(sod..sod, marker.to_be_bytes());
+                let sot = packed
+                    .windows(2)
+                    .position(|window| window == 0xff90_u16.to_be_bytes())
+                    .unwrap();
+                let tile_length = u32::try_from(packed.len() - 2 - sot).unwrap();
+                packed[sot + 6..sot + 10].copy_from_slice(&tile_length.to_be_bytes());
+            }
 
-        let raw = decode_codestream(&packed, &DecodeOptions::default()).unwrap();
-        assert_eq!(
-            raw.component(0).unwrap().samples(),
-            &crate::image::TypedSamples::Unsigned(vec![128])
-        );
-        let jp2 = jp2_for_codestream(&packed, 1, 1);
-        assert_eq!(decode_jp2(&jp2, &DecodeOptions::default()).unwrap(), raw);
+            let raw = decode_codestream(&packed, &DecodeOptions::default()).unwrap();
+            assert_eq!(
+                raw.component(0).unwrap().samples(),
+                &crate::image::TypedSamples::Unsigned(vec![128])
+            );
+            let jp2 = jp2_for_codestream(&packed, 1, 1);
+            assert_eq!(decode_jp2(&jp2, &DecodeOptions::default()).unwrap(), raw);
+        }
     }
 }
 

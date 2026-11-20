@@ -1,6 +1,73 @@
 use super::*;
 
 #[test]
+fn internal_empty_levels_validate_every_band_without_allocating_or_scanning() {
+    let limits = ResourceLimits::default();
+    for (width, height) in [(0, 0), (0, 7), (9, 0), (0, u32::MAX)] {
+        for low_x in [false, true] {
+            for low_y in [false, true] {
+                let lw = geometry::low_count(width, low_x);
+                let lh = geometry::low_count(height, low_y);
+                let level = WaveletLevel {
+                    ll: WaveletBand {
+                        width: lw,
+                        height: lh,
+                        samples: &[],
+                    },
+                    hl: WaveletBand {
+                        width: width - lw,
+                        height: lh,
+                        samples: &[],
+                    },
+                    lh: WaveletBand {
+                        width: lw,
+                        height: height - lh,
+                        samples: &[],
+                    },
+                    hh: WaveletBand {
+                        width: width - lw,
+                        height: height - lh,
+                        samples: &[],
+                    },
+                    output_width: width,
+                    output_height: height,
+                    low_pass_first_x: low_x,
+                    low_pass_first_y: low_y,
+                };
+                for irreversible in [false, true] {
+                    crate::allocation::with_refusal(0, || {
+                        let plane = inverse_empty_level(level, irreversible, &limits).unwrap();
+                        assert_eq!((plane.width(), plane.height()), (width, height));
+                        assert!(plane.samples().is_empty());
+                        assert_eq!(plane.fraction_bits(), if irreversible { 16 } else { 0 });
+                        assert_eq!(
+                            crate::allocation::empty_with_capacity::<u8>(1),
+                            Err(DecodeError::AllocationFailed)
+                        );
+                    });
+                }
+                assert_eq!(
+                    inverse_level_5_3(level, &limits).unwrap_err(),
+                    invalid_transform()
+                );
+                let mut invalid = level;
+                invalid.hh.width = invalid.hh.width.checked_add(1).unwrap();
+                assert_eq!(
+                    inverse_empty_level(invalid, false, &limits).unwrap_err(),
+                    invalid_transform()
+                );
+                let mut invalid = level;
+                invalid.ll.samples = &[1];
+                assert_eq!(
+                    inverse_empty_level(invalid, false, &limits).unwrap_err(),
+                    invalid_transform()
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn arbitrary_q32_unit_scaling_and_signed_rounding_are_exact() {
     for value in [i64::MIN, i64::MIN + 1, -65_536, -1, 0, 1, 65_536, i64::MAX] {
         assert_eq!(fixed_mul_q32(value, 1_i64 << 32), Ok(value));

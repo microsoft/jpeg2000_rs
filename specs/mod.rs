@@ -43,6 +43,12 @@ mod packet_orchestration;
 pub use packet_orchestration::*;
 mod packet_progression;
 pub use packet_progression::*;
+mod packet_spatial;
+pub use packet_spatial::*;
+mod spatial_geometry;
+pub use spatial_geometry::*;
+mod spatial_grid_composition;
+pub use spatial_grid_composition::*;
 mod packet_tile;
 pub use packet_tile::*;
 mod packet_boundaries;
@@ -4036,9 +4042,14 @@ pub open spec fn part2_kernel_inverse_vertical(
 pub open spec fn part2_kernel_inverse_level(
     level: Part1WaveletLevel, reversible: bool, kernel: Option<Part2RawKernel>, maximum: u64,
 ) -> Part1ReconstructionResult {
-    match kernel {
-        None => part1_inverse_level(level, !reversible, maximum),
-        Some(kernel) => part2_atk_inverse_level(level, !kernel.0, kernel, maximum),
+    if level.4 == 0 || level.5 == 0 {
+        part1_inverse_empty_level(level,
+            match kernel { None => !reversible, Some(kernel) => !kernel.0 }, maximum)
+    } else {
+        match kernel {
+            None => part1_inverse_level(level, !reversible, maximum),
+            Some(kernel) => part2_atk_inverse_level(level, !kernel.0, kernel, maximum),
+        }
     }
 }
 
@@ -10287,7 +10298,7 @@ pub open spec fn part2_progression_tile_plan_owned(
 ) -> Result<Part2ProgressionTilePlan, crate::DecodeError> {
     match part2_selection_tile_bounds(crate::codestream::selection_geometry_view(size), selection.0) {
         Err(error) => Err(error),
-        Ok(_) => match part2_packet_grid_from_components(size, styles, coding_style.layers, limits, Some(selection.0), selection.1) {
+        Ok(_) => match part2_spatial_packet_grid_from_components(size, styles, coding_style.layers, limits, Some(selection.0), selection.1) {
             Err(error) => Err(error),
             Ok(grid) => part2_tile_plan_components(size, coding_style, styles, quantizations, roi, selection, policy, limits, grid, 0,
                 Part2TilePlanBuffers { precincts: Seq::empty(), components: Seq::empty(), planned_code_blocks: 0 }),
@@ -17898,20 +17909,43 @@ pub open spec fn part1_validate_band(band: Part1WaveletBand, width: u32, height:
 }
 
 pub open spec fn part1_validate_level(level: Part1WaveletLevel) -> Result<(), crate::DecodeError> {
+    if level.4 == 0 || level.5 == 0 {
+        Err(part1_transform_error(false))
+    } else {
+        part1_validate_level_bands(level)
+    }
+}
+
+pub open spec fn part1_validate_level_bands(level: Part1WaveletLevel) -> Result<(), crate::DecodeError> {
     let low_width = part1_low_count(level.4, level.6);
     let high_width = (level.4 - low_width) as u32;
     let low_height = part1_low_count(level.5, level.7);
     let high_height = (level.5 - low_height) as u32;
-    if level.4 == 0 || level.5 == 0 {
-        Err(part1_transform_error(false))
-    } else {
-        match part1_validate_band(level.0, low_width, low_height) {
+    match part1_validate_band(level.0, low_width, low_height) {
             Err(error) => Err(error),
             Ok(()) => match part1_validate_band(level.1, high_width, low_height) {
                 Err(error) => Err(error),
                 Ok(()) => match part1_validate_band(level.2, low_width, high_height) {
                     Err(error) => Err(error),
                     Ok(()) => part1_validate_band(level.3, high_width, high_height),
+                },
+            },
+    }
+}
+
+pub open spec fn part1_inverse_empty_level(
+    level: Part1WaveletLevel, irreversible: bool, maximum: u64,
+) -> Part1ReconstructionResult {
+    if level.4 != 0 && level.5 != 0 {
+        Err(part1_transform_error(false))
+    } else {
+        match part1_validate_level_bands(level) {
+            Err(error) => Err(error),
+            Ok(()) => match part1_transform_area(level.4, level.5) {
+                Err(error) => Err(error),
+                Ok(length) => match part1_quantization_budget(length as nat, maximum) {
+                    Err(error) => Err(error),
+                    Ok(()) => Ok((level.4, level.5, if irreversible { 16u8 } else { 0u8 }, Seq::empty())),
                 },
             },
         }

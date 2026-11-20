@@ -13,6 +13,8 @@ pub struct Part1PacketGrid {
     pub precinct_offsets: Seq<usize>,
     pub candidate_count: u64,
     pub packet_count: u64,
+    pub spatial: Option<super::Part1PacketSpatialGrid>,
+    pub maximum_work_units: u64,
 }
 
 pub struct Part1PacketIterator {
@@ -186,6 +188,7 @@ pub open spec fn part1_packet_grid_new(
                                     layers,components,resolutions,component_resolutions,precinct_counts:counts,
                                     precinct_offsets:summary.offsets,maximum_precincts_per_resolution:summary.maximum,
                                     packet_count:(summary.total*layers) as u64,candidate_count:candidates as u64,
+                                    spatial:None,maximum_work_units:crate::limits::resource_work_limit(limits),
                                 })}
                             }
                         },
@@ -455,7 +458,7 @@ pub open spec fn part1_packet_candidate_dimensions(
     let l = grid.layers as u64;
     let r = grid.resolutions as u64;
     let c = grid.components as u64;
-    let p = grid.maximum_precincts_per_resolution as u64;
+    let p = super::part1_packet_position_count(grid, order);
     match order {
         crate::codestream::ProgressionOrder::Lrcp => seq![l,r,c,p],
         crate::codestream::ProgressionOrder::Rlcp => seq![r,l,c,p],
@@ -478,11 +481,16 @@ pub open spec fn part1_packet_candidate(
                 crate::codestream::ProgressionOrder::Pcrl => (v[3],v[2],v[1],v[0]),
                 crate::codestream::ProgressionOrder::Cprl => (v[3],v[2],v[0],v[1]),
             };
-            if l > u16::MAX || r > u8::MAX || c > u16::MAX || p > u32::MAX {
+            if l > u16::MAX || r > u8::MAX || c > u16::MAX {
                 Err(ht_reader_error(crate::MalformedKind::ArithmeticOverflow))
-            } else { Ok(crate::packet::PacketCoordinate {
-                layer:l as u16, resolution:r as u8, component:c as u16, precinct:p as u32,
-            }) }
+            } else {
+                match super::part1_packet_candidate_precinct(grid,order,c,r,p) {
+                    Err(error)=>Err(error),
+                    Ok(precinct)=>Ok(crate::packet::PacketCoordinate {
+                        layer:l as u16, resolution:r as u8, component:c as u16, precinct,
+                    }),
+                }
+            }
         },
     }
 }
@@ -496,7 +504,7 @@ pub open spec fn part1_packet_window_count(grid: Part1PacketGrid, record: crate:
         let components = if record.component_end < record.component_start { 0nat }
             else { (record.component_end - record.component_start) as nat };
         let second = first * components;
-        let third = second * grid.maximum_precincts_per_resolution as nat;
+        let third = second * super::part1_packet_position_count(grid,record.progression_order) as nat;
         if first > u64::MAX || second > u64::MAX || third > u64::MAX {
             Err(ht_reader_error(crate::MalformedKind::ArithmeticOverflow))
         } else { Ok(third as u64) }
@@ -515,16 +523,27 @@ pub open spec fn part1_packet_window_candidate(
             components:(record.component_end - record.component_start) as u16,
             ..grid
         };
-        match part1_packet_candidate(local_grid, record.progression_order, candidate) {
+        match part1_packet_unravel(candidate,part1_packet_candidate_dimensions(local_grid,record.progression_order)) {
             Err(error) => Err(error),
-            Ok(local) => if local.resolution as nat + record.resolution_start as nat > u8::MAX
-                || local.component as nat + record.component_start as nat > u16::MAX {
-                Err(ht_reader_error(crate::MalformedKind::ArithmeticOverflow))
-            } else { Ok(crate::packet::PacketCoordinate {
-                resolution:(local.resolution + record.resolution_start) as u8,
-                component:(local.component + record.component_start) as u16,
-                ..local
-            }) },
+            Ok(v) => {
+                let (l,r,c,p) = match record.progression_order {
+                    crate::codestream::ProgressionOrder::Lrcp => (v[0],v[1],v[2],v[3]),
+                    crate::codestream::ProgressionOrder::Rlcp => (v[1],v[0],v[2],v[3]),
+                    crate::codestream::ProgressionOrder::Rpcl => (v[3],v[0],v[2],v[1]),
+                    crate::codestream::ProgressionOrder::Pcrl => (v[3],v[2],v[1],v[0]),
+                    crate::codestream::ProgressionOrder::Cprl => (v[3],v[2],v[0],v[1]),
+                };
+                let resolution=r as nat+record.resolution_start as nat;
+                let component=c as nat+record.component_start as nat;
+                if resolution>u64::MAX || component>u64::MAX || l>u16::MAX || resolution>u8::MAX || component>u16::MAX {
+                    Err(ht_reader_error(crate::MalformedKind::ArithmeticOverflow))
+                }else{match super::part1_packet_candidate_precinct(grid,record.progression_order,component as u64,resolution as u64,p) {
+                    Err(error)=>Err(error),
+                    Ok(precinct)=>Ok(crate::packet::PacketCoordinate {
+                        layer:l as u16,resolution:resolution as u8,component:component as u16,precinct,
+                    }),
+                }}
+            },
         }
     }
 }
@@ -532,10 +551,14 @@ pub open spec fn part1_packet_window_candidate(
 #[verifier::opaque]
 pub open spec fn part1_packet_iterator_next(state: Part1PacketIterator)
     -> (Result<Option<crate::packet::PacketCoordinate>, crate::DecodeError>, Part1PacketIterator)
-    decreases if state.candidate_index >= state.grid.candidate_count { 0nat }
-        else { (state.grid.candidate_count - state.candidate_index) as nat },
+    decreases match super::part1_packet_candidate_count(state.grid,state.order) {
+        Err(_)=>0nat,
+        Ok(count)=>if state.candidate_index>=count{0nat}else{(count-state.candidate_index) as nat},
+    },
 {
-    if state.candidate_index >= state.grid.candidate_count { (Ok(None), state) }
+    match super::part1_packet_candidate_count(state.grid,state.order) {
+    Err(error)=>(Err(error),state),
+    Ok(count)=>if state.candidate_index >= count { (Ok(None), state) }
     else {
         let candidate = state.candidate_index;
         let state = Part1PacketIterator { candidate_index:(candidate + 1) as u64, ..state };
@@ -551,7 +574,7 @@ pub open spec fn part1_packet_iterator_next(state: Part1PacketIterator)
                     else { (Ok(Some(coordinate)),state) }
                 },
             },
-        }
+        }}
     }
 }
 

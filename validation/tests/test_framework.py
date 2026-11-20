@@ -1782,7 +1782,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_complete_actual_component_packet_grid_producer_and_limits(self):
         self._assert_complete_packet_contract_bindings(
             {"part2-complete-native-component-packet-grid"},
-            framework._PACKET_GRID_PRODUCER_CONTRACTS, 3,
+            framework._PACKET_GRID_PRODUCER_CONTRACTS, 5,
         )
 
     def test_inventory_binds_complete_raw_subband_admission_and_quantization_boundaries(self):
@@ -7345,7 +7345,7 @@ class FrameworkTests(WorkingFiles):
         source = framework.ROOT / "src/codestream/layout.rs"
         original = source.read_text()
         read_text = Path.read_text
-        start = original.index("invariant_except_break")
+        start = original.index("invariant_except_break", original.index("let ghost initial_persistent_state"))
         end = original.index("decreases input_length", start)
         block = original[start:end]
         for before in (
@@ -7510,6 +7510,8 @@ class FrameworkTests(WorkingFiles):
             changes.append(original[:start] + block.replace(argument, "unrelated", 1) + original[end:])
         for before, after in (
             ("let ghost initial_reader = parser_view(&self);", "let ghost initial_reader = unrelated;"),
+            ("invariant_except_break\n                    initial_reader",
+             "invariant\n                    initial_reader"),
             ("reader: parser_view(&parser),", "reader: unrelated,"),
             ("mct: mct_parameters_view(&main_mct_parameters),", "mct: unrelated,"),
             ("ppm_frames: packed_header_frames_view(ppm_frames@)", "ppm_frames: Seq::empty()"),
@@ -10002,6 +10004,35 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "executable Verus contract"):
                 framework.validate_normative_coverage(data)
 
+    def test_inventory_empty_wavelet_level_requires_exact_projection_model_and_band_link(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part1-complete-standard-wavelet-planes"
+        ]
+        framework.validate_normative_coverage(coverage)
+        source = framework.ROOT / "src/transform/levels.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("reconstruction_outcome(result)", "reconstruction_outcome(unrelated)"),
+            ("crate::specs::part1_inverse_empty_level(", "crate::specs::part1_inverse_level("),
+        ):
+            modified = original.replace(before, after, 1)
+            self.assertNotEqual(modified, original)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
+                framework.validate_normative_coverage(coverage)
+        coverage["requirements"][0]["implementation_refs"].remove(
+            {"path": "src/transform/geometry.rs", "symbol": "validate_level_bands"}
+        )
+        with self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+            framework.validate_normative_coverage(coverage)
+
     def test_inventory_wavelet_planes_require_actual_prior_rows_matrix_tail_and_first_normal(self):
         coverage=json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         data=dict(coverage,requirements=[e for e in coverage["requirements"] if e["id"]=="part1-complete-standard-wavelet-planes"])
@@ -10816,8 +10847,8 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_geometry_storage.rs", "part2_geometry_descriptors_run", "SelectedResolutions", "ComponentResolutions"),
             ("specs/cold_uniform_geometry.rs", "part2_uniform_geometry_after_capacity", "part2_uniform_geometry_counts(", "supplied_counts("),
             ("src/decode/geometry.rs", "prepare_component_resolution_counts", "empty_with_capacity(usize::from(components))", "empty_with_capacity(1)"),
-            ("src/decode/geometry.rs", "derive_packet_grid_for", "empty_with_capacity(capacity)", "empty_with_capacity(1)"),
-            ("src/decode/geometry.rs", "derive_packet_grid_for_components", "empty_with_capacity(capacity)", "empty_with_capacity(1)"),
+            ("src/decode/geometry.rs", "derive_packet_grid_counts_for", "empty_with_capacity(capacity)", "empty_with_capacity(1)"),
+            ("src/decode/geometry.rs", "derive_packet_grid_counts_for_components", "empty_with_capacity(capacity)", "empty_with_capacity(1)"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()

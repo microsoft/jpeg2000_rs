@@ -11,7 +11,9 @@ pub(crate) open spec fn part2_wavelet_request_run(request:Part2WaveletRequest,re
     match request{
         Part2WaveletRequest::Horizontal {low,high,width,first}=>part2_wavelet_horizontal_run(low,high,width,first,irreversible,kernel,maximum,calls),
         Part2WaveletRequest::Vertical {low,high,height,first}=>part2_wavelet_vertical_run(low,high,height,first,irreversible,kernel,maximum,calls),
-        Part2WaveletRequest::Level {level}=>part2_wavelet_level_run(level,irreversible,kernel,maximum,calls),
+        Part2WaveletRequest::Level {level}=>if level.4==0 || level.5==0 {
+            Some((part1_inverse_empty_level(level,irreversible,maximum),calls))
+        }else{part2_wavelet_level_run(level,irreversible,kernel,maximum,calls)},
     }
 }
 pub(crate) open spec fn part2_wavelet_request_value(request:Part2WaveletRequest,reversible:bool,kernel:Option<Part2RawKernel>,maximum:u64)->Part1ReconstructionResult {
@@ -19,7 +21,9 @@ pub(crate) open spec fn part2_wavelet_request_value(request:Part2WaveletRequest,
     match request{
         Part2WaveletRequest::Horizontal {low,high,width,first}=>part2_wavelet_horizontal_value(low,high,width,first,irreversible,kernel,maximum),
         Part2WaveletRequest::Vertical {low,high,height,first}=>part2_wavelet_vertical_value(low,high,height,first,irreversible,kernel,maximum),
-        Part2WaveletRequest::Level {level}=>part2_wavelet_level_value(level,irreversible,kernel,maximum),
+        Part2WaveletRequest::Level {level}=>if level.4==0 || level.5==0 {
+            part1_inverse_empty_level(level,irreversible,maximum)
+        }else{part2_wavelet_level_value(level,irreversible,kernel,maximum)},
     }
 }
 pub(crate) open spec fn part2_wavelet_resolution_admit(before:Part1PrepareFold,bands:Seq<Part1WorkingSubbandModel>,geometry:Seq<crate::decode::SubbandGeometry>,
@@ -106,14 +110,18 @@ pub(crate) proof fn part2_wavelet_request_normal(request:Part2WaveletRequest,rev
             part2_wavelet_horizontal_frames(low,high,width,first,irreversible,kernel,maximum,part2_wavelet_horizontal_value(low,high,width,first,irreversible,kernel,maximum));},
         Part2WaveletRequest::Vertical {low,high,height,first}=>{part2_wavelet_vertical_normal(low,high,height,first,irreversible,kernel,maximum);
             part2_wavelet_vertical_frames(low,high,height,first,irreversible,kernel,maximum,part2_wavelet_vertical_value(low,high,height,first,irreversible,kernel,maximum));},
-        Part2WaveletRequest::Level {level}=>{part2_wavelet_level_normal(level,irreversible,kernel,maximum);part2_wavelet_level_frames(level,irreversible,kernel,maximum,part2_wavelet_level_value(level,irreversible,kernel,maximum));},
+        Part2WaveletRequest::Level {level}=>{if level.4==0 || level.5==0 {
+            part2_tier1_storage_pure(part1_inverse_empty_level(level,irreversible,maximum));
+        }else{part2_wavelet_level_normal(level,irreversible,kernel,maximum);part2_wavelet_level_frames(level,irreversible,kernel,maximum,part2_wavelet_level_value(level,irreversible,kernel,maximum));}},
     }
 }
 pub(crate) proof fn part2_wavelet_request_observed(request:Part2WaveletRequest,reversible:bool,kernel:Option<Part2RawKernel>,maximum:u64,result:Part1ReconstructionResult)
     requires match request{
         Part2WaveletRequest::Horizontal {low,high,width,first}=>part2_wavelet_horizontal_result(low,high,width,first,match kernel{None=>!reversible,Some(kernel)=>!kernel.0},kernel,maximum,result),
         Part2WaveletRequest::Vertical {low,high,height,first}=>part2_wavelet_vertical_result(low,high,height,first,match kernel{None=>!reversible,Some(kernel)=>!kernel.0},kernel,maximum,result),
-        Part2WaveletRequest::Level {level}=>part2_wavelet_level_result(level,match kernel{None=>!reversible,Some(kernel)=>!kernel.0},kernel,maximum,result),
+        Part2WaveletRequest::Level {level}=>if level.4==0 || level.5==0 {
+            result==part1_inverse_empty_level(level,match kernel{None=>!reversible,Some(kernel)=>!kernel.0},maximum)
+        }else{part2_wavelet_level_result(level,match kernel{None=>!reversible,Some(kernel)=>!kernel.0},kernel,maximum,result)},
     },
     ensures part2_tier1_storage_framed(|calls|part2_wavelet_request_run(request,reversible,kernel,maximum,calls),result),
 {
@@ -121,7 +129,9 @@ pub(crate) proof fn part2_wavelet_request_observed(request:Part2WaveletRequest,r
     match request{
         Part2WaveletRequest::Horizontal {low,high,width,first}=>{part2_wavelet_horizontal_frames(low,high,width,first,irreversible,kernel,maximum,result);},
         Part2WaveletRequest::Vertical {low,high,height,first}=>{part2_wavelet_vertical_frames(low,high,height,first,irreversible,kernel,maximum,result);},
-        Part2WaveletRequest::Level {level}=>{part2_wavelet_level_frames(level,irreversible,kernel,maximum,result);},
+        Part2WaveletRequest::Level {level}=>{if level.4==0 || level.5==0 {
+            part2_tier1_storage_pure(result);
+        }else{part2_wavelet_level_frames(level,irreversible,kernel,maximum,result);}},
     }
 }
 pub(crate) proof fn part2_wavelet_resolution_normal(before:Part1PrepareFold,bands:Seq<Part1WorkingSubbandModel>,geometry:Seq<crate::decode::SubbandGeometry>,
