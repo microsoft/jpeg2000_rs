@@ -3184,8 +3184,8 @@ pub proof fn production_color_contiguous_u8_step(
     assert(crate::specs::color_pixel_coordinates(pixel, component.width as usize) == Ok((cx, cy)));
     let abs_x = (x_origin + cx) as u32;
     let abs_y = (y_origin + cy) as u32;
-    assert(x_origin as int <= abs_x as int < x_origin as int + w);
-    assert(y_origin as int <= abs_y as int < y_origin as int + h);
+    assert(x_origin as int <= (abs_x as int) < x_origin as int + w);
+    assert(y_origin as int <= (abs_y as int) < y_origin as int + h);
     production_color_unit_coordinate(x_origin);
     production_color_unit_coordinate(y_origin);
     production_color_unit_coordinate(abs_x);
