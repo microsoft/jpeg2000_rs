@@ -195,15 +195,24 @@ pub(crate) proof fn rowwise_lift_prefix(samples:Seq<i64>,target:bool,kind:u8,cou
         Seq::new(samples.len(),|i:int|if i<count{part1_lifting_sample(samples,i as nat,target,kind,0).get_Ok_0()}else{samples[i]})),
     decreases count,
 {
+    rowwise_lift_prefix_with_factor(samples,target,kind,0,count);
+}
+pub(crate) proof fn rowwise_lift_prefix_with_factor(samples:Seq<i64>,target:bool,kind:u8,factor:i64,count:nat)
+    requires count<=samples.len(),
+        forall|i:nat| i<samples.len() ==> #[trigger] part1_lifting_sample(samples,i,target,kind,factor).is_ok(),
+    ensures part1_lifting_prefix(samples,target,kind,factor,count)==(Ok(()),
+        Seq::new(samples.len(),|i:int|if i<count{part1_lifting_sample(samples,i as nat,target,kind,factor).get_Ok_0()}else{samples[i]})),
+    decreases count,
+{
     reveal_with_fuel(part1_lifting_prefix,2);
     if count>0{
-        rowwise_lift_prefix(samples,target,kind,(count-1) as nat);
-        assert(part1_lifting_sample(samples,(count-1) as nat,target,kind,0).is_ok());
-        assert(Seq::new(samples.len(),|i:int|if i<count-1{part1_lifting_sample(samples,i as nat,target,kind,0).get_Ok_0()}else{samples[i]})
-            .update(count-1,part1_lifting_sample(samples,(count-1) as nat,target,kind,0).get_Ok_0())
-            =~= Seq::new(samples.len(),|i:int|if i<count{part1_lifting_sample(samples,i as nat,target,kind,0).get_Ok_0()}else{samples[i]}));
+        rowwise_lift_prefix_with_factor(samples,target,kind,factor,(count-1) as nat);
+        assert(part1_lifting_sample(samples,(count-1) as nat,target,kind,factor).is_ok());
+        assert(Seq::new(samples.len(),|i:int|if i<count-1{part1_lifting_sample(samples,i as nat,target,kind,factor).get_Ok_0()}else{samples[i]})
+            .update(count-1,part1_lifting_sample(samples,(count-1) as nat,target,kind,factor).get_Ok_0())
+            =~= Seq::new(samples.len(),|i:int|if i<count{part1_lifting_sample(samples,i as nat,target,kind,factor).get_Ok_0()}else{samples[i]}));
     }else{
-        assert(samples =~= Seq::new(samples.len(),|i:int|if i<count{part1_lifting_sample(samples,i as nat,target,kind,0).get_Ok_0()}else{samples[i]}));
+        assert(samples =~= Seq::new(samples.len(),|i:int|if i<count{part1_lifting_sample(samples,i as nat,target,kind,factor).get_Ok_0()}else{samples[i]}));
     }
 }
 pub(crate) proof fn rowwise_singleton_lift(samples:Seq<i64>,target:bool,kind:u8)

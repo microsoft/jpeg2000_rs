@@ -146,11 +146,19 @@ fn rowwise_vertical_fallback_keeps_scalar_refusal_and_error_order() {
         height: 1,
         samples: &[2, -1],
     };
-    // Both independent 9/7 and arbitrary kernels retain all real line owners.
+    // Out-of-range Q16 and arbitrary kernels retain all real line owners.
+    let fixed_fallback = WaveletBand {
+        samples: &[boundary + 1, -3],
+        ..low
+    };
     for after in 0..7 {
         assert_eq!(
             crate::allocation::with_refusal(after, || inverse_vertical_9_7(
-                low, high, 2, true, &limits
+                fixed_fallback,
+                high,
+                2,
+                true,
+                &limits
             )),
             Err(DecodeError::AllocationFailed)
         );
@@ -160,6 +168,22 @@ fn rowwise_vertical_fallback_keeps_scalar_refusal_and_error_order() {
             )),
             Err(DecodeError::AllocationFailed)
         );
+    }
+    let numeric_low = WaveletBand {
+        samples: &[i64::MAX, 0],
+        ..low
+    };
+    let numeric = reference_vertical(numeric_low, high, 2, true, true, u64::MAX);
+    assert_eq!(numeric, Err(arithmetic_overflow()));
+    for after in 0..7 {
+        let actual = crate::allocation::with_refusal(after, || {
+            inverse_vertical_9_7(numeric_low, high, 2, true, &limits)
+        });
+        if after < 4 {
+            assert_eq!(actual, Err(DecodeError::AllocationFailed));
+        } else {
+            assert_eq!(observed_reconstruction(actual), numeric);
+        }
     }
     let capped = limits.with_maximum_decoded_bytes(8).unwrap();
     let expected = inverse_vertical_5_3(low, high, 2, true, &capped).unwrap_err();
@@ -173,6 +197,103 @@ fn rowwise_vertical_fallback_keeps_scalar_refusal_and_error_order() {
             Err(DecodeError::AllocationFailed)
         );
     });
+}
+
+#[test]
+fn rowwise_vertical_nine_seven_preserves_q16_stages_bounds_and_singleton_fallback() {
+    let limits = ResourceLimits::default();
+    let bound = 1_i64 << 30;
+    let values = [
+        -bound,
+        -bound + 1,
+        -65537,
+        -1,
+        0,
+        1,
+        65537,
+        bound - 1,
+        bound,
+    ];
+    for width in [2, 3, 17] {
+        for height in [2, 3, 6, 9] {
+            for first in [false, true] {
+                let low_height = geometry::low_count(height, first);
+                let a: Vec<_> = (0..width * low_height)
+                    .map(|i| values[i as usize % values.len()])
+                    .collect();
+                let b: Vec<_> = (0..width * (height - low_height))
+                    .map(|i| values[(i as usize + 4) % values.len()])
+                    .collect();
+                let low = WaveletBand {
+                    width,
+                    height: low_height,
+                    samples: &a,
+                };
+                let high = WaveletBand {
+                    width,
+                    height: height - low_height,
+                    samples: &b,
+                };
+                let expected = reference_vertical(low, high, height, first, true, u64::MAX);
+                assert!(expected.is_ok());
+                assert_eq!(
+                    crate::allocation::with_refusal(0, || inverse_vertical_9_7(
+                        low, high, height, first, &limits
+                    )),
+                    Err(DecodeError::AllocationFailed)
+                );
+                crate::allocation::with_refusal(1, || {
+                    assert_eq!(
+                        observed_reconstruction(inverse_vertical_9_7(
+                            low, high, height, first, &limits
+                        )),
+                        expected
+                    );
+                    assert_eq!(
+                        crate::allocation::copy_i64_values(&[1]),
+                        Err(DecodeError::AllocationFailed)
+                    );
+                });
+                assert_eq!(low.samples, a.as_slice());
+                assert_eq!(high.samples, b.as_slice());
+            }
+        }
+        for first in [false, true] {
+            let a = [
+                -3, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67,
+            ];
+            let low = WaveletBand {
+                width,
+                height: u32::from(first),
+                samples: if first { &a[..width as usize] } else { &[] },
+            };
+            let high = WaveletBand {
+                width,
+                height: u32::from(!first),
+                samples: if first { &[] } else { &a[..width as usize] },
+            };
+            let expected = reference_vertical(low, high, 1, first, true, u64::MAX);
+            let requests = 1 + 2 * width as usize;
+            for after in 0..requests {
+                assert_eq!(
+                    crate::allocation::with_refusal(after, || inverse_vertical_9_7(
+                        low, high, 1, first, &limits
+                    )),
+                    Err(DecodeError::AllocationFailed)
+                );
+            }
+            crate::allocation::with_refusal(requests, || {
+                assert_eq!(
+                    observed_reconstruction(inverse_vertical_9_7(low, high, 1, first, &limits)),
+                    expected
+                );
+                assert_eq!(
+                    crate::allocation::copy_i64_values(&[1]),
+                    Err(DecodeError::AllocationFailed)
+                );
+            });
+        }
+    }
 }
 
 #[test]

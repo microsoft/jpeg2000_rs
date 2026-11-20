@@ -41,22 +41,33 @@ an all-feature Verus proof. Full source-function coverage remains `not-measured`
 
 ### Allocation-aware reversible vertical traversal
 
-The default 5/3 vertical dispatcher uses `transform/rowwise.rs` only for exact
+The default standard vertical dispatcher uses `transform/rowwise.rs` only for exact
 rectangular borrowed bands, width at least two, nonzero output height, and
 coefficients in the inclusive range `[-2^30, 2^30]`. Eligibility allocates
-nothing. Other geometry, surplus or missing samples, larger values, all 9/7
-calls, and arbitrary kernels retain the original checked column path.
+nothing. The independent 9/7 child additionally requires height at least two;
+9/7 singletons retain the scalar path. Other geometry, surplus or missing
+samples, larger values, and arbitrary kernels retain the original checked column path.
 Public geometry, checked area and decoded-byte admission still precede dispatch.
 
 The eligible path reserves the full output once, interleaves borrowed rows
 directly into that owner, then updates contiguous rows across independent
 columns. It neither gathers columns nor owns line scratch. The shared scalar
-neighbor helper preserves update-before-predict order, symmetric endpoints,
+neighbor helpers preserve update-before-predict order, symmetric endpoints,
 signed shifts and the high-only singleton half. Conservative intermediate
 bounds are `2^31` after update and `2^32` after predict; scalar normal-result
-specifications are unchanged.
+specifications are unchanged. The shared bounded reversible leaf performs raw
+`i64` additions and shifts after these bounds are proved, removing per-cell
+overflow error branches without removing the checked fallback.
 
-`specs/rowwise_wavelet.rs` describes that traversal and its single actual
+The 9/7 child shares the actual scalar Q16 multiplication and fixed-neighbor
+helpers. It scales low then high parity and performs all four fixed lifts in
+the original order, without floating point or reassociation. Its conservative
+uniform bounds are `2^32` after both scaling passes, then `2^35`, `2^38`,
+`2^41` and `2^44`. Products, the positive Q16 rounding bias, arithmetic shifts
+and every subtraction fit the original checked integer range on admitted input.
+
+`specs/rowwise_wavelet.rs` and `specs/rowwise_fixed_wavelet.rs` describe those
+independently bounded traversals and their single actual
 `Columns` capacity event. The existing cold plane/level composition selects it
 using the same eligibility predicate, rather than inventing the removed gather
 and interleave reservations. Refusal at the sole reservation returns
@@ -68,7 +79,7 @@ relaxing existing scalar tests.
 
 In the separate native deadline profile, preflight checks every 1024 inspected
 coefficients, interleave copies at most 1024 coefficients between checks, and
-lifting checks each row and every 1024 columns. Singleton shifts are also
+scaling/lifting checks each row and every 1024 samples. Singleton 5/3 shifts are also
 periodically checked. This is cooperative work granularity, not a hard latency
 guarantee. Focused evidence does not establish full source/archive qualification
 or a performance adoption decision.

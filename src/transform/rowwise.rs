@@ -10,6 +10,10 @@ use vstd::prelude::*;
 // Two reversible stages grow this bound to at most 2^32, including rounding.
 const INPUT_BOUND: i64 = 1_073_741_824;
 
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod fixed;
+pub(super) use fixed::inverse as inverse_fixed;
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == Ok(crate::specs::rowwise_bounded(samples@)),
 ))]
@@ -72,13 +76,14 @@ pub(super) fn eligible(
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires crate::specs::rowwise_eligible(
         wavelet_band_view(low), wavelet_band_view(high), height, first, length),
-    ensures crate::specs::rowwise_result(wavelet_band_view(low), wavelet_band_view(high),
-        height, first, length, sequence_outcome(result)),
-        sequence_outcome(result) != Err(DecodeError::AllocationFailed) ==>
-            sequence_outcome(result) == crate::specs::part1_vertical_prefix(
-                wavelet_band_view(low), wavelet_band_view(high), height, first, false, length, low.width as nat),
+    ensures match result{
+        Err(error)=>error==DecodeError::AllocationFailed
+            && crate::specs::part2_wavelet_capacity_result(crate::specs::Part2WaveletPlaneOwner::Columns,length as nat,Err(error)),
+        Ok(values)=>values@==crate::specs::rowwise_interleaved(wavelet_band_view(low),wavelet_band_view(high),height,first)
+            && crate::specs::part2_wavelet_capacity_result(crate::specs::Part2WaveletPlaneOwner::Columns,length as nat,Ok(())),
+    },
 ))]
-pub(super) fn inverse(
+fn assemble(
     low: WaveletBand<'_>,
     high: WaveletBand<'_>,
     height: u32,
@@ -89,17 +94,16 @@ pub(super) fn inverse(
     crate::deadline::checkpoint()?;
     #[cfg(verus_keep_ghost)]
     proof! {
+        crate::specs::rowwise_geometry(wavelet_band_view(low),wavelet_band_view(high),height,first,length);
+        assert(length>0) by(nonlinear_arith)
+            requires low.width>=2,height>0,(low.width as int)*(height as int)==length;
         crate::specs::rowwise_interleaved_properties(wavelet_band_view(low),wavelet_band_view(high),height,first,length);
-        crate::specs::rowwise_equivalent(wavelet_band_view(low),wavelet_band_view(high),height,first,length);
     }
     let allocated = crate::allocation::empty_with_capacity(length);
     #[cfg(verus_keep_ghost)]
     proof! {
         let unit=match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())};
         crate::specs::part2_wavelet_capacity_observed(crate::specs::Part2WaveletPlaneOwner::Columns,length as nat,unit);
-        if let Err(error)=allocated{
-            crate::specs::rowwise_observed(wavelet_band_view(low),wavelet_band_view(high),height,first,length,Err(error));
-        }
     }
     let mut output = allocated?;
     let width = low.width as usize;
@@ -156,9 +160,54 @@ pub(super) fn inverse(
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(output@ =~= assembled);
+        crate::specs::part2_wavelet_capacity_observed(crate::specs::Part2WaveletPlaneOwner::Columns,length as nat,Ok(()));
+    }
+    Ok(output)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires crate::specs::rowwise_eligible(
+        wavelet_band_view(low), wavelet_band_view(high), height, first, length),
+    ensures crate::specs::rowwise_result(wavelet_band_view(low), wavelet_band_view(high),
+        height, first, length, sequence_outcome(result)),
+        sequence_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            sequence_outcome(result) == crate::specs::part1_vertical_prefix(
+                wavelet_band_view(low), wavelet_band_view(high), height, first, false, length, low.width as nat),
+))]
+pub(super) fn inverse(
+    low: WaveletBand<'_>,
+    high: WaveletBand<'_>,
+    height: u32,
+    first: bool,
+    length: usize,
+) -> Result<Vec<i64>, DecodeError> {
+    let rows = assemble(low, high, height, first, length);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=rows{
+            crate::specs::rowwise_observed(wavelet_band_view(low),wavelet_band_view(high),height,first,length,Err(error));
+        }
+    }
+    let mut output = rows?;
+    let width = low.width as usize;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost assembled=crate::specs::rowwise_interleaved(wavelet_band_view(low),wavelet_band_view(high),height,first);}
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::rowwise_geometry(wavelet_band_view(low),wavelet_band_view(high),height,first,length);
         crate::specs::rowwise_interleaved_properties(wavelet_band_view(low),wavelet_band_view(high),height,first,length);
+        assert(output@==assembled);
+        assert(assembled.len()==length);
+        assert(width as int==low.width as int);
     }
     if height == 1 {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(length==width) by(nonlinear_arith)
+                requires height==1,(low.width as int)*(height as int)==length,width==low.width;
+            assert(output.len()==width);
+            assert(assembled.len()==width);
+        }
         if !first {
             let mut x = 0;
             #[cfg_attr(verus_keep_ghost, verus_spec(

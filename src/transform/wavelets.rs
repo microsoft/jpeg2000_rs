@@ -406,7 +406,8 @@ pub(super) fn scale_parity(
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part1_fixed_product(value, factor),
 ))]
-fn fixed_mul(value: i64, factor: i64) -> Result<i64, DecodeError> {
+#[inline]
+pub(super) fn fixed_mul(value: i64, factor: i64) -> Result<i64, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { assert(FIXED_ONE == 65536) by(compute); }
     // Two signed 32-bit operands leave room for the Q16 rounding bias.

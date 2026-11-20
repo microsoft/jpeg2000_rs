@@ -8443,6 +8443,8 @@ _WAVELET_PLANE_GUARDS = {
     ("specs/cold_wavelet_planes.rs", "part2_wavelet_columns_run"): (
         "!irreversible && kernel.is_none() && rowwise_eligible(low,high,height,first,length)",
         "rowwise_run(low,high,height,first,length,calls)",
+        "irreversible && kernel.is_none() && height>1 && rowwise_eligible(low,high,height,first,length)",
+        "rowwise_fixed_run(low,high,height,first,length,calls)",
         "part2_wavelet_scalar_columns_run(low,high,height,first,irreversible,kernel,length,calls)",
     ),
     ("specs/cold_wavelet_planes.rs", "part2_wavelet_scalar_columns_run"): (
@@ -8452,6 +8454,16 @@ _WAVELET_PLANE_GUARDS = {
     ("specs/rowwise_wavelet.rs", "rowwise_run"): (
         "Part2WaveletPlaneOwner::Columns,length as nat,calls",
         "Some((Ok(rowwise_output(low,high,height,first)),rest))",
+    ),
+    ("specs/rowwise_fixed_wavelet.rs", "rowwise_fixed_run"): (
+        "Part2WaveletPlaneOwner::Columns,length as nat,calls",
+        "Some((Ok(rowwise_fixed_output(low,high,height,first)),rest))",
+    ),
+    ("specs/rowwise_fixed_wavelet.rs", "rowwise_fixed_output"): (
+        "rowwise_interleaved(low,high,height,first)",
+        "rowwise_scaled(samples,low.0 as nat,first,part1_nine_seven_scale(true))",
+        "rowwise_scaled(a,low.0 as nat,!first,part1_nine_seven_scale(false))",
+        "rowwise_fixed_lifts(b,low.0 as nat,height as nat,first,4)",
     ),
     ("specs/rowwise_wavelet.rs", "rowwise_eligible"): (
         "low.0>=2 && height>0", "low.0==high.0", "low.1==part1_low_count(height,first)",
@@ -8487,17 +8499,28 @@ _WAVELET_PLANE_NATIVE_ORDER = {
     ),
     ("src/transform/levels.rs", "inverse_columns"): (
         "!irreversible", "kernel.is_none()", "super::rowwise::eligible(",
-        "super::rowwise::inverse(", "inverse_columns_scalar(",
+        "super::rowwise::inverse(", "if irreversible", "output_height > 1",
+        "super::rowwise::inverse_fixed(", "inverse_columns_scalar(",
     ),
     ("src/transform/levels.rs", "inverse_columns_scalar"): (
         "crate::allocation::zero_i64_values(output_len)", "let mut samples = allocated?",
         "inverse_column_pair(", "store_column(&mut samples",
     ),
-    ("src/transform/rowwise.rs", "inverse"): (
+    ("src/transform/rowwise.rs", "assemble"): (
         "crate::allocation::empty_with_capacity(length)", "let mut output = allocated?",
-        "append_row(&mut output", "if height == 1", "output[x] >>= 1",
+        "append_row(&mut output", "Ok(output)",
+    ),
+    ("src/transform/rowwise.rs", "inverse"): (
+        "assemble(low, high, height, first, length)", "let mut output = rows?",
+        "if height == 1", "output[x] >>= 1",
         "lift_rows(&mut output, width, height as usize, first, false)?",
         "lift_rows(&mut output, width, height as usize, !first, true)?",
+    ),
+    ("src/transform/rowwise/fixed.rs", "inverse"): (
+        "assemble(low, high, height, first, length)", "let mut output = rows?",
+        "scale_rows(&mut output, width, height as usize, first, true)?",
+        "scale_rows(&mut output, width, height as usize, !first, false)?",
+        "while stage < 4", "lift_rows(&mut output, width, height as usize, target, stage)?",
     ),
     ("src/transform/levels.rs", "inverse_level"): (
         "validate_level(level)?", "validate_output_size(output_len, limits)?", "let low_capacity = checked_area(",
@@ -8508,6 +8531,7 @@ _WAVELET_PLANE_NATIVE_ORDER = {
 _WAVELET_PLANE_TESTS = {
     ("src/transform/tests.rs", "rowwise_vertical_five_three_exact_boundaries_origins_and_single_output_owner"),
     ("src/transform/tests.rs", "rowwise_vertical_fallback_keeps_scalar_refusal_and_error_order"),
+    ("src/transform/tests.rs", "rowwise_vertical_nine_seven_preserves_q16_stages_bounds_and_singleton_fallback"),
     ("src/transform/tests.rs", "wavelet_plane_storage_standard_level_first_later_owners_exact_reference_and_restore"),
     ("src/transform/tests.rs", "wavelet_plane_storage_empty_no_request_geometry_budget_and_numerical_error_order"),
     ("src/transform/tests.rs", "wavelet_plane_storage_actual_custom_kernel_level_rows_columns_and_restore"),

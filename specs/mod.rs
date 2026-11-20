@@ -184,6 +184,8 @@ mod cold_wavelet_planes;
 pub use cold_wavelet_planes::*;
 mod rowwise_wavelet;
 pub(crate) use rowwise_wavelet::*;
+mod rowwise_fixed_wavelet;
+pub(crate) use rowwise_fixed_wavelet::*;
 mod cold_wavelet_prepare;
 pub use cold_wavelet_prepare::*;
 mod cold_wavelet_lines;

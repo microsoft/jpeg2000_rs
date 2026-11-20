@@ -467,6 +467,17 @@ fn inverse_columns(
         proof! {crate::specs::part2_wavelet_columns_observed(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len,sequence_outcome(result));}
         return result;
     }
+    if irreversible
+        && kernel.is_none()
+        && output_height > 1
+        && super::rowwise::eligible(low, high, output_height, low_pass_first, output_len)?
+    {
+        let result =
+            super::rowwise::inverse_fixed(low, high, output_height, low_pass_first, output_len);
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_wavelet_columns_observed(wavelet_band_view(low),wavelet_band_view(high),output_height,low_pass_first,irreversible,arbitrary_kernel_option(kernel),output_len,sequence_outcome(result));}
+        return result;
+    }
     let result = inverse_columns_scalar(
         low,
         high,
