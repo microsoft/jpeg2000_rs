@@ -1,6 +1,10 @@
 use vstd::arithmetic::power2::pow2;
 use vstd::prelude::*;
 
+mod esrgb;
+pub use esrgb::*;
+mod esrgb_image;
+pub use esrgb_image::*;
 mod allocation;
 pub use allocation::*;
 mod cold_prepare_copies;
@@ -21,6 +25,10 @@ mod cold_color_storage;
 pub use cold_color_storage::*;
 mod cold_color_conversion;
 pub use cold_color_conversion::*;
+mod color_compatible;
+pub(crate) use color_compatible::*;
+mod container_color_compatible;
+pub(crate) use container_color_compatible::*;
 mod cold_layer_metadata;
 pub use cold_layer_metadata::*;
 mod cold_composition_storage;
@@ -5244,6 +5252,10 @@ pub open spec fn color_output_format(method: crate::jp2::ColorMethod)
     -> Result<(usize, crate::color::ConvertedColorSpace, bool), crate::DecodeError>
 {
     match method {
+        crate::jp2::ColorMethod::Enumerated { color_space: 20 } =>
+            Err(crate::DecodeError::UnsupportedColorConversion {
+                reason: crate::UnsupportedColorConversion::EnumeratedColorSpace,
+            }),
         crate::jp2::ColorMethod::Unspecified => Err(crate::DecodeError::UnsupportedColorConversion {
             reason: crate::UnsupportedColorConversion::UnspecifiedColorSpace,
         }),
@@ -5266,7 +5278,9 @@ pub open spec fn color_convert_jp2(
     components: Seq<Part1TypedComponentModel>, definitions: Seq<Seq<ColorDefinition>>,
     geometry: ColorGeometry, method: crate::jp2::ColorMethod, byte_limit: u64, work_limit: u64,
 ) -> Part2ConvertedImageResult {
-    if geometry.0 == 0 || geometry.1 == 0 { Err(part2_color_input_error()) }
+    if color_is_esrgb(method) {
+        color_convert_esrgb((geometry,components,definitions),byte_limit,work_limit)
+    } else if geometry.0 == 0 || geometry.1 == 0 { Err(part2_color_input_error()) }
     else {
         match color_output_format(method) {
             Err(error) => Err(error),

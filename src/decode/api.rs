@@ -1059,6 +1059,15 @@ pub fn decode_jp2_color(
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
     validate_jp2_display_profile(inspected.file())?;
+    let profile = super::color_profile::validate_esrgb_color_display_profile(inspected.file());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=profile {
+            crate::specs::part2_decode_color_profile_error(input@,crate::options::decode_options_limits(options),
+                None,jp2::raw_inspected_container_view(&inspected),error);
+        }
+    }
+    profile?;
     let codestream = inspected.file().codestream(0)?.data();
     let decoded = match decode_codestream(codestream, options) {
         Ok(value) => value,
@@ -1136,6 +1145,15 @@ pub fn decode_jp2_color_selected(
     #[cfg(verus_keep_ghost)]
     proof! { jp2::raw_render_file_known(jp2::raw_inspected_file_reference(&inspected)); }
     validate_jp2_display_profile(inspected.file())?;
+    let profile = super::color_profile::validate_esrgb_color_display_profile(inspected.file());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=profile {
+            crate::specs::part2_decode_color_profile_error(input@,crate::options::decode_options_limits(options),
+                Some(crate::options::decode_selection_view(selection)),jp2::raw_inspected_container_view(&inspected),error);
+        }
+    }
+    profile?;
     let codestream = inspected.file().codestream(0)?.data();
     let (expanded, target) = match color_selection(codestream, selection, options.limits()) {
         Ok(value) => value,

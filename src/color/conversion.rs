@@ -39,6 +39,9 @@ pub fn convert_jp2_color(
     color: &ColorSpecification,
     limits: &ResourceLimits,
 ) -> Result<ConvertedImage, DecodeError> {
+    if matches!(color.method(), ColorMethod::Enumerated { color_space: 20 }) {
+        return super::esrgb_image::convert_esrgb_color(image, limits);
+    }
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost input = crate::image::typed_image_component_views(image);
@@ -171,6 +174,7 @@ pub fn convert_jp2_color(
             verus_keep_ghost,
             verus_spec(
                 invariant pixel <= pixel_count,
+                    !crate::specs::color_is_esrgb(crate::jp2::color_specification_method(color)),
                     storage_context==(crate::specs::Part2ColorConvertContext {
                         image:(geometry,input,crate::image::typed_image_definition_views(image)),method:crate::jp2::color_specification_method(color),
                         bytes:crate::limits::resource_decoded_bytes_limit(limits),work:crate::limits::resource_work_limit(limits)}),
@@ -248,6 +252,7 @@ pub fn convert_jp2_color(
             verus_keep_ghost,
             verus_spec(
                 invariant color_index <= color_count,
+                    !crate::specs::color_is_esrgb(crate::jp2::color_specification_method(color)),
                     storage_context==(crate::specs::Part2ColorConvertContext {
                         image:(geometry,input,crate::image::typed_image_definition_views(image)),method:crate::jp2::color_specification_method(color),
                         bytes:crate::limits::resource_decoded_bytes_limit(limits),work:crate::limits::resource_work_limit(limits)}),
@@ -317,6 +322,7 @@ pub fn convert_jp2_color(
         verus_keep_ghost,
         verus_spec(
             invariant alpha_index <= layout.alphas.len(),
+                !crate::specs::color_is_esrgb(crate::jp2::color_specification_method(color)),
                 storage_context==(crate::specs::Part2ColorConvertContext {
                     image:(geometry,input,crate::image::typed_image_definition_views(image)),method:crate::jp2::color_specification_method(color),
                     bytes:crate::limits::resource_decoded_bytes_limit(limits),work:crate::limits::resource_work_limit(limits)}),

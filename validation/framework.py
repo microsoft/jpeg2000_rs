@@ -5491,6 +5491,32 @@ _PLANE_ROLE_RESULT_RUNS.update({
     "part2_extraction_tile_result": ("part2_extraction_tile_run", True),
     "part2_coefficient_progression_result": ("part2_extraction_progression_run", False),
 })
+_ESRGB_IMAGE = _coverage_call("crate::image::typed_image_value_view", r"\*\s*image")
+_ESRGB_BYTES = _coverage_call("crate::limits::resource_decoded_bytes_limit", "limits")
+_ESRGB_WORK = _coverage_call("crate::limits::resource_work_limit", "limits")
+_ESRGB_CONTEXT_PREFIX = r"crate::specs::Part2ColorConvertContext\s*\{\s*image\s*:\s*" + _ESRGB_IMAGE + r"\s*,\s*method\s*:\s*"
+_ESRGB_CONTEXT_SUFFIX = r"\s*,\s*bytes\s*:\s*" + _ESRGB_BYTES + r"\s*,\s*work\s*:\s*" + _ESRGB_WORK + r"\s*,?\s*\}"
+_ESRGB_SOURCE_CONTEXT = (_ESRGB_CONTEXT_PREFIX
+    + r"crate::jp2::ColorMethod::Enumerated\s*\{\s*color_space\s*:\s*20\s*\}" + _ESRGB_CONTEXT_SUFFIX)
+_ESRGB_DECLARED_CONTEXT = (_ESRGB_CONTEXT_PREFIX
+    + _coverage_call("crate::jp2::color_specification_method", "color") + _ESRGB_CONTEXT_SUFFIX)
+_ESRGB_DECODE_ARGUMENTS = r"input@\s*,\s*" + _coverage_call("crate::options::decode_options_limits", "options")
+_ESRGB_RESULT_CONTRACTS = {
+    ("src/color/esrgb_image.rs", "convert_esrgb_color"): (
+        "color_convert_esrgb", "converted_image_result",
+        r"\s*,\s*".join((_ESRGB_IMAGE, _ESRGB_BYTES, _ESRGB_WORK)),
+        "part2_color_convert_storage_result", _ESRGB_SOURCE_CONTEXT,
+    ),
+    ("src/color/compatible.rs", "convert_jp2_color_compatible"): (
+        "color_compatible_value", "compatible_color_outcome", _ESRGB_DECLARED_CONTEXT,
+        "color_compatible_result", _ESRGB_DECLARED_CONTEXT,
+    ),
+    ("src/decode/color_compatible.rs", "decode_jp2_color_compatible"): (
+        "compatible_decode_value", "crate::color::compatible_color_outcome", _ESRGB_DECODE_ARGUMENTS,
+        "compatible_decode_result", _ESRGB_DECODE_ARGUMENTS,
+    ),
+}
+
 _COLD_RESULT_MODELS = {
     "part2_mct_component_pairs": ("part2_mct_pair_storage_result", "specs/cold_mct_auxiliary.rs", "part2_mct_pair_storage_normal"),
     "part2_mct_prepare_dependency": ("part2_mct_dependency_prepare_storage_result", "specs/cold_mct_auxiliary.rs", "part2_mct_dependency_prepare_storage_normal"),
@@ -13232,6 +13258,14 @@ def validate_normative_coverage(
             )
             if any("".join(fragment.split()) not in compact for fragment in input_fragments):
                 raise ValueError("automatic inputs require the actual selected-tile order and complete payload projection")
+        if entry["id"] == "part2-explicit-eight-bit-esrgb-compatibility":
+            lib = source_text((ROOT / "src/lib.rs").resolve())
+            decode = source_text((ROOT / "src/decode.rs").resolve())
+            if (not re.search(
+                    r"pub\s+use\s+decode::\{[^}]*\bdecode_jp2_color_compatible\b[^}]*\}", lib)
+                    or not re.search(
+                        r"pub\s+use\s+color_compatible::decode_jp2_color_compatible\s*;", decode)):
+                raise ValueError("compatible color requires its actual public root export")
         if entry["id"] in _RAW_RECOVERY_PUBLIC_ENTRIES:
             reconstructed = entry["id"] == _RECONSTRUCTED_RECOVERY_ENTRY
             contracts = _RECONSTRUCTED_RECOVERY_CONTRACTS if reconstructed else _RAW_RECOVERY_CONTRACTS
@@ -18129,6 +18163,21 @@ def validate_normative_coverage(
                 else:
                     scalar_result = relation
                 expected_result_model = model
+            esrgb_contract = _ESRGB_RESULT_CONTRACTS.get((reference["path"], reference["symbol"]))
+            if esrgb_contract is not None:
+                model, projection, inputs, cold_model, cold_inputs = esrgb_contract
+                outcome = _coverage_call(projection, r"\1")
+                ordinary = (r"\1\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*"
+                    + outcome + r"\s*==\s*crate::specs::(?P<model>" + re.escape(model)
+                    + r")\s*\(\s*" + inputs + r"\s*,?\s*\)")
+                normal = re.search(named_prefix + r".*?" + ordinary, contract, re.S)
+                cold = re.search(named_prefix + _coverage_call(
+                    "crate::specs::" + cold_model, cold_inputs, outcome,
+                ), contract)
+                if normal is None or cold is None or re.search(r"\brequires\b", contract):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact e-sRGB ordinary/storage projection")
+                scalar_result = normal
+                expected_result_model = model
             recovery_relations = (
                 _RAW_RECOVERY_RELATIONS if entry["id"] == _RAW_RECOVERY_ENTRY
                 else _RECONSTRUCTED_RECOVERY_RELATIONS if entry["id"] == _RECONSTRUCTED_RECOVERY_ENTRY
@@ -18634,6 +18683,12 @@ def validate_normative_coverage(
                     signature_match.group(),
                 )
             )
+            exported_compatible_color_entry = (
+                entry["id"] == "part2-explicit-eight-bit-esrgb-compatibility"
+                and (reference["path"], reference["symbol"]) ==
+                    ("src/decode/color_compatible.rs", "decode_jp2_color_compatible")
+                and re.search(r"\bpub\s+fn\s+decode_jp2_color_compatible\b", signature_match.group())
+            )
             normal_mct_copy_consumer = False
             normal_mct_methods = {
                 "MctParameters::clone": "MctParameters::try_duplicate",
@@ -18652,7 +18707,7 @@ def validate_normative_coverage(
                     and layout_body is not None
                     and re.search(_MCT_FALLIBLE_INHERITANCE, layout_body) is not None
                 )
-            if claimed_consumer and not main_header_caller and not exported_recovery_entry and not normal_mct_copy_consumer and not any(
+            if claimed_consumer and not main_header_caller and not exported_recovery_entry and not exported_compatible_color_entry and not normal_mct_copy_consumer and not any(
                 ref != reference
                 and (cross_file_call(
                     (ROOT / ref["path"]).resolve(), ref["symbol"], short,

@@ -107,10 +107,14 @@ specs/cold_wavelet_line_planes.rs
 specs/cold_wavelet_lines.rs
 specs/cold_wavelet_planes.rs
 specs/cold_wavelet_prepare.rs
+specs/color_compatible.rs
+specs/container_color_compatible.rs
 specs/container_colors.rs
 specs/container_images.rs
 specs/container_reconstruction.rs
 specs/decoder_input.rs
+specs/esrgb.rs
+specs/esrgb_image.rs
 specs/header.rs
 specs/jp2_associated_header.rs
 specs/jp2_box_reader.rs
@@ -222,8 +226,11 @@ src/codestream/tile_part_tests.rs
 src/codestream/tiles.rs
 src/codestream.rs
 src/color/admission.rs
+src/color/compatible.rs
 src/color/conversion.rs
 src/color/crop.rs
+src/color/esrgb.rs
+src/color/esrgb_image.rs
 src/color/geometry.rs
 src/color/normalization.rs
 src/color/output.rs
@@ -234,6 +241,8 @@ src/deadline.rs
 src/decode/api.rs
 src/decode/arithmetic.rs
 src/decode/code_blocks.rs
+src/decode/color_compatible.rs
+src/decode/color_profile.rs
 src/decode/container_image_result_tests.rs
 src/decode/execution.rs
 src/decode/geometry.rs

@@ -11,6 +11,7 @@ const SIGNATURE_MAGIC: [u8; 4] = [0x0d, 0x0a, 0x87, 0x0a];
 pub const ENUMERATED_SRGB: u32 = 16;
 pub const ENUMERATED_GRAYSCALE: u32 = 17;
 pub const ENUMERATED_SYCC: u32 = 18;
+pub(crate) use color::enumerated_color_specification;
 
 #[derive(Clone, Copy)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
@@ -315,5 +316,14 @@ mod metadata;
 use metadata::{copy_bytes, inspect_metadata_box, parse_resolution_superbox};
 #[cfg(verus_keep_ghost)]
 include!("jp2/proof_support.rs");
+
+#[cfg(verus_keep_ghost)]
+verus! {
+    pub(crate) proof fn srgb_enumeration_value()
+        ensures ENUMERATED_SRGB == 16,
+    {
+        reveal(ENUMERATED_SRGB);
+    }
+}
 #[cfg(test)]
 mod tests;

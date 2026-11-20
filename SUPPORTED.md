@@ -290,6 +290,27 @@ claims without specified colour are rejected. Explicit colour conversion reports
 `UnsupportedColorConversion::UnspecifiedColorSpace` rather than inferring RGB or
 grayscale. JP2/JPX and `UnkC=0` retain their required-colour checks.
 
+Enumerated e-sRGB (20), registered by JPEG 2000 Part 2 through PIMA 7667:2001,
+converts three unsigned, uniformly 10-, 12- or 16-bit RGB components to sRGB16
+using PIMA's default RGB gamut clipping. Fractional codes are retained until
+half-up 16-bit output quantization. Existing channel ordering, sampling,
+registration, limits and fallible output allocation apply; e-sRGB alpha
+associations are explicitly unsupported. Native component values are unchanged.
+Strict JP2 color APIs require a recognized JPX declaration for this extended
+enumeration, checked at the display-profile stage; JPX-only files use the JPX
+color APIs. Eight-bit e-sRGB is not a PIMA encoding and remains rejected.
+
+The additive `convert_jp2_color_compatible` and `decode_jp2_color_compatible`
+APIs explicitly opt into OpenJPEG-compatible RGB passthrough for three
+full-resolution, unregistered, unsigned eight-bit EnumCS20 planes. The result
+contains the image and the observable
+`recovery.assumed_srgb_for_8bit_esrgb` flag. This is a declared interpretation,
+not PIMA conversion or a conformance claim; other inputs use strict conversion.
+The decode convenience API reuses native JP2 decoding and then reparses metadata;
+both passes enforce the supplied stage-local limits and propagate errors.
+No global leniency setting or existing output-enum variant is changed.
+See the [normative classification and exact regressions](validation/esrgb-classification.md).
+
 JPX exposes codestream/header association, layer registration, channel
 association, opacity, composition instructions, timing, and indexed frame
 rendering. Rendering is bounded and deterministic; it does not provide a
