@@ -1228,7 +1228,14 @@ pub(super) fn reconstruct_prepare_resolution(
                 low_pass_first_x: geometry.low_pass_first_x,
                 low_pass_first_y: geometry.low_pass_first_y,
             };
-            if let Some(kernel) = kernel {
+            if level.output_width == 0 || level.output_height == 0 {
+                let irreversible = if let Some(kernel) = kernel {
+                    !kernel.reversible()
+                } else {
+                    !reversible
+                };
+                crate::transform::inverse_empty_level(level, irreversible, limits)
+            } else if let Some(kernel) = kernel {
                 inverse_level_arbitrary(level, kernel, limits)
             } else if reversible {
                 inverse_level_5_3(level, limits)
