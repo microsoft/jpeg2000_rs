@@ -135,6 +135,7 @@ fn sarah_engineering_plm_continuations_reach_layout_across_other_markers() {
         let mut first = vec![0, 255];
         first.extend(vec![1; first_count]);
         headers.push(segment(PLM, &first));
+        headers.push((0xff30_u16..=0xff3f).flat_map(u16::to_be_bytes).collect());
         headers.push(segment(0xff64, &[0, 0, 7, 9]));
         let mut second = vec![1];
         second.extend(vec![1; 255 - first_count]);
@@ -6924,6 +6925,10 @@ fn packet_lengths_exhaustive_two_byte_windows_and_every_raw_iterator_field() {
                         position,
                         segment_end,
                     };
+                    let reserved_header = matches!(source, PacketLengthSource::Plt(_))
+                        && position == 0
+                        && segment_end == 0
+                        && matches!(word, 0xff30..=0xff3f);
                     let expected = match source {
                         PacketLengthSource::None => Ok(None),
                         PacketLengthSource::Plm(_) if position == bytes.len() => Ok(None),
@@ -6934,6 +6939,7 @@ fn packet_lengths_exhaustive_two_byte_windows_and_every_raw_iterator_field() {
                             packet_length_wide_window(&bytes, position, segment_end).map(Some)
                         }
                         PacketLengthSource::Plt(_) if position == bytes.len() => Ok(None),
+                        PacketLengthSource::Plt(_) if reserved_header => Ok(None),
                         PacketLengthSource::Plt(_) => Err(input_error_literal(
                             position,
                             MalformedKind::InvalidPacketLength,
@@ -6944,7 +6950,14 @@ fn packet_lengths_exhaustive_two_byte_windows_and_every_raw_iterator_field() {
                     };
                     let (expected_result, expected_position) = match expected {
                         Ok(Some((value, next))) => (Ok(Some(value)), next),
-                        Ok(None) => (Ok(None), position),
+                        Ok(None) => (
+                            Ok(None),
+                            if reserved_header {
+                                bytes.len()
+                            } else {
+                                position
+                            },
+                        ),
                         Err(error) => (Err(error), position),
                     };
                     assert_eq!(actual.next_length(), expected_result);
