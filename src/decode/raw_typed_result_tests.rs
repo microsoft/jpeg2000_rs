@@ -112,9 +112,15 @@ fn pdf_common_recovers_raw_and_container_eoc_without_relaxing_other_errors() {
     assert!(decode_jp2(&container, &options).is_err());
     let mut finite = original.clone();
     finite.truncate(finite.len() - 2);
-    assert!(crate::decode_pdf_compatible(&finite, &options, &selection).is_err());
+    let sized = crate::decode_pdf_compatible(&finite, &options, &selection).unwrap();
+    assert_eq!(sized.image, expected);
+    assert!(sized.recovery.appended_eoc);
     let finite_container = jp2_for_codestream(&finite, 1, 1);
-    assert!(crate::inspect_pdf_compatible(&finite_container, &options).is_err());
+    assert!(crate::inspect_pdf_compatible(&finite_container, &options).is_ok());
+    let boxed = crate::decode_pdf_compatible(&finite_container, &options, &selection).unwrap();
+    assert_eq!(boxed.image, expected);
+    assert!(boxed.recovery.appended_eoc);
+    assert!(decode_codestream(&finite, &options).is_err());
     let sod = original
         .windows(2)
         .position(|pair| pair == [255, 147])

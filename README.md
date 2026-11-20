@@ -189,11 +189,13 @@ checks or weakening models. See [profiles](SUPPORTED.md) and
 ### Explicit raw missing-EOC recovery
 
 `decode_codestream_recover_missing_eoc(input, options)` is a separate opt-in
-API. It can append only `FF D9` to the documented sole image tile / sole
-open-ended (`Psot=0`, part index zero, count zero or one) tile part after checked
-structural framing. One ordinary strict decode must then succeed; incomplete
-headers/packets, genuine entropy errors, finite-Psot EOC loss, other parts/tiles,
-and existing-EOC-plus-trailer inputs are not repaired. No bytes are discarded.
+API. It can append only `FF D9` to the documented sole image tile / sole tile
+part after checked structural framing. Part index is zero; an open-ended
+`Psot=0` accepts count zero or one, while positive `Psot` requires count one and
+its declared boundary exactly at EOF. One ordinary strict decode must then
+succeed: a matching boundary is not evidence of complete packets. Incomplete
+headers/packets, genuine entropy errors, other boundaries/parts/tiles and
+existing-EOC-plus-trailer inputs are not repaired. No bytes are discarded.
 Intact inputs use ordinary strict decoding without a repair copy.
 
 The result contains the typed image and a non-exhaustive report stating whether
