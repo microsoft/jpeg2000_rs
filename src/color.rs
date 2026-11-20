@@ -93,6 +93,8 @@ pub use conversion::convert_jp2_color;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod crop;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod esrgb;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod geometry;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod normalization;
