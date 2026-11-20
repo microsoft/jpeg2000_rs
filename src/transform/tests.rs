@@ -102,6 +102,35 @@ fn rowwise_vertical_fallback_keeps_scalar_refusal_and_error_order() {
                 Err(DecodeError::AllocationFailed)
             );
         }
+        if values[0] == i64::MAX {
+            for after in 4..7 {
+                assert_eq!(
+                    observed_reconstruction(crate::allocation::with_refusal(after, || {
+                        inverse_vertical_5_3(low, high, 2, true, &limits)
+                    })),
+                    expected,
+                );
+            }
+        } else {
+            for after in 4..7 {
+                assert_eq!(
+                    crate::allocation::with_refusal(after, || {
+                        inverse_vertical_5_3(low, high, 2, true, &limits)
+                    }),
+                    Err(DecodeError::AllocationFailed),
+                );
+            }
+            crate::allocation::with_refusal(7, || {
+                assert_eq!(
+                    observed_reconstruction(inverse_vertical_5_3(low, high, 2, true, &limits)),
+                    expected,
+                );
+                assert_eq!(
+                    crate::allocation::copy_i64_values(&[1]),
+                    Err(DecodeError::AllocationFailed),
+                );
+            });
+        }
         assert_eq!(
             observed_reconstruction(inverse_vertical_5_3(low, high, 2, true, &limits)),
             expected

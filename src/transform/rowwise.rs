@@ -37,13 +37,13 @@ fn bounded(samples: &[i64]) -> Result<bool, DecodeError> {
     ensures result as int == width as int*height as int,
 ))]
 #[inline]
-fn area(width:u32,height:u32)->u64 {
+fn area(width: u32, height: u32) -> u64 {
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(0<=width as int*height as int<=u64::MAX) by(nonlinear_arith)
             requires 0<=width<=u32::MAX,0<=height<=u32::MAX;
     }
-    (width as u64)*(height as u64)
+    (width as u64) * (height as u64)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -63,8 +63,8 @@ pub(super) fn eligible(
         && low.height == low_count(height, first)
         && high.height == height - low.height
         && low.samples.len().checked_add(high.samples.len()) == Some(length)
-        && area(low.width,height) == length as u64
-        && area(low.width,low.height) == low.samples.len() as u64
+        && area(low.width, height) == length as u64
+        && area(low.width, low.height) == low.samples.len() as u64
         && bounded(low.samples)?
         && bounded(high.samples)?)
 }
@@ -122,7 +122,9 @@ pub(super) fn inverse(
     while y < height as usize {
         #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
         crate::deadline::checkpoint()?;
-        let band = if (y % 2 == 0) == first { low } else { high };
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::proofs::production_impl::production_index_parity(y);}
+        let band = if (y & 1 == 0) == first { low } else { high };
         #[cfg(verus_keep_ghost)]
         proof! {
             crate::specs::rowwise_geometry(wavelet_band_view(low),wavelet_band_view(high),height,first,length);
@@ -262,7 +264,9 @@ fn lift_rows(
     while y < height {
         #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
         crate::deadline::checkpoint()?;
-        if (y % 2 == 0) == target_even {
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::proofs::production_impl::production_index_parity(y);}
+        if (y & 1 == 0) == target_even {
             #[cfg(verus_keep_ghost)]
             proof! {
                 crate::specs::rowwise_cell(y as int,0,width as int,height as int);
@@ -273,7 +277,11 @@ fn lift_rows(
             }
             let row = y * width;
             let left = if y == 0 { width } else { row - width };
-            let right = if y + 1 < height { row + width } else { row - width };
+            let right = if y + 1 < height {
+                row + width
+            } else {
+                row - width
+            };
             let mut x = 0;
             #[cfg_attr(verus_keep_ghost, verus_spec(
                 invariant width>=2,height>1,width as int*height as int==samples.len(),
@@ -297,6 +305,13 @@ fn lift_rows(
                 #[cfg(verus_keep_ghost)]
                 proof! {
                     crate::specs::rowwise_frame(original,samples@,width as nat,height as nat,y as nat,x as nat,target_even,predict);
+                    assert(left==(if y==0{1int}else{y-1})*width) by(nonlinear_arith)
+                        requires left==if y==0{width as int}else{row-width},row==y*width;
+                    assert(right==(if y+1<height{(y+1) as int}else{y-1})*width) by(nonlinear_arith)
+                        requires right==if y+1<height{row+width}else{row-width},row==y*width;
+                    assert(samples[(row+x) as int]==original[(row+x) as int]);
+                    assert(samples[(left+x) as int]==original[(left+x) as int]);
+                    assert(samples[(right+x) as int]==original[(right+x) as int]);
                     crate::specs::rowwise_cell(if y==0{1int}else{y-1},x as int,width as int,height as int);
                     crate::specs::rowwise_cell(if y+1<height{(y+1) as int}else{y-1},x as int,width as int,height as int);
                     assert(left+width<=samples.len() && right+width<=samples.len()) by(nonlinear_arith)
@@ -307,13 +322,20 @@ fn lift_rows(
                     crate::specs::rowwise_neighbors_bounded(samples[(row+x) as int],samples[(left+x) as int],samples[(right+x) as int],predict);
                 }
                 let value = inverse_lifting_neighbors(
-                    samples[row + x],samples[left + x],samples[right + x],step,
+                    samples[row + x],
+                    samples[left + x],
+                    samples[right + x],
+                    step,
                 )?;
                 #[cfg(verus_keep_ghost)]
                 proof! {
+                    assert(value==crate::specs::rowwise_neighbors(
+                        original[(row+x) as int],original[(left+x) as int],original[(right+x) as int],predict).get_Ok_0());
+                    assert(crate::specs::rowwise_value(original,width as nat,height as nat,y as nat,x as nat,predict)
+                        ==crate::specs::rowwise_neighbors(original[(row+x) as int],original[(left+x) as int],original[(right+x) as int],predict).get_Ok_0());
                     assert(value==crate::specs::rowwise_stage(original,width as nat,height as nat,target_even,predict)[(row+x) as int]);
                 }
-                samples[row+x]=value;
+                samples[row + x] = value;
                 #[cfg(verus_keep_ghost)]
                 proof! {
                     assert forall|i:int|0<=i<samples.len() implies #[trigger] samples[i]==if i<row+x+1{
@@ -329,11 +351,18 @@ fn lift_rows(
                     crate::specs::rowwise_stage(original,width as nat,height as nat,target_even,predict)[i]
                 }else{original[i]} by{}
             }
-        }else{
+        } else {
             #[cfg(verus_keep_ghost)]
             proof! {
                 crate::specs::rowwise_identity_row(original,width as nat,height as nat,y as nat,target_even,predict);
             }
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::rowwise_cell(y as int,0,width as int,height as int);
+            assert forall|i:int|0<=i<samples.len() implies #[trigger] samples[i]==if i<(y+1)*width{
+                crate::specs::rowwise_stage(original,width as nat,height as nat,target_even,predict)[i]
+            }else{original[i]} by{}
         }
         y += 1;
     }

@@ -195,12 +195,23 @@ pub(crate) proof fn rowwise_lift_prefix(samples:Seq<i64>,target:bool,kind:u8,cou
         Seq::new(samples.len(),|i:int|if i<count{part1_lifting_sample(samples,i as nat,target,kind,0).get_Ok_0()}else{samples[i]})),
     decreases count,
 {
+    reveal_with_fuel(part1_lifting_prefix,2);
     if count>0{
         rowwise_lift_prefix(samples,target,kind,(count-1) as nat);
+        assert(part1_lifting_sample(samples,(count-1) as nat,target,kind,0).is_ok());
         assert(Seq::new(samples.len(),|i:int|if i<count-1{part1_lifting_sample(samples,i as nat,target,kind,0).get_Ok_0()}else{samples[i]})
             .update(count-1,part1_lifting_sample(samples,(count-1) as nat,target,kind,0).get_Ok_0())
             =~= Seq::new(samples.len(),|i:int|if i<count{part1_lifting_sample(samples,i as nat,target,kind,0).get_Ok_0()}else{samples[i]}));
-    }else{assert(samples =~= Seq::new(samples.len(),|i:int|samples[i]));}
+    }else{
+        assert(samples =~= Seq::new(samples.len(),|i:int|if i<count{part1_lifting_sample(samples,i as nat,target,kind,0).get_Ok_0()}else{samples[i]}));
+    }
+}
+pub(crate) proof fn rowwise_singleton_lift(samples:Seq<i64>,target:bool,kind:u8)
+    requires samples.len()==1,
+    ensures part1_lifting_prefix(samples,target,kind,0,1)==(Ok(()),samples),
+{
+    reveal_with_fuel(part1_lifting_prefix,2);
+    assert(samples.update(0,samples[0]) =~=samples);
 }
 pub(crate) proof fn rowwise_stage_column(samples:Seq<i64>,width:u32,height:u32,x:u32,target:bool,predict:bool)
     requires width>0,height>1,x<width,width as int*height as int==samples.len(),
@@ -305,8 +316,8 @@ pub(crate) proof fn rowwise_stage_column(samples:Seq<i64>,width:u32,height:u32,x
                     rowwise_column(rowwise_output(low,high,height,first),low.0 as nat,height as nat,x as nat));
             }else{
                 assert(column.update(0,column[0]) =~=column);
-                assert(part1_lifting_prefix(column,first,0,0,1)==(Ok(()),column));
-                assert(part1_lifting_prefix(column,!first,1,0,1)==(Ok(()),column));
+                rowwise_singleton_lift(column,first,0);
+                rowwise_singleton_lift(column,!first,1);
             }
         }else{
             rowwise_interleaved_properties(low,high,height,first,length);

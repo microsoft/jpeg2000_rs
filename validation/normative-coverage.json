@@ -16533,6 +16533,7 @@
       ],
       "id": "part1-reversible-five-three",
       "implementation_refs": [
+        {"path": "src/transform/wavelets.rs", "symbol": "inverse_lifting_neighbors"},
         {"path": "src/transform/wavelets.rs", "symbol": "inverse_lifting_value"},
         {
           "path": "src/transform/wavelets.rs",
@@ -21073,6 +21074,7 @@
       ],
       "id": "part1-complete-five-three-sequence",
       "implementation_refs": [
+        {"path": "src/transform/wavelets.rs", "symbol": "inverse_lifting_neighbors"},
         {
           "path": "src/transform/levels.rs",
           "symbol": "inverse_row_pair"

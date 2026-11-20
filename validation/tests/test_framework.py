@@ -10073,7 +10073,12 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","elements!=count","false"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","calls.drop_first()","calls"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_rows_run","Part2WaveletPlaneOwner::Rows","Part2WaveletPlaneOwner::Columns"),
-            ("specs/cold_wavelet_planes.rs","part2_wavelet_columns_run","Part2WaveletPlaneOwner::Columns","Part2WaveletPlaneOwner::Rows"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_scalar_columns_run","Part2WaveletPlaneOwner::Columns","Part2WaveletPlaneOwner::Rows"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_columns_run","!irreversible && kernel.is_none()","irreversible && kernel.is_none()"),
+            ("specs/rowwise_wavelet.rs","rowwise_run","length as nat,calls","1nat,calls"),
+            ("specs/rowwise_wavelet.rs","rowwise_run","height,first)),rest","height,first)),calls"),
+            ("specs/rowwise_wavelet.rs","rowwise_eligible","rowwise_bounded(high.2)","true"),
+            ("src/transform/rowwise.rs","inverse","empty_with_capacity(length)","empty_with_capacity(1)"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_level_after_low","length,low,high,rest","length,Seq::empty(),high,rest"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_level_after_high","level.2.1,high","level.2.1,low"),
             ("specs/cold_extraction_reconstruction.rs","part2_extraction_component_finish_run","part2_wavelet_reconstruct_run(placed.1.0,plan","part2_wavelet_reconstruct_run(Seq::empty(),plan"),
@@ -10201,7 +10206,7 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_extraction_tile.rs", "part2_extraction_tile_finish_run", "initial+finished.1", "finished.1"),
             ("src/transform/geometry.rs", "collect_column", "empty_with_capacity(count)", "empty_with_capacity(1)"),
             ("src/transform/wavelets.rs", "interleave", "empty_with_capacity(length)", "empty_with_capacity(1)"),
-            ("src/transform/levels.rs", "inverse_columns", "zero_i64_values(output_len)", "zero_i64_values(1)"),
+            ("src/transform/levels.rs", "inverse_columns_scalar", "zero_i64_values(output_len)", "zero_i64_values(1)"),
             ("src/allocation.rs", "zero_i64_values", "empty_with_capacity(count)?", "empty_with_capacity(1)?"),
         ):
             source = framework.ROOT / relative

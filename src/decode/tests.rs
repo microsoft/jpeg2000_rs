@@ -9693,7 +9693,13 @@ fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restor
             .iter()
             .map(crate::packet::exact_packet_precinct_snapshot)
             .collect();
-        for after in [18, 20, 22, 19, 24, 28] {
+        // Eligible 5/3 replaces the six real column-line owners with none.
+        let refusals: &[usize] = if reversible {
+            &[18, 19, 20, 21, 22]
+        } else {
+            &[18, 20, 22, 19, 24, 28]
+        };
+        for &after in refusals {
             assert_eq!(
                 crate::allocation::with_refusal(after, || prepare_tile_component(
                     &plan, &precincts, style, &limits
@@ -9723,6 +9729,16 @@ fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restor
                 sources
             );
         }
+        crate::allocation::with_refusal(if reversible { 24 } else { 30 }, || {
+            assert_eq!(
+                prepare_tile_component(&plan, &precincts, style, &limits).unwrap(),
+                expected
+            );
+            assert_eq!(
+                crate::allocation::copy_i64_values(&[1]),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
     }
     let (plan, precincts, mut style) = standard_prepare_fixture(
         &[codestream::DecompositionDirection::TwoDimensional],
@@ -9925,7 +9941,8 @@ fn prepare_copy_storage_actual_standard_custom_component_ll_later_copy_and_resto
             .iter()
             .map(crate::packet::exact_packet_precinct_snapshot)
             .collect();
-        for after in [17, 29] {
+        let final_copy = if reversible && !custom { 23 } else { 29 };
+        for after in [17, final_copy] {
             assert_eq!(
                 crate::allocation::with_refusal(after, || prepare_tile_component_with_kernel(
                     &plan, &precincts, style, selected, &limits
