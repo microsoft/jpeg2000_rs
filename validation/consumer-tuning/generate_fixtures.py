@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the public, integer-only #446--#449 shared cohort."""
+"""Prepare frozen compressed inputs and integer-only #446--#449 source samples."""
 
 import argparse
 import hashlib
@@ -10,6 +10,7 @@ import struct
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
+HERE = Path(__file__).resolve().parent
 OPENJPEG_REVISION = "6c4a29b00211eb0430fa0e5e890f1ce5c80f409f"
 TRACKED = [
     "validation/image-consumer-probe/tests/fixtures/gray.jp2",
@@ -92,9 +93,15 @@ def coding_metadata(raw):
 
 def generate(encoder, output):
     output.mkdir(parents=True, exist_ok=True)
-    help_text = subprocess.run([str(encoder), "-h"], capture_output=True, text=True).stdout
-    if "v2.5.4" not in help_text:
-        raise ValueError("OpenJPEG 2.5.4 required")
+    expected = json.loads((HERE / "cohort-v1.json").read_text())
+    expected_by_path = {fixture["path"]: fixture for fixture in expected["fixtures"]}
+    help_text = None
+    reproductions = []
+    if encoder:
+        help_result = subprocess.run([str(encoder), "-h"], capture_output=True, text=True)
+        help_text = help_result.stdout + help_result.stderr
+        if "v2.5.4" not in help_text:
+            raise ValueError("OpenJPEG 2.5.4 required")
     fixtures = []
     sources = []
     for channels, color in [(1, "gray"), (3, "rgb")]:
@@ -111,11 +118,26 @@ def generate(encoder, output):
                 args = ["-n", "6", "-mct", str(int(channels == 3))]
                 if lossy:
                     args += ["-I", "-r", "12"]
-                command = [str(encoder), "-i", str(output / source_name),
-                           "-o", str(output / (name + ".jp2")), *args]
-                result = subprocess.run(command, capture_output=True, text=True, check=True)
-                (output / (name + ".encoder.log")).write_text(result.stdout + result.stderr)
-                jp2 = (output / (name + ".jp2")).read_bytes()
+                frozen = HERE / "frozen" / (name + ".jp2")
+                jp2 = frozen.read_bytes()
+                if sha(jp2) != expected_by_path[name + ".jp2"]["sha256"]:
+                    raise ValueError(f"frozen compressed input changed: {frozen}")
+                (output / (name + ".jp2")).write_bytes(jp2)
+                if encoder:
+                    native_dir = output / "native-reencode"
+                    native_dir.mkdir(exist_ok=True)
+                    native = native_dir / (name + ".jp2")
+                    command = [str(encoder), "-i", str(output / source_name), "-o", str(native), *args]
+                    result = subprocess.run(command, capture_output=True, text=True, check=True)
+                    (native_dir / (name + ".encoder.log")).write_text(result.stdout + result.stderr)
+                    native_hash = sha(native.read_bytes())
+                    reproductions.append({
+                        "case": name, "command": command, "canonical_sha256": sha(jp2),
+                        "native_reencode_sha256": native_hash, "byte_identical": native_hash == sha(jp2),
+                        "lossy": lossy, "used_for_timing": False,
+                    })
+                    if not lossy and native_hash != sha(jp2):
+                        raise ValueError(f"lossless encoder reproduction differed: {name}")
                 raw, boxes, metadata_hash = jp2_parts(jp2)
                 (output / (name + ".j2k")).write_bytes(raw)
                 coding = coding_metadata(raw)
@@ -161,17 +183,24 @@ def generate(encoder, output):
         },
         "sources": sources, "fixtures": fixtures,
     }
+    if manifest != expected:
+        raise ValueError("prepared cohort is not the frozen canonical manifest")
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (output / "encoder-provenance.json").write_text(json.dumps({
-        "executable": str(encoder), "executable_sha256": sha(encoder.read_bytes()),
-        "help": help_text,
+        "canonical": json.loads((HERE / "frozen-provenance.json").read_text()),
+        "native_reencode": {
+            "executable": str(encoder) if encoder else None,
+            "executable_sha256": sha(encoder.read_bytes()) if encoder else None,
+            "help": help_text, "cases": reproductions,
+            "note": "Optional re-encoding is evidence only. Timings always use checked-in frozen JP2 bytes.",
+        },
     }, indent=2) + "\n")
     return manifest
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--encoder", type=Path, required=True)
+    parser.add_argument("--encoder", type=Path, help="Optional native 2.5.4 re-encoding evidence; never benchmark inputs")
     parser.add_argument("--output", type=Path, default=ROOT / "target/consumer-tuning/fixtures")
     options = parser.parse_args()
-    generate(options.encoder.resolve(), options.output.resolve())
+    generate(options.encoder.resolve() if options.encoder else None, options.output.resolve())

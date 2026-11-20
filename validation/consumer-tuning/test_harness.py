@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -6,10 +8,10 @@ import sys
 import unittest
 import uuid
 
-from generate_fixtures import ROOT, coding_metadata, jp2_parts, samples, sha
+from generate_fixtures import ROOT, coding_metadata, generate, jp2_parts, samples, sha
 from measure import measure
 from run import check_outcome, configuration_environment
-from summarize import geometric, interval
+from summarize import geometric, interval, summarize
 
 HERE = Path(__file__).resolve().parent
 
@@ -35,6 +37,21 @@ class FixtureTests(unittest.TestCase):
                 raw = jp2_parts(data)[0] if fixture["format"] == "jp2" else data
                 self.assertEqual(coding_metadata(raw), fixture["coding"])
                 self.assertEqual(sha(raw), fixture["codestream_sha256"])
+
+    def test_prepare_frozen_inputs_without_any_native_encoder(self):
+        scratch = ROOT / "target/consumer-tuning/tests"
+        scratch.mkdir(parents=True, exist_ok=True)
+        directory = scratch / uuid.uuid4().hex
+        directory.mkdir()
+        try:
+            generate(None, directory)
+            self.assertEqual(sha((directory / "manifest.json").read_bytes()),
+                             "5c33c9699031796f293e4cb5357c56748367793cbd21c59e7ddaba219069c954")
+            for fixture in json.loads((directory / "manifest.json").read_text())["fixtures"]:
+                self.assertEqual(sha((directory / fixture["path"]).read_bytes()), fixture["sha256"])
+            self.assertFalse((directory / "native-reencode").exists())
+        finally:
+            shutil.rmtree(directory)
 
     def test_bad_source_or_shape_is_not_accepted(self):
         fixture = {"id": "test", "group": "generated-1024", "width": 1, "height": 1,
@@ -90,10 +107,44 @@ class MeasurementTests(unittest.TestCase):
 
     def test_ratio_summary_keeps_direction_and_uncertainty(self):
         self.assertAlmostEqual(geometric([0.5, 2]), 1)
-        self.assertEqual(interval([0.9, 0.9]), [0.9, 0.9])
+        for bound in interval([0.9, 0.9]):
+            self.assertAlmostEqual(bound, 0.9)
         low, high = interval([0.8, 1.2])
         self.assertLess(low, 1)
         self.assertGreater(high, 1)
+
+    def test_summary_retains_matched_pairs_instead_of_pooling_iterations(self):
+        scratch = ROOT / "target/consumer-tuning/tests"
+        scratch.mkdir(parents=True, exist_ok=True)
+        directory = scratch / uuid.uuid4().hex
+        directory.mkdir()
+        try:
+            (directory / "fixture-manifest.json").write_text(json.dumps({
+                "fixtures": [{"id": "test", "group": "generated-1024"}]}))
+            (directory / "builds.jsonl").write_text("")
+            rows = []
+            for backend in ["current", "release022", "hayro-scalar"]:
+                for tuned in ["cpu", "thinlto", "cgu1", "combined"]:
+                    for pair in range(2):
+                        baseline = 50 if backend == "hayro-scalar" else 100
+                        baseline *= 10 ** pair
+                        for config in ["generic", tuned]:
+                            rows.append({
+                                "backend": backend, "tuned": tuned, "config": config,
+                                "fixture": "test", "pair": pair,
+                                "decode_ns": [baseline if config == "generic" else baseline * 0.9] * 5,
+                                "metrics": {"max_process_rss_kib": 100},
+                            })
+            (directory / "samples.jsonl").write_text("\n".join(map(json.dumps, rows)) + "\n")
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = summarize(directory)
+            for cohort in result["cohort"]:
+                self.assertEqual(cohort["pairs"], 2)
+                self.assertAlmostEqual(cohort["decode_reduction_percent"], 10)
+            for comparison in result["comparator"]:
+                self.assertAlmostEqual(comparison["current_over_hayro_scalar_geomean"], 2)
+        finally:
+            shutil.rmtree(directory)
 
 
 if __name__ == "__main__":

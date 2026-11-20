@@ -20,9 +20,7 @@ On **native** Linux ARM64 or x86-64, from the repository root:
 
 ```sh
 rustup toolchain install 1.93.1 --profile minimal
-bash validation/consumer-tuning/build-openjpeg254.sh
-python3 validation/consumer-tuning/generate_fixtures.py \
-  --encoder target/consumer-tuning/encoder/build/bin/opj_compress
+python3 validation/consumer-tuning/generate_fixtures.py
 python3 -m unittest discover -s validation/consumer-tuning -p 'test_*.py' -v
 # Untimed API/sample qualification (optional before remote runs):
 python3 validation/consumer-tuning/smoke.py
@@ -37,6 +35,31 @@ fetch, two Cargo build jobs, and a fresh target directory for every cold build.
 Rust dependencies are fetched before measurements; the first cold build can
 still benefit later builds through OS filesystem caches. No cache-drop or
 CPU/governor control is attempted on shared hosted runners.
+
+The eight canonical self-authored JP2 files are checked into `frozen/` under the
+repository MIT license. Preparation reconstructs integer source samples, checks
+every frozen JP2 hash, extracts raw codestreams deterministically, copies the
+tracked acceptance probes and reproduces the canonical manifest **exactly**.
+It does not compile an encoder or re-encode benchmark inputs.
+
+For optional source/encoder reproduction evidence, independently of timing:
+
+```sh
+bash validation/consumer-tuning/build-openjpeg254.sh
+python3 validation/consumer-tuning/generate_fixtures.py \
+  --encoder target/consumer-tuning/encoder/build/bin/opj_compress \
+  --output target/consumer-tuning/reproduction
+```
+
+Native re-encodings and their equality/difference records are retained in a
+separate `native-reencode/` directory, **never** substituted for timed inputs.
+Lossless re-encodings must match; lossy bitstream differences are recorded.
+Run `44822702787` observed two lossy cases differing between the original
+GCC 11-built encoder and both hosted native encoders, even though their integer
+source samples and OpenJPEG revision matched. Both hosted cohorts agreed with
+each other. `frozen-provenance.json` records that observation and original encoder
+hash/compiler/flags; independent floating-point encoders are not required to
+produce identical lossy streams.
 
 For hosted hardware, explicitly dispatch the **existing registered** `ci.yml`
 workflow at this branch, with `consumer_benchmark=true` and
@@ -60,8 +83,9 @@ for longer retention. `COMPLETE` is written only after all checks pass.
 and `source` entries are relative to that directory. The checked-in
 `cohort-v1.json` is the canonical expected manifest, SHA256
 `5c33c9699031796f293e4cb5357c56748367793cbd21c59e7ddaba219069c954`.
-Encoder executable SHA256 and help output are separate
-`encoder-provenance.json` because native binaries differ by host.
+Original encoder executable SHA256/compiler/flags are in
+`frozen-provenance.json`; prepared `encoder-provenance.json` also records any
+optional native re-encoding evidence.
 
 Eight 1024×1024 cases cover smooth/noisy × gray/RGB × lossless/lossy.
 Samples are unsigned u8, raster y/x/channel order, with these **integer-only**
@@ -88,7 +112,7 @@ No tiles/precinct overrides or thread options are implicit benchmark knobs.
 For each JP2, the raw J2K is the **exact extracted `jp2c` payload**, not a
 second encoding. Manifest records source-file/sample hashes, encoded hashes,
 COD resolution/MCT/wavelet fields, JP2 box hashes and concatenated non-codestream
-metadata hash. Native regeneration must match **all** canonical fixture bytes.
+metadata hash. Prepared benchmark inputs must match **all** canonical bytes.
 The existing general `validation/build-openjpeg.sh` intentionally remains
 unchanged: its pin is OpenJPEG 2.5.0, not the 2.5.4 encoder required here.
 
