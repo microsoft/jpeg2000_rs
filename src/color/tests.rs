@@ -961,6 +961,46 @@ fn registered_coordinates_match_wide_full_domain_boundaries() {
 }
 
 #[test]
+fn normalize_contiguous_u8_plane_at_nonzero_origin() {
+    let info = ComponentInfo {
+        precision: 8,
+        signed: false,
+        x_subsampling: 1,
+        y_subsampling: 1,
+        x_registration: 0,
+        y_registration: 0,
+    };
+    let mut samples: Vec<u64> = (0..256).collect();
+    let component =
+        TypedComponent::from_parts(16, 16, info, TypedSamples::Unsigned(samples.clone()));
+    let expected: Vec<_> = samples
+        .iter()
+        .map(|&sample| normalize_unsigned(sample, 8).unwrap())
+        .collect();
+    assert_eq!(
+        normalize_component(&component, 16, 16, u32::MAX - 16, 23),
+        Ok(expected),
+    );
+    assert_eq!(
+        normalize_component(&component, 16, 16, u32::MAX - 15, 23),
+        Err(DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::ArithmeticOverflow,
+        }),
+    );
+
+    samples[255] = 256;
+    let component = TypedComponent::from_parts(16, 16, info, TypedSamples::Unsigned(samples));
+    assert_eq!(
+        normalize_component(&component, 16, 16, 17, 23),
+        Err(DecodeError::MalformedInput {
+            offset: 0,
+            kind: MalformedKind::ContainerCodestreamMismatch,
+        }),
+    );
+}
+
+#[test]
 fn normalized_component_rejects_every_invalid_stage_input_in_order() {
     let invalid = Err(DecodeError::MalformedInput {
         offset: 0,
