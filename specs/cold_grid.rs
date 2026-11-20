@@ -4,11 +4,13 @@ verus! {
 pub enum Part2GridCapacityContext {
     Offsets { counts:Seq<u32>, resolutions:Seq<u8>, maximum:u8, expected:usize },
     Uniform { layers:u16, components:u16, resolutions:u8, counts:Seq<u32> },
+    Spatial { grid:Part1PacketGrid, size:crate::codestream::ImageSize, styles:Seq<Result<crate::codestream::CodingStyle,crate::DecodeError>>, tile:Option<u16> },
 }
 pub(crate) open spec fn part2_grid_capacity_count(context:Part2GridCapacityContext)->usize {
     match context {
         Part2GridCapacityContext::Offsets {expected,..}=>(expected+1) as usize,
         Part2GridCapacityContext::Uniform {components,..}=>components as usize,
+        Part2GridCapacityContext::Spatial {grid,..}=>(grid.components as nat*grid.resolutions as nat) as usize,
     }
 }
 pub(crate) open spec fn part2_grid_capacity_run(context:Part2GridCapacityContext,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<()> {

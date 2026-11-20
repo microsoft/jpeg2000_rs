@@ -165,6 +165,7 @@ specs/packet_boundaries.rs
 specs/packet_input.rs
 specs/packet_orchestration.rs
 specs/packet_progression.rs
+specs/packet_spatial.rs
 specs/packet_tile.rs
 specs/pdf_compat.rs
 specs/pdf_dimensions.rs
@@ -178,6 +179,8 @@ specs/raw_layout.rs
 specs/raw_recovery.rs
 specs/replay_finish.rs
 specs/selected_reconstruction.rs
+specs/spatial_geometry.rs
+specs/spatial_grid_composition.rs
 specs/tag_tree.rs
 specs/tile_header_traversal.rs
 specs/tile_part.rs
@@ -245,6 +248,7 @@ src/decode/proof_support.rs
 src/decode/raw_typed_result_tests.rs
 src/decode/reconstruction.rs
 src/decode/selection.rs
+src/decode/spatial.rs
 src/decode/tests.rs
 src/decode.rs
 src/error.rs
@@ -334,6 +338,7 @@ src/packet/multi_packet.rs
 src/packet/precinct.rs
 src/packet/progression.rs
 src/packet/proof_support.rs
+src/packet/spatial.rs
 src/packet/tag_tree.rs
 src/packet/tests.rs
 src/packet/tile.rs

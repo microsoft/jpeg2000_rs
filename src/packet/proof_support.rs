@@ -25,11 +25,45 @@ verus! {
             maximum_precincts_per_resolution:grid.maximum_precincts_per_resolution,
             precinct_counts:grid.precinct_counts@, precinct_offsets:grid.precinct_offsets@,
             candidate_count:grid.candidate_count, packet_count:grid.packet_count,
+            maximum_work_units:grid.maximum_work_units,
+            spatial:match &grid.spatial { Some(spatial)=>Some(packet_spatial_grid_view(spatial)),None=>None },
         }
     }
     pub open spec fn packet_grid_outcome(value:Result<PacketGrid,DecodeError>) -> Result<crate::specs::Part1PacketGrid,DecodeError> {
         match value {Ok(grid)=>Ok(packet_grid_view(&grid)),Err(error)=>Err(error)}
     }
+}
+
+#[cfg(verus_keep_ghost)]
+verus! {
+    pub closed spec fn packet_spatial_grid_view(grid: &PacketSpatialGrid) -> crate::specs::Part1PacketSpatialGrid {
+        crate::specs::Part1PacketSpatialGrid {
+            rows:packet_spatial_rows_view(grid.rows@),
+            x0:grid.x0,y0:grid.y0,step_x:grid.step_x,step_y:grid.step_y,
+            across:grid.across,positions:grid.positions,
+        }
+    }
+    pub closed spec fn packet_spatial_resolution_view(row: PacketSpatialResolution) -> crate::specs::Part1PacketSpatialResolution {
+        crate::specs::Part1PacketSpatialResolution {
+            first_x:row.first_x,first_y:row.first_y,origin_x:row.origin_x,origin_y:row.origin_y,
+            step_x:row.step_x,step_y:row.step_y,across:row.across,down:row.down,
+        }
+    }
+    pub open spec fn packet_spatial_rows_view(rows:Seq<PacketSpatialResolution>) -> Seq<crate::specs::Part1PacketSpatialResolution> {
+        rows.map(|i:int,row:PacketSpatialResolution|packet_spatial_resolution_view(row))
+    }
+    pub(crate) proof fn packet_spatial_resolution_known_fields(row:PacketSpatialResolution)
+        ensures packet_spatial_resolution_view(row)==(crate::specs::Part1PacketSpatialResolution {
+            first_x:row.first_x,first_y:row.first_y,origin_x:row.origin_x,origin_y:row.origin_y,
+            step_x:row.step_x,step_y:row.step_y,across:row.across,down:row.down,
+        }),
+    {}
+    pub(crate) proof fn packet_spatial_grid_known_fields(grid:&PacketSpatialGrid)
+        ensures packet_spatial_grid_view(grid)==(crate::specs::Part1PacketSpatialGrid {
+            rows:packet_spatial_rows_view(grid.rows@),
+            x0:grid.x0,y0:grid.y0,step_x:grid.step_x,step_y:grid.step_y,across:grid.across,positions:grid.positions,
+        }),
+    {}
 }
 
 #[cfg(verus_keep_ghost)]
