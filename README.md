@@ -149,15 +149,6 @@ The feature is off by default and outside pinned Verus qualification; combined
 proof/profile builds fail explicitly. See [profiles](SUPPORTED.md) and
 [incremental validation](validation/VALIDATION.md#incremental-input-profile).
 
-### Experimental vector-friendly wavelets
-
-The default-off `experimental-vector-wavelets` feature applies vertical 5/3
-and 9/7 lifting across contiguous rows so the compiler can vectorize
-independent columns. The 9/7 path retains the scalar fixed-point scaling,
-rounding and lifting order. Small or out-of-range bands, custom transforms,
-and cooperative-deadline builds use the existing checked path. This feature
-is not qualified by the pinned Verus workflow.
-
 ### Opt-in cooperative deadlines (native-only profile)
 
 Enable the `cooperative-deadlines` Cargo feature to export

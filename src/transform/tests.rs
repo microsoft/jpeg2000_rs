@@ -2171,66 +2171,6 @@ fn inverse_vertical_stage_matches_column_synthesis() {
 }
 
 #[test]
-#[cfg(all(
-    feature = "experimental-vector-wavelets",
-    not(feature = "cooperative-deadlines")
-))]
-fn row_major_vertical_lifting_matches_scalar_across_edges_and_large_values() {
-    let limits = ResourceLimits::default();
-    for (width, height) in [(16, 2), (17, 3), (33, 6), (33, 7)] {
-        for low_first in [true, false] {
-            let low_height = height / 2 + u32::from(low_first && height % 2 != 0);
-            let high_height = height - low_height;
-            let values = |count: u32, seed: i64| {
-                (0..count)
-                    .map(|i| (i64::from(i) * 29 + seed) % 97 - 48)
-                    .collect::<Vec<_>>()
-            };
-            let mut low = values(width * low_height, 11);
-            let high = values(width * high_height, 59);
-            for first in [-(1_i64 << 60), 1_i64 << 60, (1_i64 << 60) + 1] {
-                low[0] = first;
-                let low_band = WaveletBand {
-                    width,
-                    height: low_height,
-                    samples: &low,
-                };
-                let high_band = WaveletBand {
-                    width,
-                    height: high_height,
-                    samples: &high,
-                };
-                assert_eq!(
-                    observed_reconstruction(inverse_vertical_5_3(
-                        low_band, high_band, height, low_first, &limits,
-                    )),
-                    reference_vertical(low_band, high_band, height, low_first, false, u64::MAX)
-                );
-            }
-            for first in [-(1_i64 << 32), 1_i64 << 32, (1_i64 << 32) + 1] {
-                low[0] = first;
-                let low_band = WaveletBand {
-                    width,
-                    height: low_height,
-                    samples: &low,
-                };
-                let high_band = WaveletBand {
-                    width,
-                    height: high_height,
-                    samples: &high,
-                };
-                assert_eq!(
-                    observed_reconstruction(inverse_vertical_9_7(
-                        low_band, high_band, height, low_first, &limits,
-                    )),
-                    reference_vertical(low_band, high_band, height, low_first, true, u64::MAX)
-                );
-            }
-        }
-    }
-}
-
-#[test]
 fn reverses_five_three_lifting_for_known_samples() {
     assert_eq!(inverse_5_3(&[3, 7], &[2], true).unwrap(), [2, 6, 6]);
     assert_eq!(inverse_5_3(&[3], &[], true).unwrap(), [3]);
