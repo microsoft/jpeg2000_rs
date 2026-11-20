@@ -97,15 +97,27 @@ pub(crate) open spec fn part1_finish_tile_part_traversal<'a>(
 #[verifier::opaque]
 pub(crate) open spec fn part1_skip_reserved_markers<'a>(state: Part1CodestreamReader<'a>)
     -> (Result<(), crate::DecodeError>, Part1CodestreamReader<'a>)
-    decreases state.input.len() - state.position,
+{
+    part1_skip_reserved_markers_run(state, state.input.len())
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part1_skip_reserved_markers_run<'a>(
+    state: Part1CodestreamReader<'a>, remaining: nat,
+) -> (Result<(), crate::DecodeError>, Part1CodestreamReader<'a>)
+    decreases remaining,
 {
     match part1_codestream_peek_marker(state) {
         Err(error) => (Err(error), state),
         Ok(marker) => if 0xff30 <= marker <= 0xff3f {
-            let skipped = part1_codestream_expect_standalone(state, marker);
-            match skipped.0 {
-                Err(error) => (Err(error), skipped.1),
-                Ok(()) => part1_skip_reserved_markers(skipped.1),
+            if remaining == 0 {
+                (Err(part1_codestream_malformed(state.position, crate::MalformedKind::InvalidMarkerLength)), state)
+            } else {
+                let skipped = part1_codestream_expect_standalone(state, marker);
+                match skipped.0 {
+                    Err(error) => (Err(error), skipped.1),
+                    Ok(()) => part1_skip_reserved_markers_run(skipped.1, (remaining - 1) as nat),
+                }
             }
         } else { (Ok(()), state) },
     }
