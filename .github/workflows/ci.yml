@@ -7,11 +7,61 @@ on:
       - release/*
   pull_request:
   workflow_dispatch:
+    inputs:
+      consumer_benchmark:
+        description: Run optional issue 449 native final-consumer benchmark (no publication)
+        required: false
+        type: boolean
+        default: false
+      consumer_benchmark_pairs:
+        description: Opposite-order process pairs per tuning/fixture/backend
+        required: false
+        type: choice
+        default: '4'
+        options:
+          - '2'
+          - '4'
+          - '6'
 
 permissions:
   contents: read
 
 jobs:
+  consumer-benchmark:
+    name: Optional consumer tuning (${{ matrix.os }})
+    if: github.event_name == 'workflow_dispatch' && inputs.consumer_benchmark
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Pin final consumer compiler
+        run: rustup toolchain install 1.93.1 --profile minimal
+      - name: Build pinned public fixture encoder
+        run: bash validation/build-openjpeg.sh
+      - name: Generate and verify shared public cohort
+        run: |
+          python3 validation/consumer-tuning/generate_fixtures.py \
+            --encoder target/validation/oracles/openjpeg-build/bin/opj_compress
+          python3 -m unittest discover -s validation/consumer-tuning -p 'test_*.py' -v
+      - name: Measure native final consuming binaries
+        env:
+          PAIRS: ${{ inputs.consumer_benchmark_pairs }}
+        run: |
+          python3 validation/consumer-tuning/run.py \
+            --pairs "$PAIRS" --output target/consumer-tuning/results
+      - name: Preserve every raw build, process, outcome and hardware observation
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: consumer-tuning-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/consumer-tuning
+          retention-days: 30
+          if-no-files-found: error
+
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
