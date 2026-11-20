@@ -10,6 +10,7 @@ use super::{
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part2_codestream_header_storage_result(
         payload@,super::raw_header_option(defaults),*limits,base_offset,super::raw_jp2_header_outcome(result)),
