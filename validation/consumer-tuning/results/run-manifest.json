@@ -198,10 +198,34 @@
     "standalone_final_cargo_workspace": "measured on native ARM64 and x86-64",
     "our_samples_and_acceptance": "exact across all fixtures, configurations, controls and native hosts",
     "hayro": "all raw variants retained; x86 CPU/combined aggregates unqualified after lossy sample changes",
-    "zune_image_final_workspace": "not supplied; end-to-end settings/output/performance/memory qualification remains open",
-    "pdfium_final_workspace": "not supplied; GN/C++/Rust link settings/output/performance/memory qualification remains open",
+    "zune_image_final_workspace": "exists at /workspace/zune-image/zune-image, HEAD 13edc8d07f1572f149f83c59cf861211042c9874; root release debug=2, dist inherits release with ThinLTO; J2K dependency/feature and benchmark/comparison integration missing, so end-to-end qualification remains open",
+    "pdfium_final_workspace": "/workspace/pdfium-dev absent; no GN/C++/Rust final configuration inspected or qualified",
     "supported_cpu_fleet_execution": "not established by two hosted targets",
     "decoder_defaults_or_release_policy_changed": false,
     "issue_must_remain_open": true
+  },
+  "follow_up_workspace_inspection": {
+    "zune_git_root": "/workspace/zune-image/zune-image",
+    "zune_head": "13edc8d07f1572f149f83c59cf861211042c9874",
+    "mode": "read-only; shared dirty lockfile and unrelated incremental changes not edited, copied or published; no builds",
+    "root_profiles": {
+      "release": {
+        "debug": 2
+      },
+      "dist": {
+        "inherits": "release",
+        "lto": "thin"
+      }
+    },
+    "j2k_integration": "no jpeg2000/hayro/jp2/j2k dependency or feature in workspace Cargo manifests; no J2K benchmark entry",
+    "pdfium_path": "/workspace/pdfium-dev",
+    "pdfium_exists": false,
+    "decoder_source_validation": {
+      "runtime_spec_proof_files": 380,
+      "all_equal_to_measured_current_and_published_controls": true,
+      "canonical_sorted_source_map_sha256": "f630d7d612d3e8b97e5371757cd95d3fd06c4c503fed2a131f42b32de3d71834",
+      "published_archive_sha256": "9174c2cd54f8ba9401d48f3a71bc162dd999eacf7409662bc3339ddbe7d8cbcc"
+    },
+    "native_measurement_evidence_changed": false
   }
 }

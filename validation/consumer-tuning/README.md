@@ -218,14 +218,56 @@ Audit final rustc/link arguments, native ELF, adapter output and supported-CPU
 execution; changing a library Cargo.toml is not evidence that these settings
 reached the final executable.
 
-**No actual zune-image or PDFium build workspace/configuration is supplied to
-this investigation.** Their linkage (including any GN/Rust/C++ overrides),
-portable-CPU execution and end-to-end performance remain explicit residual
-acceptance items; this generic final-consumer recipe is tested evidence, not
-a claim to have reproduced those builds. Hosted systems are representative
-observations, not every supported CPU. Build tuning alone is not an explanation
-for the previously reported large decoder gap. Do not close #449 until the
-real-consumer and other remaining acceptance criteria are resolved.
+### Actual zune workspace: inspected, not J2K-integrated
+
+The actual git workspace **does exist** at
+`/workspace/zune-image/zune-image` (the outer directory is only a wrapper),
+HEAD `13edc8d07f1572f149f83c59cf861211042c9874`. A read-only follow-up found:
+
+| Root profile | Declared settings |
+|---|---|
+| `release` | `debug = 2` |
+| `dist` | `inherits = "release"`, `lto = "thin"` |
+
+`crates/zune-image/Cargo.toml` has no JPEG 2000/Hayro/JP2/J2K dependency or
+feature; a case-insensitive search of all workspace `Cargo.toml` files found
+none. The benchmarks have no J2K entry. Thus the missing acceptance item is
+the **actual J2K integration and end-to-end comparison harness**, not the
+existence of a zune workspace. Its shared dirty lockfile and unrelated
+incremental work were not edited, copied or published; no builds were run there.
+
+For a final Cargo build **owned by that workspace**, its root profiles govern
+workspace members and dependencies, including a decoder once integrated.
+Dependency manifests' own profiles do not override the consuming root.
+With no further profile/config/environment overrides, `--release` would use
+release optimization with **debuginfo=2**; `--profile dist` would inherit that
+debug setting and enable cross-crate **ThinLTO**, including final executable
+link/codegen. Neither declaration selects a host-specific CPU or CGU1.
+The benchmark here uses debug=0, so it is not an exact reproduction of either
+declared zune root profile or its final binary size.
+
+After an owner supplies a real J2K-integrated target/harness, a root-level
+invocation would select the intended profile, for example:
+
+```sh
+# Templates only: no such J2K integration/target was qualified here.
+cargo +1.93.1 build --manifest-path /workspace/zune-image/zune-image/Cargo.toml \
+  --release --locked -vv --bin YOUR_REAL_J2K_CONSUMER
+cargo +1.93.1 build --manifest-path /workspace/zune-image/zune-image/Cargo.toml \
+  --profile dist --locked -vv --bin YOUR_REAL_J2K_CONSUMER
+```
+
+Verify the actual final rustc/link arguments, outputs and supported-CPU
+execution; the declarations alone are not end-to-end qualification. If a
+different application workspace consumes zune-image as a dependency, **that
+application's** root profiles govern instead.
+
+`/workspace/pdfium-dev` is absent, so no PDFium GN/C++/Rust final configuration
+was inspected or qualified. Actual J2K integration/harness, GN/Rust/C++
+linkage where relevant, portable-CPU execution and end-to-end performance/
+memory remain residual acceptance items. Hosted observations do not cover
+every supported CPU. Build tuning alone is not an explanation for the large
+decoder gap. Keep #449 open until the real-consumer criteria are resolved.
 
 See [RESULTS.md](RESULTS.md) for observed native results, all raw data and
 explicitly unmet actual-consumer acceptance. Derived analysis can be written

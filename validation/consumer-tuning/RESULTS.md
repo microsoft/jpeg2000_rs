@@ -3,8 +3,9 @@
 ## Disposition
 
 The standalone Cargo-consumer investigation is implemented and measured.
-**Keep #449 open:** actual zune-image/PDFium final-workspace qualification is
-still unavailable, and no deployment CPU-fleet compatibility claim is made.
+**Keep #449 open:** the actual zune workspace exists, but its J2K integration/
+comparison harness is missing; the PDFium workspace is absent. End-to-end
+qualification and deployment CPU-fleet compatibility remain unestablished.
 Nothing here changes decoder runtime/spec/proof sources, package defaults,
 release metadata or publisher settings. The early-MPS candidate was not used.
 
@@ -34,6 +35,9 @@ gap to the scalar comparator.
   `.crate` SHA256:
   `9174c2cd54f8ba9401d48f3a71bc162dd999eacf7409662bc3339ddbe7d8cbcc`.
   Every runtime/spec/proof source-file hash matched between these controls.
+  The documentation follow-up rechecked all **380** such files and the
+  published archive: unchanged. Canonical sorted source-map SHA256:
+  `f630d7d612d3e8b97e5371757cd95d3fd06c4c503fed2a131f42b32de3d71834`.
 * Canonical manifest SHA256:
   `5c33c9699031796f293e4cb5357c56748367793cbd21c59e7ddaba219069c954`.
   All **24 compressed inputs and four integer-generated PNM sources** match
@@ -174,14 +178,28 @@ small cohort-specific decode gain. ThinLTO can be tested independently for
 modest code-size benefits, but validate the **actual stripped final artifact**;
 it has no meaningful decode gain here.
 
-No actual zune-image application workspace or PDFium GN/C++/Rust final link
-configuration was supplied. The similarly named local `zune-hayro-compat`
-directory is another decoder worktree, not a zune consumer application.
-The repository's experimental OpenJPEG C adapter is also not a PDFium build
-and has different buffer-allocation boundaries. Actual consumer profile/
-linker propagation, end-to-end output acceptance, performance, memory and
-supported-CPU execution remain the concrete residual acceptance item.
-The generic final-workspace recipe is tested evidence, not substitute coverage.
+Read-only follow-up identified the actual zune git workspace at
+`/workspace/zune-image/zune-image`, HEAD
+`13edc8d07f1572f149f83c59cf861211042c9874`; the outer directory is a wrapper.
+Its root release profile declares **debug=2**; `dist` inherits release and
+enables **ThinLTO**. Those root settings would govern a final Cargo build
+owned by that workspace, including any subsequently integrated decoder.
+The benchmark's debug=0 profile is not identical. See
+[profile propagation and invocation templates](README.md#actual-zune-workspace-inspected-not-j2k-integrated).
+
+However, `crates/zune-image/Cargo.toml` has no JPEG 2000/Hayro/JP2/J2K
+dependency or feature, none were found in any workspace Cargo manifest, and
+there is no J2K benchmark entry. The precise remaining item is **actual J2K
+integration plus the end-to-end comparison harness**, not a missing zune
+workspace. The shared dirty lockfile and unrelated incremental changes were
+left untouched and were not copied or published; no zune build was performed.
+
+`/workspace/pdfium-dev` is absent, so no PDFium GN/C++/Rust final configuration
+was inspected. The repository's experimental OpenJPEG C adapter is not a
+PDFium build and has different buffer-allocation boundaries. Actual integrated
+consumer/linker propagation, end-to-end output acceptance, performance,
+memory and supported-CPU execution remain unresolved. The generic
+final-workspace recipe is tested evidence, not substitute coverage.
 
 ## Persistent evidence
 
