@@ -2895,6 +2895,9 @@ marker-aware body traversal recognizes stuffed bytes, SOP/EPH and marker fill;
 another SOT/EOC or unrelated marker cannot authorize append. It is structural
 admission, not an entropy inspector: header semantics, packet/body completion
 and entropy still pass through one strict decode, without retries or discard.
+The sole part may be open-ended, or positively sized with count one and a
+declared end exactly at EOF. The latter is an explicit compatibility recovery
+for a missing mandatory EOC, not strict admission or proof of packet completion.
 
 The added preflight/copy stage jointly obeys the existing work cap. Original
 and effective input lengths remain separately explicit; the ordinary decoder's
@@ -2946,7 +2949,7 @@ centered planes, fractional overshoot before clipping, strict finite-part
 rejection, one-request refusal/recovery, input/output limits and genuine
 entropy/NLT errors. Existing typed and strict API behavior is unchanged.
 
-This is only the raw sole-open-ended-part W19 increment. Container, selection,
+This is only the raw bounded-sole-part W19 increment. Container, selection,
 color and other recovery policies are not added. Full shared fallibility and
 cooperative deadlines (#287/#289), the remaining #296 output scope and
 #300/qualification stay open. Existing physical std capacity, unwind, global

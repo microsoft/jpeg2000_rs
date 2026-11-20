@@ -117,7 +117,14 @@ impl<'a> Parser<'a> {
             reveal(parser_view);
         }
         let part = self.read_sot(1)?;
-        if part.length != 0 || part.tile_part_index != 0 || part.tile_part_count > 1 {
+        let sized_final = part.length != 0
+            && part.tile_part_count == 1
+            && part.start <= self.input.len()
+            && u64::from(part.length) == (self.input.len() - part.start) as u64;
+        if (part.length != 0 && !sized_final)
+            || part.tile_part_index != 0
+            || part.tile_part_count > 1
+        {
             return Ok(RecoveryFraming {
                 append_eoc: false,
                 work_units: self.work_units,

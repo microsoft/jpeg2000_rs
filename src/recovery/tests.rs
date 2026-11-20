@@ -279,10 +279,87 @@ fn only_open_ended_eoc_loss_is_repaired_and_strict_stays_strict() {
 }
 
 #[test]
+fn sized_single_final_part_recovers_only_eoc_after_normal_validation() {
+    let options = DecodeOptions::default();
+    let selection = crate::DecodeSelection::full_image();
+    for original in [GRAY0, OFFSET] {
+        let bytes = original[..original.len() - 2].to_vec();
+        let expected = crate::decode_codestream(original, &options).unwrap();
+        assert!(crate::decode_codestream(&bytes, &options).is_err());
+        let frame = crate::codestream::recovery_framing(&bytes, options.limits()).unwrap();
+        assert!(frame.append_eoc);
+        let repaired = append_eoc(&bytes).unwrap();
+        assert_eq!(repaired, original);
+        let decoded = decode(&bytes).unwrap();
+        assert_eq!(decoded.image, expected);
+        assert!(decoded.report.appended_eoc);
+        assert_eq!(decoded.report.original_bytes, bytes.len() as u64);
+        assert_eq!(decoded.report.effective_bytes, original.len() as u64);
+        assert_eq!(decoded.report.repair_copy_bytes, original.len() as u64);
+        let pdf = crate::decode_pdf_compatible(&bytes, &options, &selection).unwrap();
+        assert_eq!(pdf.image, expected);
+        assert!(pdf.recovery.appended_eoc);
+        assert_eq!(pdf.recovery.repair_copy_bytes, original.len() as u64);
+        let info = crate::inspect_pdf_compatible(&bytes, &options).unwrap();
+        assert_eq!(
+            (info.image_size.width, info.image_size.height),
+            (expected.width(), expected.height())
+        );
+        let wide = decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap();
+        assert_eq!(
+            wide.image,
+            crate::decode_codestream_reconstructed(original, &options).unwrap()
+        );
+        assert!(matches!(
+            allocation::with_refusal(0, || decode(&bytes)),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let required = frame.work_units + original.len() as u64;
+        let limits = options.limits().with_maximum_work_units(required).unwrap();
+        assert_eq!(admit_repair(bytes.len(), frame.work_units, &limits), Ok(()));
+        let below = limits.with_maximum_work_units(required - 1).unwrap();
+        assert_eq!(
+            admit_repair(bytes.len(), frame.work_units, &below),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::WorkUnits,
+                limit: required - 1,
+                actual: required
+            })
+        );
+        let input_limited = limits.with_maximum_input_bytes(bytes.len() as u64).unwrap();
+        assert_eq!(
+            admit_repair(bytes.len(), frame.work_units, &input_limited),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::InputBytes,
+                limit: bytes.len() as u64,
+                actual: original.len() as u64
+            })
+        );
+        for delta in [-1_i64, 1] {
+            let mut wrong = bytes.clone();
+            let length = (bytes.len() - SOT) as i64 + delta;
+            wrong[SOT + 6..SOT + 10].copy_from_slice(&(length as u32).to_be_bytes());
+            assert!(
+                !crate::codestream::recovery_framing(&wrong, options.limits())
+                    .unwrap()
+                    .append_eoc
+            );
+            assert!(decode(&wrong).is_err());
+        }
+        let mut empty_body = bytes[..BODY].to_vec();
+        empty_body[SOT + 6..SOT + 10].copy_from_slice(&14_u32.to_be_bytes());
+        assert!(crate::inspect_pdf_compatible(&empty_body, &options).is_ok());
+        assert!(crate::decode_pdf_compatible(&empty_body, &options, &selection).is_err());
+        assert!(crate::decode_codestream(&bytes, &options).is_err());
+    }
+}
+
+#[test]
 fn finite_other_tiles_parts_and_existing_eoc_trailers_never_reserve_a_repair() {
     let missing = damaged(GRAY0);
     let mut finite = missing.clone();
     finite[SOT + 6..SOT + 10].copy_from_slice(&19u32.to_be_bytes());
+    finite[SOT + 11] = 0;
     refuses_without_reservation(&finite);
     for (part, count) in [(0, 2), (1, 2)] {
         let mut bytes = missing.clone();
@@ -532,6 +609,7 @@ fn reconstructed_recovery_retains_centered_planes_geometry_and_report() {
         assert_eq!(intact.report.repair_copy_bytes, 0);
         let mut finite = bytes;
         finite[SOT + 6..SOT + 10].copy_from_slice(&19u32.to_be_bytes());
+        finite[SOT + 11] = 0;
         let strict_error = crate::decode_codestream_reconstructed(&finite, &options).unwrap_err();
         assert_eq!(
             decode_codestream_reconstructed_recover_missing_eoc(&finite, &options).unwrap_err(),
