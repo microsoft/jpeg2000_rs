@@ -21161,8 +21161,16 @@
           "symbol": "inverse_level_9_7"
         },
         {
+          "path": "src/transform/levels.rs",
+          "symbol": "inverse_empty_level"
+        },
+        {
           "path": "src/transform/geometry.rs",
           "symbol": "validate_level"
+        },
+        {
+          "path": "src/transform/geometry.rs",
+          "symbol": "validate_level_bands"
         },
         {
           "path": "src/transform/geometry.rs",
@@ -21184,6 +21192,8 @@
       "id": "part1-complete-standard-wavelet-planes",
       "implementation_refs": [
         {"path": "src/decode/reconstruction.rs", "symbol": "reconstruct_prepare_resolution"},
+        {"path": "src/transform/levels.rs", "symbol": "inverse_empty_level"},
+        {"path": "src/transform/geometry.rs", "symbol": "validate_level_bands"},
         {
           "path": "src/decode/reconstruction.rs",
           "symbol": "prepare_tile_component_with_kernel"
@@ -21332,6 +21342,14 @@
         },
         {
           "path": "specs/mod.rs",
+          "symbol": "part1_validate_level_bands"
+        },
+        {
+          "path": "specs/mod.rs",
+          "symbol": "part1_inverse_empty_level"
+        },
+        {
+          "path": "specs/mod.rs",
           "symbol": "part1_validate_band"
         },
         {
@@ -21375,6 +21393,7 @@
           "path": "src/transform/tests.rs",
           "symbol": "complete_standard_planes_match_independent_reference_for_all_small_geometries"
         },
+        {"path": "src/transform/tests.rs", "symbol": "internal_empty_levels_validate_every_band_without_allocating_or_scanning"},
         {"path": "src/transform/tests.rs", "symbol": "wavelet_plane_storage_standard_level_first_later_owners_exact_reference_and_restore"},
         {"path": "src/transform/tests.rs", "symbol": "wavelet_plane_storage_empty_no_request_geometry_budget_and_numerical_error_order"},
         {"path": "src/transform/tests.rs", "symbol": "wavelet_plane_storage_actual_custom_kernel_level_rows_columns_and_restore"},
@@ -21394,7 +21413,7 @@
           "symbol": "complete_scaling_lifting_and_column_store_states_match_independent_arithmetic"
         }
       ],
-      "topic": "Complete actual standard-kernel horizontal, vertical and single-level 2D plane composition, metadata, configured budgets and ordered typed failures; not multilevel scheduling, arbitrary kernels or component/tile assembly"
+      "topic": "Complete actual standard-kernel horizontal, vertical and single-level 2D plane composition, metadata, configured budgets and ordered typed failures. Private empty intermediate planes validate all band shapes and lengths without allocation; standalone zero-shape rejection is unchanged. Not multilevel scheduling, arbitrary nonempty kernels or component/tile assembly"
     },
     {
       "contract_refs": [

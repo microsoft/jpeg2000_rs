@@ -17093,6 +17093,7 @@ def validate_normative_coverage(
                 ("src/transform/levels.rs", "inverse_vertical_9_7"): "reconstruction_outcome",
                 ("src/transform/levels.rs", "inverse_level_5_3"): "reconstruction_outcome",
                 ("src/transform/levels.rs", "inverse_level_9_7"): "reconstruction_outcome",
+                ("src/transform/levels.rs", "inverse_empty_level"): "reconstruction_outcome",
                 ("src/transform/output.rs", "convert_samples"): "sequence_outcome",
                 ("src/transform/wavelets.rs", "interleave"): "sequence_outcome",
                 ("src/tier1/ht_cleanup_readers.rs", "ht_mel_from_input"): "ht_mel_outcome",
@@ -17147,6 +17148,7 @@ def validate_normative_coverage(
             if (reference["path"], reference["symbol"]) == ("src/image/layout.rs", "TypedImage::component"):
                 result_projection = "typed_component_reference_output"
             expected_result_model = {
+                ("src/transform/levels.rs", "inverse_empty_level"): "part1_inverse_empty_level",
                 ("src/jp2/color.rs", "value"): "part2_palette_value",
                 ("src/jp2/color.rs", "palette_value_error"): "part2_composition_error",
                 ("src/image/samples.rs", "typed_samples"): "part1_decoded_component_typed_samples",
