@@ -6,12 +6,12 @@ use vstd::prelude::*;
 verus! {
 
 /// 2^(n-9) for the three PIMA precisions; zero denotes unsupported precision.
-pub(crate) open spec fn color_esrgb_scale(precision: u8) -> int {
+pub open spec fn color_esrgb_scale(precision: u8) -> int {
     if precision == 10 { 2 } else if precision == 12 { 8 }
     else if precision == 16 { 128 } else { 0 }
 }
 
-pub(crate) open spec fn color_esrgb_sample_to_srgb16(value: u64, precision: u8)
+pub open spec fn color_esrgb_sample_to_srgb16(value: u64, precision: u8)
     -> Result<u16, crate::DecodeError>
 {
     let scale = color_esrgb_scale(precision);

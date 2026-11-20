@@ -17,6 +17,8 @@ pub(crate) enum Part2ColorOutputCapacity {
     Normalize {context:Part2ColorNormalizeContext},
     Channels {context:Part2ColorConvertContext},
     Sycc {context:Part2ColorConvertContext,role:u8},
+    EsrgbChannels {context:Part2ColorConvertContext},
+    EsrgbPlane {image:Part1DecodedTypedImage,colors:Seq<usize>,role:usize},
     CropChannels {context:Part2ColorCropContext},
     CropPlane {source:Seq<u16>,source_width:u32,x:u32,y:u32,x1:u32,y1:u32,count:usize},
 }
@@ -81,6 +83,8 @@ pub(crate) open spec fn part2_color_output_capacity_count(context:Part2ColorOutp
         Part2ColorOutputCapacity::Normalize {context}=>part2_color_normalize_count(context),
         Part2ColorOutputCapacity::Channels {context}=>match part2_color_convert_preflight(context){Err(_)=>0,Ok((format,layout,_))=>format.0 as nat+layout.1.len()},
         Part2ColorOutputCapacity::Sycc {context,role}=>match part2_color_convert_preflight(context){Err(_)=>0,Ok((format,_,count))=>if format.2 && role<3 {count as nat}else{0}},
+        Part2ColorOutputCapacity::EsrgbChannels {context}=>if color_esrgb_preflight(context).is_ok(){3}else{0},
+        Part2ColorOutputCapacity::EsrgbPlane {image,colors,role}=>match color_esrgb_plane_admission(image,colors,role){Err(_)=>0,Ok((_,_,count))=>count as nat},
         Part2ColorOutputCapacity::CropChannels {context}=>if part2_color_crop_admitted(context){context.image.4.len()}else{0},
         Part2ColorOutputCapacity::CropPlane {count,..}=>count as nat,
     }
@@ -210,10 +214,12 @@ pub(crate) open spec fn part2_color_convert_after_layout_requests(context:Part2C
     }
 }
 pub(crate) open spec fn part2_color_convert_requests(context:Part2ColorConvertContext)->Seq<Part2ColorOutputCapacity> {
-    let image=context.image;
-    if image.0.0==0 || image.0.1==0 {Seq::empty()}else{
-        match color_output_format(context.method) {
-            Err(_)=>Seq::empty(),Ok(format)=>part2_color_layout_requests(image.2,format.0)+part2_color_convert_after_layout_requests(context),
+    if color_is_esrgb(context.method) {part2_esrgb_convert_requests(context)}else{
+        let image=context.image;
+        if image.0.0==0 || image.0.1==0 {Seq::empty()}else{
+            match color_output_format(context.method) {
+                Err(_)=>Seq::empty(),Ok(format)=>part2_color_layout_requests(image.2,format.0)+part2_color_convert_after_layout_requests(context),
+            }
         }
     }
 }
@@ -225,6 +231,13 @@ pub(crate) open spec fn part2_color_convert_storage_run(context:Part2ColorConver
 }
 pub closed spec fn part2_color_convert_storage_result(context:Part2ColorConvertContext,result:Part2ConvertedImageResult)->bool {
     part2_cold_framed(|events|part2_color_convert_storage_run(context,events),result)
+}
+pub(crate) proof fn part2_color_convert_storage_from_program(context:Part2ColorConvertContext,result:Part2ConvertedImageResult)
+    requires part2_color_output_program_result(part2_color_convert_requests(context),part2_color_convert_value(context),result),
+    ensures part2_color_convert_storage_result(context,result),
+{
+    reveal(part2_color_convert_storage_result);
+    part2_decode_eta(|events|part2_color_output_program_run(part2_color_convert_requests(context),part2_color_convert_value(context),events),result);
 }
 
 pub(crate) proof fn part2_color_output_trace_member(step:spec_fn(nat)->Seq<Part2ColorOutputCapacity>,count:nat,index:nat,request:Part2ColorOutputCapacity)
@@ -453,6 +466,7 @@ pub(crate) proof fn part2_color_convert_layout_error(context:Part2ColorConvertCo
         part2_color_layout_storage_result(context.image.2,format.0,Err(error)),
     ensures part2_color_convert_storage_result(context,Err(error)),
 {
+    color_output_format_not_esrgb(context.method);
     reveal(part2_color_convert_storage_result);
     let child=part2_color_layout_requests(context.image.2,format.0);
     let after=part2_color_convert_after_layout_requests(context);
@@ -467,6 +481,8 @@ pub(crate) proof fn part2_color_convert_after_layout_member(context:Part2ColorCo
     requires part2_color_convert_preflight(context).is_ok(),part2_color_convert_after_layout_requests(context).contains(request),
     ensures part2_color_convert_requests(context).contains(request),
 {
+    assert(color_output_format(context.method).is_ok());
+    color_output_format_not_esrgb(context.method);
     let preflight=part2_color_convert_preflight(context).get_Ok_0();
     part2_color_output_concat_member(part2_color_layout_requests(context.image.2,preflight.0.0),part2_color_convert_after_layout_requests(context),request);
 }
