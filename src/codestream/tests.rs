@@ -4,6 +4,70 @@ use super::*;
 use crate::tier1::SubbandOrientation;
 
 #[test]
+fn reserved_parameterless_markers_skip_only_the_defined_header_range() {
+    let limits = ResourceLimits::default();
+    for marker in 0xff30_u16..=0xff3f {
+        let bytes = [marker.to_be_bytes().to_vec(), SOT.to_be_bytes().to_vec()].concat();
+        let mut parser = new_parser(&bytes, &limits).unwrap();
+        let mut count = 7;
+        assert!(
+            parser
+                .read_main_header_segment(&mut count)
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!((parser.position, parser.work_units, count), (2, 1, 7));
+
+        let bytes = [marker.to_be_bytes().to_vec(), SOD.to_be_bytes().to_vec()].concat();
+        let mut parser = new_parser(&bytes, &limits).unwrap();
+        assert!(parser.read_tile_header_segment().unwrap().is_none());
+        assert_eq!((parser.position, parser.work_units), (4, 2));
+
+        let mut main = baseline_headers().to_vec();
+        main.insert(1, marker.to_be_bytes().to_vec());
+        let tile = [marker.to_be_bytes().to_vec()];
+        let data = [0_u8];
+        let input = codestream_with_headers(1, &main, &tile, &data);
+        assert_eq!(
+            parse_layout(&input, &limits).unwrap().tile_parts[0].data,
+            data
+        );
+
+        let bytes = marker.to_be_bytes();
+        let mut parser = new_parser(&bytes, &limits).unwrap();
+        let mut count = 0;
+        assert_eq!(
+            parser.read_main_header_segment(&mut count),
+            Err(input_error_literal(2, MalformedKind::Truncated))
+        );
+        assert_eq!((parser.position, parser.work_units, count), (2, 1, 0));
+    }
+    for marker in [0xff2f_u16, 0xff40] {
+        let input = [marker.to_be_bytes(), [0, 2]].concat();
+        let mut parser = new_parser(&input, &limits).unwrap();
+        let mut count = 0;
+        assert_eq!(
+            parser.read_main_header_segment(&mut count),
+            Err(input_error_literal(0, MalformedKind::InvalidMarker))
+        );
+        assert_eq!((parser.position, parser.work_units, count), (4, 1, 1));
+    }
+    let limited = limits.with_maximum_work_units(1).unwrap();
+    let bytes = [0xff, 0x30, 0xff, 0x3f, 0xff, 0x90];
+    let mut parser = new_parser(&bytes, &limited).unwrap();
+    let mut count = 0;
+    assert_eq!(
+        parser.read_main_header_segment(&mut count),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            limit: 1,
+            actual: 2,
+        })
+    );
+    assert_eq!((parser.position, parser.work_units, count), (4, 2, 0));
+}
+
+#[test]
 fn sarah_engineering_plm_groups_continue_between_complete_codewords() {
     let first = segment(PLM, &[0, 4, 1]);
     let second = segment(PLM, &[1, 0x81, 0, 2, 0]);
@@ -368,6 +432,10 @@ fn assert_tile_header_admission_case<'a>(
     let mut reference = raw();
     // Replay the original tile loop prefix using its separately proved reader leaves.
     let expected = (|| {
+        while matches!(reference.peek_marker()?, 0xff30..=0xff3f) {
+            let marker = reference.peek_marker()?;
+            reference.expect_standalone(marker)?;
+        }
         let marker = reference.peek_marker()?;
         if marker == SOD {
             reference.expect_standalone(SOD)?;
@@ -822,6 +890,10 @@ fn assert_main_header_admission_case<'a>(
     let mut expected_count = count;
     // Replay the original loop prefix, including its fallible checked counter update.
     let expected = (|| {
+        while matches!(reference.peek_marker()?, 0xff30..=0xff3f) {
+            let marker = reference.peek_marker()?;
+            reference.expect_standalone(marker)?;
+        }
         let marker = reference.peek_marker()?;
         if marker == SOT {
             return Ok(None);
