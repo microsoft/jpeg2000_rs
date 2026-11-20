@@ -2481,11 +2481,14 @@ pub proof fn raw_grid_absent_resolution_precedes_missing_count_storage(
 pub proof fn raw_packet_candidate_failure_keeps_advanced_cursor_and_prior_emission(
     state:crate::specs::Part1PacketIterator,
 )
-    ensures state.candidate_index<state.grid.candidate_count
-        && crate::specs::part1_packet_candidate(state.grid,state.order,state.candidate_index).is_err() ==>
-        crate::specs::part1_packet_iterator_next(state).1.candidate_index==(state.candidate_index+1) as u64
-        && crate::specs::part1_packet_iterator_next(state).1.emitted==state.emitted
-        && crate::specs::part1_packet_iterator_next(state).0.is_err(),
+    ensures match crate::specs::part1_packet_candidate_count(state.grid,state.order) {
+        Err(error)=>crate::specs::part1_packet_iterator_next(state)==(Err(error),state),
+        Ok(count)=>state.candidate_index<count
+            && crate::specs::part1_packet_candidate(state.grid,state.order,state.candidate_index).is_err() ==>
+            crate::specs::part1_packet_iterator_next(state).1.candidate_index==(state.candidate_index+1) as u64
+            && crate::specs::part1_packet_iterator_next(state).1.emitted==state.emitted
+            && crate::specs::part1_packet_iterator_next(state).0.is_err(),
+    },
 {
     reveal(crate::specs::part1_packet_iterator_next);
 }
