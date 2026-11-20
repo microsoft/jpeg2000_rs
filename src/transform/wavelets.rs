@@ -351,6 +351,29 @@ pub(super) fn scale_parity(
 fn fixed_mul(value: i64, factor: i64) -> Result<i64, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { assert(FIXED_ONE == 65536) by(compute); }
+    // Two signed 32-bit operands leave room for the Q16 rounding bias.
+    if value >= i32::MIN as i64
+        && value <= i32::MAX as i64
+        && factor >= i32::MIN as i64
+        && factor <= i32::MAX as i64
+    {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let a = value as int;
+            let b = factor as int;
+            let aa = if a < 0 { -a } else { a };
+            let bb = if b < 0 { -b } else { b };
+            vstd::arithmetic::mul::lemma_mul_inequality(aa, 2147483648, bb);
+            vstd::arithmetic::mul::lemma_mul_inequality(bb, 2147483648, 2147483648);
+            assert(aa * bb <= 4611686018427387904);
+            assert(aa * bb == if a * b < 0 { -(a * b) } else { a * b }) by(nonlinear_arith)
+                requires aa == if a < 0 { -a } else { a }, bb == if b < 0 { -b } else { b };
+            assert(-4611686018427387904 <= a * b <= 4611686018427387904);
+        }
+        return Ok(crate::refinement::fixed_round_q16(
+            value * factor + FIXED_ONE / 2,
+        ));
+    }
     let product = value.checked_mul(factor).ok_or_else(arithmetic_overflow)?;
     let adjusted = product
         .checked_add(FIXED_ONE / 2)
