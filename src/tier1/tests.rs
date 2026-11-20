@@ -7691,6 +7691,28 @@ fn legacy_partial_quality_reconstructs_signed_midpoints_without_changing_prefixe
 }
 
 #[test]
+fn legacy_refinement_carries_from_the_word_path_into_the_wide_path() {
+    let mut plane = CodeBlockPlane::new(1, 1).unwrap();
+    plane.mark_significant(0, 0, u64::MAX - 2, true).unwrap();
+    plane.apply_refinement_bit(0, 0, 1, true).unwrap();
+    let word = plane.coefficient(0, 0).unwrap();
+    assert_eq!(word.magnitude_limb(0), Some(u64::MAX));
+    assert_eq!(word.magnitude_limb(1), Some(0));
+    assert!(word.negative && word.refined);
+
+    plane.apply_refinement_bit(0, 0, 0, true).unwrap();
+    let wide = plane.coefficient(0, 0).unwrap();
+    assert_eq!(wide.magnitude_limb(0), Some(0));
+    assert_eq!(wide.magnitude_limb(1), Some(1));
+    assert!(wide.negative && wide.refined);
+
+    plane.apply_refinement_bit(0, 0, 0, true).unwrap();
+    let refined_wide = plane.coefficient(0, 0).unwrap();
+    assert_eq!(refined_wide.magnitude_limb(0), Some(1));
+    assert_eq!(refined_wide.magnitude_limb(1), Some(1));
+}
+
+#[test]
 fn zero_byte_mq_continuation_replays_the_buffered_prefix() {
     let limits = ResourceLimits::default();
     let style = Tier1CodingStyle::from_code_block_style(1).unwrap();
