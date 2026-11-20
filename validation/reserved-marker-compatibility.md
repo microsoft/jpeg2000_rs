@@ -16,6 +16,10 @@ at work-limit or truncation failures. Delimiting/header order, unknown marker
 handling, segment lengths, input bounds and entropy data are otherwise unchanged.
 No compatibility flag or `PdfRecovery` is required.
 
+The same rule applies when retained header slices are scanned again for
+PPM/PPT reassembly or PLT/continued-PLM packet lengths. Those bounded scanners
+skip the markers as well, without touching bytes inside segment payloads.
+
 ## Proof correction
 
 The previous exact reader models encoded the same incorrect interpretation
@@ -24,6 +28,13 @@ as the implementation; passing those models did not establish the A.1.3 rule.
 main/tile header contracts compose it with their original post-skip bodies.
 The default production implementation itself is verified. No assumption,
 budget increase or verification exclusion was added.
+
+A terminal main-header read can consume reserved markers before reaching SOT
+without returning a functional segment. The actual layout loop therefore keeps
+its continuation/prefix relation before each iteration, not after that terminal
+transition. Its complete final-reader/result postconditions are unchanged.
+The inventory binds that exact phase, including a negative control for the old
+incorrect exit invariant.
 
 ## Regression and provenance
 
@@ -45,3 +56,6 @@ markers, exact work limits, truncated prefixes and adjacent unknown codes.
 The full fixture regression also tests all16 codes and continued rejection of
 adjacent unknown markers/truncation. Existing exhaustive header state/error
 tests retain their independent reference paths with the required skip step.
+Packed raw/JP2 regressions cover the expected pixel128 with every reserved
+code in main and tile headers, PPM/PLM and PPT/PLT metadata. Continued PLM
+groups also traverse the complete reserved range between physical fragments.

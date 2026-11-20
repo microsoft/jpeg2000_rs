@@ -7510,6 +7510,8 @@ class FrameworkTests(WorkingFiles):
             changes.append(original[:start] + block.replace(argument, "unrelated", 1) + original[end:])
         for before, after in (
             ("let ghost initial_reader = parser_view(&self);", "let ghost initial_reader = unrelated;"),
+            ("invariant_except_break\n                    initial_reader",
+             "invariant\n                    initial_reader"),
             ("reader: parser_view(&parser),", "reader: unrelated,"),
             ("mct: mct_parameters_view(&main_mct_parameters),", "mct: unrelated,"),
             ("ppm_frames: packed_header_frames_view(ppm_frames@)", "ppm_frames: Seq::empty()"),

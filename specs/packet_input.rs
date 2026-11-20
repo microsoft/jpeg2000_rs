@@ -167,6 +167,17 @@ pub open spec fn part1_packed_header_scan(
         } else { Ok(s.output) }
     } else if s.remaining_segments == 0 {
         Err(part1_packet_input_error(s.position, crate::MalformedKind::InvalidMarkerLength))
+    } else if header.len() - s.position < 2 {
+        Err(part1_packet_input_error(s.position, crate::MalformedKind::InvalidPackedPacketHeader))
+    } else if 0xff30 <= part1_packet_input_word(header, s.position)
+        && part1_packet_input_word(header, s.position) <= 0xff3f {
+        if s.position as nat + 2 > usize::MAX {
+            Err(part1_packet_input_error(s.position, crate::MalformedKind::ArithmeticOverflow))
+        } else {
+            part1_packed_header_scan(header, marker, logical_start, logical_end, length,
+                Part1PackedHeaderScan { position: (s.position + 2) as usize,
+                    remaining_segments: (s.remaining_segments - 1) as usize, ..s })
+        }
     } else if header.len() - s.position < 4 {
         Err(part1_packet_input_error(s.position, crate::MalformedKind::InvalidPackedPacketHeader))
     } else {
@@ -442,7 +453,16 @@ pub open spec fn part1_packet_length_plt(s: Part1PacketLengthIter) -> (Result<Op
                     Ok((value, next)) => (Ok(Some(value)), Part1PacketLengthIter { position: next, ..s }),
                 }
             } else if s.position == header.len() { (Ok(None), s) }
-            else if s.position > header.len() || header.len() - s.position < 4 {
+            else if s.position > header.len() || header.len() - s.position < 2 {
+                (Err(part1_packet_input_error(s.position, crate::MalformedKind::InvalidPacketLength)), s)
+            } else if 0xff30 <= part1_packet_input_word(header, s.position)
+                && part1_packet_input_word(header, s.position) <= 0xff3f {
+                if s.position as nat + 2 > usize::MAX {
+                    (Err(part1_packet_input_error(s.position, crate::MalformedKind::ArithmeticOverflow)), s)
+                } else {
+                    part1_packet_length_plt(Part1PacketLengthIter { position: (s.position + 2) as usize, ..s })
+                }
+            } else if header.len() - s.position < 4 {
                 (Err(part1_packet_input_error(s.position, crate::MalformedKind::InvalidPacketLength)), s)
             } else {
                 let marker_length = part1_packet_input_word(header, (s.position + 2) as usize) as usize;
