@@ -145,6 +145,7 @@ fn parse_invocation(arguments: &[String]) -> Result<Invocation<'_>, String> {
                     | "render-frame"
                     | "reconstruct"
                     | "progressive"
+                    | "recovery"
             ) =>
         {
             (operation, true)
@@ -166,12 +167,14 @@ fn parse_invocation(arguments: &[String]) -> Result<Invocation<'_>, String> {
     }
     let format = arguments[2].as_str();
     let supported = match operation {
-        "decode" | "select" | "decode-deadline" => matches!(format, "raw" | "jp2" | "jph" | "jpx"),
+        "decode" => matches!(format, "raw" | "jp2" | "jph" | "jpx" | "pdf"),
+        "select" | "decode-deadline" => matches!(format, "raw" | "jp2" | "jph" | "jpx"),
         "convert" | "select-color" => matches!(format, "jp2" | "jph" | "jpx"),
         "render" => format == "jpx",
         "render-layer" | "render-frame" => format.parse::<usize>().is_ok(),
         "reconstruct" | "ingest" => format == "jpip",
-        "inspect" => format == "jph",
+        "inspect" => matches!(format, "jph" | "pdf"),
+        "recovery" => format == "pdf",
         "progressive" => parse_packet_lengths(format).is_ok(),
         _ => false,
     };
@@ -361,7 +364,8 @@ fn main() {
         deadline_ms,
     } = parse_invocation(&arguments).unwrap_or_else(|error| {
         eprintln!(
-            "{error}\nusage: validation_decoder <decode|convert|inspect|ingest> <format> <input>\n\
+            "{error}\nusage: validation_decoder <decode|convert|inspect|ingest|recovery> <format> <input>\n\
+             PDF-compatible image streams: validation_decoder <decode|inspect|recovery> pdf <input>\n\
              or: validation_decoder <select|select-color> <format> <input> <discard-levels> \
              <all|tile-indices> <all|x,y,width,height>\n\
              or: validation_decoder decode-limited <format> <input> \
@@ -370,7 +374,7 @@ fn main() {
              or: validation_decoder <render|render-layer|render-frame|reconstruct|progressive> \
              <jpx|layer-index|frame-index|jpip|auto|packet-lengths> <input>\n\
              Limited decode/convert/select/select-color/render/render-layer/render-frame/\
-             reconstruct/progressive: append '-limited' to the operation and append \
+             reconstruct/progressive/recovery: append '-limited' to the operation and append \
              <decoded-bytes|work-units> <limit> after its ordinary arguments."
         );
         process::exit(2);
@@ -400,6 +404,28 @@ fn main() {
             Ok(image) => print_image(&image),
             Err(error) => print_error(error),
         },
+        ("decode", "pdf") => {
+            match jpeg2000_decoder::decode_pdf_compatible(&input, &options, &selection) {
+                Ok(decoded) => print_image(&decoded.image),
+                Err(error) => print_error(error),
+            }
+        }
+        ("recovery", "pdf") => {
+            match jpeg2000_decoder::decode_pdf_compatible(&input, &options, &selection) {
+                Ok(decoded) => {
+                    let report = decoded.recovery;
+                    println!(
+                        "RECOVERY\t{}\t{}\t{}\t{}\t{}",
+                        report.appended_eoc,
+                        report.original_codestream_bytes,
+                        report.effective_codestream_bytes,
+                        report.preflight_work_units,
+                        report.repair_copy_bytes
+                    );
+                }
+                Err(error) => print_error(error),
+            }
+        }
         ("decode", "jp2") => match decode_jp2(&input, &options) {
             Ok(image) => print_image(&image),
             Err(error) => print_error(error),
@@ -504,6 +530,13 @@ fn main() {
             Ok(inspection) => println!(
                 "META\tjph\tcodestreams={}",
                 inspection.file().codestreams().len()
+            ),
+            Err(error) => print_error(error),
+        },
+        ("inspect", "pdf") => match jpeg2000_decoder::inspect_pdf_compatible(&input, &options) {
+            Ok(info) => println!(
+                "META\tpdf\twidth={}\theight={}\tcomponents={}",
+                info.image_size.width, info.image_size.height, info.image_size.components
             ),
             Err(error) => print_error(error),
         },

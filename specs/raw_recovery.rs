@@ -520,9 +520,13 @@ pub(crate) open spec fn raw_recovery_sot(reader: Part1CodestreamReader<'_>)
     let read = part1_codestream_read_sot(reader, 1);
     match read.0 {
         Err(error) => (Err(error), read.1),
-        Ok(part) => if part.1 != 0 || part.3 != 0 || part.4 > 1 {
-            (recovery_framed(read.1, false), read.1)
-        } else { raw_recovery_tile_headers(read.1) },
+        Ok(part) => {
+            let sized_final = part.1 != 0 && part.4 == 1 && part.0 <= read.1.input.len()
+                && part.1 as nat == read.1.input.len() - part.0;
+            if (part.1 != 0 && !sized_final) || part.3 != 0 || part.4 > 1 {
+                (recovery_framed(read.1, false), read.1)
+            } else { raw_recovery_tile_headers(read.1) }
+        },
     }
 }
 
