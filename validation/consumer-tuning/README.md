@@ -76,6 +76,10 @@ Pushes/PRs never select the benchmark. Existing CI jobs and requirements remain
 unchanged (including on manual dispatch). No publishing/tagging is involved.
 Artifacts retain the entire cohort and raw evidence for 30 days; download them
 for longer retention. `COMPLETE` is written only after all checks pass.
+`archive_evidence.py RESULTS DESTINATION.tar.gz` creates a deterministic,
+checksum-indexed archive of **all** raw textual observations for long-term
+retention. Native executables are excluded from this compact archive, but
+their sizes/hashes remain; the full hosted artifact also contains executables.
 
 ## Shared public cohort
 
@@ -146,7 +150,8 @@ configuration is also measured, but this is not a full interaction factorial.
   logs, Cargo timing reports and **every rustc/native-cc invocation** are retained.
   The wrapper preserves Cargo jobserver descriptors.
 * Build wall/CPU time and GNU-time peak single-process RSS are recorded.
-  Summed process-tree RSS is sampled every 20 ms; it can miss peaks and
+  Summed process-tree RSS is sampled every 50 ms across **all** process threads'
+  children (Cargo spawns compiler children from worker threads); it can miss peaks and
   double-count shared pages. It is not a cgroup memory/allocation bound.
 * Link time is measured at the **native cc linker** boundary, with its own
   peak RSS. LLVM ThinLTO optimization runs inside rustc before native cc;
@@ -178,7 +183,11 @@ fingerprints/acceptance must agree; main and release controls must agree too.
 Lossless generated images must recover independently generated source bytes.
 Hayro is **never a pixel oracle**; its lossless output must independently recover
 the source, its API/layout must work, and lossy sample differences are recorded,
-not adjudicated against Hayro. Tracked fixtures are acceptance probes, not
+not adjudicated against Hayro. A changed Hayro fingerprint is retained, not
+silently filtered or allowed to abort measurements of our invariant controls.
+Any affected Hayro tuning aggregate/comparator ratio is explicitly **unqualified**
+(`null` headline reduction/ratio), while all its raw times and outputs remain.
+Tracked fixtures are acceptance probes, not
 silently treated as comparable performance inputs.
 
 ## Consumer recommendation and remaining acceptance

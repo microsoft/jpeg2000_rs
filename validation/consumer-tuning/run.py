@@ -240,6 +240,9 @@ def run(options):
             shutil.rmtree(directory / "target")
             print(f"built {label}", flush=True)
     reference = {}
+    config_reference = {}
+    variants = {}
+    qualification = {}
     for pair in range(options.pairs):
         tuned_configs = list(CONFIGS)[1:]
         if pair % 2:
@@ -265,14 +268,27 @@ def run(options):
                             raise RuntimeError(f"decode process failed: {label}")
                         result = json.loads(Path(str(prefix) + ".stdout").read_text())
                         record.update(result)
+                        key = backend, fixture["id"]
+                        config_key = backend, config, fixture["id"]
+                        reference.setdefault(key, result["outcome"])
+                        config_reference.setdefault(config_key, result["outcome"])
+                        record["matches_backend_generic"] = reference[key] == result["outcome"]
+                        record["same_config_stable"] = config_reference[config_key] == result["outcome"]
+                        record["qualification_errors"] = []
+                        try:
+                            check_outcome(backend, fixture, result["outcome"])
+                        except ValueError as error:
+                            record["qualification_errors"].append(str(error))
+                        canonical = json.dumps(result["outcome"], sort_keys=True)
+                        variants.setdefault(config_key, {})[canonical] = result["outcome"]
+                        qualified = (record["matches_backend_generic"] and record["same_config_stable"]
+                                     and not record["qualification_errors"])
+                        qualification[config_key] = qualification.get(config_key, True) and qualified
                         append(output / "samples.jsonl", record)
                         if result["input_sha256"] != fixture["sha256"]:
                             raise ValueError("binary read a different input")
-                        check_outcome(backend, fixture, result["outcome"])
-                        key = backend, fixture["id"]
-                        if key in reference and reference[key] != result["outcome"]:
+                        if backend != "hayro-scalar" and not qualified:
                             raise ValueError(f"configuration changed acceptance/samples: {key}")
-                        reference[key] = result["outcome"]
             print(f"completed pair {pair} tuning {tuned}", flush=True)
     controls = {}
     for fixture in fixtures:
@@ -289,6 +305,21 @@ def run(options):
             "hayro_pixels_equal": current.get("samples_sha256_u8_interleaved")
             == hayro.get("samples_sha256_u8_interleaved") if comparable else None,
             "hayro_is_pixel_oracle": False,
+            "by_configuration": {
+                backend: {config: config_reference[backend, config, fixture["id"]]
+                          for config in CONFIGS}
+                for backend in BACKENDS
+            },
+            "qualification": {
+                backend: {config: qualification[backend, config, fixture["id"]]
+                          for config in CONFIGS}
+                for backend in BACKENDS
+            },
+            "output_variants": {
+                backend: {config: list(variants[backend, config, fixture["id"]].values())
+                          for config in CONFIGS}
+                for backend in BACKENDS
+            },
         }
     (output / "outcomes.json").write_text(json.dumps(controls, indent=2) + "\n")
     subprocess.run([sys.executable, str(HERE / "summarize.py"), str(output)], check=True)

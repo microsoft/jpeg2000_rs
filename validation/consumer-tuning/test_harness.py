@@ -105,6 +105,22 @@ class MeasurementTests(unittest.TestCase):
             os.close(write_fd)
             shutil.rmtree(directory)
 
+    def test_build_rss_includes_children_spawned_by_worker_threads(self):
+        scratch = ROOT / "target/consumer-tuning/tests"
+        scratch.mkdir(parents=True, exist_ok=True)
+        directory = scratch / uuid.uuid4().hex
+        directory.mkdir()
+        try:
+            child = "import time; data=bytearray(48*1024*1024); time.sleep(0.3)"
+            parent = ("import subprocess,sys,threading; "
+                      f"thread=threading.Thread(target=lambda:subprocess.run([sys.executable,'-c',{child!r}])); "
+                      "thread.start(); thread.join()")
+            measured = measure([sys.executable, "-c", parent], directory / "tree", sample_tree=True)
+            self.assertEqual(measured["returncode"], 0)
+            self.assertGreater(measured["sampled_tree_rss_kib"], 48 * 1024)
+        finally:
+            shutil.rmtree(directory)
+
     def test_ratio_summary_keeps_direction_and_uncertainty(self):
         self.assertAlmostEqual(geometric([0.5, 2]), 1)
         for bound in interval([0.9, 0.9]):
@@ -143,6 +159,20 @@ class MeasurementTests(unittest.TestCase):
                 self.assertAlmostEqual(cohort["decode_reduction_percent"], 10)
             for comparison in result["comparator"]:
                 self.assertAlmostEqual(comparison["current_over_hayro_scalar_geomean"], 2)
+            for row in rows:
+                if row["backend"] == "hayro-scalar" and row["config"] == "cpu" and row["pair"] == 0:
+                    row["matches_backend_generic"] = False
+            (directory / "samples.jsonl").write_text("\n".join(map(json.dumps, rows)) + "\n")
+            with contextlib.redirect_stdout(io.StringIO()):
+                changed = summarize(directory)
+            cpu = next(row for row in changed["cohort"]
+                       if row["backend"] == "hayro-scalar" and row["config"] == "cpu")
+            self.assertFalse(cpu["output_invariant_qualified"])
+            self.assertIsNone(cpu["decode_reduction_percent"])
+            self.assertAlmostEqual(cpu["raw_decode_time_change_percent"], 10)
+            comparator = next(row for row in changed["comparator"] if row["config"] == "cpu")
+            self.assertIsNone(comparator["current_over_hayro_scalar_geomean"])
+            self.assertEqual(comparator["unqualified_fixtures"], ["test"])
         finally:
             shutil.rmtree(directory)
 

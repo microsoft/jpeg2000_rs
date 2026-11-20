@@ -15,7 +15,12 @@ def tree_rss_kib(pid):
         status = Path(f"/proc/{pid}/status").read_text()
         rss = next((int(line.split()[1]) for line in status.splitlines()
                     if line.startswith("VmRSS:")), 0)
-        children = Path(f"/proc/{pid}/task/{pid}/children").read_text().split()
+        children = set()
+        for task in Path(f"/proc/{pid}/task").iterdir():
+            try:
+                children.update((task / "children").read_text().split())
+            except (FileNotFoundError, ProcessLookupError, PermissionError):
+                continue
         return rss + sum(tree_rss_kib(int(child)) for child in children)
     except (FileNotFoundError, ProcessLookupError, PermissionError):
         return 0
@@ -46,7 +51,7 @@ def measure(command, prefix, env=None, sample_tree=False, preserve_jobserver=Fal
         if sample_tree:
             while process.poll() is None:
                 peak = max(peak, tree_rss_kib(process.pid))
-                time.sleep(0.02)
+                time.sleep(0.05)
         code = process.wait()
     elapsed = time.perf_counter_ns() - start
     metrics = json.loads(Path(time_file).read_text())

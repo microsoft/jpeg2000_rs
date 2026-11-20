@@ -24,24 +24,33 @@ def summarize(output):
     rows = [json.loads(line) for line in (output / "samples.jsonl").read_text().splitlines()]
     fixtures = {f["id"]: f for f in json.loads((output / "fixture-manifest.json").read_text())["fixtures"]}
     grouped = collections.defaultdict(dict)
+    qualified_pairs = collections.defaultdict(lambda: True)
     process_groups = collections.defaultdict(list)
     for row in rows:
         key = row["backend"], row["tuned"], row["fixture"], row["pair"]
         grouped[key][row["config"]] = statistics.median(row["decode_ns"])
+        qualified_pairs[key] &= (row.get("matches_backend_generic", True)
+                                 and row.get("same_config_stable", True)
+                                 and not row.get("qualification_errors", []))
         process_groups[row["backend"], row["config"], row["fixture"]].append(row)
     ratios = collections.defaultdict(list)
     cohort_pairs = collections.defaultdict(list)
+    qualified_fixtures = collections.defaultdict(lambda: True)
+    qualified_cohorts = collections.defaultdict(lambda: True)
     for (backend, config, fixture, pair), values in grouped.items():
         ratio = values[config] / values["generic"]
         ratios[backend, config, fixture].append((pair, ratio))
+        qualified_fixtures[backend, config, fixture] &= qualified_pairs[backend, config, fixture, pair]
         if fixtures[fixture]["group"] == "generated-1024":
             cohort_pairs[backend, config, pair].append(ratio)
+            qualified_cohorts[backend, config] &= qualified_pairs[backend, config, fixture, pair]
     fixture_summary = []
     for (backend, config, fixture), values in ratios.items():
         ordered = [value for _, value in sorted(values)]
         fixture_summary.append({
             "backend": backend, "config": config, "fixture": fixture,
             "pairs": len(values), "tuned_over_generic_geomean": geometric(ordered),
+            "output_invariant_qualified": qualified_fixtures[backend, config, fixture],
             "paired_bootstrap_95_ratio": interval(ordered),
             "generic_first_ratios": [value for pair, value in values if pair % 2 == 0],
             "tuned_first_ratios": [value for pair, value in values if pair % 2 == 1],
@@ -52,7 +61,10 @@ def summarize(output):
     cohort_summary = [{
         "backend": backend, "config": config, "pairs": len(values),
         "generated_16_inputs_ratio": geometric([value for _, value in values]),
-        "decode_reduction_percent": 100 * (1 - geometric([value for _, value in values])),
+        "output_invariant_qualified": qualified_cohorts[backend, config],
+        "decode_reduction_percent": 100 * (1 - geometric([value for _, value in values]))
+        if qualified_cohorts[backend, config] else None,
+        "raw_decode_time_change_percent": 100 * (1 - geometric([value for _, value in values])),
         "paired_bootstrap_95_ratio": interval([value for _, value in values]),
         "pair_ratios": dict(values),
     } for (backend, config), values in cohort.items()]
@@ -71,13 +83,22 @@ def summarize(output):
     indexed = {(row["backend"], row["config"], row["fixture"]): row for row in processes}
     for config in ["generic", "cpu", "thinlto", "cgu1", "combined"]:
         values = []
+        unqualified = []
         for fixture in fixtures.values():
             if fixture["group"] != "generated-1024":
                 continue
             current = indexed["current", config, fixture["id"]]["decode_ns_median"]
             hayro = indexed["hayro-scalar", config, fixture["id"]]["decode_ns_median"]
             values.append(current / hayro)
-        comparator.append({"config": config, "current_over_hayro_scalar_geomean": geometric(values),
+            if not all(row.get("matches_backend_generic", True)
+                       and row.get("same_config_stable", True)
+                       and not row.get("qualification_errors", [])
+                       for row in process_groups["hayro-scalar", config, fixture["id"]]):
+                unqualified.append(fixture["id"])
+        comparator.append({"config": config, "current_over_hayro_scalar_geomean":
+                           geometric(values) if not unqualified else None,
+                           "output_invariant_qualified": not unqualified,
+                           "unqualified_fixtures": unqualified,
                            "per_fixture_ratios": values, "pixel_oracle": False,
                            "timing_pairing": "not decoder-paired; config comparisons are paired"})
     builds = [json.loads(line) for line in (output / "builds.jsonl").read_text().splitlines()]
@@ -106,14 +127,16 @@ def summarize(output):
                        "Both JP2/J2K encodings of each source are correlated, not 16 independent images.",
         "memory": "KiB. GNU time max_process_rss is maximum single-process RSS in the tree. "
                   "Decode RSS includes startup, input and post-timing sample hashing. "
-                  "Build summed-tree RSS sampled every 20ms can miss peaks and double-count shared pages.",
+                  "Build summed-tree RSS sampled every 50ms can miss peaks and double-count shared pages.",
         "link_time": "Native cc linker invocation wall time, including wrapper overhead. "
                      "LLVM ThinLTO optimization runs inside rustc before native link; "
                      "rustc invocation wall time is retained separately; neither is pure LLVM link-only time.",
     }
     (output / "summary.json").write_text(json.dumps(result, indent=2) + "\n")
     for row in cohort_summary:
-        print(f"{row['backend']:12} {row['config']:8} reduction={row['decode_reduction_percent']:+.2f}% "
+        reduction = (f"{row['decode_reduction_percent']:+.2f}%"
+                     if row["output_invariant_qualified"] else "UNQUALIFIED: output changed")
+        print(f"{row['backend']:12} {row['config']:8} reduction={reduction} "
               f"ratio95={row['paired_bootstrap_95_ratio']}")
     return result
 
