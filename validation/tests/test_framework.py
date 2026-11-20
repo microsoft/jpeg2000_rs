@@ -7345,7 +7345,7 @@ class FrameworkTests(WorkingFiles):
         source = framework.ROOT / "src/codestream/layout.rs"
         original = source.read_text()
         read_text = Path.read_text
-        start = original.index("invariant_except_break")
+        start = original.index("invariant_except_break", original.index("let ghost initial_persistent_state"))
         end = original.index("decreases input_length", start)
         block = original[start:end]
         for before in (
