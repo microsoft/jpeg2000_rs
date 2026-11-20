@@ -15,6 +15,13 @@ pub(super) fn validate_level(level: WaveletLevel<'_>) -> Result<(), DecodeError>
     if level.output_width == 0 || level.output_height == 0 {
         return Err(invalid_transform());
     }
+    validate_level_bands(level)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part1_validate_level_bands(wavelet_level_view(level)),
+))]
+pub(super) fn validate_level_bands(level: WaveletLevel<'_>) -> Result<(), DecodeError> {
     let low_width = low_count(level.output_width, level.low_pass_first_x);
     let high_width = level
         .output_width

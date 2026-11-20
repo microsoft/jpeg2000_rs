@@ -10004,6 +10004,35 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "executable Verus contract"):
                 framework.validate_normative_coverage(data)
 
+    def test_inventory_empty_wavelet_level_requires_exact_projection_model_and_band_link(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part1-complete-standard-wavelet-planes"
+        ]
+        framework.validate_normative_coverage(coverage)
+        source = framework.ROOT / "src/transform/levels.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("reconstruction_outcome(result)", "reconstruction_outcome(unrelated)"),
+            ("crate::specs::part1_inverse_empty_level(", "crate::specs::part1_inverse_level("),
+        ):
+            modified = original.replace(before, after, 1)
+            self.assertNotEqual(modified, original)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
+                framework.validate_normative_coverage(coverage)
+        coverage["requirements"][0]["implementation_refs"].remove(
+            {"path": "src/transform/geometry.rs", "symbol": "validate_level_bands"}
+        )
+        with self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
+            framework.validate_normative_coverage(coverage)
+
     def test_inventory_wavelet_planes_require_actual_prior_rows_matrix_tail_and_first_normal(self):
         coverage=json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         data=dict(coverage,requirements=[e for e in coverage["requirements"] if e["id"]=="part1-complete-standard-wavelet-planes"])
