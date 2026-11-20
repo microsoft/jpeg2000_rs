@@ -130,7 +130,10 @@ impl Tier1CodeBlockDecoder {
             #[cfg(verus_keep_ghost)]
             proof_decl! {let ghost ready=crate::specs::Part1LegacySegmentRun {decoder:tier1_decoder_state(self),
             symbols:crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(&decoder)),statistics:crate::specs::tier1_statistics_zero()};}
-            let decoded = self.decode_mq_segment_passes(&mut decoder, pass_count);
+            let decoded = match self.try_compact_legacy(&mut decoder, pass_count, limits) {
+                Some(result) => result,
+                None => self.decode_mq_segment_passes(&mut decoder, pass_count),
+            };
             #[cfg(verus_keep_ghost)]
             proof! {
                 let inner=(decoded,tier1_decoder_state(self),crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(&decoder)));
@@ -222,7 +225,7 @@ impl Tier1CodeBlockDecoder {
                     statistics: crate::specs::tier1_statistics_zero(),
                 }, pass_count as nat)),
     ))]
-    fn decode_mq_segment_passes(
+    pub(super) fn decode_mq_segment_passes(
         &mut self,
         decoder: &mut MqDecoder<'_>,
         pass_count: u32,
