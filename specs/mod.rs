@@ -4042,9 +4042,14 @@ pub open spec fn part2_kernel_inverse_vertical(
 pub open spec fn part2_kernel_inverse_level(
     level: Part1WaveletLevel, reversible: bool, kernel: Option<Part2RawKernel>, maximum: u64,
 ) -> Part1ReconstructionResult {
-    match kernel {
-        None => part1_inverse_level(level, !reversible, maximum),
-        Some(kernel) => part2_atk_inverse_level(level, !kernel.0, kernel, maximum),
+    if level.4 == 0 || level.5 == 0 {
+        part1_inverse_empty_level(level,
+            match kernel { None => !reversible, Some(kernel) => !kernel.0 }, maximum)
+    } else {
+        match kernel {
+            None => part1_inverse_level(level, !reversible, maximum),
+            Some(kernel) => part2_atk_inverse_level(level, !kernel.0, kernel, maximum),
+        }
     }
 }
 
@@ -17904,20 +17909,43 @@ pub open spec fn part1_validate_band(band: Part1WaveletBand, width: u32, height:
 }
 
 pub open spec fn part1_validate_level(level: Part1WaveletLevel) -> Result<(), crate::DecodeError> {
+    if level.4 == 0 || level.5 == 0 {
+        Err(part1_transform_error(false))
+    } else {
+        part1_validate_level_bands(level)
+    }
+}
+
+pub open spec fn part1_validate_level_bands(level: Part1WaveletLevel) -> Result<(), crate::DecodeError> {
     let low_width = part1_low_count(level.4, level.6);
     let high_width = (level.4 - low_width) as u32;
     let low_height = part1_low_count(level.5, level.7);
     let high_height = (level.5 - low_height) as u32;
-    if level.4 == 0 || level.5 == 0 {
-        Err(part1_transform_error(false))
-    } else {
-        match part1_validate_band(level.0, low_width, low_height) {
+    match part1_validate_band(level.0, low_width, low_height) {
             Err(error) => Err(error),
             Ok(()) => match part1_validate_band(level.1, high_width, low_height) {
                 Err(error) => Err(error),
                 Ok(()) => match part1_validate_band(level.2, low_width, high_height) {
                     Err(error) => Err(error),
                     Ok(()) => part1_validate_band(level.3, high_width, high_height),
+                },
+            },
+    }
+}
+
+pub open spec fn part1_inverse_empty_level(
+    level: Part1WaveletLevel, irreversible: bool, maximum: u64,
+) -> Part1ReconstructionResult {
+    if level.4 != 0 && level.5 != 0 {
+        Err(part1_transform_error(false))
+    } else {
+        match part1_validate_level_bands(level) {
+            Err(error) => Err(error),
+            Ok(()) => match part1_transform_area(level.4, level.5) {
+                Err(error) => Err(error),
+                Ok(length) => match part1_quantization_budget(length as nat, maximum) {
+                    Err(error) => Err(error),
+                    Ok(()) => Ok((level.4, level.5, if irreversible { 16u8 } else { 0u8 }, Seq::empty())),
                 },
             },
         }
