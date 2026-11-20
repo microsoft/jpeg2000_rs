@@ -446,11 +446,18 @@ pub(crate) proof fn part1_cold_tile_payload_error<'a>(
     ensures part1_cold_tile_part_result(input, (Err(error), reader)),
 {
     reveal(part1_mct_copy_result); reveal(part1_cold_tile_part_result);
-    reveal(part1_cold_tile_normal); reveal(part1_read_tile_part); reveal(part1_finish_tile_part);
-    reveal(part1_tile_part_after_configuration);
+    let header = part1_cold_tile_header(input);
+    assert(raw.pending_mct.len() == 0 && raw.pending_mcc.len() == 0
+        && part1_tile_graph_prepare(input, raw, header.1).is_ok()
+        && part1_mct_graph(raw.mct_parameters).is_ok()
+        && part1_cold_tile_normal(input) == part1_tile_part_after_configuration(
+            header.1, raw, input.tile, part1_tile_graph_prepare(input, raw, header.1)->Ok_0,
+            input.lengths, input.headers)) by {
+        reveal(part1_cold_tile_normal); reveal(part1_read_tile_part); reveal(part1_finish_tile_part);
+        reveal(part1_tile_part_after_configuration);
+    }
     let payload_calls = choose|calls: Seq<Part1ColdStorageEvent>| part1_mct_copy_run(part1_tile_payload_copy_requests(raw), calls)
         == Some((Err(error), Seq::empty()));
-    let header = part1_cold_tile_header(input);
     let before_header = part1_read_tile_progression_normal(input.reader, input.defaults.0, input.roi, input.progression,
         input.mct, input.extensions, input.components, input.tile.3, input.lengths, input.headers);
     let components = part1_cold_tile_configuration_calls(input);
@@ -464,7 +471,9 @@ pub(crate) proof fn part1_cold_tile_payload_error<'a>(
     part1_bitmap_normal(input.tile.0, raw.progression_changes, raw.tile_coding_style.layers, &styles, header.1.limits, graph + payload_calls);
     let calls = before_header + components + bitmap + graph + payload_calls;
     assert(calls =~= before_header + (components + (bitmap + (graph + payload_calls))));
-    assert(part1_cold_tile_part_run(input, calls) == Some(((Err(error), reader), Seq::empty())));
+    assert(part1_cold_tile_part_run(input, calls) == Some(((Err(error), reader), Seq::empty()))) by {
+        reveal(part1_tile_part_after_configuration);
+    }
 }
 
 }
