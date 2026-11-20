@@ -20,9 +20,9 @@ On **native** Linux ARM64 or x86-64, from the repository root:
 
 ```sh
 rustup toolchain install 1.93.1 --profile minimal
-bash validation/build-openjpeg.sh
+bash validation/consumer-tuning/build-openjpeg254.sh
 python3 validation/consumer-tuning/generate_fixtures.py \
-  --encoder target/validation/oracles/openjpeg-build/bin/opj_compress
+  --encoder target/consumer-tuning/encoder/build/bin/opj_compress
 python3 -m unittest discover -s validation/consumer-tuning -p 'test_*.py' -v
 # Untimed API/sample qualification (optional before remote runs):
 python3 validation/consumer-tuning/smoke.py
@@ -59,7 +59,7 @@ for longer retention. `COMPLETE` is written only after all checks pass.
 `target/consumer-tuning/fixtures/manifest.json` is standalone; all its `path`
 and `source` entries are relative to that directory. The checked-in
 `cohort-v1.json` is the canonical expected manifest, SHA256
-`e776338de355c0019cc05d03be12da2a611f38886d013bde3bf0dfc58b4dd1d9`.
+`5c33c9699031796f293e4cb5357c56748367793cbd21c59e7ddaba219069c954`.
 Encoder executable SHA256 and help output are separate
 `encoder-provenance.json` because native binaries differ by host.
 
@@ -82,13 +82,15 @@ Expected **lossless source-sample** SHA256 (without PNM header):
 | noisy RGB | `d29168da35a4578465080abf504bf6336dfed729d6abf939495d27c0eded6122` |
 
 OpenJPEG **2.5.4**, source revision
-`a5891555eb49ed7cc26b2901ea680acda136d811`, is invoked with explicit `-n 6`,
+`6c4a29b00211eb0430fa0e5e890f1ce5c80f409f`, is invoked with explicit `-n 6`,
 `-mct 1` for RGB / `-mct 0` for gray; lossy adds `-I -r 12`.
 No tiles/precinct overrides or thread options are implicit benchmark knobs.
 For each JP2, the raw J2K is the **exact extracted `jp2c` payload**, not a
 second encoding. Manifest records source-file/sample hashes, encoded hashes,
 COD resolution/MCT/wavelet fields, JP2 box hashes and concatenated non-codestream
 metadata hash. Native regeneration must match **all** canonical fixture bytes.
+The existing general `validation/build-openjpeg.sh` intentionally remains
+unchanged: its pin is OpenJPEG 2.5.0, not the 2.5.4 encoder required here.
 
 Eight already-tracked MIT/self-authored fixtures add small gray/RGB JP2,
 minimal raw J2K, invalid raw SOC/JP2 signature, mixed-resolution RPCL,

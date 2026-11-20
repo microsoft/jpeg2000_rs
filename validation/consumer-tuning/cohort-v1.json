@@ -5,7 +5,7 @@
   "encoder": {
     "project": "OpenJPEG",
     "version": "2.5.4",
-    "revision": "a5891555eb49ed7cc26b2901ea680acda136d811"
+    "revision": "6c4a29b00211eb0430fa0e5e890f1ce5c80f409f"
   },
   "sample_layout": "unsigned 8-bit, interleaved y/x/channel order; SHA256 excludes PNM header",
   "patterns": {

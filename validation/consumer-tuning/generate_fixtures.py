@@ -10,7 +10,7 @@ import struct
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
-OPENJPEG_REVISION = "a5891555eb49ed7cc26b2901ea680acda136d811"
+OPENJPEG_REVISION = "6c4a29b00211eb0430fa0e5e890f1ce5c80f409f"
 TRACKED = [
     "validation/image-consumer-probe/tests/fixtures/gray.jp2",
     "validation/image-consumer-probe/tests/fixtures/rgb.jp2",

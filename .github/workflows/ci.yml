@@ -41,11 +41,11 @@ jobs:
       - name: Pin final consumer compiler
         run: rustup toolchain install 1.93.1 --profile minimal
       - name: Build pinned public fixture encoder
-        run: bash validation/build-openjpeg.sh
+        run: bash validation/consumer-tuning/build-openjpeg254.sh
       - name: Generate and verify shared public cohort
         run: |
           python3 validation/consumer-tuning/generate_fixtures.py \
-            --encoder target/validation/oracles/openjpeg-build/bin/opj_compress
+            --encoder target/consumer-tuning/encoder/build/bin/opj_compress
           python3 -m unittest discover -s validation/consumer-tuning -p 'test_*.py' -v
       - name: Measure native final consuming binaries
         env:
