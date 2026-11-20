@@ -106,10 +106,13 @@ accepted output reproduces ordinary typed codestream decoding with the same
 limits. This strict entry supplies no container mapping, color, selection or
 recovery output. Its explicit
 `decode_codestream_reconstructed_recover_missing_eoc` counterpart supports only
-the same bounded raw sole-open-ended-tile-part EOC repair as
+the same bounded raw sole-tile-part EOC repair as
 `decode_codestream_recover_missing_eoc`. It returns centered reconstruction
 planes and fraction bits with genuine origins and the same original/effective
-length, preflight and copy report. Both use one strict decode, without retries;
+length, preflight and copy report. Admission requires either an open-ended
+part or a positively sized, count-one final part whose declared boundary is
+exactly EOF; ordinary validation still checks data.
+Both use one strict decode, without retries;
 NLT and genuine reconstruction errors remain errors. No additional recovery,
 container, selection or color policy is added. Full #296 scope remains open.
 Allocation-error propagation remains incomplete

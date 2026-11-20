@@ -71,11 +71,13 @@ verus! {
     }
 }
 
-/// Decode raw JPEG 2000, opting into exactly the sole-open-ended-part EOC repair.
+/// Decode raw JPEG 2000, opting into the bounded sole-tile-part EOC repair.
 ///
 /// A checked structural preflight uses the normal SIZ/marker/SOT readers. Only
-/// one advertised image tile, part index zero, part count zero or one, Psot=0,
-/// complete length-delimited headers and SOD can admit an appended `FF D9`.
+/// one advertised image tile, part index zero, complete length-delimited headers
+/// and SOD can admit an appended `FF D9`. An open-ended part accepts count zero
+/// or one. A positively sized part requires count one and a declared end exactly
+/// at EOF; that boundary alone is not evidence of complete packet data.
 /// A marker-aware body traversal prevents appending after an existing EOC,
 /// another SOT or an unrelated marker. Header semantics, packet lengths and
 /// entropy are still checked by one ordinary strict decode, without retries.
