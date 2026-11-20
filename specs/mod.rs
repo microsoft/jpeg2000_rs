@@ -43,6 +43,12 @@ mod packet_orchestration;
 pub use packet_orchestration::*;
 mod packet_progression;
 pub use packet_progression::*;
+mod packet_spatial;
+pub use packet_spatial::*;
+mod spatial_geometry;
+pub use spatial_geometry::*;
+mod spatial_grid_composition;
+pub use spatial_grid_composition::*;
 mod packet_tile;
 pub use packet_tile::*;
 mod packet_boundaries;
@@ -10292,7 +10298,7 @@ pub open spec fn part2_progression_tile_plan_owned(
 ) -> Result<Part2ProgressionTilePlan, crate::DecodeError> {
     match part2_selection_tile_bounds(crate::codestream::selection_geometry_view(size), selection.0) {
         Err(error) => Err(error),
-        Ok(_) => match part2_packet_grid_from_components(size, styles, coding_style.layers, limits, Some(selection.0), selection.1) {
+        Ok(_) => match part2_spatial_packet_grid_from_components(size, styles, coding_style.layers, limits, Some(selection.0), selection.1) {
             Err(error) => Err(error),
             Ok(grid) => part2_tile_plan_components(size, coding_style, styles, quantizations, roi, selection, policy, limits, grid, 0,
                 Part2TilePlanBuffers { precincts: Seq::empty(), components: Seq::empty(), planned_code_blocks: 0 }),

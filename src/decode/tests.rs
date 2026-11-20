@@ -62,6 +62,70 @@ fn bitplane_initial_storage_raw_reference() -> [u8; 86] {
 }
 
 #[test]
+fn spatial_geometry_refusal_restores_and_cross_axis_scan_is_work_bounded() {
+    let bytes = bitplane_initial_storage_raw_reference();
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    let size = &layout.info.image_size;
+    let style = layout.info.coding_style;
+    let grid = PacketGrid::new(2, 1, 1, vec![1], &limits).unwrap();
+    let source = super::spatial::PacketSpatialStyles::Uniform(style);
+    let expected =
+        super::spatial::attach_packet_spatial_grid(grid.clone(), size, source, Some(0)).unwrap();
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(
+            super::spatial::attach_packet_spatial_grid(grid.clone(), size, source, Some(0)),
+            Err(DecodeError::AllocationFailed),
+        );
+        assert_eq!(
+            super::spatial::attach_packet_spatial_grid(grid.clone(), size, source, Some(0))
+                .unwrap(),
+            expected
+        );
+    });
+    crate::allocation::with_refusal(0, || {
+        assert!(matches!(
+            super::spatial::attach_packet_spatial_grid(grid.clone(), size, source, Some(u16::MAX)),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidImageGeometry,
+                ..
+            }),
+        ));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+
+    let mut size = *size;
+    size.width = 64;
+    size.height = 64;
+    size.tile_width = 64;
+    size.tile_height = 64;
+    let mut style = style;
+    style.decomposition_levels = 1;
+    style.precinct_exponents[0] = (0, 6);
+    style.precinct_exponents[1] = (6, 0);
+    let tight = limits.with_maximum_work_units(1000).unwrap();
+    let grid = derive_packet_grid(&size, style, &tight).unwrap();
+    assert_eq!(
+        crate::packet::PacketIterator::new(&grid, ProgressionOrder::Pcrl).next_packet(),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            limit: 1000,
+            actual: 8192
+        }),
+    );
+    assert_eq!(
+        crate::packet::PacketIterator::new(&grid, ProgressionOrder::Lrcp)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .len(),
+        192,
+    );
+}
+
+#[test]
 fn bitplane_initial_storage_real_raw_selected_jp2_first_later_refusals_restore_images() {
     let reference = bitplane_initial_storage_raw_reference();
     let options = DecodeOptions::default();

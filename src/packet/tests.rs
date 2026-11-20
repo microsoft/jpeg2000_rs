@@ -3452,7 +3452,250 @@ fn raw_iterator_grid() -> PacketGrid {
         precinct_offsets: vec![0, 1],
         candidate_count: 1,
         packet_count: 1,
+        spatial: None,
+        maximum_work_units: u64::MAX,
     }
+}
+
+fn mixed_spatial_grid(limits: &ResourceLimits) -> PacketGrid {
+    let grid =
+        packet_grid_new_with_component_resolutions(2, 2, vec![2, 1], vec![4, 2, 2, 0], limits)
+            .unwrap();
+    grid.with_spatial(PacketSpatialGrid {
+        rows: vec![
+            PacketSpatialResolution {
+                first_x: 37,
+                first_y: 21,
+                origin_x: 32,
+                origin_y: 0,
+                step_x: 32,
+                step_y: 32,
+                across: 2,
+                down: 2,
+            },
+            PacketSpatialResolution {
+                first_x: 64,
+                first_y: 21,
+                origin_x: 64,
+                origin_y: 0,
+                step_x: 32,
+                step_y: 32,
+                across: 1,
+                down: 2,
+            },
+            PacketSpatialResolution {
+                first_x: 37,
+                first_y: 32,
+                origin_x: 0,
+                origin_y: 32,
+                step_x: 64,
+                step_y: 32,
+                across: 2,
+                down: 1,
+            },
+            PacketSpatialResolution {
+                first_x: 0,
+                first_y: 0,
+                origin_x: 0,
+                origin_y: 0,
+                step_x: 1,
+                step_y: 1,
+                across: 0,
+                down: 0,
+            },
+        ],
+        x0: 37,
+        y0: 21,
+        step_x: 32,
+        step_y: 32,
+        across: 2,
+        positions: 4,
+    })
+}
+
+#[test]
+fn spatial_progressions_use_reference_positions_not_local_precinct_ordinals() {
+    let limits = ResourceLimits::default();
+    let grid = mixed_spatial_grid(&limits);
+    for (order, expected) in [
+        (
+            ProgressionOrder::Rpcl,
+            vec![
+                (0, 0, 0),
+                (0, 0, 1),
+                (0, 0, 2),
+                (1, 0, 0),
+                (0, 0, 3),
+                (1, 0, 1),
+                (0, 1, 0),
+                (0, 1, 1),
+            ],
+        ),
+        (
+            ProgressionOrder::Pcrl,
+            vec![
+                (0, 0, 0),
+                (0, 0, 1),
+                (0, 1, 0),
+                (0, 0, 2),
+                (1, 0, 0),
+                (0, 0, 3),
+                (0, 1, 1),
+                (1, 0, 1),
+            ],
+        ),
+        (
+            ProgressionOrder::Cprl,
+            vec![
+                (0, 0, 0),
+                (0, 0, 1),
+                (0, 1, 0),
+                (0, 0, 2),
+                (0, 0, 3),
+                (0, 1, 1),
+                (1, 0, 0),
+                (1, 0, 1),
+            ],
+        ),
+    ] {
+        let expected: Vec<_> = expected
+            .into_iter()
+            .flat_map(|(component, resolution, precinct)| {
+                (0..2).map(move |layer| PacketCoordinate {
+                    layer,
+                    resolution,
+                    component,
+                    precinct,
+                })
+            })
+            .collect();
+        let actual: Vec<_> = PacketIterator::new(&grid, order)
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(actual, expected, "{order:?}");
+        let changes = ProgressionChanges::from_records(vec![
+            ProgressionChange {
+                resolution_start: 0,
+                component_start: 0,
+                layer_end: 1,
+                resolution_end: 2,
+                component_end: 2,
+                progression_order: order,
+            },
+            ProgressionChange {
+                resolution_start: 0,
+                component_start: 0,
+                layer_end: 2,
+                resolution_end: 2,
+                component_end: 2,
+                progression_order: order,
+            },
+        ]);
+        let mut iterator = ProgressionPacketIterator::new(&grid, order, &changes, &limits).unwrap();
+        let mut actual = Vec::new();
+        while let Some(coordinate) = iterator.next_packet().unwrap() {
+            actual.push(coordinate);
+        }
+        let expected: Vec<_> = expected
+            .iter()
+            .filter(|c| c.layer == 0)
+            .chain(expected.iter().filter(|c| c.layer == 1))
+            .copied()
+            .collect();
+        assert_eq!(actual, expected, "overlapping POC {order:?}");
+    }
+    let ordinal =
+        packet_grid_new_with_component_resolutions(2, 2, vec![2, 1], vec![4, 2, 2, 0], &limits)
+            .unwrap();
+    for order in [ProgressionOrder::Lrcp, ProgressionOrder::Rlcp] {
+        assert_eq!(
+            PacketIterator::new(&grid, order).collect::<Result<Vec<_>, _>>(),
+            PacketIterator::new(&ordinal, order).collect::<Result<Vec<_>, _>>(),
+        );
+    }
+}
+
+#[test]
+fn spatial_poc_offsets_and_work_guards_use_the_actual_spatial_grid() {
+    let limits = ResourceLimits::default();
+    let mut grid = mixed_spatial_grid(&limits);
+    let changes = ProgressionChanges::from_records(vec![
+        ProgressionChange {
+            resolution_start: 1,
+            component_start: 0,
+            layer_end: 2,
+            resolution_end: 2,
+            component_end: 1,
+            progression_order: ProgressionOrder::Cprl,
+        },
+        ProgressionChange {
+            resolution_start: 0,
+            component_start: 0,
+            layer_end: 2,
+            resolution_end: 2,
+            component_end: 2,
+            progression_order: ProgressionOrder::Pcrl,
+        },
+    ]);
+    let mut iterator =
+        ProgressionPacketIterator::new(&grid, ProgressionOrder::Lrcp, &changes, &limits).unwrap();
+    let mut actual = Vec::new();
+    while let Some(coordinate) = iterator.next_packet().unwrap() {
+        actual.push(coordinate);
+    }
+    assert_eq!(actual.len(), 16);
+    assert_eq!(
+        actual[0],
+        PacketCoordinate {
+            layer: 0,
+            component: 0,
+            resolution: 1,
+            precinct: 0
+        }
+    );
+    assert_eq!(
+        actual[2],
+        PacketCoordinate {
+            layer: 0,
+            component: 0,
+            resolution: 1,
+            precinct: 1
+        }
+    );
+    let unique: std::collections::HashSet<_> = actual.into_iter().collect();
+    assert_eq!(unique.len(), 16);
+
+    grid.maximum_work_units = 40;
+    grid.spatial.as_mut().unwrap().positions = 6;
+    let error = packet_reader_limit(Resource::WorkUnits, 40, 48);
+    let mut iterator = PacketIterator::new(&grid, ProgressionOrder::Pcrl);
+    assert_eq!(iterator.next_packet(), Err(error));
+    assert_eq!((iterator.candidate_index, iterator.emitted()), (0, 0));
+    assert!(matches!(
+        ProgressionPacketIterator::new(
+            &grid,
+            ProgressionOrder::Lrcp,
+            &changes,
+            &limits.with_maximum_work_units(40).unwrap()
+        ),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            limit: 40,
+            actual: 60
+        }),
+    ));
+    assert!(
+        PacketIterator::new(&grid, ProgressionOrder::Lrcp)
+            .next_packet()
+            .unwrap()
+            .is_some()
+    );
+    grid.maximum_work_units = u64::MAX;
+    grid.spatial.as_mut().unwrap().rows.clear();
+    assert_eq!(
+        PacketIterator::new(&grid, ProgressionOrder::Pcrl).next_packet(),
+        Err(packet_reader_error(0, MalformedKind::InvalidCodingStyle)),
+    );
 }
 
 #[test]

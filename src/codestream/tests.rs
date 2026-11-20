@@ -5907,13 +5907,21 @@ fn reference_component_packet_grid(
             });
         }
     }
-    crate::packet::packet_grid_new_with_selected_resolutions(
+    let grid = crate::packet::packet_grid_new_with_selected_resolutions(
         layers,
         size.components,
         resolutions,
         counts,
         if discard == 0 { None } else { Some(&selected) },
         limits,
+    )?;
+    // Keep the count oracle independent of production geometry; spatial
+    // ordering is checked separately against literal positions and PGX planes.
+    crate::decode::spatial::attach_packet_spatial_grid(
+        grid,
+        size,
+        crate::decode::spatial::PacketSpatialStyles::Components(styles),
+        tile,
     )
 }
 

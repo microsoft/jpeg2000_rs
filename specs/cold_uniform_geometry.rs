@@ -80,6 +80,11 @@ pub closed spec fn part1_uniform_geometry_model(size:&crate::codestream::ImageSi
     limits:&crate::ResourceLimits,tile:Option<u16>)->Result<Part1PacketGrid,crate::DecodeError> {
     part2_uniform_geometry_value(size,style,limits,tile)
 }
+pub(crate) proof fn part2_uniform_geometry_result_framed(size:&crate::codestream::ImageSize,style:crate::codestream::CodingStyle,
+    limits:&crate::ResourceLimits,tile:Option<u16>,result:Result<Part1PacketGrid,crate::DecodeError>)
+    requires part1_uniform_geometry_cold_result(size,style,limits,tile,result),
+    ensures part2_cold_framed(|events|part2_uniform_geometry_run(size,style,limits,tile,events),result),
+{}
 pub(crate) proof fn part2_uniform_geometry_model_known(size:&crate::codestream::ImageSize,style:crate::codestream::CodingStyle,
     limits:&crate::ResourceLimits,tile:Option<u16>)
     ensures part1_uniform_geometry_model(size,style,limits,tile)==part2_uniform_geometry_value(size,style,limits,tile),
