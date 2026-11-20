@@ -5,11 +5,11 @@ use jpeg2000_decoder::{
     ImageRegion, JpipAutomaticProgressiveDecoder, JpipFragment, JpipMessage, JpipMessageParser,
     JpipPrecinctCodestreamPlan, JpipPrecinctPacket, JpipProgressiveDecoder, MalformedKind,
     ResourceLimits, TypedImage, TypedSamples, decode_codestream, decode_codestream_selected,
-    decode_jp2, decode_jp2_color, decode_jp2_color_selected, decode_jp2_selected, decode_jph,
-    decode_jph_color, decode_jph_color_selected, decode_jph_selected, decode_jpx_codestream,
-    decode_jpx_codestream_color, decode_jpx_codestream_color_selected,
-    decode_jpx_codestream_selected, ingest_jpip_response, inspect_jph, render_jpx_composition,
-    render_jpx_frame, render_jpx_layer,
+    decode_jp2, decode_jp2_color, decode_jp2_color_compatible, decode_jp2_color_selected,
+    decode_jp2_selected, decode_jph, decode_jph_color, decode_jph_color_selected,
+    decode_jph_selected, decode_jpx_codestream, decode_jpx_codestream_color,
+    decode_jpx_codestream_color_selected, decode_jpx_codestream_selected, ingest_jpip_response,
+    inspect_jph, render_jpx_composition, render_jpx_frame, render_jpx_layer,
 };
 
 fn print_error(error: DecodeError) -> ! {
@@ -138,6 +138,7 @@ fn parse_invocation(arguments: &[String]) -> Result<Invocation<'_>, String> {
                 operation,
                 "decode"
                     | "convert"
+                    | "convert-compatible"
                     | "select"
                     | "select-color"
                     | "render"
@@ -170,6 +171,7 @@ fn parse_invocation(arguments: &[String]) -> Result<Invocation<'_>, String> {
         "decode" => matches!(format, "raw" | "jp2" | "jph" | "jpx" | "pdf"),
         "select" | "decode-deadline" => matches!(format, "raw" | "jp2" | "jph" | "jpx"),
         "convert" | "select-color" => matches!(format, "jp2" | "jph" | "jpx"),
+        "convert-compatible" => format == "jp2",
         "render" => format == "jpx",
         "render-layer" | "render-frame" => format.parse::<usize>().is_ok(),
         "reconstruct" | "ingest" => format == "jpip",
@@ -440,6 +442,16 @@ fn main() {
         },
         ("convert", "jp2") => match decode_jp2_color(&input, &options) {
             Ok(image) => print_converted_image(&image),
+            Err(error) => print_error(error),
+        },
+        ("convert-compatible", "jp2") => match decode_jp2_color_compatible(&input, &options) {
+            Ok(value) => {
+                eprintln!(
+                    "COLOR_RECOVERY\t{}",
+                    u8::from(value.recovery.assumed_srgb_for_8bit_esrgb)
+                );
+                print_converted_image(&value.image);
+            }
             Err(error) => print_error(error),
         },
         ("convert", "jph") => match decode_jph_color(&input, &options) {

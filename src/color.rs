@@ -91,7 +91,13 @@ mod admission;
 mod conversion;
 pub use conversion::convert_jp2_color;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod compatible;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod crop;
+#[cfg(verus_keep_ghost)]
+pub use compatible::compatible_color_outcome;
+pub(crate) use compatible::esrgb8_compatible;
+pub use compatible::{ColorRecovery, CompatibleColorImage, convert_jp2_color_compatible};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod esrgb;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
