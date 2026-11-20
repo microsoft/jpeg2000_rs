@@ -1,4 +1,5 @@
 use super::errors::{packet_arithmetic_overflow, packet_reader_error, packet_reader_limit};
+use super::spatial::{packet_candidate_count, packet_candidate_precinct, packet_position_count};
 use super::{
     DecodeError, MalformedKind, PacketCoordinate, PacketGrid, PacketGridCountState, PacketIterator,
     ProgressionChange, ProgressionChanges, ProgressionOrder, ProgressionPacketIterator, Resource,
@@ -502,6 +503,8 @@ pub(crate) fn packet_grid_new_with_selected_resolutions(
         precinct_offsets,
         candidate_count,
         packet_count,
+        spatial: None,
+        maximum_work_units: limits.maximum_work_units(),
     })
 }
 
@@ -695,18 +698,20 @@ impl<'a> PacketIterator<'a> {
     pub fn next_packet(&mut self) -> Result<Option<PacketCoordinate>, DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof! { reveal(crate::specs::part1_packet_iterator_next); }
+        let candidate_count = packet_candidate_count(self.grid, self.order)?;
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
                 invariant
                     packet_iterator_view(self).grid == packet_iterator_view(old(self)).grid,
                     self.order == old(self).order,
+                    crate::specs::part1_packet_candidate_count(packet_grid_view(self.grid), self.order) == Ok(candidate_count),
                     crate::specs::part1_packet_iterator_next(packet_iterator_view(old(self)))
                         == crate::specs::part1_packet_iterator_next(packet_iterator_view(self)),
-                decreases self.grid.candidate_count as int - self.candidate_index as int,
+                decreases candidate_count as int - self.candidate_index as int,
             )
         )]
-        while self.candidate_index < self.grid.candidate_count {
+        while self.candidate_index < candidate_count {
             #[cfg(verus_keep_ghost)]
             proof! { reveal(crate::specs::part1_packet_iterator_next); }
             let candidate = self.candidate_index;
@@ -742,7 +747,7 @@ impl<'a> PacketIterator<'a> {
         let layers = u64::from(self.grid.layers);
         let resolutions = u64::from(self.grid.resolutions);
         let components = u64::from(self.grid.components);
-        let precincts = u64::from(self.grid.maximum_precincts_per_resolution);
+        let precincts = packet_position_count(self.grid, self.order);
         let (layer, resolution, component, precinct) = match self.order {
             ProgressionOrder::Lrcp => {
                 let values = unravel(candidate, [layers, resolutions, components, precincts])?;
@@ -778,10 +783,9 @@ impl<'a> PacketIterator<'a> {
                 Ok(value) => value,
                 Err(_) => return Err(packet_arithmetic_overflow()),
             },
-            precinct: match u32::try_from(precinct) {
-                Ok(value) => value,
-                Err(_) => return Err(packet_arithmetic_overflow()),
-            },
+            precinct: packet_candidate_precinct(
+                self.grid, self.order, component, resolution, precinct,
+            )?,
         })
     }
 }
@@ -1114,7 +1118,7 @@ pub(super) fn window_candidate_count(
         Some(count) => count,
         None => return Err(packet_arithmetic_overflow()),
     };
-    match second.checked_mul(u64::from(grid.maximum_precincts_per_resolution)) {
+    match second.checked_mul(packet_position_count(grid, record.progression_order)) {
         Some(count) => Ok(count),
         None => Err(packet_arithmetic_overflow()),
     }
@@ -1151,7 +1155,7 @@ pub(super) fn decode_window_candidate(
             }
         },
     );
-    let precincts = u64::from(grid.maximum_precincts_per_resolution);
+    let precincts = packet_position_count(grid, record.progression_order);
     let (layer, resolution, component, precinct) = match record.progression_order {
         ProgressionOrder::Lrcp => {
             let values = unravel(candidate, [layers, resolutions, components, precincts])?;
@@ -1174,6 +1178,12 @@ pub(super) fn decode_window_candidate(
             (values[3], values[2], values[0], values[1])
         }
     };
+    let component = component
+        .checked_add(u64::from(record.component_start))
+        .ok_or_else(packet_arithmetic_overflow)?;
+    let resolution = resolution
+        .checked_add(u64::from(record.resolution_start))
+        .ok_or_else(packet_arithmetic_overflow)?;
     Ok(PacketCoordinate {
         layer: match u16::try_from(layer) {
             Ok(value) => value,
@@ -1181,22 +1191,19 @@ pub(super) fn decode_window_candidate(
         },
         resolution: match u8::try_from(resolution) {
             Err(_) => return Err(packet_arithmetic_overflow()),
-            Ok(value) => match value.checked_add(record.resolution_start) {
-                Some(value) => value,
-                None => return Err(packet_arithmetic_overflow()),
-            },
+            Ok(value) => value,
         },
         component: match u16::try_from(component) {
             Err(_) => return Err(packet_arithmetic_overflow()),
-            Ok(value) => match value.checked_add(record.component_start) {
-                Some(value) => value,
-                None => return Err(packet_arithmetic_overflow()),
-            },
-        },
-        precinct: match u32::try_from(precinct) {
             Ok(value) => value,
-            Err(_) => return Err(packet_arithmetic_overflow()),
         },
+        precinct: packet_candidate_precinct(
+            grid,
+            record.progression_order,
+            component,
+            resolution,
+            precinct,
+        )?,
     })
 }
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

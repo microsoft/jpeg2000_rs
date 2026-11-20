@@ -3148,7 +3148,7 @@ _SUBBAND_ADMISSION_PROVED_BOUNDARY_APIS = frozenset({
 })
 
 _PACKET_GRID_PRODUCER_CONTRACTS = {
-    ("src/decode/geometry.rs", "derive_packet_grid_for"): (
+    ("src/decode/geometry.rs", "derive_packet_grid_counts_for"): (
         "part1_uniform_geometry_model", _coverage_call("crate::packet::packet_grid_outcome", r"\1"), None,
         r"size\s*,\s*coding_style\s*,\s*limits\s*,\s*tile_index",
     ),
@@ -3157,9 +3157,17 @@ _PACKET_GRID_PRODUCER_CONTRACTS = {
         _coverage_call("resolution_counts_outcome", r"\1"), None,
         r"components\s*,\s*coding_styles\s*,\s*discard_levels",
     ),
-    ("src/decode/geometry.rs", "derive_packet_grid_for_components"): (
+    ("src/decode/geometry.rs", "derive_packet_grid_counts_for_components"): (
         "part2_packet_grid_from_components",
         _coverage_call("crate::packet::packet_grid_outcome", r"\1"), None,
+        r"size\s*,\s*coding_styles\s*,\s*layers\s*,\s*limits\s*,\s*tile_index\s*,\s*discard_levels",
+    ),
+    ("src/decode/geometry.rs", "derive_packet_grid_for"): (
+        "part2_spatial_uniform_grid_value", _coverage_call("crate::packet::packet_grid_outcome", r"\1"), None,
+        r"size\s*,\s*coding_style\s*,\s*limits\s*,\s*tile_index",
+    ),
+    ("src/decode/geometry.rs", "derive_packet_grid_for_components"): (
+        "part2_spatial_packet_grid_from_components", _coverage_call("crate::packet::packet_grid_outcome", r"\1"), None,
         r"size\s*,\s*coding_styles\s*,\s*layers\s*,\s*limits\s*,\s*tile_index\s*,\s*discard_levels",
     ),
 }
@@ -5576,6 +5584,8 @@ _COLD_RESULT_MODELS = {
     "part2_tile_decode_metadata": ("part2_tile_metadata_result", "specs/cold_tile_metadata.rs", "part2_tile_metadata_normal"),
     "part2_component_resolution_counts": ("part2_geometry_descriptors_result", "specs/cold_geometry_storage.rs", "part2_geometry_descriptors_normal"),
     "part1_uniform_geometry_model": ("part1_uniform_geometry_cold_result", "specs/cold_uniform_geometry.rs", "part2_uniform_geometry_normal"),
+    "part2_spatial_uniform_grid_value": ("part2_spatial_uniform_grid_result", "specs/spatial_grid_composition.rs", "part2_spatial_uniform_grid_normal"),
+    "part2_spatial_packet_grid_from_components": ("part2_spatial_derived_grid_result", "specs/spatial_grid_composition.rs", "part2_spatial_derived_grid_normal"),
     "part1_grid_count_summary": ("part2_grid_summary_result", "specs/cold_grid.rs", "part2_grid_summary_normal"),
     "part1_packet_grid_new": ("part2_grid_result", "specs/cold_grid.rs", "part2_grid_normal"),
     "part2_packet_grid_from_components": ("part2_derived_grid_result", "specs/cold_grid_geometry.rs", "part2_derived_grid_normal"),
@@ -8266,13 +8276,13 @@ _GEOMETRY_STORAGE_NATIVE_ORDER = {
         "let second = if components == 0", "Part2GeometryCapacityContext::SelectedResolutions",
         "let mut selected_resolution_counts = second?", "while component < components",
     ),
-    "derive_packet_grid_for_components": (
+    "derive_packet_grid_counts_for_components": (
         "prepare_component_resolution_counts(", "part2_derived_geometry_descriptor_error(", "= descriptor_result?",
         "checked_mul(usize::from(maximum_resolutions))", "let reserved = if capacity == 0", "empty_with_capacity(capacity)",
         "Part2GeometryCapacityContext::DerivedCounts", "part2_derived_geometry_capacity_error(", "let mut precinct_counts = reserved?",
         "part2_derived_geometry_prefix(", "while component < size.components",
     ),
-    "derive_packet_grid_for": (
+    "derive_packet_grid_counts_for": (
         "checked_add(1)", "checked_mul(usize::from(resolutions))", "let reserved = if capacity == 0", "empty_with_capacity(capacity)",
         "Part2GeometryCapacityContext::UniformCounts", "part2_uniform_geometry_refused(", "let mut precinct_counts = reserved?",
         "while component < size.components", "PacketGrid::new(", "part2_uniform_geometry_finish(",
@@ -8317,7 +8327,7 @@ _GRID_STORAGE_GUARDS = {
         "counts.push(if subbands==0{0u32}else{geometry.precincts as u32}),next,events)",
     ),
     ("specs/cold_grid_plan.rs", "part2_grid_plan_run"): (
-        "part2_selection_tile_bounds(", "part2_derived_grid_run(size,styles,style.layers,limits,Some(selection.0),selection.1,events)",
+        "part2_selection_tile_bounds(", "part2_spatial_derived_grid_run(size,styles,style.layers,limits,Some(selection.0),selection.1,events)",
         "part2_plan_after_grid_run(size,style,styles,quantizations,roi,selection,policy,limits,grid,rest)",
     ),
     ("specs/jpip_snapshot_inputs.rs", "part2_jpip_snapshot_tile"): (
@@ -16658,7 +16668,7 @@ def validate_normative_coverage(
                 + _coverage_call("crate::specs::part1_prepare_main_quantization", "initial_reader") + r"\s*;",
                 r"let\s+ghost\s+main_initial\s*=\s*" + raw_view + r"\s*;",
                 r"let\s+ghost\s+raw_main\s*=\s*" + raw_view + r"\s*;",
-                r"verus_spec\s*\(\s*invariant\s+initial_reader\s*==\s*" + initial_reader
+                r"verus_spec\s*\(\s*invariant_except_break\s+initial_reader\s*==\s*" + initial_reader
                 + r"\s*,\s*" + _coverage_call("crate::specs::part1_cold_main_prefix",
                     "initial_reader", _coverage_call("parser_view", r"&\s*parser"), raw_view)
                 + r"\s*,\s*" + _coverage_call("crate::specs::part1_cold_layout_result", "initial_reader",
@@ -17093,6 +17103,7 @@ def validate_normative_coverage(
                 ("src/transform/levels.rs", "inverse_vertical_9_7"): "reconstruction_outcome",
                 ("src/transform/levels.rs", "inverse_level_5_3"): "reconstruction_outcome",
                 ("src/transform/levels.rs", "inverse_level_9_7"): "reconstruction_outcome",
+                ("src/transform/levels.rs", "inverse_empty_level"): "reconstruction_outcome",
                 ("src/transform/output.rs", "convert_samples"): "sequence_outcome",
                 ("src/transform/wavelets.rs", "interleave"): "sequence_outcome",
                 ("src/tier1/ht_cleanup_readers.rs", "ht_mel_from_input"): "ht_mel_outcome",
@@ -17147,6 +17158,7 @@ def validate_normative_coverage(
             if (reference["path"], reference["symbol"]) == ("src/image/layout.rs", "TypedImage::component"):
                 result_projection = "typed_component_reference_output"
             expected_result_model = {
+                ("src/transform/levels.rs", "inverse_empty_level"): "part1_inverse_empty_level",
                 ("src/jp2/color.rs", "value"): "part2_palette_value",
                 ("src/jp2/color.rs", "palette_value_error"): "part2_composition_error",
                 ("src/image/samples.rs", "typed_samples"): "part1_decoded_component_typed_samples",
