@@ -3123,6 +3123,77 @@ pub proof fn production_color_plane_step(
     reveal_with_fuel(crate::specs::color_normalize_component_prefix, 1);
 }
 
+proof fn production_color_unit_coordinate(value: u32)
+    ensures
+        crate::specs::color_registered_coordinate(value, 1, 0, true) == Ok(value),
+        crate::specs::color_registered_coordinate(value, 1, 0, false) == Ok(value),
+{
+    let v = value as int;
+    vstd::arithmetic::div_mod::lemma_fundamental_div_mod_converse_div(v * 65536, 65536, v, 0);
+    if v > 0 {
+        assert(v * 65536 - 1 == (v - 1) * 65536 + 65535);
+        vstd::arithmetic::div_mod::lemma_fundamental_div_mod_converse_div(
+            v * 65536 - 1, 65536, v - 1, 65535,
+        );
+    }
+}
+
+pub proof fn production_color_contiguous_u8_step(
+    component: crate::specs::Part1TypedComponentModel, samples: Seq<u64>,
+    x_origin: u32, y_origin: u32, count: usize, pixel: usize,
+)
+    requires
+        component.width > 0, component.width as nat <= usize::MAX as nat,
+        crate::specs::part2_layer_area(component.width, component.height) == Ok(count),
+        component.info.precision == 8, !component.info.signed,
+        component.info.x_subsampling == 1, component.info.y_subsampling == 1,
+        component.info.x_registration == 0, component.info.y_registration == 0,
+        component.samples == crate::specs::Part1TypedSampleSequence::Unsigned(samples),
+        samples.len() == count, pixel < count,
+        x_origin as nat + component.width as nat <= u32::MAX as nat,
+        y_origin as nat + component.height as nat <= u32::MAX as nat,
+    ensures
+        crate::specs::color_normalize_component_prefix(
+            component, component.width, x_origin, y_origin, pixel as nat + 1,
+        ) == match crate::specs::color_normalize_component_prefix(
+            component, component.width, x_origin, y_origin, pixel as nat,
+        ) {
+            Err(error) => Err(error),
+            Ok(prefix) => if samples[pixel as int] > 255 {
+                Err(crate::specs::part2_color_input_error())
+            } else {
+                Ok(prefix.push((samples[pixel as int] as int * 257) as u16))
+            },
+        },
+{
+    let w = component.width as int;
+    let h = component.height as int;
+    let p = pixel as int;
+    let x = p % w;
+    let y = p / w;
+    reveal(crate::specs::part2_layer_area);
+    assert(count as int == w * h);
+    vstd::arithmetic::div_mod::lemma_fundamental_div_mod(p, w);
+    assert(0 <= x < w);
+    assert(y >= 0);
+    assert(0 <= y < h) by (nonlinear_arith)
+        requires w > 0, p >= 0, p < w * h, 0 <= x < w, p == w * y + x, y >= 0;
+    assert(crate::specs::color_pixel_coordinates(pixel, component.width as usize) == Ok((x as u32, y as u32)));
+    production_color_unit_coordinate(x_origin);
+    production_color_unit_coordinate(y_origin);
+    production_color_unit_coordinate((x_origin as int + x) as u32);
+    production_color_unit_coordinate((y_origin as int + y) as u32);
+    assert(crate::specs::color_component_index(component, x_origin, y_origin, x as u32, y as u32) == Ok(pixel));
+    let value = samples[p];
+    if value <= 255 {
+        let v = value as int;
+        assert(v * 65535 + 127 == (v * 257) * 255 + 127);
+        vstd::arithmetic::div_mod::lemma_fundamental_div_mod_converse_div(v * 65535 + 127, 255, v * 257, 127);
+        assert(crate::specs::color_normalize_unsigned(value, 8) == Ok((v * 257) as u16));
+    }
+    production_color_plane_step(component, component.width, x_origin, y_origin, pixel as nat);
+}
+
 pub proof fn production_color_plane_error(
     component: crate::specs::Part1TypedComponentModel, width: u32, x_origin: u32, y_origin: u32,
     count: nat, end: nat, error: crate::DecodeError,

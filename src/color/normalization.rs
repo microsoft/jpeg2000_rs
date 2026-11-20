@@ -59,28 +59,73 @@ pub(crate) fn normalize_component(
         if let Err(error)=allocated {crate::specs::part2_color_normalize_storage_refused(storage_context,error);}
     }
     let mut output = allocated?;
-    #[cfg(all(feature = "experimental-contiguous-color", not(verus_keep_ghost)))]
+    let info = component.info();
+    if count != 0
+        && info.precision == 8
+        && !info.signed
+        && info.x_subsampling == 1
+        && info.y_subsampling == 1
+        && info.x_registration == 0
+        && info.y_registration == 0
+        && component.width() == width
+        && component.height() == height
+        && (x_origin as u64) + (width as u64) <= u32::MAX as u64
+        && (y_origin as u64) + (height as u64) <= u32::MAX as u64
     {
-        let info = component.info();
-        if info.precision == 8
-            && !info.signed
-            && info.x_subsampling == 1
-            && info.y_subsampling == 1
-            && info.x_registration == 0
-            && info.y_registration == 0
-            && component.width() == width
-            && component.height() == height
-            && x_origin.checked_add(width).is_some()
-            && y_origin.checked_add(height).is_some()
-            && let TypedSamples::Unsigned(samples) = component.samples()
-            && samples.len() == count
-        {
-            if samples.iter().any(|&value| value > 255) {
-                return Err(invalid_color_input());
+        match component.samples() {
+            TypedSamples::Unsigned(samples) if samples.len() == count => {
+                let mut pixel = 0_usize;
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::proofs::production_impl::production_color_plane_empty(input, width, x_origin, y_origin);
+                }
+                #[cfg_attr(
+                    verus_keep_ghost,
+                    verus_spec(
+                        invariant pixel <= count,
+                            count == samples@.len(),
+                            count > 0,
+                            width > 0,
+                            width as nat <= usize::MAX as nat,
+                            crate::specs::part2_layer_area(width, height) == Ok(count),
+                            input.width == width, input.height == height,
+                            input.info.precision == 8, !input.info.signed,
+                            input.info.x_subsampling == 1, input.info.y_subsampling == 1,
+                            input.info.x_registration == 0, input.info.y_registration == 0,
+                            input.samples == crate::specs::Part1TypedSampleSequence::Unsigned(samples@),
+                            x_origin as nat + width as nat <= u32::MAX as nat,
+                            y_origin as nat + height as nat <= u32::MAX as nat,
+                            crate::specs::color_normalize_component_prefix(
+                                input, width, x_origin, y_origin, pixel as nat,
+                            ) == Ok(output@),
+                        decreases count - pixel,
+                    )
+                )]
+                while pixel < count {
+                    let value = samples[pixel];
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        crate::proofs::production_impl::production_color_contiguous_u8_step(
+                            input, samples@, x_origin, y_origin, count, pixel,
+                        );
+                    }
+                    if value > 255 {
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            crate::proofs::production_impl::production_color_plane_error(
+                                input, width, x_origin, y_origin, pixel as nat + 1,
+                                count as nat, crate::specs::part2_color_input_error(),
+                            );
+                        }
+                        return Err(invalid_color_input());
+                    }
+                    // 65535 / 255 is exactly 257, so the scalar rounding is redundant.
+                    output.push(value as u16 * 257);
+                    pixel += 1;
+                }
+                return Ok(output);
             }
-            // 65535 / 255 is exactly 257, so the scalar rounding is redundant.
-            output.extend(samples.iter().map(|&value| value as u16 * 257));
-            return Ok(output);
+            _ => {}
         }
     }
     let mut pixel = 0_usize;

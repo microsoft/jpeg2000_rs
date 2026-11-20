@@ -178,13 +178,6 @@ columns. It uses the existing checked path for small or out-of-range bands,
 irreversible and custom transforms, and cooperative-deadline builds. This
 feature is not qualified by the pinned Verus workflow.
 
-### Experimental contiguous color normalization
-
-The default-off `experimental-contiguous-color` feature normalizes full-size,
-unregistered, unsigned 8-bit planes directly to 16-bit samples. Other plane
-layouts still use the checked coordinate-based path. This feature is not
-qualified by the pinned Verus workflow.
-
 ### Opt-in cooperative deadlines (native-only profile)
 
 Enable the `cooperative-deadlines` Cargo feature to export
