@@ -35,6 +35,32 @@ pub struct PacketGrid {
     precinct_offsets: Vec<usize>,
     candidate_count: u64,
     packet_count: u64,
+    spatial: Option<PacketSpatialGrid>,
+    maximum_work_units: u64,
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
+pub(crate) struct PacketSpatialResolution {
+    pub(crate) first_x: u64,
+    pub(crate) first_y: u64,
+    pub(crate) origin_x: u64,
+    pub(crate) origin_y: u64,
+    pub(crate) step_x: u64,
+    pub(crate) step_y: u64,
+    pub(crate) across: u32,
+    pub(crate) down: u32,
+}
+
+#[cfg_attr(not(verus_keep_ghost), derive(Clone, Debug, Eq, PartialEq))]
+pub(crate) struct PacketSpatialGrid {
+    pub(crate) rows: Vec<PacketSpatialResolution>,
+    pub(crate) x0: u32,
+    pub(crate) y0: u32,
+    pub(crate) step_x: u64,
+    pub(crate) step_y: u64,
+    pub(crate) across: u64,
+    pub(crate) positions: u64,
 }
 
 struct PacketGridCountState {
@@ -482,6 +508,8 @@ use precinct::{
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod progression;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod spatial;
 pub(crate) use progression::packet_grid_new_with_selected_resolutions;
 #[cfg(test)]
 use progression::{decode_window_candidate, window_candidate_count};

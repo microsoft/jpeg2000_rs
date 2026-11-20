@@ -118,9 +118,9 @@ pub(crate) fn derive_component_resolution_geometry_for(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::specs::part1_uniform_geometry_cold_result(size,coding_style,limits,None,crate::packet::packet_grid_outcome(result)),
+    ensures crate::specs::part2_spatial_uniform_grid_result(size,coding_style,limits,None,crate::packet::packet_grid_outcome(result)),
         crate::packet::packet_grid_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
-        crate::packet::packet_grid_outcome(result)==crate::specs::part1_uniform_geometry_model(size,coding_style,limits,None),
+        crate::packet::packet_grid_outcome(result)==crate::specs::part2_spatial_uniform_grid_value(size,coding_style,limits,None),
 ))]
 pub fn derive_packet_grid(
     size: &ImageSize,
@@ -131,11 +131,47 @@ pub fn derive_packet_grid(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_spatial_uniform_grid_result(size,coding_style,limits,tile_index,crate::packet::packet_grid_outcome(result)),
+        crate::packet::packet_grid_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        crate::packet::packet_grid_outcome(result)==crate::specs::part2_spatial_uniform_grid_value(size,coding_style,limits,tile_index),
+))]
+pub(super) fn derive_packet_grid_for(
+    size: &ImageSize,
+    coding_style: CodingStyle,
+    limits: &ResourceLimits,
+    tile_index: Option<u16>,
+) -> Result<PacketGrid, DecodeError> {
+    let base = derive_packet_grid_counts_for(size, coding_style, limits, tile_index);
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost source=crate::packet::packet_grid_outcome(base);}
+    let grid = match base {
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {crate::specs::part2_spatial_uniform_actual(size,coding_style,limits,tile_index,source,Err(error));}
+            return Err(error);
+        }
+        Ok(grid) => grid,
+    };
+    let result = super::spatial::attach_packet_spatial_grid(
+        grid,
+        size,
+        super::spatial::PacketSpatialStyles::Uniform(coding_style),
+        tile_index,
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        super::spatial::packet_spatial_styles_known(super::spatial::PacketSpatialStyles::Uniform(coding_style));
+        crate::specs::part2_spatial_uniform_actual(size,coding_style,limits,tile_index,source,crate::packet::packet_grid_outcome(result));
+    }
+    result
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part1_uniform_geometry_cold_result(size,coding_style,limits,tile_index,crate::packet::packet_grid_outcome(result)),
         crate::packet::packet_grid_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
         crate::packet::packet_grid_outcome(result)==crate::specs::part1_uniform_geometry_model(size,coding_style,limits,tile_index),
 ))]
-pub(super) fn derive_packet_grid_for(
+fn derive_packet_grid_counts_for(
     size: &ImageSize,
     coding_style: CodingStyle,
     limits: &ResourceLimits,
@@ -385,7 +421,7 @@ pub(crate) fn prepare_component_resolution_counts(
         size, coding_styles, layers, limits, tile_index, discard_levels,
     ),
 ))]
-pub(crate) fn derive_packet_grid_for_components(
+fn derive_packet_grid_counts_for_components(
     size: &ImageSize,
     coding_styles: &ComponentCodingStyles,
     layers: u16,
@@ -618,6 +654,51 @@ pub(crate) fn derive_packet_grid_for_components(
             |events|crate::specs::part2_derived_grid_run(size,coding_styles,layers,limits,tile_index,discard_levels,events),
             |events|crate::specs::part2_grid_run(layers,size.components,descriptors.1,final_counts,if discard_levels==0{None}else{Some(descriptors.2)},limits,events),
             prefix,crate::packet::packet_grid_outcome(result));
+    }
+    result
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_spatial_derived_grid_result(size,coding_styles,layers,limits,tile_index,discard_levels,crate::packet::packet_grid_outcome(result)),
+        crate::packet::packet_grid_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        crate::packet::packet_grid_outcome(result)==crate::specs::part2_spatial_packet_grid_from_components(size,coding_styles,layers,limits,tile_index,discard_levels),
+))]
+pub(crate) fn derive_packet_grid_for_components(
+    size: &ImageSize,
+    coding_styles: &ComponentCodingStyles,
+    layers: u16,
+    limits: &ResourceLimits,
+    tile_index: Option<u16>,
+    discard_levels: u8,
+) -> Result<PacketGrid, DecodeError> {
+    let base = derive_packet_grid_counts_for_components(
+        size,
+        coding_styles,
+        layers,
+        limits,
+        tile_index,
+        discard_levels,
+    );
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost source=crate::packet::packet_grid_outcome(base);}
+    let grid = match base {
+        Err(error) => {
+            #[cfg(verus_keep_ghost)]
+            proof! {crate::specs::part2_spatial_derived_actual(size,coding_styles,layers,limits,tile_index,discard_levels,source,Err(error));}
+            return Err(error);
+        }
+        Ok(grid) => grid,
+    };
+    let result = super::spatial::attach_packet_spatial_grid(
+        grid,
+        size,
+        super::spatial::PacketSpatialStyles::Components(coding_styles),
+        tile_index,
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        super::spatial::packet_spatial_styles_known(super::spatial::PacketSpatialStyles::Components(coding_styles));
+        crate::specs::part2_spatial_derived_actual(size,coding_styles,layers,limits,tile_index,discard_levels,source,crate::packet::packet_grid_outcome(result));
     }
     result
 }

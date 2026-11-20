@@ -470,9 +470,9 @@ fn one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success() 
         );
     });
     let requests = if cfg!(feature = "cooperative-deadlines") {
-        93
+        94
     } else {
-        91
+        92
     };
     allocation::with_refusal(requests - 1, || {
         assert_eq!(decode(&bytes).unwrap_err(), DecodeError::AllocationFailed);
@@ -566,9 +566,9 @@ fn reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery() 
         );
     });
     let requests = if cfg!(feature = "cooperative-deadlines") {
-        91
+        92
     } else {
-        89
+        90
     };
     allocation::with_refusal(requests - 1, || {
         assert_eq!(

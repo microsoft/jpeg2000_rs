@@ -1782,7 +1782,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_complete_actual_component_packet_grid_producer_and_limits(self):
         self._assert_complete_packet_contract_bindings(
             {"part2-complete-native-component-packet-grid"},
-            framework._PACKET_GRID_PRODUCER_CONTRACTS, 3,
+            framework._PACKET_GRID_PRODUCER_CONTRACTS, 5,
         )
 
     def test_inventory_binds_complete_raw_subband_admission_and_quantization_boundaries(self):
@@ -10847,8 +10847,8 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_geometry_storage.rs", "part2_geometry_descriptors_run", "SelectedResolutions", "ComponentResolutions"),
             ("specs/cold_uniform_geometry.rs", "part2_uniform_geometry_after_capacity", "part2_uniform_geometry_counts(", "supplied_counts("),
             ("src/decode/geometry.rs", "prepare_component_resolution_counts", "empty_with_capacity(usize::from(components))", "empty_with_capacity(1)"),
-            ("src/decode/geometry.rs", "derive_packet_grid_for", "empty_with_capacity(capacity)", "empty_with_capacity(1)"),
-            ("src/decode/geometry.rs", "derive_packet_grid_for_components", "empty_with_capacity(capacity)", "empty_with_capacity(1)"),
+            ("src/decode/geometry.rs", "derive_packet_grid_counts_for", "empty_with_capacity(capacity)", "empty_with_capacity(1)"),
+            ("src/decode/geometry.rs", "derive_packet_grid_counts_for_components", "empty_with_capacity(capacity)", "empty_with_capacity(1)"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()
