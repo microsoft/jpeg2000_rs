@@ -1,6 +1,6 @@
+use super::WaveletBand;
 use super::geometry::low_count;
-use super::wavelets::inverse_lifting_neighbors;
-use super::{InverseLiftingStep, WaveletBand};
+use super::wavelets::inverse_reversible_bounded;
 #[cfg(verus_keep_ghost)]
 use super::{sequence_outcome, wavelet_band_view};
 use crate::DecodeError;
@@ -242,17 +242,11 @@ fn lift_rows(
         crate::specs::rowwise_stage_bounded(original,width as nat,height as nat,target_even,predict);
         assert((height as int)*(width as int)==(width as int)*(height as int)) by(nonlinear_arith);
     }
-    let step = if predict {
-        InverseLiftingStep::ReversiblePredict
-    } else {
-        InverseLiftingStep::ReversibleUpdate
-    };
     let mut y = 0;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant width>=2,height>1,width as int*height as int==samples.len(),
             height as int*width as int==samples.len(),
             y<=height,
-            super::lifting_step_view(step)==(if predict{1u8}else{0u8},0i64),
             original==old(samples)@,samples.len()==original.len(),
             forall|i:int|0<=i<original.len()==>
                 -(if predict{2147483648int}else{1073741824int})<=#[trigger] original[i]<=if predict{2147483648int}else{1073741824int},
@@ -290,7 +284,6 @@ fn lift_rows(
                     row+width<=samples.len(),
                     left==if y==0{width as int}else{row-width},
                     right==if y+1<height{row+width}else{row-width},
-                    super::lifting_step_view(step)==(if predict{1u8}else{0u8},0i64),
                     original==old(samples)@,samples.len()==original.len(),
                     forall|i:int|0<=i<original.len()==>
                         -(if predict{2147483648int}else{1073741824int})<=#[trigger] original[i]<=if predict{2147483648int}else{1073741824int},
@@ -321,12 +314,12 @@ fn lift_rows(
                             (width as int)*(height as int)==samples.len();
                     crate::specs::rowwise_neighbors_bounded(samples[(row+x) as int],samples[(left+x) as int],samples[(right+x) as int],predict);
                 }
-                let value = inverse_lifting_neighbors(
+                let value = inverse_reversible_bounded(
                     samples[row + x],
                     samples[left + x],
                     samples[right + x],
-                    step,
-                )?;
+                    predict,
+                );
                 #[cfg(verus_keep_ghost)]
                 proof! {
                     assert(value==crate::specs::rowwise_neighbors(

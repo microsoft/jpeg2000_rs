@@ -291,6 +291,25 @@ pub(super) fn inverse_lifting_neighbors(
     right: i64,
     step: InverseLiftingStep,
 ) -> Result<i64, DecodeError> {
+    if matches!(step, InverseLiftingStep::ReversibleUpdate)
+        || matches!(step, InverseLiftingStep::ReversiblePredict)
+    {
+        let predict = matches!(step, InverseLiftingStep::ReversiblePredict);
+        let bound = if predict {
+            2_147_483_648
+        } else {
+            1_073_741_824
+        };
+        if current >= -bound
+            && current <= bound
+            && left >= -bound
+            && left <= bound
+            && right >= -bound
+            && right <= bound
+        {
+            return Ok(inverse_reversible_bounded(current, left, right, predict));
+        }
+    }
     let sum = left.checked_add(right).ok_or_else(arithmetic_overflow)?;
     let adjustment = match step {
         InverseLiftingStep::Fixed(coefficient) => fixed_mul(sum, coefficient)?,
@@ -308,6 +327,30 @@ pub(super) fn inverse_lifting_neighbors(
         current
             .checked_sub(adjustment)
             .ok_or_else(arithmetic_overflow)
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires
+        -(if predict{2147483648int}else{1073741824int})<=current<=if predict{2147483648int}else{1073741824int},
+        -(if predict{2147483648int}else{1073741824int})<=left<=if predict{2147483648int}else{1073741824int},
+        -(if predict{2147483648int}else{1073741824int})<=right<=if predict{2147483648int}else{1073741824int},
+    ensures crate::specs::rowwise_neighbors(current,left,right,predict)==Ok(result),
+))]
+#[inline]
+pub(super) fn inverse_reversible_bounded(
+    current: i64,
+    left: i64,
+    right: i64,
+    predict: bool,
+) -> i64 {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::rowwise_neighbors_bounded(current,left,right,predict);}
+    let sum = left + right;
+    if predict {
+        current + crate::refinement::five_three_predict(sum)
+    } else {
+        current - crate::refinement::five_three_update(sum + 2)
     }
 }
 
