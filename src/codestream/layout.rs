@@ -377,7 +377,7 @@ impl<'a> Parser<'a> {
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
-                invariant
+            invariant_except_break
                     initial_reader == parser_view(&self),
                     crate::specs::part1_cold_main_prefix(
                         initial_reader, parser_view(&parser), main_header_accumulator_view(

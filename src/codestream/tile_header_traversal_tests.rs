@@ -306,16 +306,18 @@ fn raw_tile_header_all_marker_words_preserve_admission_and_boundary_priority() {
         raw.ppt_bytes = vec![7, 9];
         raw.next_plt_index = u16::MAX;
         let before = format!("{raw:?}");
-        let (kind, position, work) = if high != 0xff || matches!(low, 0 | 255) {
-            (MalformedKind::InvalidMarker, 0, 0)
+        let (kind, offset, position, work) = if high != 0xff || matches!(low, 0 | 255) {
+            (MalformedKind::InvalidMarker, 0, 0, 0)
+        } else if (0xff30..=0xff3f).contains(&marker) {
+            (MalformedKind::InvalidMarker, 2, 2, 1)
         } else if [SOC, SIZ, SOT, EOC].contains(&marker) {
-            (MalformedKind::InvalidMarkerOrder, 0, 0)
+            (MalformedKind::InvalidMarkerOrder, 0, 0, 0)
         } else if marker == 0xff92 {
-            (MalformedKind::InvalidMarkerOrder, 0, 1)
+            (MalformedKind::InvalidMarkerOrder, 0, 0, 1)
         } else if forbidden.contains(&marker) {
-            (MalformedKind::InvalidMarkerOrder, 4, 1)
+            (MalformedKind::InvalidMarkerOrder, 0, 4, 1)
         } else {
-            (MalformedKind::InvalidMarker, 4, 1)
+            (MalformedKind::InvalidMarker, 0, 4, 1)
         };
         assert_eq!(
             parser.traverse_tile_header(
@@ -325,7 +327,7 @@ fn raw_tile_header_all_marker_words_preserve_admission_and_boundary_priority() {
                 PacketLengths::none(),
                 PackedPacketHeaders::none()
             ),
-            Err(input_error_literal(0, kind)),
+            Err(input_error_literal(offset, kind)),
             "{marker:04x}"
         );
         assert_eq!(format!("{raw:?}"), before, "{marker:04x}");
