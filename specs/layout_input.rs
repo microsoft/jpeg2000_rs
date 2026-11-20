@@ -95,7 +95,36 @@ pub(crate) open spec fn part1_finish_tile_part_traversal<'a>(
 }
 
 #[verifier::opaque]
+pub(crate) open spec fn part1_skip_reserved_markers<'a>(state: Part1CodestreamReader<'a>)
+    -> (Result<(), crate::DecodeError>, Part1CodestreamReader<'a>)
+    decreases state.input.len() - state.position,
+{
+    match part1_codestream_peek_marker(state) {
+        Err(error) => (Err(error), state),
+        Ok(marker) => if 0xff30 <= marker <= 0xff3f {
+            let skipped = part1_codestream_expect_standalone(state, marker);
+            match skipped.0 {
+                Err(error) => (Err(error), skipped.1),
+                Ok(()) => part1_skip_reserved_markers(skipped.1),
+            }
+        } else { (Ok(()), state) },
+    }
+}
+
+#[verifier::opaque]
 pub(crate) open spec fn part1_read_tile_header_segment<'a>(
+    state: Part1CodestreamReader<'a>,
+) -> (Result<Option<Part1CodestreamSegment>, crate::DecodeError>, Part1CodestreamReader<'a>)
+{
+    let skipped = part1_skip_reserved_markers(state);
+    match skipped.0 {
+        Err(error) => (Err(error), skipped.1),
+        Ok(()) => part1_read_tile_header_segment_body(skipped.1),
+    }
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part1_read_tile_header_segment_body<'a>(
     state: Part1CodestreamReader<'a>,
 ) -> (Result<Option<Part1CodestreamSegment>, crate::DecodeError>, Part1CodestreamReader<'a>)
 {
@@ -170,6 +199,18 @@ pub(crate) open spec fn part1_parse_layout_prologue<'a>(state: Part1CodestreamRe
 
 #[verifier::opaque]
 pub(crate) open spec fn part1_read_main_header_segment<'a>(
+    state: Part1CodestreamReader<'a>, main_header_segments: u64,
+) -> (Result<Option<Part1CodestreamSegment>, crate::DecodeError>, Part1CodestreamReader<'a>, u64)
+{
+    let skipped = part1_skip_reserved_markers(state);
+    match skipped.0 {
+        Err(error) => (Err(error), skipped.1, main_header_segments),
+        Ok(()) => part1_read_main_header_segment_body(skipped.1, main_header_segments),
+    }
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part1_read_main_header_segment_body<'a>(
     state: Part1CodestreamReader<'a>, main_header_segments: u64,
 ) -> (Result<Option<Part1CodestreamSegment>, crate::DecodeError>, Part1CodestreamReader<'a>, u64)
 {

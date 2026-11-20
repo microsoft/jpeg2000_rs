@@ -38,6 +38,35 @@ pub(super) fn new_parser<'a>(
 }
 impl<'a> Parser<'a> {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (result, parser_view(final(self)))
+            == crate::specs::part1_skip_reserved_markers(parser_view(old(self))),
+    ))]
+    pub(super) fn skip_reserved_markers(&mut self) -> Result<(), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost initial = parser_view(self); }
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant initial == parser_view(old(self)),
+                initial.input == parser_view(self).input,
+                crate::specs::part1_skip_reserved_markers(initial)
+                    == crate::specs::part1_skip_reserved_markers(parser_view(self)),
+            decreases self.input.len().saturating_sub(self.position),
+        ))]
+        loop {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(crate::specs::part1_skip_reserved_markers);
+                reveal(crate::specs::part1_codestream_expect_standalone);
+                reveal(crate::specs::part1_codestream_peek_marker);
+            }
+            let marker = self.peek_marker()?;
+            if !matches!(marker, 0xff30..=0xff3f) {
+                return Ok(());
+            }
+            self.expect_standalone(marker)?;
+        }
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures (main_header_segment_outcome(result), parser_view(final(self)))
             == crate::specs::part1_read_tile_header_segment(parser_view(old(self))),
     ))]
@@ -45,8 +74,10 @@ impl<'a> Parser<'a> {
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(crate::specs::part1_read_tile_header_segment);
+            reveal(crate::specs::part1_read_tile_header_segment_body);
             reveal(main_header_segment_outcome);
         }
+        self.skip_reserved_markers()?;
         let marker = self.peek_marker()?;
         if marker == SOD {
             self.expect_standalone(SOD)?;
@@ -83,8 +114,10 @@ impl<'a> Parser<'a> {
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(crate::specs::part1_read_main_header_segment);
+            reveal(crate::specs::part1_read_main_header_segment_body);
             reveal(main_header_segment_outcome);
         }
+        self.skip_reserved_markers()?;
         let marker = self.peek_marker()?;
         if marker == SOT {
             return Ok(None);
