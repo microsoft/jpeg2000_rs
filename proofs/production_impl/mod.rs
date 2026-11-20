@@ -3178,17 +3178,31 @@ pub proof fn production_color_contiguous_u8_step(
     assert(y >= 0);
     assert(0 <= y < h) by (nonlinear_arith)
         requires w > 0, p >= 0, p < w * h, 0 <= x < w, p == w * y + x, y >= 0;
-    assert(crate::specs::color_pixel_coordinates(pixel, component.width as usize) == Ok((x as u32, y as u32)));
+    let cx = x as u32;
+    let cy = y as u32;
+    assert(cx as int == x && cy as int == y);
+    assert(crate::specs::color_pixel_coordinates(pixel, component.width as usize) == Ok((cx, cy)));
+    let abs_x = (x_origin + cx) as u32;
+    let abs_y = (y_origin + cy) as u32;
+    assert(x_origin as int <= abs_x as int < x_origin as int + w);
+    assert(y_origin as int <= abs_y as int < y_origin as int + h);
     production_color_unit_coordinate(x_origin);
     production_color_unit_coordinate(y_origin);
-    production_color_unit_coordinate((x_origin as int + x) as u32);
-    production_color_unit_coordinate((y_origin as int + y) as u32);
-    assert(crate::specs::color_component_index(component, x_origin, y_origin, x as u32, y as u32) == Ok(pixel));
+    production_color_unit_coordinate(abs_x);
+    production_color_unit_coordinate(abs_y);
+    let row = (abs_y - y_origin) as nat;
+    let col = (abs_x - x_origin) as nat;
+    assert(row as int == y && col as int == x);
+    assert(row * component.width as nat + col == pixel as nat) by(nonlinear_arith)
+        requires row as int == y, col as int == x, w == component.width as int, p == w * y + x, p == pixel as int;
+    assert(crate::specs::color_component_index(component, x_origin, y_origin, cx, cy) == Ok(pixel));
     let value = samples[p];
+    assert(1u64 << 8u8 == 256u64) by(bit_vector);
     if value <= 255 {
         let v = value as int;
         assert(v * 65535 + 127 == (v * 257) * 255 + 127);
         vstd::arithmetic::div_mod::lemma_fundamental_div_mod_converse_div(v * 65535 + 127, 255, v * 257, 127);
+        assert((v * 65535 + 127) / 255 == v * 257);
         assert(crate::specs::color_normalize_unsigned(value, 8) == Ok((v * 257) as u16));
     }
     production_color_plane_step(component, component.width, x_origin, y_origin, pixel as nat);

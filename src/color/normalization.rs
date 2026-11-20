@@ -87,6 +87,13 @@ pub(crate) fn normalize_component(
                             count > 0,
                             width > 0,
                             width as nat <= usize::MAX as nat,
+                            input == crate::image::typed_component_view(component),
+                            storage_context == (crate::specs::Part2ColorNormalizeContext {
+                                component: input, width, height, x: x_origin, y: y_origin,
+                            }),
+                            crate::specs::part2_color_normalize_storage_result(
+                                storage_context, crate::specs::part2_color_normalize_value(storage_context),
+                            ),
                             crate::specs::part2_layer_area(width, height) == Ok(count),
                             input.width == width, input.height == height,
                             input.info.precision == 8, !input.info.signed,
