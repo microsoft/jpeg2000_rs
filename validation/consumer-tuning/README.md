@@ -82,6 +82,13 @@ retention. Native executables are excluded from this compact archive, but
 their sizes/hashes remain; the full hosted artifact also contains executables.
 `--incomplete` is an explicit opt-in for a failed attempt; the archive index
 marks it incomplete and records expected versus observed sample counts.
+Keep generated archives, long summaries and run reports outside tracked
+source, as required by [RELEASING.md](../../RELEASING.md#source-publication):
+use ignored `target/consumer-tuning/` output or an external evidence store,
+not `validation/consumer-tuning/results/`. The maintained
+[evidence index](evidence.json) locates the accepted run, checksums, complete
+host-local snapshot and exact hosted-artifact expiry dates. Hosted artifacts
+expire after 30 days; the local copy also has no indefinite-retention guarantee.
 
 ## Shared public cohort
 
