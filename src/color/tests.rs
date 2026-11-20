@@ -1885,6 +1885,43 @@ fn conversion_validates_alpha_association_samples_and_output_bound() {
 }
 
 #[test]
+fn esrgb_is_not_silently_relabelled_or_normalized_as_srgb() {
+    let specification = ColorSpecification::enumerated(20);
+    for precision in [8, 9, 11, 13, 15] {
+        let maximum = (1_u64 << precision) - 1;
+        let input = image(
+            3,
+            (0..3)
+                .map(|_| component(&[0, maximum / 2, maximum], precision, false, (1, 1), None))
+                .collect(),
+        );
+        let expected = Err(DecodeError::UnsupportedColorConversion {
+            reason: UnsupportedColorConversion::EnumeratedColorSpace,
+        });
+        assert_eq!(
+            convert_jp2_color(&input, &specification, &ResourceLimits::default()),
+            expected
+        );
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                convert_jp2_color(
+                    &input,
+                    &specification,
+                    &ResourceLimits::default()
+                        .with_maximum_decoded_bytes(1)
+                        .unwrap(),
+                ),
+                expected
+            );
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+}
+
+#[test]
 fn unknown_enumerated_space_is_typed_unsupported() {
     assert!(matches!(
         convert_jp2_color(

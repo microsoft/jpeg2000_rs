@@ -1027,6 +1027,35 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "complete semantic container"):
                 framework.validate_normative_coverage(coverage)
 
+    def test_inventory_esrgb_compatible_requires_export_and_both_exact_result_projections(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part2-explicit-eight-bit-esrgb-compatibility"
+        ]
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        for relative, before, after, diagnostic in (
+            ("src/lib.rs", "decode_jp2_color_compatible,", "unexported_compatible_color,",
+             "actual public root export"),
+            ("src/color/compatible.rs", "crate::specs::color_compatible_result(",
+             "crate::specs::unrelated_result(", "exact e-sRGB ordinary/storage projection"),
+            ("src/decode/color_compatible.rs", "crate::specs::compatible_decode_value(input@,",
+             "crate::specs::compatible_decode_value(Seq::empty(),",
+             "exact e-sRGB ordinary/storage projection"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(path=relative), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, diagnostic):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_semantic_container_preserves_missing_consumer_and_actual_reader_call_checks(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [
