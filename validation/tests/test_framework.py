@@ -7345,7 +7345,7 @@ class FrameworkTests(WorkingFiles):
         source = framework.ROOT / "src/codestream/layout.rs"
         original = source.read_text()
         read_text = Path.read_text
-        start = original.index("invariant_except_break")
+        start = original.index("invariant_except_break", original.index("let ghost initial_persistent_state"))
         end = original.index("decreases input_length", start)
         block = original[start:end]
         for before in (
@@ -7510,6 +7510,8 @@ class FrameworkTests(WorkingFiles):
             changes.append(original[:start] + block.replace(argument, "unrelated", 1) + original[end:])
         for before, after in (
             ("let ghost initial_reader = parser_view(&self);", "let ghost initial_reader = unrelated;"),
+            ("invariant_except_break\n                    initial_reader",
+             "invariant\n                    initial_reader"),
             ("reader: parser_view(&parser),", "reader: unrelated,"),
             ("mct: mct_parameters_view(&main_mct_parameters),", "mct: unrelated,"),
             ("ppm_frames: packed_header_frames_view(ppm_frames@)", "ppm_frames: Seq::empty()"),

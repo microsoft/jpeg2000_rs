@@ -153,7 +153,7 @@ impl PackedPacketHeaders<'_> {
                 ));
             }
             remaining_segments -= 1;
-            if header.len().saturating_sub(position) < 4 {
+            if header.len().saturating_sub(position) < 2 {
                 return Err(packet_input_error(
                     position as u64,
                     MalformedKind::InvalidPackedPacketHeader,
@@ -161,6 +161,24 @@ impl PackedPacketHeaders<'_> {
             }
             let current_marker =
                 crate::refinement::marker_value(header[position], header[position + 1]);
+            if matches!(current_marker, 0xff30..=0xff3f) {
+                position = match position.checked_add(2) {
+                    Some(next) => next,
+                    None => {
+                        return Err(packet_input_error(
+                            position as u64,
+                            MalformedKind::ArithmeticOverflow,
+                        ));
+                    }
+                };
+                continue;
+            }
+            if header.len().saturating_sub(position) < 4 {
+                return Err(packet_input_error(
+                    position as u64,
+                    MalformedKind::InvalidPackedPacketHeader,
+                ));
+            }
             let segment_length = usize::from(crate::refinement::marker_value(
                 header[position + 2],
                 header[position + 3],
@@ -379,7 +397,7 @@ impl PacketLengthIter<'_> {
                     if self.position == header.len() {
                         return Ok(None);
                     }
-                    if header.len().saturating_sub(self.position) < 4 {
+                    if header.len().saturating_sub(self.position) < 2 {
                         return Err(packet_input_error(
                             self.position as u64,
                             MalformedKind::InvalidPacketLength,
@@ -389,6 +407,24 @@ impl PacketLengthIter<'_> {
                         header[self.position],
                         header[self.position + 1],
                     );
+                    if matches!(marker, 0xff30..=0xff3f) {
+                        self.position = match self.position.checked_add(2) {
+                            Some(next) => next,
+                            None => {
+                                return Err(packet_input_error(
+                                    self.position as u64,
+                                    MalformedKind::ArithmeticOverflow,
+                                ));
+                            }
+                        };
+                        continue;
+                    }
+                    if header.len().saturating_sub(self.position) < 4 {
+                        return Err(packet_input_error(
+                            self.position as u64,
+                            MalformedKind::InvalidPacketLength,
+                        ));
+                    }
                     let marker_length = usize::from(crate::refinement::marker_value(
                         header[self.position + 2],
                         header[self.position + 3],
