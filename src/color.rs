@@ -95,6 +95,8 @@ mod crop;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod esrgb;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod esrgb_image;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod geometry;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod normalization;
