@@ -2,7 +2,9 @@ use super::arbitrary::inverse_arbitrary;
 use super::arithmetic::{
     arithmetic_overflow, checked_area, invalid_transform, validate_output_size,
 };
-use super::geometry::{band_row, collect_column, low_count, store_column, validate_level};
+use super::geometry::{
+    band_row, collect_column, low_count, store_column, validate_level, validate_level_bands,
+};
 use super::wavelets::{inverse_5_3, inverse_9_7};
 use super::{FIXED_BITS, ReconstructedPlane, WaveletBand, WaveletLevel};
 #[cfg(verus_keep_ghost)]
@@ -14,6 +16,29 @@ use crate::codestream::ArbitraryKernel;
 use crate::{DecodeError, ResourceLimits};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures reconstruction_outcome(result) == crate::specs::part1_inverse_empty_level(
+        wavelet_level_view(level), irreversible, crate::limits::resource_decoded_bytes_limit(limits)),
+))]
+pub(crate) fn inverse_empty_level(
+    level: WaveletLevel<'_>,
+    irreversible: bool,
+    limits: &ResourceLimits,
+) -> Result<ReconstructedPlane, DecodeError> {
+    if level.output_width != 0 && level.output_height != 0 {
+        return Err(invalid_transform());
+    }
+    validate_level_bands(level)?;
+    let length = checked_area(level.output_width, level.output_height)?;
+    validate_output_size(length, limits)?;
+    Ok(ReconstructedPlane {
+        width: level.output_width,
+        height: level.output_height,
+        fraction_bits: if irreversible { FIXED_BITS } else { 0 },
+        samples: Vec::new(),
+    })
+}
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part2_wavelet_level_result(wavelet_level_view(level),false,None,crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
