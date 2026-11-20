@@ -8,7 +8,7 @@ use crate::DecodeError;
 use vstd::prelude::*;
 
 // Two reversible stages grow this bound to at most 2^32, including rounding.
-const INPUT_BOUND: i64 = 1 << 30;
+const INPUT_BOUND: i64 = 1_073_741_824;
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == Ok(crate::specs::rowwise_bounded(samples@)),
@@ -17,18 +17,33 @@ fn bounded(samples: &[i64]) -> Result<bool, DecodeError> {
     let mut index = 0;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant index <= samples.len(),
-            forall |i:int| 0 <= i < index ==> -1073741824 <= samples[i] <= 1073741824,
+            forall |i:int| 0 <= i < index ==> -1073741824 <= #[trigger] samples[i] <= 1073741824,
         decreases samples.len() - index,
     ))]
     while index < samples.len() {
         #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
         crate::deadline::checkpoint_periodic(index)?;
         if samples[index] < -INPUT_BOUND || samples[index] > INPUT_BOUND {
+            #[cfg(verus_keep_ghost)]
+            proof! {assert(!crate::specs::rowwise_bounded(samples@));}
             return Ok(false);
         }
         index += 1;
     }
     Ok(true)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result as int == width as int*height as int,
+))]
+#[inline]
+fn area(width:u32,height:u32)->u64 {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(0<=width as int*height as int<=u64::MAX) by(nonlinear_arith)
+            requires 0<=width<=u32::MAX,0<=height<=u32::MAX;
+    }
+    (width as u64)*(height as u64)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -48,8 +63,8 @@ pub(super) fn eligible(
         && low.height == low_count(height, first)
         && high.height == height - low.height
         && low.samples.len().checked_add(high.samples.len()) == Some(length)
-        && (low.width as u64) * (height as u64) == length as u64
-        && (low.width as u64) * (low.height as u64) == low.samples.len() as u64
+        && area(low.width,height) == length as u64
+        && area(low.width,low.height) == low.samples.len() as u64
         && bounded(low.samples)?
         && bounded(high.samples)?)
 }
@@ -89,12 +104,18 @@ pub(super) fn inverse(
     let mut output = allocated?;
     let width = low.width as usize;
     #[cfg(verus_keep_ghost)]
+    proof! {
+        assert((height as int)*width==length) by(nonlinear_arith)
+            requires width==low.width,(low.width as int)*(height as int)==length;
+    }
+    #[cfg(verus_keep_ghost)]
     proof_decl! {let ghost assembled=crate::specs::rowwise_interleaved(wavelet_band_view(low),wavelet_band_view(high),height,first);}
     let mut y = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant y <= height, width == low.width,
             crate::specs::rowwise_eligible(wavelet_band_view(low),wavelet_band_view(high),height,first,length),
             assembled==crate::specs::rowwise_interleaved(wavelet_band_view(low),wavelet_band_view(high),height,first),
+            assembled.len()==length,height as int*width as int==length,
             output.len()==y*width,output@==assembled.subrange(0,(y*width) as int),
         decreases height-y,
     ))]
@@ -102,38 +123,48 @@ pub(super) fn inverse(
         #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
         crate::deadline::checkpoint()?;
         let band = if (y % 2 == 0) == first { low } else { high };
-        let start = (y / 2) * width;
         #[cfg(verus_keep_ghost)]
         proof! {
+            crate::specs::rowwise_geometry(wavelet_band_view(low),wavelet_band_view(high),height,first,length);
+            crate::specs::rowwise_cell(y as int,0,width as int,height as int);
             assert((y/2)<band.height);
-            assert(start+width<=band.samples.len()) by(nonlinear_arith)
-                requires (y/2)<band.height, start==(y/2)*width,
+            assert((y/2)*width+width<=band.samples.len()) by(nonlinear_arith)
+                requires (y/2)<band.height,
                     band.samples.len()==width*(band.height as int),width>=2;
+            assert((y+1)*width<=length) by(nonlinear_arith)
+                requires y<height,width>=2,length==width*(height as int);
+            assert(output.len() as int+width as int<=usize::MAX);
         }
+        let start = (y / 2) * width;
         append_row(&mut output, &band.samples[start..start + width])?;
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(output@ =~= assembled.subrange(0,((y+1)*width) as int)) by{
-                assert forall|i:int|y*width<=i<(y+1)*width implies
-                    assembled[i]==band.samples[(start as int)+i-(y*width)] by{
-                    assert(i/(width as int)==y) by(nonlinear_arith)
-                        requires width>=2,y*width<=i<(y+1)*width;
-                    assert(i%(width as int)==i-y*width) by(nonlinear_arith)
-                        requires width>=2,y*width<=i<(y+1)*width;
+                assert forall|i:int|0<=i<(y+1)*width implies
+                    #[trigger] output[i]==assembled[i] by{
+                    if i>=y*width{
+                        crate::specs::rowwise_index(y as int,i-y*width,width as int);
+                        assert(assembled[i]==band.samples[(start as int)+i-y*width]);
+                    }
                 }
             }
         }
         y += 1;
     }
     #[cfg(verus_keep_ghost)]
-    proof! {assert(output@ =~= assembled);}
+    proof! {
+        assert(output@ =~= assembled);
+        crate::specs::rowwise_interleaved_properties(wavelet_band_view(low),wavelet_band_view(high),height,first,length);
+    }
     if height == 1 {
         if !first {
             let mut x = 0;
             #[cfg_attr(verus_keep_ghost, verus_spec(
                 invariant x<=width,height==1,!first,width==low.width,
                     output.len()==width,assembled.len()==width,
-                    forall|i:int|0<=i<width ==> output[i]==if i<x{assembled[i]>>1}else{assembled[i]},
+                    crate::specs::rowwise_eligible(wavelet_band_view(low),wavelet_band_view(high),height,first,length),
+                    assembled==crate::specs::rowwise_interleaved(wavelet_band_view(low),wavelet_band_view(high),height,first),
+                    forall|i:int|0<=i<width ==> #[trigger] output[i]==if i<x{assembled[i]>>1}else{assembled[i]},
                 decreases width-x,
             ))]
             while x < width {
@@ -189,11 +220,11 @@ fn append_row(output: &mut Vec<i64>, row: &[i64]) -> Result<(), DecodeError> {
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires width>=2,height>1,width as int*height as int==old(samples).len(),
         forall|i:int|0<=i<old(samples).len()==>
-            -(if predict{2147483648int}else{1073741824int})<=old(samples)[i]<=if predict{2147483648int}else{1073741824int},
+            -(if predict{2147483648int}else{1073741824int})<=#[trigger] old(samples)[i]<=if predict{2147483648int}else{1073741824int},
     ensures result==Ok(()),
         final(samples)@==crate::specs::rowwise_stage(old(samples)@,width as nat,height as nat,target_even,predict),
         forall|i:int|0<=i<final(samples).len()==>
-            -(if predict{4294967296int}else{2147483648int})<=final(samples)[i]<=if predict{4294967296int}else{2147483648int},
+            -(if predict{4294967296int}else{2147483648int})<=#[trigger] final(samples)[i]<=if predict{4294967296int}else{2147483648int},
 ))]
 fn lift_rows(
     samples: &mut [i64],
@@ -205,78 +236,111 @@ fn lift_rows(
     #[cfg(verus_keep_ghost)]
     proof_decl! {let ghost original=samples@;}
     #[cfg(verus_keep_ghost)]
-    proof! {crate::specs::rowwise_stage_bounded(original,width as nat,height as nat,target_even,predict);}
-    let mut y = if target_even { 0 } else { 1 };
+    proof! {
+        crate::specs::rowwise_stage_bounded(original,width as nat,height as nat,target_even,predict);
+        assert((height as int)*(width as int)==(width as int)*(height as int)) by(nonlinear_arith);
+    }
+    let step = if predict {
+        InverseLiftingStep::ReversiblePredict
+    } else {
+        InverseLiftingStep::ReversibleUpdate
+    };
+    let mut y = 0;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant width>=2,height>1,width as int*height as int==samples.len(),
-            y<=height+1,(y%2==0)==target_even,
+            height as int*width as int==samples.len(),
+            y<=height,
+            super::lifting_step_view(step)==(if predict{1u8}else{0u8},0i64),
             original==old(samples)@,samples.len()==original.len(),
             forall|i:int|0<=i<original.len()==>
-                -(if predict{2147483648int}else{1073741824int})<=original[i]<=if predict{2147483648int}else{1073741824int},
-            forall|i:int|0<=i<samples.len()==>samples[i]==if i/(width as int)<y{
+                -(if predict{2147483648int}else{1073741824int})<=#[trigger] original[i]<=if predict{2147483648int}else{1073741824int},
+            forall|i:int|0<=i<samples.len()==>#[trigger] samples[i]==if i<y*width{
                 crate::specs::rowwise_stage(original,width as nat,height as nat,target_even,predict)[i]
             }else{original[i]},
-        decreases height+1-y,
+        decreases height-y,
     ))]
     while y < height {
         #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
         crate::deadline::checkpoint()?;
-        let row = y * width;
-        let left = if y == 0 { width } else { row - width };
-        let right = if y + 1 < height {
-            row + width
-        } else {
-            row - width
-        };
-        let step = if predict {
-            InverseLiftingStep::ReversiblePredict
-        } else {
-            InverseLiftingStep::ReversibleUpdate
-        };
-        let mut x = 0;
-        #[cfg_attr(verus_keep_ghost, verus_spec(
-            invariant width>=2,height>1,width as int*height as int==samples.len(),
-                y<height,(y%2==0)==target_even,x<=width,row==y*width,
-                left==if y==0{width}else{row-width},
-                right==if y+1<height{row+width}else{row-width},
-                super::lifting_step_view(step)==(if predict{1u8}else{0u8},0i64),
-                original==old(samples)@,samples.len()==original.len(),
-                forall|i:int|0<=i<original.len()==>
-                    -(if predict{2147483648int}else{1073741824int})<=original[i]<=if predict{2147483648int}else{1073741824int},
-                forall|i:int|0<=i<samples.len()==>samples[i]==if i/(width as int)<y || (i/(width as int)==y && i%(width as int)<x){
+        if (y % 2 == 0) == target_even {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::rowwise_cell(y as int,0,width as int,height as int);
+                assert(0<=y*width && y*width+width<=samples.len());
+                if y>0{
+                    assert(width<=y*width) by(nonlinear_arith) requires y>0,width>=2;
+                }
+            }
+            let row = y * width;
+            let left = if y == 0 { width } else { row - width };
+            let right = if y + 1 < height { row + width } else { row - width };
+            let mut x = 0;
+            #[cfg_attr(verus_keep_ghost, verus_spec(
+                invariant width>=2,height>1,width as int*height as int==samples.len(),
+                    height as int*width as int==samples.len(),
+                    y<height,(y%2==0)==target_even,x<=width,row==y*width,
+                    row+width<=samples.len(),
+                    left==if y==0{width as int}else{row-width},
+                    right==if y+1<height{row+width}else{row-width},
+                    super::lifting_step_view(step)==(if predict{1u8}else{0u8},0i64),
+                    original==old(samples)@,samples.len()==original.len(),
+                    forall|i:int|0<=i<original.len()==>
+                        -(if predict{2147483648int}else{1073741824int})<=#[trigger] original[i]<=if predict{2147483648int}else{1073741824int},
+                    forall|i:int|0<=i<samples.len()==>#[trigger] samples[i]==if i<row+x{
+                        crate::specs::rowwise_stage(original,width as nat,height as nat,target_even,predict)[i]
+                    }else{original[i]},
+                decreases width-x,
+            ))]
+            while x < width {
+                #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+                crate::deadline::checkpoint_periodic(x)?;
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::specs::rowwise_frame(original,samples@,width as nat,height as nat,y as nat,x as nat,target_even,predict);
+                    crate::specs::rowwise_cell(if y==0{1int}else{y-1},x as int,width as int,height as int);
+                    crate::specs::rowwise_cell(if y+1<height{(y+1) as int}else{y-1},x as int,width as int,height as int);
+                    assert(left+width<=samples.len() && right+width<=samples.len()) by(nonlinear_arith)
+                        requires y<height,height>1,width>=2,row==y*width,
+                            left==if y==0{width as int}else{row-width},
+                            right==if y+1<height{row+width}else{row-width},
+                            (width as int)*(height as int)==samples.len();
+                    crate::specs::rowwise_neighbors_bounded(samples[(row+x) as int],samples[(left+x) as int],samples[(right+x) as int],predict);
+                }
+                let value = inverse_lifting_neighbors(
+                    samples[row + x],samples[left + x],samples[right + x],step,
+                )?;
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(value==crate::specs::rowwise_stage(original,width as nat,height as nat,target_even,predict)[(row+x) as int]);
+                }
+                samples[row+x]=value;
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert forall|i:int|0<=i<samples.len() implies #[trigger] samples[i]==if i<row+x+1{
+                        crate::specs::rowwise_stage(original,width as nat,height as nat,target_even,predict)[i]
+                    }else{original[i]} by{}
+                }
+                x += 1;
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::rowwise_cell(y as int,0,width as int,height as int);
+                assert forall|i:int|0<=i<samples.len() implies #[trigger] samples[i]==if i<(y+1)*width{
                     crate::specs::rowwise_stage(original,width as nat,height as nat,target_even,predict)[i]
-                }else{original[i]},
-            decreases width-x,
-        ))]
-        while x < width {
-            #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
-            crate::deadline::checkpoint_periodic(x)?;
+                }else{original[i]} by{}
+            }
+        }else{
             #[cfg(verus_keep_ghost)]
             proof! {
-                assert((row+x)/(width as int)==y && (row+x)%(width as int)==x) by(nonlinear_arith)
-                    requires row==y*width,width>=2,0<=x<width;
-                assert((left+x)/(width as int)==if y==0{1int}else{y-1}) by(nonlinear_arith)
-                    requires left==if y==0{width}else{row-width},row==y*width,width>=2,0<=x<width;
-                assert((right+x)/(width as int)==if y+1<height{y+1}else{y-1}) by(nonlinear_arith)
-                    requires right==if y+1<height{row+width}else{row-width},row==y*width,width>=2,0<=x<width;
-                assert(samples[(row+x) as int]==original[(row+x) as int]);
-                assert(samples[(left+x) as int]==original[(left+x) as int]);
-                assert(samples[(right+x) as int]==original[(right+x) as int]);
-                crate::specs::rowwise_neighbors_bounded(samples[(row+x) as int],samples[(left+x) as int],samples[(right+x) as int],predict);
+                crate::specs::rowwise_identity_row(original,width as nat,height as nat,y as nat,target_even,predict);
             }
-            samples[row + x] = inverse_lifting_neighbors(
-                samples[row + x],
-                samples[left + x],
-                samples[right + x],
-                step,
-            )?;
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(samples[(row+x) as int]==crate::specs::rowwise_stage(original,width as nat,height as nat,target_even,predict)[(row+x) as int]);
-            }
-            x += 1;
         }
-        y += 2;
+        y += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(samples@ =~=crate::specs::rowwise_stage(original,width as nat,height as nat,target_even,predict));
+        crate::specs::rowwise_stage_bounded(original,width as nat,height as nat,target_even,predict);
     }
     Ok(())
 }
