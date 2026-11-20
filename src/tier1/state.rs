@@ -802,20 +802,6 @@ impl CodeBlockPlane {
         if !coefficient.significant {
             return Err(invalid_code_block());
         }
-        #[cfg(all(feature = "experimental-word-refinement", not(verus_keep_ghost)))]
-        if refinement_bit
-            && bitplane < u64::BITS as u16
-            && coefficient.magnitude_high == [0; 5]
-            && let Some(magnitude) = coefficient.magnitude.checked_add(1_u64 << bitplane)
-        {
-            let coefficient = &mut self.coefficients[index];
-            coefficient.magnitude = magnitude;
-            coefficient.refined = true;
-            if coefficient.legacy_bitplane.is_some() {
-                coefficient.legacy_bitplane = Some(bitplane);
-            }
-            return Ok(());
-        }
         #[cfg(verus_keep_ghost)]
         proof! {
             crate::proofs::production_impl::production_magnitude_value_bound(coefficient_raw_view(coefficient).limbs);
