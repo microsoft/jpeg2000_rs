@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Recompute paired summaries without discarding raw process observations."""
 
+import argparse
 import collections
 import json
 import math
 from pathlib import Path
 import random
 import statistics
-import sys
 
 
 def geometric(values):
@@ -20,7 +20,7 @@ def interval(values):
     return [draws[99], draws[3899]]
 
 
-def summarize(output):
+def summarize(output, destination=None):
     rows = [json.loads(line) for line in (output / "samples.jsonl").read_text().splitlines()]
     fixtures = {f["id"]: f for f in json.loads((output / "fixture-manifest.json").read_text())["fixtures"]}
     grouped = collections.defaultdict(dict)
@@ -108,6 +108,17 @@ def summarize(output):
         binary = json.loads((directory / "binary.json").read_text())
         links = [json.loads(path.read_text())
                  for path in (directory / "invocations").glob("link-*.metrics.json")]
+        final_links = []
+        for link in links:
+            arguments = link["command"]
+            if "-o" in arguments:
+                target = Path(arguments[arguments.index("-o") + 1]).name
+                if target.startswith("jpeg2000_final_consumer_bench-"):
+                    final_links.append(link)
+        if len(final_links) != 1:
+            raise ValueError(f"expected exactly one final-consumer native link: {directory}")
+        text_bytes = next(int(line.split()[1]) for line in binary["size"]["stdout"].splitlines()
+                          if line.split() and line.split()[0] == ".text")
         build_summary.append({
             "round": row["round"], "backend": row["backend"], "config": row["config"],
             "build_wall_s": row["metrics"]["wall_ns"] / 1e9,
@@ -117,6 +128,9 @@ def summarize(output):
             "native_link_invocations": len(links),
             "native_link_wall_s_sum": sum(link["wall_ns"] for link in links) / 1e9,
             "native_link_rss_kib_max": max((link["max_process_rss_kib"] for link in links), default=0),
+            "final_native_link_wall_s": final_links[0]["wall_ns"] / 1e9,
+            "final_native_link_rss_kib": final_links[0]["max_process_rss_kib"],
+            "text_bytes": text_bytes,
         })
     result = {
         "schema": 1, "cohort": cohort_summary, "fixtures": fixture_summary,
@@ -132,7 +146,7 @@ def summarize(output):
                      "LLVM ThinLTO optimization runs inside rustc before native link; "
                      "rustc invocation wall time is retained separately; neither is pure LLVM link-only time.",
     }
-    (output / "summary.json").write_text(json.dumps(result, indent=2) + "\n")
+    (destination or (output / "summary.json")).write_text(json.dumps(result, indent=2) + "\n")
     for row in cohort_summary:
         reduction = (f"{row['decode_reduction_percent']:+.2f}%"
                      if row["output_invariant_qualified"] else "UNQUALIFIED: output changed")
@@ -142,4 +156,8 @@ def summarize(output):
 
 
 if __name__ == "__main__":
-    summarize(Path(sys.argv[1]).resolve())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("directory", type=Path)
+    parser.add_argument("--output", type=Path, help="Write a derived summary without modifying raw evidence")
+    options = parser.parse_args()
+    summarize(options.directory.resolve(), options.output)

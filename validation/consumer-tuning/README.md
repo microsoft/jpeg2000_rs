@@ -80,6 +80,8 @@ for longer retention. `COMPLETE` is written only after all checks pass.
 checksum-indexed archive of **all** raw textual observations for long-term
 retention. Native executables are excluded from this compact archive, but
 their sizes/hashes remain; the full hosted artifact also contains executables.
+`--incomplete` is an explicit opt-in for a failed attempt; the archive index
+marks it incomplete and records expected versus observed sample counts.
 
 ## Shared public cohort
 
@@ -225,4 +227,11 @@ observations, not every supported CPU. Build tuning alone is not an explanation
 for the previously reported large decoder gap. Do not close #449 until the
 real-consumer and other remaining acceptance criteria are resolved.
 
-See `RESULTS.md` for source-bound observed native runs once available.
+See [RESULTS.md](RESULTS.md) for observed native results, all raw data and
+explicitly unmet actual-consumer acceptance. Derived analysis can be written
+without changing the original observations:
+
+```sh
+python3 validation/consumer-tuning/summarize.py PATH_TO_EXTRACTED_RESULTS \
+  --output target/consumer-tuning/recomputed-summary.json
+```

@@ -10,22 +10,24 @@ from pathlib import Path
 import tarfile
 
 
-def archive(source, destination):
+def archive(source, destination, allow_incomplete=False):
     source = source.resolve()
-    if not (source / "COMPLETE").is_file():
+    complete = (source / "COMPLETE").is_file()
+    if not complete and not allow_incomplete:
         raise ValueError("refusing to archive an incomplete benchmark as final evidence")
     metadata = json.loads((source / "metadata.json").read_text())
     fixtures = json.loads((source / "fixture-manifest.json").read_text())["fixtures"]
     expected_samples = metadata["pairs"] * 4 * 3 * len(fixtures) * 2
     records = [json.loads(line) for line in (source / "samples.jsonl").read_text().splitlines()]
-    if len(records) != expected_samples or any(record["metrics"]["returncode"] for record in records):
+    if complete and (len(records) != expected_samples
+                     or any(record["metrics"]["returncode"] for record in records)):
         raise ValueError("missing or failed process observations")
     identities = [(row["pair"], row["tuned"], row["backend"], row["fixture"], row["position"])
                   for row in records]
     if len(set(identities)) != len(identities):
         raise ValueError("duplicated process identity")
     builds = [json.loads(line) for line in (source / "builds.jsonl").read_text().splitlines()]
-    if len(builds) != metadata["build_rounds"] * 5 * 3:
+    if complete and len(builds) != metadata["build_rounds"] * 5 * 3:
         raise ValueError("missing build observations")
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists():
@@ -58,7 +60,9 @@ def archive(source, destination):
                              "backend": row["backend"], "sha256": binary["sha256"],
                              "bytes": binary["bytes"]})
         add_bytes(tar, "ARCHIVE_CONTENTS.json", (json.dumps({
-            "schema": 1, "raw_text_files": index, "omitted_executables": binaries,
+            "schema": 1, "experiment_complete": complete,
+            "expected_samples": expected_samples, "observed_samples": len(records),
+            "raw_text_files": index, "omitted_executables": binaries,
             "note": "All raw build/compiler/link/process text, metadata and outcomes are retained. "
                     "Native executables remain in the full hosted artifact and are hashed here.",
         }, indent=2) + "\n").encode())
@@ -71,5 +75,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
     parser.add_argument("destination", type=Path)
+    parser.add_argument("--incomplete", action="store_true",
+                        help="Archive a failed attempt, explicitly labeled incomplete")
     options = parser.parse_args()
-    archive(options.source, options.destination)
+    archive(options.source, options.destination, allow_incomplete=options.incomplete)

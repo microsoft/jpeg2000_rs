@@ -1,0 +1,207 @@
+{
+  "schema": 1,
+  "issue": "https://github.com/microsoft/jpeg2000_rs/issues/449",
+  "pull_request": "https://github.com/microsoft/jpeg2000_rs/pull/450",
+  "worktree": "/workspace/jpeg2000/target/perf-449-consumer",
+  "branch": "perf/consumer-build-tuning-449",
+  "rust": "1.93.1",
+  "consumer_lockfile_sha256": "22549864aa9d022ca94e0d2b20cf7c68d90e27a4e8b01b90ff10d6a3affa5101",
+  "current_control": "97d5162b3f43fb14942c46bbea73752d26fb24b4",
+  "published_control": {
+    "version": "0.2.2",
+    "source_anchor": "4989f9c680beeb7bad4fbfd441a93aa373d2ba4f",
+    "archive_sha256": "9174c2cd54f8ba9401d48f3a71bc162dd999eacf7409662bc3339ddbe7d8cbcc"
+  },
+  "canonical_manifest_sha256": "5c33c9699031796f293e4cb5357c56748367793cbd21c59e7ddaba219069c954",
+  "final_run": {
+    "conclusion": "success",
+    "created_at": "2026-11-20T22:03:47Z",
+    "event": "workflow_dispatch",
+    "head_sha": "c96b7d1cc99b92136d97fdbe7d5d3ff50a3dcc7b",
+    "html_url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44825727854",
+    "id": 44825727854,
+    "run_attempt": 1,
+    "run_started_at": "2026-11-20T22:03:47Z",
+    "status": "completed",
+    "updated_at": "2026-11-20T22:31:22Z"
+  },
+  "jobs": [
+    {
+      "completed_at": "2026-11-20T22:21:12Z",
+      "conclusion": "success",
+      "id": 136597708809,
+      "name": "Optional consumer tuning (ubuntu-latest)",
+      "started_at": "2026-11-20T22:03:52Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-11-20T22:06:37Z",
+      "conclusion": "success",
+      "id": 136597709182,
+      "name": "Test (ubuntu-latest)",
+      "started_at": "2026-11-20T22:03:52Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-11-20T22:23:36Z",
+      "conclusion": "success",
+      "id": 136597709308,
+      "name": "Optional consumer tuning (ubuntu-24.04-arm)",
+      "started_at": "2026-11-20T22:03:55Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-11-20T22:08:18Z",
+      "conclusion": "success",
+      "id": 136597709310,
+      "name": "Native numerical (macos-latest)",
+      "started_at": "2026-11-20T22:03:53Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-11-20T22:31:21Z",
+      "conclusion": "success",
+      "id": 136597709364,
+      "name": "Generated decoder validation",
+      "started_at": "2026-11-20T22:03:52Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-11-20T22:09:11Z",
+      "conclusion": "success",
+      "id": 136597709374,
+      "name": "Test (windows-latest)",
+      "started_at": "2026-11-20T22:03:52Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-11-20T22:08:07Z",
+      "conclusion": "success",
+      "id": 136597709403,
+      "name": "Test (macos-latest)",
+      "started_at": "2026-11-20T22:03:54Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-11-20T22:07:21Z",
+      "conclusion": "success",
+      "id": 136597709423,
+      "name": "Minimum supported Rust (1.88.0)",
+      "started_at": "2026-11-20T22:03:52Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-11-20T22:06:04Z",
+      "conclusion": "success",
+      "id": 136597709459,
+      "name": "Native numerical (ubuntu-latest)",
+      "started_at": "2026-11-20T22:03:52Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-11-20T22:05:41Z",
+      "conclusion": "success",
+      "id": 136597709473,
+      "name": "Quality and package audit",
+      "started_at": "2026-11-20T22:03:52Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-11-20T22:11:43Z",
+      "conclusion": "success",
+      "id": 136597709512,
+      "name": "Native numerical (windows-latest)",
+      "started_at": "2026-11-20T22:03:52Z",
+      "status": "completed"
+    }
+  ],
+  "full_hosted_artifacts": [
+    {
+      "archive_download_url": "https://api.github.com/repos/microsoft/jpeg2000_rs/actions/artifacts/14674977659/zip",
+      "created_at": "2026-11-20T22:23:34Z",
+      "digest": "sha256:d41413d8eabaff6766d34c5244e2e328f672eb4e0c9c94eb5bfbf3e4339c7c44",
+      "expires_at": "2026-12-20T22:23:24Z",
+      "id": 14674977659,
+      "name": "consumer-tuning-ubuntu-24.04-arm-44825727854-1",
+      "size_in_bytes": 53731367
+    },
+    {
+      "archive_download_url": "https://api.github.com/repos/microsoft/jpeg2000_rs/actions/artifacts/14674548585/zip",
+      "created_at": "2026-11-20T22:21:10Z",
+      "digest": "sha256:c4c136d1978e612f0c9f8fa3616e7f83427ea93fb75a7705e01bcdda3942e604",
+      "expires_at": "2026-12-20T22:21:03Z",
+      "id": 14674548585,
+      "name": "consumer-tuning-ubuntu-latest-44825727854-1",
+      "size_in_bytes": 57128231
+    }
+  ],
+  "measurements": {
+    "native_hosts": 2,
+    "cold_builds": 60,
+    "process_samples": 4608,
+    "pairs_per_tuning_fixture_backend": 4,
+    "build_rounds": 2,
+    "iterations_per_process": 1
+  },
+  "reporting_tools_sha256": {
+    "archive_evidence.py": "6e4b13d35e04e88bb65cc23268b0c78aa13fe2ec77345faa83436fb88365a685",
+    "compare_results.py": "ec98516b3b00721e80066a5ff70e6eb603122972ef67b5c28ee99d2d391a4f11",
+    "summarize.py": "c5e374e79eff068a4ef8eba86bf27a8568efbc824047a21e5aeb0c8ccc37ffa6"
+  },
+  "files": {
+    "attempt-44823353147-x86.partial.tar.gz": {
+      "sha256": "95c5309b4ba782c8681b24deee93986e61091171c2866c87fbc5d2f9ac9e031c",
+      "bytes": 1474445
+    },
+    "attempt-44823353147-x86.partial.tar.gz.sha256": {
+      "sha256": "9006c0ddfcb0a79029a855801e3a8e52be56d3df512a7fade04c4986fbbdac85",
+      "bytes": 105
+    },
+    "cross-native-outcomes.json": {
+      "sha256": "f79289da441c90ac88f6e197fd761e03c492f896feab10da13be1fb6e97a1c06",
+      "bytes": 14397
+    },
+    "run-44823353147-arm.initial.tar.gz": {
+      "sha256": "c761f97e38eb97079ea5f100ceca330ddde21e2a91d32aab91781edc1a5e3c7e",
+      "bytes": 2442215
+    },
+    "run-44823353147-arm.initial.tar.gz.sha256": {
+      "sha256": "491a2b43f5242473fd69b9f124f4b56d79fe44220653f9790e83e88e55596561",
+      "bytes": 101
+    },
+    "run-44825727854-arm.summary.json": {
+      "sha256": "3178e78224dd3e6c39808e28edef1ab3d9db463bd3a5682a55dde22110e318a2",
+      "bytes": 290918
+    },
+    "run-44825727854-arm.tar.gz": {
+      "sha256": "5099ac3877328e06a17b7cd114be645d73a54895a2c04461b7097f5a26a0a5a2",
+      "bytes": 2453696
+    },
+    "run-44825727854-arm.tar.gz.sha256": {
+      "sha256": "2f7449da252eb0efed7671c143486b1ddbecec32ad46d6977fa4aea5b7be5540",
+      "bytes": 93
+    },
+    "run-44825727854-x86.summary.json": {
+      "sha256": "34f70b9a66f24d3755a6a6ce3e1e531b7df9a83bb7210a193ad506a6ba74f5fe",
+      "bytes": 291337
+    },
+    "run-44825727854-x86.tar.gz": {
+      "sha256": "9e1655880a75bf2c3093f9a31f9fabdcebe5b0549b23cb011d95b5408c7e53ad",
+      "bytes": 2323937
+    },
+    "run-44825727854-x86.tar.gz.sha256": {
+      "sha256": "b4865cc6d3f14f95824bb1435fb32668cd769504022d52fe653980f9e83cad35",
+      "bytes": 93
+    }
+  },
+  "acceptance": {
+    "standalone_final_cargo_workspace": "measured on native ARM64 and x86-64",
+    "our_samples_and_acceptance": "exact across all fixtures, configurations, controls and native hosts",
+    "hayro": "all raw variants retained; x86 CPU/combined aggregates unqualified after lossy sample changes",
+    "zune_image_final_workspace": "not supplied; end-to-end settings/output/performance/memory qualification remains open",
+    "pdfium_final_workspace": "not supplied; GN/C++/Rust link settings/output/performance/memory qualification remains open",
+    "supported_cpu_fleet_execution": "not established by two hosted targets",
+    "decoder_defaults_or_release_policy_changed": false,
+    "issue_must_remain_open": true
+  }
+}
