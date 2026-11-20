@@ -61,6 +61,17 @@ The common PDF single-codestream profile likewise retains JP2-primary files
 with additional JPX compatibility codes; its separate restrictions on
 non-JP2-primary JPX, JPH and multiple codestreams are unchanged.
 
+### e-sRGB is not an sRGB enumeration alias
+
+The acquired T.800 (06/2019), I.5.3.3 and Table I.10, restrict the first
+enumerated JP2 colour declaration to 16, 17 and 18. Acquired T.801 (06/2021),
+M.11.7.3.1 and Table M.25, assign 20 to the JPX e-sRGB extension defined by
+**PIMA 7667**, not by treating IEC 61966-2-1 sRGB samples as interchangeable.
+The [issue #439 classification and blocker](validation/esrgb-classification.md)
+records the actual JP2-only branding and eight-bit channels, source hashes,
+authorized-source acquisition boundary and unchanged typed-rejection policy.
+It is neither a conversion implementation nor selected-edition reconciliation.
+
 The T.808 (06/2026) reference above identifies a catalog record, not an acquired
 normative text or completed edition-difference review. Public implementation
 cross-checks and JPIP regression results must not be described as a complete

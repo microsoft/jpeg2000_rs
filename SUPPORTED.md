@@ -287,6 +287,12 @@ claims without specified colour are rejected. Explicit colour conversion reports
 `UnsupportedColorConversion::UnspecifiedColorSpace` rather than inferring RGB or
 grayscale. JP2/JPX and `UnkC=0` retain their required-colour checks.
 
+Enumerated e-sRGB (20) is not converted or relabelled as sRGB. Native planes
+remain available, but converted output returns the typed enumerated-colour
+error. The [issue #439 classification](validation/esrgb-classification.md)
+distinguishes native acceptance, JP2/JPX legality and the unresolved authorized
+PIMA 7667 sample-definition/output-policy blocker.
+
 JPX exposes codestream/header association, layer registration, channel
 association, opacity, composition instructions, timing, and indexed frame
 rendering. Rendering is bounded and deterministic; it does not provide a
