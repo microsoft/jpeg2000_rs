@@ -110,6 +110,7 @@ specs/cold_wavelet_planes.rs
 specs/cold_wavelet_prepare.rs
 specs/color_compatible.rs
 specs/compact_legacy.rs
+specs/compact_legacy_block.rs
 specs/compact_legacy_cache.rs
 specs/compact_legacy_context.rs
 specs/compact_legacy_pass.rs

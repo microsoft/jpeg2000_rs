@@ -55,6 +55,8 @@ mod compact_legacy_refinement;
 pub(crate) use compact_legacy_refinement::*;
 mod compact_legacy_pass;
 pub(crate) use compact_legacy_pass::*;
+mod compact_legacy_block;
+pub(crate) use compact_legacy_block::*;
 mod cold_compact_legacy;
 pub(crate) use cold_compact_legacy::*;
 mod packet;

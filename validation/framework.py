@@ -17161,6 +17161,7 @@ def validate_normative_coverage(
                 ("src/tier1/ht_refinement.rs", "copy_ht_refinement_bytes"): "ht_byte_vector_outcome",
                 ("src/tier1/state.rs", "code_block_plane_from_dimensions"): "code_block_plane_outcome",
                 ("src/tier1/state.rs", "coefficient_from_magnitude"): "coefficient_raw_outcome",
+                ("src/tier1/compact_legacy.rs", "unpack_word"): "super::coefficient_raw_view",
                 ("src/tier1/state.rs", "coefficient"): "coefficient_raw_outcome",
                 ("src/tier1/state.rs", "signed_magnitude"): "coefficient_signed_outcome",
                 ("src/tier1/state.rs", "coefficients"): "coefficient_slice_view",
@@ -17236,6 +17237,11 @@ def validate_normative_coverage(
                 ("src/tier1/legacy_passes.rs", "merge"): "tier1_statistics_merge",
                 ("src/tier1/state.rs", "code_block_plane_from_dimensions"): "tier1_empty_plane",
                 ("src/tier1/state.rs", "coefficient_from_magnitude"): "tier1_coefficient_new_outcome",
+                ("src/tier1/compact_legacy.rs", "unpack_word"): "compact_coefficient",
+                ("src/tier1/compact_legacy.rs", "mark_word"): "compact_mark_word",
+                ("src/tier1/compact_legacy.rs", "cache_word"): "compact_add_neighbor",
+                ("src/tier1/compact_legacy.rs", "refine_word"): "compact_refine_word",
+                ("src/tier1/compact_legacy.rs", "word_flag_summary"): "compact_flag_summary",
                 ("src/tier1/ht_cleanup.rs", "complete_ht_kappa"): "ht_complete_kappa",
                 ("src/tier1/state.rs", "ht_statistics_zero"): "tier1_statistics_zero",
                 ("src/tier1/state.rs", "width"): "tier1_raw_plane_width",
@@ -18651,6 +18657,25 @@ def validate_normative_coverage(
                     + re.escape(statistic_arguments[1]),
                 )
             )
+            compact_word_contract = {
+                "unpack_word": ("compact_coefficient", r"value", ""),
+                "mark_word": ("compact_mark_word", r"value\s*,\s*bp\s*,\s*negative", "requires bp<31,"),
+                "cache_word": ("compact_add_neighbor", r"value\s*,\s*direction\s*,\s*negative", "requires direction<8,"),
+                "refine_word": (
+                    "compact_refine_word", r"value\s*,\s*bp\s*,\s*bit",
+                    "requires bp<31,value & MAG<1u64<<31,value & (((1u64<<((bp+1) as u16))-1) as u64)==0,",
+                ),
+                "word_flag_summary": ("compact_flag_summary", r"sig\s*,\s*neg", ""),
+            }.get(short) if reference["path"] == "src/tier1/compact_legacy.rs" else None
+            compact_word_arguments_bound = True
+            if compact_word_contract is not None:
+                compact_model, compact_inputs, compact_requires = compact_word_contract
+                compact_prefix = re.search(r"\bverus_spec\(\s*\w+\s*=>\s*(.*?)\bensures\b", contract, re.S)
+                compact_word_arguments_bound = (
+                    compact_prefix is not None
+                    and "".join(compact_prefix[1].split()) == "".join(compact_requires.split())
+                    and _coverage_result_arguments(contract, named_result, compact_model, compact_inputs)
+                )
             if ("verus_spec(" not in contract
                     or (mutating and (state_result is None or not complete_state))
                     or not metadata_arguments_bound
@@ -18664,6 +18689,7 @@ def validate_normative_coverage(
                     or not selection_arguments_bound
                     or not header_arguments_bound
                     or not statistic_arguments_bound
+                    or not compact_word_arguments_bound
                     or (expected_result_model is not None
                         and (named_result is None or named_result["model"] != expected_result_model))
                     or not ("ensures returns" in contract

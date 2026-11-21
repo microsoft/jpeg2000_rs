@@ -54,6 +54,12 @@ row, column and pass contracts. These remain conditional on private bitplane
 invariants until their complete whole-block producer/consumer chain is proved.
 The geometric counter bound is a mathematical witness, not a new resource
 limit, allocation request or charged-work budget.
+[`compact_legacy_block.rs`](specs/compact_legacy_block.rs) adds checked schedule,
+metadata-phase, total-counter and ordinary-result suffix lemmas. The actual
+whole-block loop proof remains open; its callers still rely on that pending
+contract. Strict projected-result/input bindings cover the packed-word helpers,
+with negative mutation controls; the owner and outer-caller bindings remain
+separate work.
 
 The fresh nonempty `Vec<u64>` reservation is a real additional owner before
 the original two bool owners per bitplane.

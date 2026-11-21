@@ -318,6 +318,44 @@ class FrameworkTests(WorkingFiles):
             ("== crate::specs::part2_owned_layer_input(", "== crate::specs::unlisted_model("),
         ))
 
+    def test_inventory_binds_compact_word_result_projection_and_actual_input(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part1-unqualified-compact-legacy-prototype"
+        ]
+        coverage["requirements"][0]["contract_refs"] = [{
+            "path": "src/tier1/compact_legacy.rs", "symbol": "unpack_word",
+        }]
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        self._assert_contract_text_mutations(coverage, (
+            ("super::coefficient_raw_view(result)", "super::coefficient_raw_view(unrelated)"),
+            ("crate::specs::compact_coefficient(value)", "crate::specs::compact_coefficient(0)"),
+            ("crate::specs::compact_coefficient(value)", "crate::specs::compact_flag_summary(value)"),
+            ("ensures super::coefficient_raw_view", "requires false, ensures super::coefficient_raw_view"),
+        ))
+
+    def test_inventory_binds_compact_word_bounds_and_all_coded_arguments(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part1-unqualified-compact-legacy-prototype"
+        ]
+        words = {"unpack_word", "mark_word", "cache_word", "refine_word", "word_flag_summary"}
+        coverage["requirements"][0]["contract_refs"] = [
+            ref for ref in coverage["requirements"][0]["contract_refs"] if ref["symbol"] in words
+        ]
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        self._assert_contract_text_mutations(coverage, (
+            ("compact_mark_word(value,bp,negative)", "compact_mark_word(value,0,negative)"),
+            ("requires bp<31,", "requires false,"),
+            ("compact_add_neighbor(value,direction,negative)", "compact_add_neighbor(value,direction,false)"),
+            ("requires direction<8,", "requires direction<9,"),
+            ("compact_refine_word(value,bp,bit)", "compact_refine_word(value,bp,!bit)"),
+            ("value & MAG<1u64<<31", "value & MAG<1u64<<32"),
+            ("compact_flag_summary(sig,neg)", "compact_flag_summary(neg,sig)"),
+        ))
+
     def test_inventory_checks_each_complete_frame_stage_result_projection(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [

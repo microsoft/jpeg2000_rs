@@ -219,6 +219,7 @@ pub(crate) open spec fn compact_column_model(before:Part1LegacyFrame,kind:crate:
     if kind is Cleanup{part1_legacy_cleanup_column(before,x as u16,stripe as u16,rows as u16,orientation,causal)}
     else{compact_rows_model(before,kind,orientation,causal,x,stripe,0,rows,true)}
 }
+#[verifier::opaque]
 pub(crate) open spec fn compact_pass_model(plane:Tier1RawPlane,state:Part1LegacyBitplane,symbols:Part1LegacySymbols,
     kind:crate::tier1::Tier1PassKind,orientation:crate::tier1::SubbandOrientation,causal:bool)->Part1LegacyPassEffect {
     if kind is Cleanup{part1_legacy_cleanup_pass(plane,state,symbols,orientation,causal,false)}
