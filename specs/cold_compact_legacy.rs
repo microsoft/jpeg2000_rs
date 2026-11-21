@@ -113,11 +113,103 @@ pub(crate) proof fn compact_inner_normal(initial:Part1LegacySegmentRun,count:u32
     part2_legacy_inner_body_normal(initial,count);
     compact_inner_observed(initial,count,part1_legacy_segment_finish(part1_legacy_segment_run(initial,count as nat)));
 }
+pub(crate) proof fn compact_original_first_error(initial:Part1LegacySegmentRun,count:u32)
+    requires count>0,initial.decoder.bitplane_state.is_none(),
+        initial.decoder.bitplane<crate::tier1::MAX_TIER1_BITPLANES,
+        initial.decoder.plane.coefficients.len()>0,initial.symbols is Mq,
+        part1_legacy_plan(initial.decoder.style,initial.decoder.next_pass).coding_mode is Mq,
+    ensures part2_legacy_inner_body_result(initial,count,
+        (Err(crate::DecodeError::AllocationFailed),initial.decoder,initial.symbols)),
+{
+    let error=crate::DecodeError::AllocationFailed;
+    let kind=part1_legacy_plan(initial.decoder.style,initial.decoder.next_pass).kind;
+    part2_bitplane_capacity_observed(initial.decoder.plane,initial.decoder.bitplane,false,None,Err(error));
+    part2_bitplane_initial_first_error(initial.decoder.plane,initial.decoder.bitplane,error);
+    part2_legacy_ensure_observed(initial.decoder,Err(error));
+    part2_legacy_mq_ready_contract(initial.decoder,initial.symbols->Mq_0,kind,(Err(error),initial.decoder));
+    let pass=(Err(error),initial.decoder,initial.symbols);
+    part2_legacy_inner_step_observed(initial,kind,pass);
+    compact_cold_start(initial,count);
+    compact_cold_step(initial,count,initial,count as nat,Seq::empty(),(Err(error),initial));
+}
 pub(crate) open spec fn compact_selected_inner_run(initial:Part1LegacySegmentRun,count:u32,caps:Part2CompactLegacyCaps,allowed:bool,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1LegacySegmentPassEffect> {
-    if allowed && compact_eligible(initial.decoder,count,caps.decoded,caps.wide_bytes){
+    if allowed && initial.symbols is Mq && compact_eligible(initial.decoder,count,caps.decoded,caps.wide_bytes){
         compact_inner_run(initial,count,calls)
     }else{
         part2_legacy_inner_body_run(initial,count,calls)
     }
+}
+#[verifier::opaque]
+pub(crate) open spec fn compact_selected_inner_result(initial:Part1LegacySegmentRun,count:u32,caps:Part2CompactLegacyCaps,
+    allowed:bool,result:Part1LegacySegmentPassEffect)->bool {
+    part2_tier1_storage_framed(|calls|compact_selected_inner_run(initial,count,caps,allowed,calls),Ok(result))
+        && (result.0!=Err(crate::DecodeError::AllocationFailed)
+            ==> result==part1_legacy_segment_finish(part1_legacy_segment_run(initial,count as nat)))
+}
+pub(crate) proof fn compact_selected_inner_observed(initial:Part1LegacySegmentRun,count:u32,caps:Part2CompactLegacyCaps,
+    allowed:bool,result:Part1LegacySegmentPassEffect)
+    requires part2_legacy_inner_body_result(initial,count,result),
+        allowed && initial.symbols is Mq && compact_eligible(initial.decoder,count,caps.decoded,caps.wide_bytes)
+            ==> compact_inner_result(initial,count,result),
+        result.0!=Err(crate::DecodeError::AllocationFailed)
+            ==> result==part1_legacy_segment_finish(part1_legacy_segment_run(initial,count as nat)),
+    ensures compact_selected_inner_result(initial,count,caps,allowed,result),
+{
+    reveal(compact_selected_inner_result);
+    if allowed && initial.symbols is Mq && compact_eligible(initial.decoder,count,caps.decoded,caps.wide_bytes) {
+        reveal(compact_inner_result);
+        part2_tier1_storage_eta(|calls|compact_inner_run(initial,count,calls),Ok(result));
+        assert forall|calls|compact_selected_inner_run(initial,count,caps,allowed,calls)
+            ==compact_inner_run(initial,count,calls) by{}
+    } else {
+        part2_legacy_inner_body_frames(initial,count,result);
+        assert forall|calls|compact_selected_inner_run(initial,count,caps,allowed,calls)
+            ==part2_legacy_inner_body_run(initial,count,calls) by{}
+    }
+}
+#[verifier::opaque]
+pub(crate) open spec fn compact_segment_run(before:Tier1DecoderState,input:Seq<u8>,count:u32,caps:Part2CompactLegacyCaps,
+    allowed:bool,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<HtDecoderResult> {
+    match part2_legacy_segment_prepared(before,input,count,caps.legacy) {
+        Err(error)=>Some((Ok((Err(error),before)),calls)),
+        Ok(initial)=>part2_tier1_storage_bind(compact_selected_inner_run(initial,count,caps,allowed,calls),
+            |inner:Part1LegacySegmentPassEffect,rest|Some((Ok(part2_legacy_segment_finish(before,input,count,inner)),rest))),
+    }
+}
+#[verifier::opaque]
+pub(crate) open spec fn compact_segment_result(before:Tier1DecoderState,input:Seq<u8>,count:u32,caps:Part2CompactLegacyCaps,
+    allowed:bool,result:HtDecoderResult)->bool {
+    part2_tier1_storage_framed(|calls|compact_segment_run(before,input,count,caps,allowed,calls),Ok(result))
+        && (result.0!=Err(crate::DecodeError::AllocationFailed)
+            ==> result==part1_legacy_segment(before,input,count,caps.legacy.passes,caps.legacy.bytes,caps.legacy.input,caps.legacy.work))
+}
+pub(crate) proof fn compact_segment_prepared_error(before:Tier1DecoderState,input:Seq<u8>,count:u32,caps:Part2CompactLegacyCaps,
+    allowed:bool,error:crate::DecodeError)
+    requires part2_legacy_segment_prepared(before,input,count,caps.legacy)==Err(error),
+    ensures compact_segment_result(before,input,count,caps,allowed,(Err(error),before)),
+        part2_legacy_segment_result(before,input,count,caps.legacy,(Err(error),before)),
+{
+    part2_legacy_segment_prepared_error(before,input,count,caps.legacy,error);
+    part2_legacy_segment_primary_consequence(before,input,count,caps.legacy,(Err(error),before));
+    reveal(compact_segment_result);reveal(compact_segment_run);
+    part2_tier1_storage_pure::<HtDecoderResult>(Ok((Err(error),before)));
+}
+pub(crate) proof fn compact_segment_observed(before:Tier1DecoderState,input:Seq<u8>,count:u32,caps:Part2CompactLegacyCaps,
+    allowed:bool,initial:Part1LegacySegmentRun,inner:Part1LegacySegmentPassEffect)
+    requires part2_legacy_segment_prepared(before,input,count,caps.legacy)==Ok(initial),
+        compact_selected_inner_result(initial,count,caps,allowed,inner),
+        part2_legacy_inner_body_result(initial,count,inner),
+        inner.0!=Err(crate::DecodeError::AllocationFailed)
+            ==> inner==part1_legacy_segment_finish(part1_legacy_segment_run(initial,count as nat)),
+    ensures compact_segment_result(before,input,count,caps,allowed,part2_legacy_segment_finish(before,input,count,inner)),
+        part2_legacy_segment_result(before,input,count,caps.legacy,part2_legacy_segment_finish(before,input,count,inner)),
+{
+    let result=part2_legacy_segment_finish(before,input,count,inner);
+    part2_legacy_segment_observed(before,input,count,caps.legacy,initial,inner);
+    part2_legacy_segment_primary_consequence(before,input,count,caps.legacy,result);
+    reveal(compact_segment_result);reveal(compact_segment_run);reveal(compact_selected_inner_result);
+    part2_tier1_storage_pure(Ok(result));
+    part2_tier1_storage_bind_frame(|calls|compact_selected_inner_run(initial,count,caps,allowed,calls),
+        |inner:Part1LegacySegmentPassEffect,rest|Some((Ok(part2_legacy_segment_finish(before,input,count,inner)),rest)),Ok(inner),Ok(result));
 }
 }

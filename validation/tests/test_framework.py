@@ -409,6 +409,30 @@ class FrameworkTests(WorkingFiles):
                     Path, "read_text", altered), self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
                 framework.validate_normative_coverage(coverage)
 
+    def test_inventory_rejects_changed_selected_compact_dispatch(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        source = (framework.ROOT / "src/tier1/legacy_segments.rs").resolve()
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("                compact_allowed,\n", "                false,\n"),
+            ("self.try_compact_legacy(decoder, pass_count, limits)",
+             "self.try_compact_legacy(decoder, 1, limits)"),
+            ("Some(result) => result,",
+             "Some(_) => self.decode_mq_segment_passes(decoder, pass_count),"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(after=after), mock.patch.object(
+                    Path, "read_text", altered), self.assertRaisesRegex(
+                        ValueError, "initial bitplane storage"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_checks_each_complete_frame_stage_result_projection(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [

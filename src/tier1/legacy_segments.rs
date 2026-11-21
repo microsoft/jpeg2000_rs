@@ -82,6 +82,8 @@ impl Tier1CodeBlockDecoder {
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures crate::specs::part2_legacy_segment_result(tier1_decoder_state(old(self)),input@,pass_count,super::legacy_storage_limits(limits),(result,tier1_decoder_state(final(self)))),
+            crate::specs::compact_segment_result(tier1_decoder_state(old(self)),input@,pass_count,
+                super::compact_legacy_storage_limits(limits),true,(result,tier1_decoder_state(final(self)))),
             result!=Err(DecodeError::AllocationFailed) ==> (result, tier1_decoder_state(final(self))) == crate::specs::part1_legacy_segment(
             tier1_decoder_state(old(self)), input@, pass_count,
             crate::limits::resource_code_block_pass_limit(limits), crate::limits::resource_code_block_byte_limit(limits),
@@ -96,6 +98,17 @@ impl Tier1CodeBlockDecoder {
         self.decode_legacy_segment_with_compact(input, pass_count, limits, true)
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures crate::specs::part2_legacy_segment_result(tier1_decoder_state(old(self)),input@,pass_count,
+                super::legacy_storage_limits(limits),(result,tier1_decoder_state(final(self)))),
+            crate::specs::compact_segment_result(tier1_decoder_state(old(self)),input@,pass_count,
+                super::compact_legacy_storage_limits(limits),compact_allowed,(result,tier1_decoder_state(final(self)))),
+            result!=Err(DecodeError::AllocationFailed) ==> (result,tier1_decoder_state(final(self)))==crate::specs::part1_legacy_segment(
+                tier1_decoder_state(old(self)),input@,pass_count,
+                crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),
+                crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits)),
+    ))]
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     pub(super) fn decode_legacy_segment_with_compact(
         &mut self,
         input: &[u8],
@@ -104,13 +117,15 @@ impl Tier1CodeBlockDecoder {
         compact_allowed: bool,
     ) -> Result<Tier1SegmentDecode, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof_decl! {let ghost before=tier1_decoder_state(self);let ghost caps=super::legacy_storage_limits(limits);}
+        proof_decl! {let ghost before=tier1_decoder_state(self);let ghost caps=super::legacy_storage_limits(limits);
+        let ghost compact_caps=super::compact_legacy_storage_limits(limits);}
         #[cfg(verus_keep_ghost)]
         proof! {crate::specs::part2_legacy_segment_prepared_equation(before,input@,pass_count,caps);}
         let admitted = self.validate_legacy_segment(input, pass_count, limits);
         #[cfg(verus_keep_ghost)]
         proof! {if let Err(error)=admitted{
             crate::specs::part2_legacy_segment_prepared_error(before,input@,pass_count,caps,error);
+            crate::specs::compact_segment_prepared_error(before,input@,pass_count,compact_caps,compact_allowed,error);
             crate::specs::part2_legacy_segment_primary_consequence(before,input@,pass_count,caps,(Err(error),tier1_decoder_state(self)));
         }}
         admitted?;
@@ -128,6 +143,7 @@ impl Tier1CodeBlockDecoder {
             #[cfg(verus_keep_ghost)]
             proof! {if let Err(error)=constructed{
                 crate::specs::part2_legacy_segment_prepared_error(before,input@,pass_count,caps,error);
+                crate::specs::compact_segment_prepared_error(before,input@,pass_count,compact_caps,compact_allowed,error);
                 crate::specs::part2_legacy_segment_primary_consequence(before,input@,pass_count,caps,(Err(error),tier1_decoder_state(self)));
             }}
             let mut decoder = constructed?;
@@ -140,18 +156,16 @@ impl Tier1CodeBlockDecoder {
             #[cfg(verus_keep_ghost)]
             proof_decl! {let ghost ready=crate::specs::Part1LegacySegmentRun {decoder:tier1_decoder_state(self),
             symbols:crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(&decoder)),statistics:crate::specs::tier1_statistics_zero()};}
-            let decoded = if compact_allowed {
-                match self.try_compact_legacy(&mut decoder, pass_count, limits) {
-                    Some(result) => result,
-                    None => self.decode_mq_segment_passes(&mut decoder, pass_count),
-                }
-            } else {
-                self.decode_mq_segment_passes(&mut decoder, pass_count)
-            };
+            let decoded = self.decode_selected_mq_segment_passes(
+                &mut decoder,
+                pass_count,
+                limits,
+                compact_allowed,
+            );
             #[cfg(verus_keep_ghost)]
             proof! {
                 let inner=(decoded,tier1_decoder_state(self),crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(&decoder)));
-                crate::specs::part2_legacy_segment_observed(before,input@,pass_count,caps,ready,inner);
+                crate::specs::compact_segment_observed(before,input@,pass_count,compact_caps,compact_allowed,ready,inner);
                 crate::specs::part2_legacy_segment_finish_equation(before,input@,pass_count,inner);
                 crate::specs::part2_legacy_segment_primary_consequence(before,input@,pass_count,caps,crate::specs::part2_legacy_segment_finish(before,input@,pass_count,inner));
             }
@@ -169,6 +183,7 @@ impl Tier1CodeBlockDecoder {
             #[cfg(verus_keep_ghost)]
             proof! {if let Err(error)=constructed{
                 crate::specs::part2_legacy_segment_prepared_error(before,input@,pass_count,caps,error);
+                crate::specs::compact_segment_prepared_error(before,input@,pass_count,compact_caps,compact_allowed,error);
                 crate::specs::part2_legacy_segment_primary_consequence(before,input@,pass_count,caps,(Err(error),tier1_decoder_state(self)));
             }}
             let mut reader = constructed?;
@@ -179,7 +194,8 @@ impl Tier1CodeBlockDecoder {
             #[cfg(verus_keep_ghost)]
             proof! {
                 let inner=(decoded,tier1_decoder_state(self),crate::specs::Part1LegacySymbols::Raw(raw_bit_reader_view(&reader)));
-                crate::specs::part2_legacy_segment_observed(before,input@,pass_count,caps,ready,inner);
+                crate::specs::compact_selected_inner_observed(ready,pass_count,compact_caps,compact_allowed,inner);
+                crate::specs::compact_segment_observed(before,input@,pass_count,compact_caps,compact_allowed,ready,inner);
                 crate::specs::part2_legacy_segment_finish_equation(before,input@,pass_count,inner);
                 crate::specs::part2_legacy_segment_primary_consequence(before,input@,pass_count,caps,crate::specs::part2_legacy_segment_finish(before,input@,pass_count,inner));
             }
@@ -195,6 +211,55 @@ impl Tier1CodeBlockDecoder {
             crate::pdf_mq::record_prefix()?;
         }
         Ok(decoded)
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures {
+            let initial=crate::specs::Part1LegacySegmentRun {
+                decoder:tier1_decoder_state(old(self)),
+                symbols:crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(old(decoder))),
+                statistics:crate::specs::tier1_statistics_zero(),
+            };
+            let effect=(result,tier1_decoder_state(final(self)),
+                crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(final(decoder))));
+            crate::specs::part2_legacy_inner_body_result(initial,pass_count,effect)
+                && crate::specs::compact_selected_inner_result(initial,pass_count,
+                    super::compact_legacy_storage_limits(limits),compact_allowed,effect)
+                && (result!=Err(DecodeError::AllocationFailed)
+                    ==> effect==crate::specs::part1_legacy_segment_finish(
+                        crate::specs::part1_legacy_segment_run(initial,pass_count as nat)))
+        },
+    ))]
+    fn decode_selected_mq_segment_passes(
+        &mut self,
+        decoder: &mut MqDecoder<'_>,
+        pass_count: u32,
+        limits: &ResourceLimits,
+        compact_allowed: bool,
+    ) -> Result<Tier1PassStatistics, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost initial=crate::specs::Part1LegacySegmentRun {
+            decoder:tier1_decoder_state(self),
+            symbols:crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(decoder)),
+            statistics:crate::specs::tier1_statistics_zero(),
+        };}
+        let decoded = if compact_allowed {
+            match self.try_compact_legacy(decoder, pass_count, limits) {
+                Some(result) => result,
+                None => self.decode_mq_segment_passes(decoder, pass_count),
+            }
+        } else {
+            self.decode_mq_segment_passes(decoder, pass_count)
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::compact_inner_result);
+            let effect=(decoded,tier1_decoder_state(self),
+                crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(decoder)));
+            crate::specs::compact_selected_inner_observed(initial,pass_count,
+                super::compact_legacy_storage_limits(limits),compact_allowed,effect);
+        }
+        decoded
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>

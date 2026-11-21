@@ -14470,7 +14470,7 @@
     },
     {
       "id": "part1-unqualified-compact-legacy-prototype",
-      "topic": "Unqualified issue-447 prototype: actual word, cache/context, cell and row/column/pass refinements use private bitplane-frontier invariants. Complete executable word/owner/function inventory bindings and negative mutation controls retain actual request counts, physical owner outcomes, whole wide commits and direct/replay dispatch. A real additional scratch-capacity reply prefixes the original bitplane-owner program. The small driver verifies against a pending executing scheduled-pass contract; that helper's function-body query still exceeds the unchanged default verifier resource limit. Decoded-budget-aware outer cold composition remains pending. Native parity and successful helper/model/binding checks do not permit adoption or establish performance, RSS reduction, source-function coverage or conformance.",
+      "topic": "Issue-447 compact legacy candidate: actual word, cache/context, cell/pass, whole-block and selected outer-segment refinements use producer-established bitplane-frontier invariants. A real additional scratch-capacity reply precedes the original bitplane-owner program; the selected storage model retains actual decoded-byte eligibility and wide-entry size. The original storage-result relation is a separately proved conservative outcome consequence, not the new allocation trace. Checked preparation, statistics and dispatch helpers close executing composition under unchanged budgets. Replay remains wide-only. Full source proofs do not by themselves establish packaged-source qualification, final performance, RSS reduction, source-function coverage, normative-model completeness or adoption readiness.",
       "contract_refs": [
         {"path": "src/tier1/compact_legacy.rs", "symbol": "unpack_word"},
         {"path": "src/tier1/compact_legacy.rs", "symbol": "mark_word"},
@@ -14490,6 +14490,9 @@
         {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::try_compact_legacy"},
         {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_passes"},
         {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_scheduled_pass"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_prepare_bitplane"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "compact_merge_statistics"},
+        {"path": "src/tier1/legacy_segments.rs", "symbol": "Tier1CodeBlockDecoder::decode_selected_mq_segment_passes"},
         {"path": "src/tier1/legacy_segments.rs", "symbol": "Tier1CodeBlockDecoder::decode_legacy_segment_with_compact"}
       ],
       "spec_refs": [
@@ -14516,7 +14519,10 @@
         {"path": "specs/cold_compact_legacy.rs", "symbol": "Part2CompactLegacyCaps"},
         {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_capacity_run"},
         {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_inner_run"},
-        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_selected_inner_run"}
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_selected_inner_run"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_selected_inner_result"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_segment_run"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_segment_result"}
       ],
       "proof_refs": [
         {"path": "specs/compact_legacy.rs", "symbol": "compact_mark_coefficient"},
@@ -14540,6 +14546,10 @@
         {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_inner_first_error"},
         {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_inner_observed"},
         {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_inner_normal"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_original_first_error"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_selected_inner_observed"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_segment_prepared_error"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_segment_observed"},
         {"path": "src/tier1/proof_support.rs", "symbol": "compact_legacy_storage_limits"}
       ],
       "test_refs": [

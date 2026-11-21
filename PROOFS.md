@@ -37,10 +37,12 @@ Use the [supported build profiles](SUPPORTED.md#build-and-runtime-profiles) and
 when reporting this API. Native `--all-features` tests exercise it, but are not
 an all-feature Verus proof. Full source-function coverage remains `not-measured`.
 
-## Unqualified bounded compact legacy prototype
+## Source-proved bounded compact legacy candidate
 
-The issue-447 prototype in [`compact_legacy.rs`](src/tier1/compact_legacy.rs)
-is not qualified for adoption. Its actual word helpers have contracts for
+The issue-447 candidate in [`compact_legacy.rs`](src/tier1/compact_legacy.rs)
+has complete executing-source proofs, but still requires final packaged,
+native, performance and CI qualification before adoption. Its word helpers
+have contracts for
 packing, extraction, sign/bitplane flags, magnitude addition without field
 carry, cache-bit insertion and masked neighbor-count arithmetic.
 [`compact_legacy.rs`](specs/compact_legacy.rs) projects physical words into the
@@ -50,19 +52,17 @@ The [directional update induction](specs/compact_legacy_cache.rs) and
 mark/sign/context operations to the existing checked neighbor model.
 The [numeric frontier](specs/compact_legacy_refinement.rs) and
 [traversal predicates](specs/compact_legacy_pass.rs) support actual cell,
-row, column and pass contracts. These remain conditional on private bitplane
-invariants until their complete whole-block producer/consumer chain is proved.
+row, column and pass contracts. The whole-block producer/consumer chain
+establishes their private bitplane invariants at the actual fresh owner.
 The geometric counter bound is a mathematical witness, not a new resource
 limit, allocation request or charged-work budget.
 [`compact_legacy_block.rs`](specs/compact_legacy_block.rs) adds checked schedule,
-metadata-phase, total-counter and ordinary-result suffix lemmas. The complete
-whole-block proof remains open; its callers still rely on a pending executing
-scheduled-pass contract. The [store/error cutpoints](specs/compact_legacy_frames.rs) separate
+metadata-phase, total-counter and ordinary-result suffix lemmas. Checked
+bitplane preparation and statistics accumulation isolate real operations
+from the scheduled-pass composition query, without changing their order
+or increasing verifier limits. The [store/error cutpoints](specs/compact_legacy_frames.rs) separate
 the constant physical-wide frame, packed-plane substitution, combined
-post-advance run equality and allocation/pass error continuations. A checked
-native-record store lemma keeps whole-decoder view unfolding outside the loop.
-These cutpoints do not establish the remaining resource-limited iteration query,
-nor identify which of its obligations consumes the limit.
+post-advance run equality and allocation/pass error continuations.
 Strict projected-result/input/bound/request-order bindings cover all
 nine listed word, fresh-owner, bitplane-owner, commit and activation functions.
 The fresh-owner outcome retains every physical field, and commit binds the
@@ -76,7 +76,15 @@ the original two bool owners per bitplane.
 actual normalized capacity reply to the existing ordered legacy inner
 program, with first-refusal, normal-result and arbitrary-tail lemmas. Its
 private limits record retains the actual decoded-byte cap and native wide
-entry size. Ineligible dispatch selects the original inner program unchanged.
+entry size. The selected outer-segment model carries these limits through
+the actual MQ dispatch. Ineligible dispatch selects the original inner
+program unchanged.
+The original storage-result relation remains a separately checked,
+conservative outcome consequence: a scratch refusal has the same visible
+outcome as a first original bitplane-owner refusal. This logical witness
+does not claim that the old owner sequence is the actual compact trace,
+does not create a native request, and does not replace the exact selected
+storage model.
 Extraction writes the public wide plane once after whole-block success or
 failure; it does not allocate or materialize wide records on hot accesses.
 
@@ -85,19 +93,15 @@ otherwise make a final replay look fresh to the ordinary activation predicate.
 Native refusal controls cover this boundary and the extra scratch request
 separately from the unchanged checked allocation program.
 
-The small whole-block driver verifies against the executing
-`compact_scheduled_pass` contract. The original iteration operations have been
-moved into that helper without changing their order; its function-body query
-still exceeds the unchanged default verifier resource limit. This localizes the
-open VC to the executing iteration, not to an individually identified assertion
-or cache/frontier/MQ obligation. Its producer-derived
-phase is established at the real fresh owner; no successful-owner or allocator
-availability premise is supplied. Integration of the additional capacity event
-and decoded-byte eligibility through the existing outer legacy cold callers
-remains unproved. The combined actual-source focus fails;
-successful helper/model foci are not decoder qualification. This branch must
-not be adopted into main or release on that evidence. Public storage remains
-wide; no process-RSS reduction or new performance qualification is claimed.
+The small whole-block driver and executing `compact_scheduled_pass` both
+verify under unchanged default limits. Their producer-derived phase is
+established at the real fresh owner; no successful-owner or allocator
+availability premise is supplied. The actual selected MQ helper and outer
+segment carry both the exact new storage result and the existing ordinary
+outcome contract. Full unrestricted production verification passes, including
+the replay callers, without weakening failure-injection controls.
+Public storage remains wide; no process-RSS reduction or final performance
+qualification is implied by these source proofs.
 The five Rust-only adapters, disabled lifetime boundary and unmeasured
 source-function coverage are unchanged.
 

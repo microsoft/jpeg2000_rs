@@ -7262,12 +7262,18 @@ _BITPLANE_INITIAL_NATIVE_ORDER = {
     ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_legacy_segment_with_compact"): (
         "self.validate_legacy_segment(input,pass_count,limits)", "admitted?", "self.style.pass_plan(self.next_pass).coding_mode",
         "crate::mq::mq_from_input(", "constructed?", "initialize_tier1_contexts(", "self.reset_contexts_before_mq=false",
-        "if compact_allowed", "self.try_compact_legacy(&mut decoder,pass_count,limits)",
-        "None=>self.decode_mq_segment_passes(&mut decoder,pass_count)", "else{self.decode_mq_segment_passes(&mut decoder,pass_count)}",
-        "part2_legacy_segment_observed(", "part2_legacy_segment_finish_equation(",
+        "self.decode_selected_mq_segment_passes(&mut decoder,pass_count,limits,compact_allowed,)",
+        "compact_segment_observed(", "part2_legacy_segment_finish_equation(",
         "part2_legacy_segment_primary_consequence(", "statistics=decoded?", "decoder.validate_predictable_termination()?",
         "self.mq_context_state=Some(decoder.context_state())", "raw_reader_from_input(", "self.decode_raw_segment_passes(",
         "reader.validate_predictable_termination()?", "self.commit_legacy_segment(input.len(),pass_count,statistics)",
+    ),
+    ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_selected_mq_segment_passes"): (
+        "if compact_allowed", "self.try_compact_legacy(decoder,pass_count,limits)",
+        "Some(result)=>result",
+        "None=>self.decode_mq_segment_passes(decoder,pass_count)",
+        "else{self.decode_mq_segment_passes(decoder,pass_count)}",
+        "compact_selected_inner_observed(", "decoded",
     ),
 }
 _PREPARE_WORKING_MODELS = {("specs/cold_prepare_copies.rs", name) for name in (
