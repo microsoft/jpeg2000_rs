@@ -206,6 +206,8 @@ mod cold_coefficient_extraction;
 pub use cold_coefficient_extraction::*;
 mod cold_extraction_reconstruction;
 pub use cold_extraction_reconstruction::*;
+mod fused_reconstruction;
+pub(crate) use fused_reconstruction::*;
 mod cold_extraction_tile;
 pub use cold_extraction_tile::*;
 mod cold_legacy_bitplanes;

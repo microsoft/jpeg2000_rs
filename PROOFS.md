@@ -84,6 +84,33 @@ periodically checked. This is cooperative work granularity, not a hard latency
 guarantee. Focused evidence does not establish full source/archive qualification
 or a performance adoption decision.
 
+### Fused coefficient placement candidate: qualification pending
+
+The independent copy-elimination experiment preflights actual decoded coefficient
+storage, legacy truncation midpoints, per-coefficient ROI restoration, quantizer
+metadata, decoded-byte admission, exact destination shape and unvisited target
+cells. It does not infer a bound from nominal image/component precision.
+Maxshift is checked per coefficient because restoration is discontinuous at its
+threshold. Larger/wide magnitudes, carries beyond `u64`, malformed metadata,
+unsupported shape, visited cells and out-of-range products retain the checked
+collection/quantization/placement path and its original error/partial-write order.
+
+Admitted blocks are written directly into the already-owned working band.
+Neither the wide signed-magnitude staging vector (56 bytes per record on this
+target) nor the quantized staging vector exists on that branch; no fake
+reservations replace those removed calls.
+The source-derived cold model consumes no storage events on the fused branch.
+Refusal tests check zero requests for eligible placement, both real staging
+owners on checked fallback, original numeric/limit precedence, and late-placement
+partial buffers. Legacy midpoint and scalar quantization helpers are shared.
+The optional deadline profile checks preflight and write work periodically.
+
+This is a native experiment, **not** a completed source-proof or release
+qualification claim. Its strong scalar-normal contracts and explicit new
+allocation model still require complete native-source/model proofs, whole-root
+and actual-archive verification, and the unchanged retention/CI gates before
+adoption. A model-only focus does not qualify its executing native body.
+
 ### Selected opaque ICC metadata
 
 The private profile-byte copy reserves checked storage before its original

@@ -20950,6 +20950,7 @@
       ],
       "id": "part1-complete-supplied-coefficient-quantization",
       "implementation_refs": [
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place"},
         {"path": "src/decode/code_blocks.rs", "symbol": "decode_code_block"},
         {"path": "src/decode/code_blocks.rs", "symbol": "copy_code_block_samples"},
         {
@@ -21682,6 +21683,7 @@
       ],
       "id": "part1-complete-quantized-block-placement",
       "implementation_refs": [
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place"},
         {"path": "src/decode/reconstruction.rs", "symbol": "prepare_tile_component_with_kernel"},
         {"path": "src/decode/reconstruction.rs", "symbol": "place_prepare_block"},
         {"path": "src/decode/reconstruction.rs", "symbol": "write_quantized_block"},
@@ -21722,6 +21724,9 @@
       ],
       "id": "part1-complete-standard-plan-coordinator",
       "implementation_refs": [
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place"},
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "preflight"},
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "write"},
         {"path": "src/decode/reconstruction.rs", "symbol": "decode_progression_prepared_image"},
         {"path": "src/decode/reconstruction.rs", "symbol": "prepared_tile_views"},
         {"path": "src/decode/reconstruction.rs", "symbol": "prepare_tile_component"},
@@ -21814,6 +21819,10 @@
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_admit"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_after"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_run"},
+        {"path": "specs/fused_reconstruction.rs", "symbol": "part2_narrow_magnitude"},
+        {"path": "specs/fused_reconstruction.rs", "symbol": "part2_fused_eligible"},
+        {"path": "specs/fused_reconstruction.rs", "symbol": "part2_fused_placement_enabled"},
+        {"path": "specs/fused_reconstruction.rs", "symbol": "part2_fused_place_run"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_result"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_after_quantization"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_after_coefficients_run"},
@@ -21869,6 +21878,8 @@
         {"path": "src/decode/tests.rs", "symbol": "prepared_view_storage_preserves_borrows_raw_metadata_empty_and_retry"},
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_zero_raw_shape_and_ordinary_cell_error_order"},
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_first_later_prepared_placements_preserve_real_sources"},
+        {"path": "src/decode/reconstruction/fused_tests.rs", "symbol": "fused_direct_placement_matches_independent_midpoint_roi_and_quantization_reference_without_allocating"},
+        {"path": "src/decode/reconstruction/fused_tests.rs", "symbol": "fused_fallback_preserves_real_staging_refusals_numeric_priority_and_partial_placement"},
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_actual_legacy_ht_code_block_packet_and_quantization_order"},
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_real_ht_raw_selected_jph_reconstruction_and_automatic_restore"},
         {"path": "src/allocation.rs", "symbol": "bulk_i64_copy_preserves_raw_empty_prior_owner_first_later_and_restore"},

@@ -9556,6 +9556,41 @@ fn coefficient_extraction_storage_first_later_prepared_placements_preserve_real_
         .iter()
         .map(crate::packet::exact_packet_precinct_snapshot)
         .collect::<Vec<_>>();
+    for placement in &plan.placements {
+        let Some(&geometry) = plan.subbands.get(placement.subband_index) else {
+            continue;
+        };
+        let plane = precincts[placement.precinct_index]
+            .decoder(placement.decoder_index)
+            .unwrap()
+            .plane();
+        let mut destination = WorkingSubband {
+            width: geometry.width,
+            height: geometry.height,
+            fraction_bits: 0,
+            samples: vec![0; (geometry.width * geometry.height) as usize],
+            visited: vec![false; (geometry.width * geometry.height) as usize],
+        };
+        crate::allocation::with_refusal(0, || {
+            assert_eq!(
+                super::reconstruction::fused::place(
+                    plane,
+                    &mut destination,
+                    geometry,
+                    placement.x,
+                    placement.y,
+                    true,
+                    &limits
+                ),
+                Ok(())
+            );
+            assert_eq!(
+                crate::allocation::copy_i64_values(&[1]),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+    }
+    // Refusal now belongs to the real following LL/row owners, not staging.
     for after in [5, 7] {
         assert_eq!(
             crate::allocation::with_refusal(after, || prepare_tile_component(
@@ -9587,6 +9622,16 @@ fn coefficient_extraction_storage_first_later_prepared_placements_preserve_real_
             )
         );
     }
+    crate::allocation::with_refusal(9, || {
+        assert_eq!(
+            prepare_tile_component(&plan, &precincts, style, &limits).unwrap(),
+            expected
+        );
+        assert_eq!(
+            crate::allocation::copy_i64_values(&[1]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
 }
 
 #[test]
@@ -9693,8 +9738,8 @@ fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restor
             .iter()
             .map(crate::packet::exact_packet_precinct_snapshot)
             .collect();
-        // Eligible standard row traversal removes all six column-line owners.
-        for after in [18, 19, 20, 21, 22] {
+        // Four fused placements remove eight staging owners before wavelet work.
+        for after in [10, 11, 12, 13, 14] {
             assert_eq!(
                 crate::allocation::with_refusal(after, || prepare_tile_component(
                     &plan, &precincts, style, &limits
@@ -9724,7 +9769,7 @@ fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restor
                 sources
             );
         }
-        crate::allocation::with_refusal(24, || {
+        crate::allocation::with_refusal(16, || {
             assert_eq!(
                 prepare_tile_component(&plan, &precincts, style, &limits).unwrap(),
                 expected
@@ -9746,7 +9791,7 @@ fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restor
     let expected =
         prepare_tile_component_with_kernel(&plan, &precincts, style, Some(&kernel), &limits)
             .unwrap();
-    for after in [18, 20, 22, 19, 24, 28] {
+    for after in [10, 12, 14, 11, 16, 20] {
         assert_eq!(
             crate::allocation::with_refusal(after, || prepare_tile_component_with_kernel(
                 &plan,
@@ -9936,8 +9981,8 @@ fn prepare_copy_storage_actual_standard_custom_component_ll_later_copy_and_resto
             .iter()
             .map(crate::packet::exact_packet_precinct_snapshot)
             .collect();
-        let final_copy = if !custom { 23 } else { 29 };
-        for after in [17, final_copy] {
+        let final_copy = if !custom { 15 } else { 21 };
+        for after in [9, final_copy] {
             assert_eq!(
                 crate::allocation::with_refusal(after, || prepare_tile_component_with_kernel(
                     &plan, &precincts, style, selected, &limits

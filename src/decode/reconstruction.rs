@@ -21,6 +21,9 @@ use super::{
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+pub(super) mod fused;
+
 impl PreparedTileComponent {
     pub const fn component(&self) -> u16 {
         self.component
@@ -708,55 +711,20 @@ pub(super) fn place_prepare_block(
         .ok_or_else(invalid_decode)?;
     let decoder = precinct.decoder(placement.decoder_index)?;
     let plane = decoder.plane();
-    let width = u32::from(plane.width());
-    let height = u32::from(plane.height());
-    if placement
-        .x
-        .checked_add(width)
-        .ok_or_else(arithmetic_overflow)?
-        > geometry.width
-        || placement
-            .y
-            .checked_add(height)
-            .ok_or_else(arithmetic_overflow)?
-            > geometry.height
-    {
-        return Err(invalid_decode());
-    }
-    let collected = collect_prepare_coefficients(plane);
-    #[cfg(verus_keep_ghost)]
-    proof! {crate::specs::part2_coefficient_collect_frames(crate::tier1::code_block_plane_view(plane),crate::transform::quantized_coefficients_outcome(collected));
-        if let Err(error)=collected{crate::specs::part2_extraction_place_error(initial,bands@,prepare_precincts_view(precincts@),placement,reversible,
-    crate::limits::resource_decoded_bytes_limit(limits),geometry,crate::tier1::code_block_plane_view(plane),error);}}
-    let coefficients = collected?;
-    let quantized_result = inverse_quantize_magnitudes(
-        &coefficients,
-        geometry.quantization_step,
-        geometry.dynamic_range,
-        reversible,
-        geometry.roi_shift,
-        limits,
-    );
-    #[cfg(verus_keep_ghost)]
-    proof! {if let Err(error)=quantized_result{crate::specs::part2_extraction_place_quantization_error(initial,bands@,prepare_precincts_view(precincts@),placement,reversible,
-    crate::limits::resource_decoded_bytes_limit(limits),geometry,crate::tier1::code_block_plane_view(plane),crate::transform::quantized_coefficients_view(coefficients@),error);}}
-    let quantized = quantized_result?;
-    if quantized.fraction_bits() != if reversible { 0 } else { 16 } {
-        return Err(invalid_decode());
-    }
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost before = working.bands@; }
     let destination = working
         .bands
         .get_mut(placement.subband_index)
         .ok_or_else(invalid_decode)?;
-    let result = write_quantized_block(
+    let result = fused::place(
+        plane,
         destination,
-        quantized.samples(),
-        width,
-        height,
+        geometry,
         placement.x,
         placement.y,
+        reversible,
+        limits,
     );
     #[cfg(verus_keep_ghost)]
     proof! {

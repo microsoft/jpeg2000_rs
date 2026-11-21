@@ -9979,6 +9979,8 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run", "calls.drop_first()", "calls"),
             ("specs/cold_coefficient_extraction.rs", "part2_linear_coefficients_prefix", "value.0,value.2", "value.0,false"),
             ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run", "part2_extraction_run(plane,true,calls)", "part2_extraction_run(plane,false,calls)"),
+            ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run", "part2_fused_placement_enabled(working,geometry", "part2_fused_placement_enabled(working,other_geometry"),
+            ("specs/fused_reconstruction.rs", "part2_fused_place_run", "maximum)),calls", "maximum)),calls.drop_first()"),
             ("specs/cold_extraction_reconstruction.rs", "part2_extraction_placements_next", "Some((Ok(effect),calls))", "Some((Ok(effect),Seq::empty()))"),
             ("specs/cold_decode_packets.rs", "part2_planned_decode_run", "work,decoded.1,rest", "work,plan.precincts,rest"),
             ("src/decode/code_blocks.rs", "collect_code_block_coefficients", "empty_with_capacity(count)", "empty_with_capacity(1)"),

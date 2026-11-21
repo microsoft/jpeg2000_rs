@@ -115,6 +115,7 @@ specs/container_reconstruction.rs
 specs/decoder_input.rs
 specs/esrgb.rs
 specs/esrgb_image.rs
+specs/fused_reconstruction.rs
 specs/header.rs
 specs/jp2_associated_header.rs
 specs/jp2_box_reader.rs
@@ -258,6 +259,8 @@ src/decode/planning.rs
 src/decode/proof_support.rs
 src/decode/raw_typed_result_tests.rs
 src/decode/reconstruction.rs
+src/decode/reconstruction/fused.rs
+src/decode/reconstruction/fused_tests.rs
 src/decode/selection.rs
 src/decode/spatial.rs
 src/decode/tests.rs

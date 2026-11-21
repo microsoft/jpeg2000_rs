@@ -8708,7 +8708,12 @@ _QUANTIZATION_OUTPUT_NATIVE_ORDER = {
     ),
     ("src/decode/code_blocks.rs", "copy_code_block_samples"): ("let source = plane.samples()", "crate::allocation::copy_values(source)"),
     ("src/decode/reconstruction.rs", "place_prepare_block"): (
-        "let coefficients = collected?", "let quantized_result = inverse_quantize_magnitudes(", "let quantized = quantized_result?",
+        "let decoder = precinct.decoder(placement.decoder_index)?", "let plane = decoder.plane()",
+        "let destination = working", "let result = fused::place(",
+    ),
+    ("src/decode/reconstruction/fused.rs", "place"): (
+        "x.checked_add(width)", "if let Some(quantizer) = preflight(", "return write(",
+        "let coefficients = collect_prepare_coefficients(plane)?", "let quantized = inverse_quantize_magnitudes(",
         "quantized.fraction_bits()", "write_quantized_block(",
     ),
 }
@@ -11046,8 +11051,13 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
     ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run"): (
         "Err(error)=>Some((Ok((Err(error),working)),calls))",
         "Ok(None)=>Some((Ok((Ok(()),working)),calls))",
+        "part2_fused_placement_enabled(working,geometry,placement,plane,reversible,maximum)",
+        "part2_fused_place_run(working,geometry,placement,plane,reversible,maximum,calls)",
         "part2_tier1_storage_resume(part2_extraction_run(plane,true,calls)",
         "part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,result,rest)",
+    ),
+    ("specs/fused_reconstruction.rs", "part2_fused_place_run"): (
+        "Some((Ok(part1_prepare_place_plane(working,geometry,placement,plane,reversible,maximum)),calls))",
     ),
     ("specs/cold_extraction_reconstruction.rs", "part2_extraction_placements_next"): (
         "if effect.0.is_err(){Some((Ok(effect),calls))}",

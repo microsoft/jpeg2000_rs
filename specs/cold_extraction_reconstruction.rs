@@ -51,8 +51,10 @@ pub(crate) open spec fn part2_extraction_place_run(working:Part1PrepareWorking,b
     placement:crate::decode::ProgressionCodeBlockPlacement,reversible:bool,maximum:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2ExtractionWorkingEffect> {
     match part2_extraction_place_admit(working,bands,precincts,placement){
         Err(error)=>Some((Ok((Err(error),working)),calls)),Ok(None)=>Some((Ok((Ok(()),working)),calls)),
-        Ok(Some((geometry,plane)))=>part2_tier1_storage_resume(part2_extraction_run(plane,true,calls),
-            |result:Result<Seq<Part1QuantizedCoefficient>,crate::DecodeError>,rest|part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,result,rest)),
+        Ok(Some((geometry,plane)))=>if part2_fused_placement_enabled(working,geometry,placement,plane,reversible,maximum){
+            part2_fused_place_run(working,geometry,placement,plane,reversible,maximum,calls)
+        }else{part2_tier1_storage_resume(part2_extraction_run(plane,true,calls),
+            |result:Result<Seq<Part1QuantizedCoefficient>,crate::DecodeError>,rest|part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,result,rest))},
     }
 }
 pub(crate) open spec fn part2_extraction_place_result(working:Part1PrepareWorking,bands:Seq<crate::decode::SubbandGeometry>,precincts:Seq<Seq<Tier1RawPlane>>,

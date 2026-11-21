@@ -39,6 +39,49 @@ fn coefficient_from_magnitude(
 }
 
 impl CoefficientState {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result==(coefficient_raw_view(*self).significant && coefficient_raw_view(*self).negative),
+    ))]
+    #[inline]
+    pub(crate) const fn reconstructed_negative(&self) -> bool {
+        self.significant && self.negative
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result==crate::specs::part2_narrow_magnitude(coefficient_raw_view(*self)),
+    ))]
+    #[inline]
+    pub(crate) fn narrow_reconstructed_magnitude(&self) -> Option<u64> {
+        if !self.significant {
+            return Some(0);
+        }
+        if self.magnitude_high != [0; 5] {
+            return None;
+        }
+        let midpoint = match self.legacy_bitplane {
+            Some(bitplane) if bitplane <= 64 => crate::refinement::tier1_midpoint_delta(bitplane),
+            Some(_) => return None,
+            None => 0,
+        };
+        self.magnitude.checked_add(midpoint)
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        requires crate::specs::part2_narrow_magnitude(coefficient_raw_view(*self)).is_some(),
+        ensures Some(result)==crate::specs::part2_narrow_magnitude(coefficient_raw_view(*self)),
+    ))]
+    #[inline]
+    pub(crate) fn reconstructed_magnitude_bounded(&self) -> u64 {
+        if !self.significant {
+            return 0;
+        }
+        let midpoint = match self.legacy_bitplane {
+            Some(bitplane) => crate::refinement::tier1_midpoint_delta(bitplane),
+            None => 0,
+        };
+        self.magnitude + midpoint
+    }
+
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(result =>
