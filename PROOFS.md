@@ -37,6 +37,49 @@ Use the [supported build profiles](SUPPORTED.md#build-and-runtime-profiles) and
 when reporting this API. Native `--all-features` tests exercise it, but are not
 an all-feature Verus proof. Full source-function coverage remains `not-measured`.
 
+## Unqualified bounded compact legacy prototype
+
+The issue-447 prototype in [`compact_legacy.rs`](src/tier1/compact_legacy.rs)
+is not qualified for adoption. Its actual word helpers have contracts for
+packing, extraction, sign/bitplane flags, magnitude addition without field
+carry, cache-bit insertion and masked neighbor-count arithmetic.
+[`compact_legacy.rs`](specs/compact_legacy.rs) projects physical words into the
+existing raw Tier-1 model and defines the cache and activation domain.
+The [directional update induction](specs/compact_legacy_cache.rs) and
+[causal summary bridge](specs/compact_legacy_context.rs) bind the actual cached
+mark/sign/context operations to the existing checked neighbor model.
+The [numeric frontier](specs/compact_legacy_refinement.rs) and
+[traversal predicates](specs/compact_legacy_pass.rs) support actual cell,
+row, column and pass contracts. These remain conditional on private bitplane
+invariants until their complete whole-block producer/consumer chain is proved.
+The geometric counter bound is a mathematical witness, not a new resource
+limit, allocation request or charged-work budget.
+
+The fresh nonempty `Vec<u64>` reservation is a real additional owner before
+the original two bool owners per bitplane.
+[`cold_compact_legacy.rs`](specs/cold_compact_legacy.rs) prefixes that one
+actual normalized capacity reply to the existing ordered legacy inner
+program, with first-refusal, normal-result and arbitrary-tail lemmas. Its
+private limits record retains the actual decoded-byte cap and native wide
+entry size. Ineligible dispatch selects the original inner program unchanged.
+Extraction writes the public wide plane once after whole-block success or
+failure; it does not allocate or materialize wide records on hot accesses.
+
+Inherited replay is explicitly wide-only: restoring its initial snapshot can
+otherwise make a final replay look fresh to the ordinary activation predicate.
+Native refusal controls cover this boundary and the extra scratch request
+separately from the unchanged checked allocation program.
+
+Whole-block schedule/counter induction, the complete pristine-plane/bulk-commit
+join, strict inventory bindings for the new contract shapes, and integration
+of the additional capacity event through the existing outer legacy cold
+callers remain unproved. The combined actual-source focus fails;
+successful helper/model foci are not decoder qualification. This branch must
+not be adopted into main or release on that evidence. Public storage remains
+wide; no process-RSS reduction or new performance qualification is claimed.
+The five Rust-only adapters, disabled lifetime boundary and unmeasured
+source-function coverage are unchanged.
+
 ## Fallible-storage foundation and remaining boundary
 
 ### Selected opaque ICC metadata

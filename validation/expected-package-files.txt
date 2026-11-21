@@ -28,6 +28,7 @@ specs/cold_codeblock_plan.rs
 specs/cold_coefficient_extraction.rs
 specs/cold_color_conversion.rs
 specs/cold_color_storage.rs
+specs/cold_compact_legacy.rs
 specs/cold_component_plan.rs
 specs/cold_component_storage.rs
 specs/cold_composition_storage.rs
@@ -108,6 +109,11 @@ specs/cold_wavelet_lines.rs
 specs/cold_wavelet_planes.rs
 specs/cold_wavelet_prepare.rs
 specs/color_compatible.rs
+specs/compact_legacy.rs
+specs/compact_legacy_cache.rs
+specs/compact_legacy_context.rs
+specs/compact_legacy_pass.rs
+specs/compact_legacy_refinement.rs
 specs/container_color_compatible.rs
 specs/container_colors.rs
 specs/container_images.rs
@@ -365,6 +371,7 @@ src/refinement/reconstruction.rs
 src/refinement/tier1.rs
 src/refinement.rs
 src/tier1/coding.rs
+src/tier1/compact_legacy.rs
 src/tier1/contributions.rs
 src/tier1/ht_cleanup.rs
 src/tier1/ht_cleanup_readers.rs
