@@ -110,6 +110,8 @@ mod geometry;
 pub(crate) use geometry::transform_offset;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod levels;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod rowwise;
 pub(crate) use levels::inverse_empty_level;
 pub use levels::{
     inverse_horizontal_5_3, inverse_horizontal_9_7, inverse_horizontal_arbitrary,
@@ -125,6 +127,7 @@ pub(crate) use quantization::inverse_quantize_magnitudes;
 #[cfg(any(test, verus_keep_ghost))]
 pub(crate) use quantization::undo_maxshift_magnitude;
 pub use quantization::{inverse_quantize, undo_maxshift};
+pub(crate) use quantization::{quantization_step_q16, quantize_bounded_magnitude};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod wavelets;
 pub use wavelets::{inverse_5_3, inverse_9_7};

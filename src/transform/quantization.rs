@@ -249,6 +249,19 @@ fn quantize_magnitude_sample(
     if magnitude < 0 || step_size < 0 {
         return Err(arithmetic_overflow());
     }
+    if magnitude <= i32::MAX as i64 && step_size <= i32::MAX as i64 {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert((2*(magnitude as int)+1)*(step_size as int)<=i64::MAX) by(nonlinear_arith)
+                requires 0<=magnitude<=i32::MAX,0<=step_size<=i32::MAX;
+        }
+        return Ok(quantize_bounded_magnitude(
+            magnitude as u64,
+            coefficient < 0,
+            step_size,
+            false,
+        ));
+    }
     let centered = crate::refinement::irreversible_centered(magnitude);
     let product = centered
         .checked_mul(step_size as i128)
@@ -324,9 +337,51 @@ fn checked_magnitude(value: i64) -> Result<i64, DecodeError> {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires magnitude<=i64::MAX,step_size>=0,
+        !reversible && magnitude>0 && step_size>0 ==> (2*(magnitude as int)+1)*(step_size as int)<=i64::MAX,
+    ensures crate::specs::part1_quantized_sample(
+        (Seq::new(6,|i:int|if i==0{magnitude}else{0u64}),negative),0,step_size,reversible)==Ok(result),
+        crate::specs::part1_dequantized_sample(
+            (if negative{-(magnitude as int)}else{magnitude as int}) as i64,step_size,reversible)==Ok(result),
+))]
+#[inline]
+pub(crate) fn quantize_bounded_magnitude(
+    magnitude: u64,
+    negative: bool,
+    step_size: i64,
+    reversible: bool,
+) -> i64 {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(magnitude>>0u8==magnitude) by(bit_vector);
+        crate::specs::part2_fused_sparse_roi(magnitude,negative,0);
+    }
+    let magnitude = magnitude as i64;
+    let value = if reversible || magnitude == 0 {
+        magnitude
+    } else if step_size == 0 {
+        0
+    } else {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(0<=2*(magnitude as int)+1<=i64::MAX) by(nonlinear_arith)
+                requires magnitude>0,step_size>0,(2*(magnitude as int)+1)*(step_size as int)<=i64::MAX;
+            assert(0<=(2*(magnitude as int)+1)*(step_size as int)<=i64::MAX) by(nonlinear_arith)
+                requires magnitude>0,step_size>0,(2*(magnitude as int)+1)*(step_size as int)<=i64::MAX;
+        }
+        let centered = crate::refinement::irreversible_centered(magnitude) as i64;
+        crate::refinement::irreversible_scale((centered * step_size) as i128) as i64
+    };
+    if negative { -value } else { value }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part1_quantization_step(step.exponent, step.mantissa, dynamic_range),
 ))]
-fn quantization_step_q16(step: QuantizationStep, dynamic_range: u8) -> Result<i64, DecodeError> {
+pub(crate) fn quantization_step_q16(
+    step: QuantizationStep,
+    dynamic_range: u8,
+) -> Result<i64, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { assert(FIXED_ONE == 65536) by(compute); }
     let base_value = 2048_u32
@@ -341,6 +396,7 @@ fn quantization_step_q16(step: QuantizationStep, dynamic_range: u8) -> Result<i6
         if shift > 38 {
             return Err(invalid_transform());
         }
+
         base.checked_mul(1_i64 << (shift as u32))
             .ok_or_else(arithmetic_overflow)
     } else {

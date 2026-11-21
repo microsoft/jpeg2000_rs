@@ -9962,6 +9962,13 @@ class FrameworkTests(WorkingFiles):
         with self.assertRaisesRegex(ValueError, "initial bitplane storage requires bounded"):
             framework.validate_normative_coverage(missing)
 
+    def test_inventory_proof_body_reader_requires_unique_proof_declaration(self):
+        source = "pub(crate) proof fn lift()\n{\n    real_child();\n}\n"
+        self.assertIn("real_child()", framework._coverage_proof_function_body(source, "lift"))
+        self.assertIsNone(framework._coverage_proof_function_body(source + source, "lift"))
+        self.assertIsNone(framework._coverage_proof_function_body(
+            source.replace("proof fn", "open spec fn"), "lift"))
+
     def test_inventory_coefficient_extraction_requires_actual_raw_role_error_tail_and_first_normal(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         data = dict(coverage, requirements=[
@@ -9979,6 +9986,11 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run", "calls.drop_first()", "calls"),
             ("specs/cold_coefficient_extraction.rs", "part2_linear_coefficients_prefix", "value.0,value.2", "value.0,false"),
             ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run", "part2_extraction_run(plane,true,calls)", "part2_extraction_run(plane,false,calls)"),
+            ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run", "part2_fused_placement_enabled(working,geometry", "part2_fused_placement_enabled(working,other_geometry"),
+            ("specs/fused_reconstruction.rs", "part2_fused_place_run", "maximum)),calls", "maximum)),calls.drop_first()"),
+            ("specs/fused_reconstruction_storage.rs", "part2_fused_run_lift", "part2_extraction_run(plane,true,calls)", "part2_extraction_run(plane,false,calls)"),
+            ("specs/fused_reconstruction_storage.rs", "part2_fused_band_result", "seq![effect.1]", "seq![destination]"),
+            ("specs/fused_reconstruction_storage.rs", "part2_fused_allocation_lift", "part2_fused_run_lift(working,bands,precincts,placement,geometry,plane,reversible,maximum,prefix+tail)", "part2_fused_run_lift(working,bands,precincts,placement,geometry,plane,reversible,maximum,prefix)"),
             ("specs/cold_extraction_reconstruction.rs", "part2_extraction_placements_next", "Some((Ok(effect),calls))", "Some((Ok(effect),Seq::empty()))"),
             ("specs/cold_decode_packets.rs", "part2_planned_decode_run", "work,decoded.1,rest", "work,plan.precincts,rest"),
             ("src/decode/code_blocks.rs", "collect_code_block_coefficients", "empty_with_capacity(count)", "empty_with_capacity(1)"),
@@ -9989,6 +10001,8 @@ class FrameworkTests(WorkingFiles):
             original = source.read_text()
             body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
                     if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            if body is None and (relative, symbol) in framework._COEFFICIENT_EXTRACTION_PROOF_GUARDS:
+                body = framework._coverage_proof_function_body(original, symbol)
             changed_body, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, body, count=1)
             self.assertEqual(count, 1, (symbol, before))
             changed = original.replace(body, changed_body, 1)
@@ -10073,7 +10087,15 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","elements!=count","false"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","calls.drop_first()","calls"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_rows_run","Part2WaveletPlaneOwner::Rows","Part2WaveletPlaneOwner::Columns"),
-            ("specs/cold_wavelet_planes.rs","part2_wavelet_columns_run","Part2WaveletPlaneOwner::Columns","Part2WaveletPlaneOwner::Rows"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_scalar_columns_run","Part2WaveletPlaneOwner::Columns","Part2WaveletPlaneOwner::Rows"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_columns_run","!irreversible && kernel.is_none()","irreversible && kernel.is_none()"),
+            ("specs/rowwise_wavelet.rs","rowwise_run","length as nat,calls","1nat,calls"),
+            ("specs/rowwise_wavelet.rs","rowwise_run","height,first)),rest","height,first)),calls"),
+            ("specs/rowwise_wavelet.rs","rowwise_eligible","rowwise_bounded(high.2)","true"),
+            ("src/transform/rowwise.rs","assemble","empty_with_capacity(length)","empty_with_capacity(1)"),
+            ("specs/rowwise_fixed_wavelet.rs","rowwise_fixed_run","length as nat,calls","1nat,calls"),
+            ("specs/rowwise_fixed_wavelet.rs","rowwise_fixed_output","first,part1_nine_seven_scale(true)","first,part1_nine_seven_scale(false)"),
+            ("src/transform/rowwise/fixed.rs","inverse","first, true)?","first, false)?"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_level_after_low","length,low,high,rest","length,Seq::empty(),high,rest"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_level_after_high","level.2.1,high","level.2.1,low"),
             ("specs/cold_extraction_reconstruction.rs","part2_extraction_component_finish_run","part2_wavelet_reconstruct_run(placed.1.0,plan","part2_wavelet_reconstruct_run(Seq::empty(),plan"),
@@ -10201,7 +10223,7 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_extraction_tile.rs", "part2_extraction_tile_finish_run", "initial+finished.1", "finished.1"),
             ("src/transform/geometry.rs", "collect_column", "empty_with_capacity(count)", "empty_with_capacity(1)"),
             ("src/transform/wavelets.rs", "interleave", "empty_with_capacity(length)", "empty_with_capacity(1)"),
-            ("src/transform/levels.rs", "inverse_columns", "zero_i64_values(output_len)", "zero_i64_values(1)"),
+            ("src/transform/levels.rs", "inverse_columns_scalar", "zero_i64_values(output_len)", "zero_i64_values(1)"),
             ("src/allocation.rs", "zero_i64_values", "empty_with_capacity(count)?", "empty_with_capacity(1)?"),
         ):
             source = framework.ROOT / relative
