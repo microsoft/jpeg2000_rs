@@ -57,9 +57,12 @@ limit, allocation request or charged-work budget.
 [`compact_legacy_block.rs`](specs/compact_legacy_block.rs) adds checked schedule,
 metadata-phase, total-counter and ordinary-result suffix lemmas. The actual
 whole-block loop proof remains open; its callers still rely on that pending
-contract. Strict projected-result/input bindings cover the packed-word helpers,
-with negative mutation controls; the owner and outer-caller bindings remain
-separate work.
+contract. Strict projected-result/input/bound/request-order bindings cover all
+nine listed word, fresh-owner, bitplane-owner, commit and activation functions.
+The fresh-owner outcome retains every physical field, and commit binds the
+actual implicit unit return and the complete wide-plane mutation. Negative
+controls reject phantom capacities, incomplete owner projections, changed
+tails and changed direct/replay dispatch policy.
 
 The fresh nonempty `Vec<u64>` reservation is a real additional owner before
 the original two bool owners per bitplane.
@@ -76,10 +79,12 @@ otherwise make a final replay look fresh to the ordinary activation predicate.
 Native refusal controls cover this boundary and the extra scratch request
 separately from the unchanged checked allocation program.
 
-Whole-block schedule/counter induction, the complete pristine-plane/bulk-commit
-join, strict inventory bindings for the new contract shapes, and integration
-of the additional capacity event through the existing outer legacy cold
-callers remain unproved. The combined actual-source focus fails;
+The actual whole-block loop still fails at the unchanged default verifier
+resource limit after checked model/loop cutpoint attempts. Its producer-derived
+phase is established at the real fresh owner; no successful-owner or allocator
+availability premise is supplied. Integration of the additional capacity event
+and decoded-byte eligibility through the existing outer legacy cold callers
+remains unproved. The combined actual-source focus fails;
 successful helper/model foci are not decoder qualification. This branch must
 not be adopted into main or release on that evidence. Public storage remains
 wide; no process-RSS reduction or new performance qualification is claimed.

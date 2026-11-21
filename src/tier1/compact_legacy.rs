@@ -47,7 +47,7 @@ impl CompactPlane {
         crate::specs::compact_shape(self.width,self.height,self.entries@)
     }
     closed spec fn ready(&self,state:&Tier1BitplaneState)->bool {
-        crate::specs::compact_membership(self.width,self.height,self.entries@,super::legacy_bitplane_view(state))
+        self.shape() && crate::specs::compact_membership(self.width,self.height,self.entries@,super::legacy_bitplane_view(state))
     }
     closed spec fn frame(&self,state:&Tier1BitplaneState,decoder:&MqDecoder<'_>,statistics:Tier1PassStatistics)->crate::specs::Part1LegacyFrame {
         crate::specs::Part1LegacyFrame {
@@ -66,11 +66,15 @@ impl Tier1CodeBlockDecoder {
         }
     }
 }
+pub(super) closed spec fn compact_plane_outcome(result:Result<CompactPlane,DecodeError>)->Result<(usize,usize,Seq<u64>),DecodeError> {
+    match result{Err(error)=>Err(error),Ok(plane)=>Ok((plane.width,plane.height,plane.entries@)),}
+}
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires 0<width<=4096,0<height<=4096,width*height<=4096,
-        ensures crate::specs::compact_capacity_result(width,height,match result{Err(error)=>Err(error),Ok(_)=>Ok(())}),
+        ensures crate::specs::compact_initial_result(width,height,compact_plane_outcome(result)),
+            crate::specs::compact_capacity_result(width,height,match result{Err(error)=>Err(error),Ok(_)=>Ok(())}),
             match result{Err(error)=>error==DecodeError::AllocationFailed,Ok(value)=>
                 value.width==width && value.height==height && value.entries@==Seq::new(width as nat*height as nat,|_:int|EMPTY)
                     && crate::specs::compact_cache(width,height,value.entries@)
@@ -83,6 +87,7 @@ fn new_compact_plane(width: usize, height: usize) -> Result<CompactPlane, Decode
     proof! {
         assert(width*height>0) by(nonlinear_arith) requires width>0,height>0;
         crate::specs::compact_capacity_observed(width,height,match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())});
+        crate::specs::compact_initial_observed(width,height,match allocated{Err(error)=>Err(error),Ok(_)=>Ok(())});
     }
     let mut entries = allocated?;
     entries.resize(count, EMPTY);
@@ -104,10 +109,12 @@ fn new_compact_plane(width: usize, height: usize) -> Result<CompactPlane, Decode
 }
 
 impl CompactPlane {
-    #[cfg_attr(verus_keep_ghost, verus_spec(
+    #[cfg_attr(verus_keep_ghost, verus_spec(_result =>
         requires self.shape(),wide.width==self.width,wide.height==self.height,
             wide.coefficients.len()==self.entries.len(),
-        ensures super::code_block_plane_view(final(wide))==self.view(),
+        ensures ((),super::code_block_plane_view(final(wide)))==crate::specs::compact_bulk_commit(
+                super::code_block_plane_view(old(wide)),self.entries@),
+            super::code_block_plane_view(final(wide))==self.view(),
     ))]
     fn commit(&self, wide: &mut super::CodeBlockPlane) {
         let mut index = 0;
@@ -433,6 +440,8 @@ impl CompactPlane {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires self.shape(),bp<31,
         ensures crate::specs::part2_bitplane_initial_result(self.view(),bp,super::legacy_bitplane_outcome(result)),
+            super::legacy_bitplane_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+                super::legacy_bitplane_outcome(result)==crate::specs::part1_legacy_bitplane_initial(self.view(),bp),
             match result{Err(error)=>error==DecodeError::AllocationFailed,Ok(value)=>
                 Ok::<crate::specs::Part1LegacyBitplane,DecodeError>(super::legacy_bitplane_view(&value))
                     ==crate::specs::part1_legacy_bitplane_initial(self.view(),bp)},
@@ -510,6 +519,7 @@ impl CompactPlane {
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(crate::specs::part1_legacy_sig_cell);reveal(crate::specs::part1_legacy_symbol);
+            reveal(crate::specs::compact_membership);
             reveal(super::legacy_bitplane_view);
             crate::specs::compact_index(self.width,self.height,self.entries@,coordinate.0,coordinate.1);
         }
@@ -566,6 +576,7 @@ impl CompactPlane {
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(crate::specs::part1_legacy_mag_cell);reveal(crate::specs::part1_legacy_symbol);
+            reveal(crate::specs::compact_membership);
             reveal(super::legacy_bitplane_view);
             crate::specs::compact_index(self.width,self.height,self.entries@,x,y);
             crate::specs::compact_cached_summary(self.width,self.height,self.entries@,x,y,causal);
@@ -629,6 +640,7 @@ impl CompactPlane {
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(crate::specs::part1_legacy_cleanup_cell);reveal(crate::specs::part1_legacy_symbol);
+            reveal(crate::specs::compact_membership);
             reveal(super::legacy_bitplane_view);
             crate::specs::compact_index(self.width,self.height,self.entries@,coordinate.0,coordinate.1);
         }
@@ -677,6 +689,7 @@ impl CompactPlane {
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(super::legacy_bitplane_view);
+            reveal(crate::specs::compact_membership);
             crate::specs::compact_index(self.width,self.height,self.entries@,coordinate.0,coordinate.1);
         }
         let (x, y) = coordinate;
@@ -748,7 +761,10 @@ impl CompactPlane {
             let ghost goal=crate::specs::compact_rows_model(initial,context.0,context.1,context.2,x,stripe,row,rows,scan);
         }
         #[cfg(verus_keep_ghost)]
-        proof! {crate::specs::compact_column_geometry(self.width,self.height,self.entries@,x,stripe,rows);}
+        proof! {
+            reveal(crate::specs::compact_membership);
+            crate::specs::compact_column_geometry(self.width,self.height,self.entries@,x,stripe,rows);
+        }
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant coordinate.2<=row<=rows,rows>0,rows<=4,stripe+rows<=self.height,x<self.width,
                 x==coordinate.0,stripe==coordinate.1,rows==coordinate.3,scan==coordinate.4,
@@ -771,6 +787,7 @@ impl CompactPlane {
             #[cfg(verus_keep_ghost)]
             proof! {
                 reveal(crate::specs::part1_legacy_rows);reveal(crate::specs::part1_legacy_cleanup_rows);
+                reveal(crate::specs::compact_membership);
                 reveal(super::legacy_bitplane_view);
                 crate::specs::compact_column_geometry(self.width,self.height,self.entries@,x,stripe,rows);
                 crate::specs::compact_index(self.width,self.height,self.entries@,x,(stripe+row) as usize);
@@ -860,6 +877,7 @@ impl CompactPlane {
         let (x, stripe, rows) = coordinate;
         #[cfg(verus_keep_ghost)]
         proof! {
+            reveal(crate::specs::compact_membership);
             crate::specs::compact_column_geometry(self.width,self.height,self.entries@,x,stripe,rows);
             crate::specs::compact_counter_algebra(self.width,stripe,rows,x);
         }
@@ -950,6 +968,7 @@ impl CompactPlane {
         proof! {
             reveal(super::legacy_bitplane_view);
             reveal(crate::specs::compact_pass_model);
+            reveal(crate::specs::compact_membership);reveal(crate::specs::compact_before_frontier);
             if kind is MagnitudeRefinement{crate::specs::compact_frontier_initial(self.width,self.height,self.entries@,
                 super::legacy_bitplane_view(state),if self.height<4{self.height}else{4});}
         }
@@ -1027,6 +1046,8 @@ impl CompactPlane {
             Tier1PassKind::MagnitudeRefinement => state.magnitude_refinement_complete = true,
             Tier1PassKind::Cleanup => state.cleanup_complete = true,
         }
+        #[cfg(verus_keep_ghost)]
+        proof! {reveal(crate::specs::compact_membership);reveal(crate::specs::compact_before_frontier);}
         Ok(stats)
     }
 }
@@ -1185,6 +1206,10 @@ impl Tier1CodeBlockDecoder {
             crate::specs::compact_fresh_projection(packed.width,packed.height,packed.entries@,initial.decoder.plane);
             crate::specs::compact_budget_monotone(initial.decoder,passes,crate::limits::resource_decoded_bytes_limit(limits),
                 core::mem::size_of::<CoefficientState>());
+            assert forall|i:int|0<=i<packed.entries.len() implies !crate::specs::compact_coefficient(packed.entries@[i]).significant by{
+                assert(packed.entries@[i]==EMPTY);
+            }
+            crate::specs::compact_phase_initial(self.bitplane,packed.width,packed.height,packed.entries@);
         }
         let result = self.compact_passes(&mut packed, decoder, passes);
         #[cfg(verus_keep_ghost)]
@@ -1197,10 +1222,11 @@ impl Tier1CodeBlockDecoder {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        requires crate::specs::compact_eligible(super::tier1_decoder_state(old(self)),passes,u64::MAX,0),
-            old(packed).shape(),old(packed).view()==super::code_block_plane_view(&old(self).plane),
-            crate::specs::compact_cache(old(packed).width,old(packed).height,old(packed).entries@),
-            forall|i:int|0<=i<old(packed).entries.len() ==> crate::specs::compact_precision_word(old(packed).entries@[i]),
+        requires old(self).next_pass==0,old(self).bitplane_state.is_none(),old(self).bitplane<31,
+            passes==old(self).maximum_passes,passes==3*(old(self).bitplane as nat+1)-2,
+            !old(self).style.selective_arithmetic_coding_bypass,!old(self).style.reset_contexts,!old(self).style.segmentation_symbols,
+            old(packed).view()==super::code_block_plane_view(&old(self).plane),
+            crate::specs::compact_block_phase(old(self).bitplane,0,old(packed).width,old(packed).height,old(packed).entries@,old(self).bitplane,None),
         ensures final(packed).shape(),final(packed).width==old(packed).width,final(packed).height==old(packed).height,
             super::code_block_plane_view(&final(self).plane)==super::code_block_plane_view(&old(self).plane),
             crate::specs::part2_legacy_inner_body_result(crate::specs::Part1LegacySegmentRun {
@@ -1231,23 +1257,21 @@ impl Tier1CodeBlockDecoder {
                 decoder:super::tier1_decoder_state(self),
                 symbols:crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(decoder)),statistics:total,
             };
-            let ghost root=|calls|crate::specs::part2_legacy_inner_body_run(initial,passes,calls);
             let ghost mut prefix=Seq::<crate::specs::Part2Tier1StorageEvent>::empty();
         }
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(super::tier1_decoder_state);reveal(super::code_block_plane_view);
             reveal(super::legacy_bitplane_option_view);
-            assert forall|i:int|0<=i<packed.entries.len() implies !crate::specs::compact_coefficient(packed.entries@[i]).significant by{
-                assert(initial.decoder.plane.coefficients[i]==crate::specs::tier1_empty_coefficient());
-            }
-            crate::specs::compact_phase_initial(initial.decoder.bitplane,packed.width,packed.height,packed.entries@);
+            crate::specs::compact_phase_shape(initial.decoder.bitplane,0,packed.width,packed.height,packed.entries@,self.bitplane,None);
             crate::specs::compact_normal_start(initial,passes);
-            crate::specs::part2_legacy_inner_body_start(initial,passes);
+            crate::specs::compact_cold_start(initial,passes);
         }
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant decoded<=passes,passes==initial.decoder.maximum_passes,self.maximum_passes==passes,
-                crate::specs::compact_eligible(initial.decoder,passes,u64::MAX,0),
+                initial.decoder.bitplane<31,passes==3*(initial.decoder.bitplane as nat+1)-2,
+                !initial.decoder.style.selective_arithmetic_coding_bypass,
+                !initial.decoder.style.reset_contexts,!initial.decoder.style.segmentation_symbols,
                 packed.shape(),self.bitplane<31,packed.width==old(packed).width,packed.height==old(packed).height,
                 super::code_block_plane_view(&self.plane)==initial.decoder.plane,
                 self.next_pass==decoded,
@@ -1262,10 +1286,7 @@ impl Tier1CodeBlockDecoder {
                     symbols:crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(old(decoder))),
                     statistics:crate::specs::tier1_statistics_zero()}),
                 crate::specs::compact_normal_suffix(initial,passes,self.compact_run(packed,decoder,total),(passes-decoded) as nat),
-                forall|calls:Seq<crate::specs::Part2Tier1StorageEvent>|#[trigger] root(calls)==crate::specs::part2_legacy_inner_body_run(initial,passes,calls),
-                crate::specs::part2_tier1_phase(root,prefix,|calls|crate::specs::part2_tier1_storage_bind(
-                    crate::specs::part2_legacy_inner_fold(self.compact_run(packed,decoder,total),(passes-decoded) as nat,calls),
-                    |effect:crate::specs::Part1LegacySegmentEffect,rest|Some((Ok(crate::specs::part1_legacy_segment_finish(effect)),rest)))),
+                crate::specs::compact_cold_suffix(initial,passes,prefix,self.compact_run(packed,decoder,total),(passes-decoded) as nat),
             decreases passes-decoded,
         ))]
         while decoded < passes {
@@ -1282,9 +1303,6 @@ impl Tier1CodeBlockDecoder {
                 crate::specs::compact_block_schedule(initial.decoder.bitplane,decoded);
                 crate::specs::compact_phase_shape(initial.decoder.bitplane,decoded,packed.width,packed.height,packed.entries@,
                     self.bitplane,super::legacy_bitplane_option_view(&self.bitplane_state));
-                crate::specs::part2_tier1_phase_eta(root,|calls|crate::specs::part2_legacy_inner_body_run(initial,passes,calls),prefix,
-                    |calls|crate::specs::part2_tier1_storage_bind(crate::specs::part2_legacy_inner_fold(before_step,remaining,calls),
-                        |effect:crate::specs::Part1LegacySegmentEffect,rest|Some((Ok(crate::specs::part1_legacy_segment_finish(effect)),rest))));
                 reveal(super::tier1_decoder_state);reveal(super::legacy_bitplane_option_view);
             }
             let kind = self.style.pass_plan(self.next_pass).kind;
@@ -1299,8 +1317,7 @@ impl Tier1CodeBlockDecoder {
                         let effect=(Err(error),before_step.decoder,before_step.symbols);
                         crate::specs::part2_legacy_inner_step_observed(before_step,kind,effect);
                         let expected=crate::specs::part2_legacy_step_after_pass(before_step,kind,effect);
-                        prefix=crate::specs::part2_legacy_inner_body_step(initial,passes,before_step,remaining,prefix,expected);
-                        crate::specs::part2_legacy_inner_body_finish(initial,passes,prefix,expected);
+                        prefix=crate::specs::compact_cold_step(initial,passes,before_step,remaining,prefix,expected);
                     }
                 }
                 self.bitplane_state = Some(constructed?);
@@ -1343,8 +1360,7 @@ impl Tier1CodeBlockDecoder {
                     crate::specs::compact_normal_step(initial,passes,before_step,remaining,kind,pass_effect);
                 }
                 if pass.is_err(){
-                    prefix=crate::specs::part2_legacy_inner_body_step(initial,passes,before_step,remaining,prefix,expected);
-                    crate::specs::part2_legacy_inner_body_finish(initial,passes,prefix,expected);
+                    prefix=crate::specs::compact_cold_step(initial,passes,before_step,remaining,prefix,expected);
                 }
             }
             let stats = pass?;
@@ -1377,17 +1393,14 @@ impl Tier1CodeBlockDecoder {
                 crate::specs::compact_phase_shape(initial.decoder.bitplane,(decoded+1) as u32,packed.width,packed.height,packed.entries@,
                     self.bitplane,super::legacy_bitplane_option_view(&self.bitplane_state));
                 assert(expected==(Ok(()),self.compact_run(packed,decoder,total)));
-                prefix=crate::specs::part2_legacy_inner_body_step(initial,passes,before_step,remaining,prefix,expected);
-                crate::specs::part2_tier1_phase_eta(|calls|crate::specs::part2_legacy_inner_body_run(initial,passes,calls),root,prefix,
-                    |calls|crate::specs::part2_tier1_storage_bind(crate::specs::part2_legacy_inner_fold(expected.1,(remaining-1) as nat,calls),
-                        |effect:crate::specs::Part1LegacySegmentEffect,rest|Some((Ok(crate::specs::part1_legacy_segment_finish(effect)),rest))));
+                prefix=crate::specs::compact_cold_step(initial,passes,before_step,remaining,prefix,expected);
             }
             decoded += 1;
         }
         #[cfg(verus_keep_ghost)]
         proof! {
             crate::specs::compact_normal_finish(initial,passes,self.compact_run(packed,decoder,total));
-            crate::specs::part2_legacy_inner_body_end(initial,passes,self.compact_run(packed,decoder,total),prefix);
+            crate::specs::compact_cold_finish(initial,passes,prefix,self.compact_run(packed,decoder,total));
         }
         Ok(total)
     }

@@ -15,6 +15,9 @@ pub(crate) open spec fn compact_plane(width:usize,height:usize,words:Seq<u64>)->
     Tier1RawPlane {width:width as u16,height:height as u16,
         coefficients:words.map_values(|word:u64|compact_coefficient(word))}
 }
+pub(crate) open spec fn compact_bulk_commit(before:Tier1RawPlane,words:Seq<u64>)->((),Tier1RawPlane) {
+    ((),Tier1RawPlane {coefficients:words.map_values(|word:u64|compact_coefficient(word)),..before})
+}
 pub(crate) open spec fn compact_shape(width:usize,height:usize,words:Seq<u64>)->bool {
     0<width<=4096 && 0<height<=4096 && width*height==words.len() && words.len()<=4096
 }

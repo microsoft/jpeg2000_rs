@@ -26,6 +26,7 @@ pub(crate) proof fn compact_initial_metadata(width:usize,height:usize,words:Seq<
         !state.significance_propagation_complete,!state.magnitude_refinement_complete,!state.cleanup_complete,
         (forall|i:int|0<=i<words.len() ==> !compact_coefficient(words[i]).significant) ==> compact_before_frontier(words,state,true),
 {
+    reveal(compact_membership);reveal(compact_before_frontier);
     assert forall|i:int|0<=i<words.len() implies {
         let significant=compact_coefficient(words[i]).significant;
         let tag=(words[i]>>32)&63;
@@ -92,6 +93,7 @@ pub(crate) proof fn compact_cleanup_tags(width:usize,height:usize,words:Seq<u64>
     requires compact_membership(width,height,words,state),compact_before_frontier(words,state,true),
     ensures forall|i:int|0<=i<words.len() && #[trigger] compact_coefficient(words[i]).significant ==> ((words[i]>>32)&63)==state.bitplane,
 {
+    reveal(compact_membership);reveal(compact_before_frontier);
     assert forall|i:int|0<=i<words.len() && #[trigger] compact_coefficient(words[i]).significant implies ((words[i]>>32)&63)==state.bitplane by{
         if state.significant_before[i]{assert(((words[i]>>32)&63)==state.bitplane);}
     }
@@ -108,6 +110,7 @@ pub(crate) proof fn compact_phase_after_pass(top:u16,pass:u32,width:usize,height
         if part1_legacy_pass_kind(pass) is Cleanup{None}else{Some(after)}),
 {
     reveal(compact_block_phase);
+    reveal(compact_membership);
     compact_block_schedule(top,pass);
     if part1_legacy_pass_kind(pass) is Cleanup{compact_cleanup_tags(width,height,after_words,after);}
 }
@@ -138,9 +141,7 @@ pub(crate) proof fn compact_total_merge(total:crate::tier1::Tier1PassStatistics,
 }
 pub(crate) proof fn compact_phase_shape(top:u16,pass:u32,width:usize,height:usize,words:Seq<u64>,bp:u16,state:Option<Part1LegacyBitplane>)
     requires compact_block_phase(top,pass,width,height,words,bp,state),
-    ensures compact_shape(width,height,words),compact_cache(width,height,words),bp<31,
-        bp==compact_block_bitplane(top,pass),
-        forall|i:int|0<=i<words.len() ==> #[trigger] compact_precision_word(words[i]),
+    ensures compact_shape(width,height,words),bp<31,bp==compact_block_bitplane(top,pass),
 {
     reveal(compact_block_phase);
     if pass<3*(top as nat+1)-2{compact_block_schedule(top,pass);}
@@ -198,5 +199,38 @@ pub(crate) proof fn compact_normal_finish(initial:Part1LegacySegmentRun,passes:u
     ensures (Ok(current.statistics),current.decoder,current.symbols)==part1_legacy_segment_finish(part1_legacy_segment_run(initial,passes as nat)),
 {
     reveal(compact_normal_suffix);reveal_with_fuel(part1_legacy_segment_run,1);
+}
+#[verifier::opaque]
+pub(crate) open spec fn compact_cold_suffix(initial:Part1LegacySegmentRun,passes:u32,prefix:Seq<Part2Tier1StorageEvent>,
+    current:Part1LegacySegmentRun,remaining:nat)->bool {
+    part2_tier1_phase(|calls|part2_legacy_inner_body_run(initial,passes,calls),prefix,
+        |calls|part2_tier1_storage_bind(part2_legacy_inner_fold(current,remaining,calls),
+            |effect:Part1LegacySegmentEffect,rest|Some((Ok(part1_legacy_segment_finish(effect)),rest))))
+}
+pub(crate) proof fn compact_cold_start(initial:Part1LegacySegmentRun,passes:u32)
+    ensures compact_cold_suffix(initial,passes,Seq::empty(),initial,passes as nat),
+{
+    reveal(compact_cold_suffix);
+    part2_legacy_inner_body_start(initial,passes);
+}
+pub(crate) proof fn compact_cold_step(initial:Part1LegacySegmentRun,passes:u32,current:Part1LegacySegmentRun,remaining:nat,
+    prefix:Seq<Part2Tier1StorageEvent>,effect:Part1LegacySegmentEffect)->(joined:Seq<Part2Tier1StorageEvent>)
+    requires compact_cold_suffix(initial,passes,prefix,current,remaining),remaining>0,part2_legacy_inner_step_result(current,effect),
+    ensures match effect.0{
+        Err(_)=>part2_legacy_inner_body_result(initial,passes,part1_legacy_segment_finish(effect)),
+        Ok(())=>compact_cold_suffix(initial,passes,joined,effect.1,(remaining-1) as nat),
+    },
+{
+    reveal(compact_cold_suffix);
+    let joined=part2_legacy_inner_body_step(initial,passes,current,remaining,prefix,effect);
+    if effect.0.is_err(){part2_legacy_inner_body_finish(initial,passes,joined,effect);}
+    joined
+}
+pub(crate) proof fn compact_cold_finish(initial:Part1LegacySegmentRun,passes:u32,prefix:Seq<Part2Tier1StorageEvent>,current:Part1LegacySegmentRun)
+    requires compact_cold_suffix(initial,passes,prefix,current,0),
+    ensures part2_legacy_inner_body_result(initial,passes,part1_legacy_segment_finish((Ok(()),current))),
+{
+    reveal(compact_cold_suffix);
+    part2_legacy_inner_body_end(initial,passes,current,prefix);
 }
 }

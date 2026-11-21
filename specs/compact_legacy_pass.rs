@@ -36,6 +36,7 @@ pub(crate) open spec fn compact_bitplane_flags_frame(before:Part1LegacyBitplane,
     after==(Part1LegacyBitplane {significance_visited:after.significance_visited,..before})
         && after.significance_visited.len()==before.significance_visited.len()
 }
+#[verifier::opaque]
 pub(crate) open spec fn compact_membership(width:usize,height:usize,words:Seq<u64>,state:Part1LegacyBitplane)->bool {
     compact_cache(width,height,words) && state.width==width && state.height==height && state.bitplane<31
         && state.significant_before.len()==words.len() && state.significance_visited.len()==words.len()
@@ -73,6 +74,7 @@ pub(crate) proof fn compact_membership_cell(width:usize,height:usize,before:Seq<
         }else{compact_coefficient(after[index]).significant ==> ((after[index]>>32)&63)==state.bitplane},
     ensures compact_membership(width,height,after,next),
 {
+    reveal(compact_membership);
     assert forall|i:int|0<=i<after.len() implies {
         let significant=compact_coefficient(after[i]).significant;
         let tag=(after[i]>>32)&63;
@@ -97,6 +99,7 @@ pub(crate) open spec fn compact_refinement_pending(width:usize,height:usize,word
             if compact_processed(stripe,rows,x,row,tx,ty){tag==state.bitplane}else{tag>state.bitplane}
         }
 }
+#[verifier::opaque]
 pub(crate) open spec fn compact_before_frontier(words:Seq<u64>,state:Part1LegacyBitplane,refined:bool)->bool {
     forall|i:int|0<=i<words.len() && #[trigger] state.significant_before[i] ==>
         if refined{((words[i]>>32)&63)==state.bitplane}else{((words[i]>>32)&63)>state.bitplane}
@@ -125,6 +128,7 @@ pub(crate) proof fn compact_frontier_row_step(width:usize,height:usize,before:Se
             ((after[((stripe+row)*width+x) as int]>>32)&63)==state.bitplane,
     ensures compact_refinement_pending(width,height,after,state,stripe,rows,x,(row+1) as usize),
 {
+    reveal(compact_membership);
     let source=((stripe+row)*width+x) as int;
     assert forall|tx:int,ty:int|0<=tx<width && 0<=ty<height && #[trigger] state.significant_before[ty*width+tx] implies {
         let tag=(after[ty*width+tx]>>32)&63;
@@ -147,6 +151,7 @@ pub(crate) proof fn compact_frontier_column_end(width:usize,height:usize,words:S
     requires compact_refinement_pending(width,height,words,state,stripe,rows,x,rows),x<width,
     ensures compact_refinement_pending(width,height,words,state,stripe,rows,(x+1) as usize,0),
 {
+    reveal(compact_membership);
     assert forall|tx:int,ty:int|0<=tx<width && 0<=ty<height && #[trigger] state.significant_before[ty*width+tx] implies {
         let tag=(words[ty*width+tx]>>32)&63;
         if compact_processed(stripe,rows,(x+1) as usize,0,tx,ty){tag==state.bitplane}else{tag>state.bitplane}
@@ -159,6 +164,7 @@ pub(crate) proof fn compact_frontier_stripe_end(width:usize,height:usize,words:S
     requires compact_refinement_pending(width,height,words,state,stripe,rows,width,0),stripe+rows<=height,
     ensures compact_refinement_pending(width,height,words,state,(stripe+rows) as usize,next_rows,0,0),
 {
+    reveal(compact_membership);
     assert forall|tx:int,ty:int|0<=tx<width && 0<=ty<height && #[trigger] state.significant_before[ty*width+tx] implies {
         let tag=(words[ty*width+tx]>>32)&63;
         if compact_processed((stripe+rows) as usize,next_rows,0,0,tx,ty){tag==state.bitplane}else{tag>state.bitplane}
@@ -170,6 +176,7 @@ pub(crate) proof fn compact_frontier_initial(width:usize,height:usize,words:Seq<
     requires compact_membership(width,height,words,state),compact_before_frontier(words,state,false),
     ensures compact_refinement_pending(width,height,words,state,0,rows,0,0),
 {
+    reveal(compact_membership);reveal(compact_before_frontier);
     assert forall|tx:int,ty:int|0<=tx<width && 0<=ty<height && #[trigger] state.significant_before[ty*width+tx] implies {
         let tag=(words[ty*width+tx]>>32)&63;
         if compact_processed(0,rows,0,0,tx,ty){tag==state.bitplane}else{tag>state.bitplane}
@@ -183,6 +190,7 @@ pub(crate) proof fn compact_frontier_finished(width:usize,height:usize,words:Seq
     requires compact_refinement_pending(width,height,words,state,height,0,0,0),
     ensures compact_before_frontier(words,state,true),
 {
+    reveal(compact_membership);reveal(compact_before_frontier);
     assert forall|i:int|0<=i<words.len() && #[trigger] state.significant_before[i] implies ((words[i]>>32)&63)==state.bitplane by{
         compact_coordinates(width,height,words,i);
         let tx=i%(width as int);
@@ -198,6 +206,7 @@ pub(crate) proof fn compact_before_frontier_preserved(before:Seq<u64>,after:Seq<
             after[i] & 0x1ff_ffff_ffffu64==before[i] & 0x1ff_ffff_ffffu64,
     ensures compact_before_frontier(after,next,refined),
 {
+    reveal(compact_before_frontier);
     assert forall|i:int|0<=i<after.len() && #[trigger] next.significant_before[i] implies
         if refined{((after[i]>>32)&63)==next.bitplane}else{((after[i]>>32)&63)>next.bitplane} by{
         compact_lower_fields(before[i],after[i]);

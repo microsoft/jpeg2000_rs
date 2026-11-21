@@ -32,6 +32,32 @@ pub(crate) proof fn compact_capacity_observed(width:usize,height:usize,result:Re
     }
     assert(part2_tier1_storage_prefix(|calls|compact_capacity_run(width,height,calls),prefix,result));
 }
+pub(crate) open spec fn compact_initial_run(width:usize,height:usize,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(usize,usize,Seq<u64>)> {
+    part2_tier1_storage_bind(compact_capacity_run(width,height,calls),
+        |_:(),rest|Some((Ok((width,height,Seq::new(width as nat*height as nat,|_:int|0x3f_0000_0000u64))),rest)))
+}
+#[verifier::opaque]
+pub(crate) open spec fn compact_initial_result(width:usize,height:usize,result:Result<(usize,usize,Seq<u64>),crate::DecodeError>)->bool {
+    part2_tier1_storage_framed(|calls|compact_initial_run(width,height,calls),result)
+}
+pub(crate) proof fn compact_initial_observed(width:usize,height:usize,result:Result<(),crate::DecodeError>)
+    requires compact_capacity_result(width,height,result),
+    ensures compact_initial_result(width,height,match result{
+        Err(error)=>Err(error),Ok(())=>Ok((width,height,Seq::new(width as nat*height as nat,|_:int|0x3f_0000_0000u64))),
+    }),
+{
+    reveal(compact_capacity_result);reveal(compact_initial_result);
+    let value=(width,height,Seq::new(width as nat*height as nat,|_:int|0x3f_0000_0000u64));
+    part2_tier1_storage_pure(Ok(value));
+    part2_tier1_storage_bind_frame(|calls|compact_capacity_run(width,height,calls),
+        |_:(),rest|Some((Ok(value),rest)),result,match result{Err(error)=>Err(error),Ok(())=>Ok(value)});
+}
+pub(crate) proof fn compact_initial_normal(width:usize,height:usize)
+    ensures compact_initial_result(width,height,Ok((width,height,Seq::new(width as nat*height as nat,|_:int|0x3f_0000_0000u64)))),
+{
+    compact_capacity_observed(width,height,Ok(()));
+    compact_initial_observed(width,height,Ok(()));
+}
 pub(crate) open spec fn compact_inner_run(initial:Part1LegacySegmentRun,count:u32,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1LegacySegmentPassEffect> {
     part2_tier1_storage_resume(compact_capacity_run(initial.decoder.plane.width as usize,initial.decoder.plane.height as usize,calls),
         |allocated:Result<(),crate::DecodeError>,rest|match allocated{
