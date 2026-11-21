@@ -110,6 +110,10 @@ qualification claim. Its strong scalar-normal contracts and explicit new
 allocation model still require complete native-source/model proofs, whole-root
 and actual-archive verification, and the unchanged retention/CI gates before
 adoption. A model-only focus does not qualify its executing native body.
+Focused proofs cover the executing scalar extraction/quantization helpers,
+the exact non-error eligibility preflight, and row-splice equivalence to the
+original checked placement model. Executing writer-loop state and complete
+band-to-block storage composition remain open; the candidate is not yet qualified.
 
 ### Selected opaque ICC metadata
 

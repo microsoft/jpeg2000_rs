@@ -208,6 +208,8 @@ mod cold_extraction_reconstruction;
 pub use cold_extraction_reconstruction::*;
 mod fused_reconstruction;
 pub(crate) use fused_reconstruction::*;
+mod fused_reconstruction_placement;
+pub(crate) use fused_reconstruction_placement::*;
 mod cold_extraction_tile;
 pub use cold_extraction_tile::*;
 mod cold_legacy_bitplanes;

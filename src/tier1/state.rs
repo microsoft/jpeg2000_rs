@@ -56,6 +56,16 @@ impl CoefficientState {
             return Some(0);
         }
         if self.magnitude_high != [0; 5] {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if forall|i:int|0<=i<5 ==> self.magnitude_high@[i]==0{
+                    assert(self.magnitude_high@ =~= seq![0u64,0,0,0,0]);
+                    assert(self.magnitude_high==[0u64,0,0,0,0]);
+                }
+                let i=choose|i:int|0<=i<5 && self.magnitude_high@[i]!=0;
+                assert(coefficient_raw_view(*self).limbs[i+1]!=0);
+                assert(exists|j:int|1<=j<6 && coefficient_raw_view(*self).limbs[j]!=0);
+            }
             return None;
         }
         let midpoint = match self.legacy_bitplane {
@@ -699,8 +709,15 @@ impl CodeBlockPlane {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures coefficient_slice_view(result) == crate::specs::tier1_raw_plane_coefficients(code_block_plane_view(self)),
             coefficient_raw_views(result@) == code_block_plane_view(self).coefficients,
+            forall|i:int|0<=i<result.len() ==> #[trigger] code_block_plane_view(self).coefficients[i].limbs.len()==6,
     ))]
     pub fn coefficients(&self) -> &[CoefficientState] {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert forall|i:int|0<=i<self.coefficients.len() implies #[trigger] code_block_plane_view(self).coefficients[i].limbs.len()==6 by{
+                super::coefficient_raw_shape(self.coefficients@[i]);
+            }
+        }
         &self.coefficients
     }
 

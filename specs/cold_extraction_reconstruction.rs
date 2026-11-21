@@ -167,18 +167,23 @@ pub(crate) proof fn part2_extraction_place_normal(working:Part1PrepareWorking,ba
     match part2_extraction_place_admit(working,bands,precincts,placement){
         Err(_)=>{part2_tier1_storage_pure(Ok(result));},Ok(None)=>{part2_tier1_storage_pure(Ok(result));},
         Ok(Some((geometry,plane)))=>{
+            if part2_fused_placement_enabled(working,geometry,placement,plane,reversible,maximum){
+                part2_tier1_storage_pure(Ok(result));
+            }else{
             let coefficients=part1_prepare_collect_coefficients(plane);
             part2_extraction_normal(plane,true);
             part2_extraction_place_after_coefficients_normal(working,geometry,placement,plane,reversible,maximum,coefficients);
             part2_tier1_storage_eta(|calls|part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,coefficients,calls),Ok(result));
             part2_tier1_resume_frame(|calls|part2_extraction_run(plane,true,calls),
                 |value:Result<Seq<Part1QuantizedCoefficient>,crate::DecodeError>,rest|part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,value,rest),coefficients,Ok(result));
+            }
         },
     }
 }
 pub(crate) proof fn part2_extraction_place_error(working:Part1PrepareWorking,bands:Seq<crate::decode::SubbandGeometry>,precincts:Seq<Seq<Tier1RawPlane>>,
     placement:crate::decode::ProgressionCodeBlockPlacement,reversible:bool,maximum:u64,geometry:crate::decode::SubbandGeometry,plane:Tier1RawPlane,error:crate::DecodeError)
     requires part2_extraction_place_admit(working,bands,precincts,placement)==Ok(Some((geometry,plane))),part2_extraction_result(plane,true,Err(error)),
+        !part2_fused_placement_enabled(working,geometry,placement,plane,reversible,maximum),
     ensures part2_extraction_place_result(working,bands,precincts,placement,reversible,maximum,(Err(error),working)),
 {
     reveal(part2_extraction_place_run);part2_tier1_storage_pure(Ok::<Part2ExtractionWorkingEffect,crate::DecodeError>((Err(error),working)));
@@ -205,6 +210,7 @@ pub(crate) proof fn part2_extraction_place_after_coefficients_normal(working:Par
 pub(crate) proof fn part2_extraction_place_quantization_error(working:Part1PrepareWorking,bands:Seq<crate::decode::SubbandGeometry>,precincts:Seq<Seq<Tier1RawPlane>>,
     placement:crate::decode::ProgressionCodeBlockPlacement,reversible:bool,maximum:u64,geometry:crate::decode::SubbandGeometry,plane:Tier1RawPlane,values:Seq<Part1QuantizedCoefficient>,error:crate::DecodeError)
     requires part2_extraction_place_admit(working,bands,precincts,placement)==Ok(Some((geometry,plane))),
+        !part2_fused_placement_enabled(working,geometry,placement,plane,reversible,maximum),
         part2_extraction_result(plane,true,Ok(values)),
         part2_quantization_plane_result(values,geometry.quantization_step.exponent,geometry.quantization_step.mantissa,geometry.dynamic_range,reversible,geometry.roi_shift,maximum,Err(error)),
     ensures part2_extraction_place_result(working,bands,precincts,placement,reversible,maximum,(Err(error),working)),
