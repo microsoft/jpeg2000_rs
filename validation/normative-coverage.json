@@ -14470,7 +14470,7 @@
     },
     {
       "id": "part1-unqualified-compact-legacy-prototype",
-      "topic": "Unqualified issue-447 prototype: actual word, cache/context, cell and row/column/pass refinements use private bitplane-frontier invariants. Complete executable word/owner/function inventory bindings and negative mutation controls retain actual request counts, physical owner outcomes, whole wide commits and direct/replay dispatch. A real additional scratch-capacity reply prefixes the original bitplane-owner program. The whole-block loop still exceeds the unchanged default verifier resource limit; decoded-budget-aware outer cold composition remains pending. Native parity and successful helper/model/binding checks do not permit adoption or establish performance, RSS reduction, source-function coverage or conformance.",
+      "topic": "Unqualified issue-447 prototype: actual word, cache/context, cell and row/column/pass refinements use private bitplane-frontier invariants. Complete executable word/owner/function inventory bindings and negative mutation controls retain actual request counts, physical owner outcomes, whole wide commits and direct/replay dispatch. A real additional scratch-capacity reply prefixes the original bitplane-owner program. The small driver verifies against a pending executing scheduled-pass contract; that helper's function-body query still exceeds the unchanged default verifier resource limit. Decoded-budget-aware outer cold composition remains pending. Native parity and successful helper/model/binding checks do not permit adoption or establish performance, RSS reduction, source-function coverage or conformance.",
       "contract_refs": [
         {"path": "src/tier1/compact_legacy.rs", "symbol": "unpack_word"},
         {"path": "src/tier1/compact_legacy.rs", "symbol": "mark_word"},
@@ -14489,6 +14489,7 @@
         {"path": "src/tier1/compact_legacy.rs", "symbol": "CompactPlane::refine_cell"},
         {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::try_compact_legacy"},
         {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_passes"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_scheduled_pass"},
         {"path": "src/tier1/legacy_segments.rs", "symbol": "Tier1CodeBlockDecoder::decode_legacy_segment_with_compact"}
       ],
       "spec_refs": [
@@ -14509,6 +14510,9 @@
         {"path": "specs/compact_legacy_block.rs", "symbol": "compact_block_phase"},
         {"path": "specs/compact_legacy_block.rs", "symbol": "compact_normal_suffix"},
         {"path": "specs/compact_legacy_block.rs", "symbol": "compact_cold_suffix"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_physical_frame"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_substitute_plane"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_loop_progress"},
         {"path": "specs/cold_compact_legacy.rs", "symbol": "Part2CompactLegacyCaps"},
         {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_capacity_run"},
         {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_inner_run"},
@@ -14525,6 +14529,11 @@
         {"path": "specs/compact_legacy_block.rs", "symbol": "compact_pass_observed"},
         {"path": "specs/compact_legacy_block.rs", "symbol": "compact_normal_step"},
         {"path": "specs/compact_legacy_block.rs", "symbol": "compact_cold_step"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_physical_updated"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_success_store_frame"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_allocation_error_exit"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_pass_error_exit"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_native_store"},
         {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_capacity_observed"},
         {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_initial_observed"},
         {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_initial_normal"},

@@ -113,6 +113,7 @@ specs/compact_legacy.rs
 specs/compact_legacy_block.rs
 specs/compact_legacy_cache.rs
 specs/compact_legacy_context.rs
+specs/compact_legacy_frames.rs
 specs/compact_legacy_pass.rs
 specs/compact_legacy_refinement.rs
 specs/container_color_compatible.rs

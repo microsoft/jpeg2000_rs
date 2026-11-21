@@ -55,9 +55,15 @@ invariants until their complete whole-block producer/consumer chain is proved.
 The geometric counter bound is a mathematical witness, not a new resource
 limit, allocation request or charged-work budget.
 [`compact_legacy_block.rs`](specs/compact_legacy_block.rs) adds checked schedule,
-metadata-phase, total-counter and ordinary-result suffix lemmas. The actual
-whole-block loop proof remains open; its callers still rely on that pending
-contract. Strict projected-result/input/bound/request-order bindings cover all
+metadata-phase, total-counter and ordinary-result suffix lemmas. The complete
+whole-block proof remains open; its callers still rely on a pending executing
+scheduled-pass contract. The [store/error cutpoints](specs/compact_legacy_frames.rs) separate
+the constant physical-wide frame, packed-plane substitution, combined
+post-advance run equality and allocation/pass error continuations. A checked
+native-record store lemma keeps whole-decoder view unfolding outside the loop.
+These cutpoints do not establish the remaining resource-limited iteration query,
+nor identify which of its obligations consumes the limit.
+Strict projected-result/input/bound/request-order bindings cover all
 nine listed word, fresh-owner, bitplane-owner, commit and activation functions.
 The fresh-owner outcome retains every physical field, and commit binds the
 actual implicit unit return and the complete wide-plane mutation. Negative
@@ -79,8 +85,12 @@ otherwise make a final replay look fresh to the ordinary activation predicate.
 Native refusal controls cover this boundary and the extra scratch request
 separately from the unchanged checked allocation program.
 
-The actual whole-block loop still fails at the unchanged default verifier
-resource limit after checked model/loop cutpoint attempts. Its producer-derived
+The small whole-block driver verifies against the executing
+`compact_scheduled_pass` contract. The original iteration operations have been
+moved into that helper without changing their order; its function-body query
+still exceeds the unchanged default verifier resource limit. This localizes the
+open VC to the executing iteration, not to an individually identified assertion
+or cache/frontier/MQ obligation. Its producer-derived
 phase is established at the real fresh owner; no successful-owner or allocator
 availability premise is supplied. Integration of the additional capacity event
 and decoded-byte eligibility through the existing outer legacy cold callers

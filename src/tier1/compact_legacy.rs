@@ -65,6 +65,28 @@ impl Tier1CodeBlockDecoder {
             decoder:self.compact_view(packed),symbols:crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(decoder)),statistics,
         }
     }
+    proof fn compact_metadata(&self)
+        ensures super::tier1_decoder_state(self).plane==super::code_block_plane_view(&self.plane),
+            super::tier1_decoder_state(self).next_pass==self.next_pass,
+            super::tier1_decoder_state(self).bitplane==self.bitplane,
+            super::tier1_decoder_state(self).maximum_passes==self.maximum_passes,
+            super::tier1_decoder_state(self).style==self.style,
+            super::tier1_decoder_state(self).orientation==self.orientation,
+            super::tier1_decoder_state(self).bitplane_state==super::legacy_bitplane_option_view(&self.bitplane_state),
+    {reveal(super::tier1_decoder_state);reveal(super::legacy_bitplane_option_view);}
+    proof fn compact_views(&self,packed:&CompactPlane,decoder:&MqDecoder<'_>,statistics:Tier1PassStatistics)
+        ensures self.compact_view(packed)==crate::specs::compact_substitute_plane(super::tier1_decoder_state(self),packed.view()),
+            self.compact_run(packed,decoder,statistics)==(crate::specs::Part1LegacySegmentRun {
+                decoder:self.compact_view(packed),symbols:crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(decoder)),statistics}),
+    {}
+    proof fn compact_native_store(before:Self,after:Self)
+        requires after==(Self {next_pass:after.next_pass,bitplane:after.bitplane,bitplane_state:after.bitplane_state,..before}),
+        ensures super::tier1_decoder_state(&after)==(crate::specs::Tier1DecoderState {
+            next_pass:after.next_pass,bitplane:after.bitplane,
+            bitplane_state:super::legacy_bitplane_option_view(&after.bitplane_state),
+            ..super::tier1_decoder_state(&before)
+        }),
+    {reveal(super::tier1_decoder_state);}
 }
 pub(super) closed spec fn compact_plane_outcome(result:Result<CompactPlane,DecodeError>)->Result<(usize,usize,Seq<u64>),DecodeError> {
     match result{Err(error)=>Err(error),Ok(plane)=>Ok((plane.width,plane.height,plane.entries@)),}
@@ -1261,11 +1283,11 @@ impl Tier1CodeBlockDecoder {
         }
         #[cfg(verus_keep_ghost)]
         proof! {
-            reveal(super::tier1_decoder_state);reveal(super::code_block_plane_view);
+            self.compact_metadata();self.compact_views(packed,decoder,total);
             reveal(super::legacy_bitplane_option_view);
             crate::specs::compact_phase_shape(initial.decoder.bitplane,0,packed.width,packed.height,packed.entries@,self.bitplane,None);
-            crate::specs::compact_normal_start(initial,passes);
-            crate::specs::compact_cold_start(initial,passes);
+            crate::specs::compact_physical_start(initial.decoder);
+            crate::specs::compact_progress_start(initial,passes);
         }
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant decoded<=passes,passes==initial.decoder.maximum_passes,self.maximum_passes==passes,
@@ -1274,10 +1296,8 @@ impl Tier1CodeBlockDecoder {
                 !initial.decoder.style.reset_contexts,!initial.decoder.style.segmentation_symbols,
                 packed.shape(),self.bitplane<31,packed.width==old(packed).width,packed.height==old(packed).height,
                 super::code_block_plane_view(&self.plane)==initial.decoder.plane,
-                self.next_pass==decoded,
-                self.compact_view(packed)==(crate::specs::Tier1DecoderState {
-                    plane:packed.view(),next_pass:decoded,bitplane:self.bitplane,
-                    bitplane_state:super::legacy_bitplane_option_view(&self.bitplane_state),..initial.decoder}),
+                self.next_pass==decoded,self.style==initial.decoder.style,self.orientation==initial.decoder.orientation,
+                crate::specs::compact_physical_frame(initial.decoder,super::tier1_decoder_state(self)),
                 crate::specs::compact_block_phase(initial.decoder.bitplane,decoded,packed.width,packed.height,packed.entries@,
                     self.bitplane,super::legacy_bitplane_option_view(&self.bitplane_state)),
                 crate::specs::compact_statistics_le(total,(16*packed.entries.len()*decoded) as nat),
@@ -1285,11 +1305,96 @@ impl Tier1CodeBlockDecoder {
                     decoder:super::tier1_decoder_state(old(self)),
                     symbols:crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(old(decoder))),
                     statistics:crate::specs::tier1_statistics_zero()}),
-                crate::specs::compact_normal_suffix(initial,passes,self.compact_run(packed,decoder,total),(passes-decoded) as nat),
-                crate::specs::compact_cold_suffix(initial,passes,prefix,self.compact_run(packed,decoder,total),(passes-decoded) as nat),
+                crate::specs::compact_loop_progress(initial,passes,prefix,self.compact_run(packed,decoder,total),(passes-decoded) as nat),
             decreases passes-decoded,
         ))]
         while decoded < passes {
+            total = self.compact_scheduled_pass(
+                packed,
+                decoder,
+                total,
+                #[cfg(verus_keep_ghost)]
+                verus_exec_expr!(Ghost(initial)),
+                #[cfg(verus_keep_ghost)]
+                verus_exec_expr!(Ghost(passes)),
+                #[cfg(verus_keep_ghost)]
+                verus_exec_expr!(Ghost(decoded)),
+                #[cfg(verus_keep_ghost)]
+                verus_exec_expr!(Ghost(prefix)),
+            )?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                prefix=choose|joined:Seq<crate::specs::Part2Tier1StorageEvent>|
+                    #[trigger] crate::specs::compact_loop_progress(initial,passes,joined,self.compact_run(packed,decoder,total),
+                        (passes-decoded-1) as nat);
+            }
+            decoded += 1;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::compact_progress_finish(initial,passes,prefix,self.compact_run(packed,decoder,total));
+        }
+        Ok(total)
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        requires {
+            let initial=ghost_initial@;let passes=ghost_passes@;let decoded=ghost_decoded@;let prefix=ghost_prefix@;
+            decoded<passes && passes==initial.decoder.maximum_passes && old(self).maximum_passes==passes
+            && initial.decoder.bitplane<31 && passes==3*(initial.decoder.bitplane as nat+1)-2
+            && !initial.decoder.style.selective_arithmetic_coding_bypass
+            && !initial.decoder.style.reset_contexts && !initial.decoder.style.segmentation_symbols
+            && old(packed).shape() && old(self).bitplane<31
+            && super::code_block_plane_view(&old(self).plane)==initial.decoder.plane
+            && old(self).next_pass==decoded && old(self).style==initial.decoder.style && old(self).orientation==initial.decoder.orientation
+            && crate::specs::compact_physical_frame(initial.decoder,super::tier1_decoder_state(old(self)))
+            && crate::specs::compact_block_phase(initial.decoder.bitplane,decoded,old(packed).width,old(packed).height,old(packed).entries@,
+                old(self).bitplane,super::legacy_bitplane_option_view(&old(self).bitplane_state))
+            && crate::specs::compact_statistics_le(total,(16*old(packed).entries.len()*decoded) as nat)
+            && crate::specs::compact_loop_progress(initial,passes,prefix,old(self).compact_run(old(packed),old(decoder),total),
+                (passes-decoded) as nat)
+        },
+        ensures {
+            let initial=ghost_initial@;let passes=ghost_passes@;let decoded=ghost_decoded@;
+            final(packed).shape() && final(packed).width==old(packed).width && final(packed).height==old(packed).height
+            && super::code_block_plane_view(&final(self).plane)==initial.decoder.plane
+            && final(self).maximum_passes==passes && final(self).style==initial.decoder.style
+            && final(self).orientation==initial.decoder.orientation
+            && crate::specs::compact_physical_frame(initial.decoder,super::tier1_decoder_state(final(self)))
+            && match result {
+                Err(error)=>crate::specs::part2_legacy_inner_body_result(initial,passes,
+                    (Err(error),final(self).compact_view(final(packed)),
+                        crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(final(decoder)))))
+                    && (error!=DecodeError::AllocationFailed ==>
+                        (Err(error),final(self).compact_view(final(packed)),
+                            crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(final(decoder))))
+                            ==crate::specs::part1_legacy_segment_finish(crate::specs::part1_legacy_segment_run(initial,passes as nat))),
+                Ok(statistics)=>final(self).next_pass==decoded+1 && final(self).bitplane<31
+                    && crate::specs::compact_block_phase(initial.decoder.bitplane,(decoded+1) as u32,
+                        final(packed).width,final(packed).height,final(packed).entries@,final(self).bitplane,
+                        super::legacy_bitplane_option_view(&final(self).bitplane_state))
+                    && crate::specs::compact_statistics_le(statistics,(16*final(packed).entries.len()*(decoded+1)) as nat)
+                    && exists|joined:Seq<crate::specs::Part2Tier1StorageEvent>|
+                        #[trigger] crate::specs::compact_loop_progress(initial,passes,joined,
+                            final(self).compact_run(final(packed),final(decoder),statistics),(passes-decoded-1) as nat),
+            }
+        },
+    ))]
+    fn compact_scheduled_pass(
+        &mut self,
+        packed: &mut CompactPlane,
+        decoder: &mut MqDecoder<'_>,
+        mut total: Tier1PassStatistics,
+        #[cfg(verus_keep_ghost)] ghost_initial: Ghost<crate::specs::Part1LegacySegmentRun>,
+        #[cfg(verus_keep_ghost)] ghost_passes: Ghost<u32>,
+        #[cfg(verus_keep_ghost)] ghost_decoded: Ghost<u32>,
+        #[cfg(verus_keep_ghost)] ghost_prefix: Ghost<Seq<crate::specs::Part2Tier1StorageEvent>>,
+    ) -> Result<Tier1PassStatistics, DecodeError> {
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost initial=ghost_initial@;let ghost passes=ghost_passes@;
+                let ghost decoded=ghost_decoded@;let ghost prefix=ghost_prefix@;
+            }
             #[cfg(feature = "cooperative-deadlines")]
             crate::deadline::checkpoint()?;
             #[cfg(verus_keep_ghost)]
@@ -1297,13 +1402,16 @@ impl Tier1CodeBlockDecoder {
                 let ghost before_step=self.compact_run(packed,decoder,total);
                 let ghost before_words=packed.entries@;
                 let ghost remaining=(passes-decoded) as nat;
+                let ghost physical_before=super::tier1_decoder_state(self);
+                let ghost native_before=*self;
             }
             #[cfg(verus_keep_ghost)]
             proof! {
+                self.compact_metadata();self.compact_views(packed,decoder,total);
                 crate::specs::compact_block_schedule(initial.decoder.bitplane,decoded);
                 crate::specs::compact_phase_shape(initial.decoder.bitplane,decoded,packed.width,packed.height,packed.entries@,
                     self.bitplane,super::legacy_bitplane_option_view(&self.bitplane_state));
-                reveal(super::tier1_decoder_state);reveal(super::legacy_bitplane_option_view);
+                reveal(super::legacy_bitplane_option_view);
             }
             let kind = self.style.pass_plan(self.next_pass).kind;
             if self.bitplane_state.is_none() {
@@ -1312,12 +1420,10 @@ impl Tier1CodeBlockDecoder {
                 proof! {
                     crate::specs::part2_legacy_ensure_observed(before_step.decoder,super::legacy_bitplane_outcome(constructed));
                     if let Err(error)=constructed{
-                        let ready=(Err(error),before_step.decoder);
-                        crate::specs::part2_legacy_mq_ready_contract(before_step.decoder,crate::mq::mq_decoder_view(decoder),kind,ready);
-                        let effect=(Err(error),before_step.decoder,before_step.symbols);
-                        crate::specs::part2_legacy_inner_step_observed(before_step,kind,effect);
-                        let expected=crate::specs::part2_legacy_step_after_pass(before_step,kind,effect);
-                        prefix=crate::specs::compact_cold_step(initial,passes,before_step,remaining,prefix,expected);
+                        assert(crate::specs::part2_legacy_inner_body_result(initial,passes,
+                            (Err(error),self.compact_view(packed),crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(decoder))))) by{
+                            crate::specs::compact_allocation_error_exit(initial,passes,before_step,remaining,prefix,kind,error);
+                        }
                     }
                 }
                 self.bitplane_state = Some(constructed?);
@@ -1326,15 +1432,27 @@ impl Tier1CodeBlockDecoder {
                 proof! {crate::specs::part2_legacy_ensure_present(before_step.decoder);}
             }
             #[cfg(verus_keep_ghost)]
-            proof_decl! {let ghost ready=self.compact_view(packed);let ghost ready_state=ready.bitplane_state->Some_0;}
+            proof_decl! {let ghost ready=self.compact_view(packed);let ghost ready_state=ready.bitplane_state->Some_0;
+                let ghost physical_ready=super::tier1_decoder_state(self);}
             #[cfg(verus_keep_ghost)]
             proof! {
-                assert(crate::specs::part2_legacy_ensure_result(before_step.decoder,(Ok(()),ready)));
-                assert(crate::specs::part1_legacy_ensure_bitplane(before_step.decoder)==(Ok(()),ready));
+                Self::compact_native_store(native_before,*self);
+                assert(crate::specs::compact_physical_frame(initial.decoder,physical_ready)) by{
+                    assert(physical_ready==(crate::specs::Tier1DecoderState {
+                        next_pass:physical_ready.next_pass,bitplane:physical_ready.bitplane,bitplane_state:physical_ready.bitplane_state,..physical_before}));
+                    crate::specs::compact_physical_updated(initial.decoder,physical_before,physical_ready);
+                }
+                assert(crate::specs::part2_legacy_ensure_result(before_step.decoder,(Ok(()),ready))
+                    && crate::specs::part1_legacy_ensure_bitplane(before_step.decoder)==(Ok(()),ready)) by{
+                    reveal(super::legacy_bitplane_option_view);
+                }
+                self.compact_metadata();self.compact_views(packed,decoder,total);
                 crate::specs::compact_phase_prepare(initial.decoder.bitplane,decoded,packed.width,packed.height,packed.entries@,
                     self.bitplane,before_step.decoder.bitplane_state,ready_state);
                 assert(self.bitplane_state.is_some());
             }
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {let ghost native_ready=*self;}
             let pass = packed.pass(
                 self.bitplane_state
                     .as_mut()
@@ -1349,18 +1467,27 @@ impl Tier1CodeBlockDecoder {
                 let ghost pass_effect=(pass,self.compact_view(packed),crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(decoder)));
                 let ghost expected=crate::specs::part2_legacy_step_after_pass(before_step,kind,pass_effect);
                 let ghost after_state=self.compact_view(packed).bitplane_state->Some_0;
+                let ghost physical_pass=super::tier1_decoder_state(self);
+                let ghost native_pass=*self;
             }
             #[cfg(verus_keep_ghost)]
             proof! {
+                Self::compact_native_store(native_ready,*self);
+                self.compact_metadata();
+                assert(physical_pass==(crate::specs::Tier1DecoderState {bitplane_state:physical_pass.bitplane_state,..physical_ready}));
+                crate::specs::compact_physical_updated(initial.decoder,physical_ready,physical_pass);
+                crate::specs::compact_pass_store_frame(physical_ready,physical_pass,ready.plane,packed.view());
+                self.compact_metadata();self.compact_views(packed,decoder,total);
+                crate::specs::compact_physical_fields(initial.decoder,physical_pass);
                 let effect=(pass,packed.view(),after_state,crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(decoder)));
                 crate::specs::compact_pass_observed(before_step.decoder,before_step.symbols->Mq_0,kind,ready,effect);
                 assert(self.compact_view(packed)==(crate::specs::Tier1DecoderState {plane:effect.1,bitplane_state:Some(effect.2),..ready}));
-                crate::specs::part2_legacy_inner_step_observed(before_step,kind,pass_effect);
-                if pass!=Err(DecodeError::AllocationFailed){
-                    crate::specs::compact_normal_step(initial,passes,before_step,remaining,kind,pass_effect);
-                }
                 if pass.is_err(){
-                    prefix=crate::specs::compact_cold_step(initial,passes,before_step,remaining,prefix,expected);
+                    assert(crate::specs::part2_legacy_inner_body_result(initial,passes,pass_effect)
+                        && (pass!=Err(DecodeError::AllocationFailed) ==> pass_effect==crate::specs::part1_legacy_segment_finish(
+                            crate::specs::part1_legacy_segment_run(initial,passes as nat)))) by{
+                        crate::specs::compact_pass_error_exit(initial,passes,before_step,remaining,prefix,kind,pass_effect);
+                    }
                 }
             }
             let stats = pass?;
@@ -1388,20 +1515,29 @@ impl Tier1CodeBlockDecoder {
             #[cfg(verus_keep_ghost)]
             proof! {
                 assert(total==merged.1);
+                let physical_after=super::tier1_decoder_state(self);
+                Self::compact_native_store(native_pass,*self);
+                self.compact_metadata();
+                assert(crate::specs::compact_advance_frame(physical_pass,physical_after,kind)) by{
+                    reveal(crate::specs::compact_advance_frame);
+                    reveal(super::legacy_bitplane_option_view);
+                }
+                crate::specs::compact_advance_fields(physical_pass,physical_after,kind);
+                crate::specs::compact_physical_updated(initial.decoder,physical_pass,physical_after);
+                crate::specs::compact_physical_fields(initial.decoder,physical_after);
+                self.compact_metadata();self.compact_views(packed,decoder,total);
                 assert(self.bitplane==crate::specs::compact_block_bitplane(initial.decoder.bitplane,(decoded+1) as u32));
                 assert(super::legacy_bitplane_option_view(&self.bitplane_state)==if kind is Cleanup{None}else{Some(after_state)});
                 crate::specs::compact_phase_shape(initial.decoder.bitplane,(decoded+1) as u32,packed.width,packed.height,packed.entries@,
                     self.bitplane,super::legacy_bitplane_option_view(&self.bitplane_state));
-                assert(expected==(Ok(()),self.compact_run(packed,decoder,total)));
-                prefix=crate::specs::compact_cold_step(initial,passes,before_step,remaining,prefix,expected);
+                assert(expected==(Ok(()),self.compact_run(packed,decoder,total))) by{
+                    crate::specs::compact_success_store_frame(before_step,kind,pass_effect,stats,physical_pass,physical_after,
+                        packed.view(),total,self.compact_run(packed,decoder,total));
+                }
+                let joined=crate::specs::compact_progress_continue(initial,passes,before_step,remaining,prefix,kind,pass_effect,self.compact_run(packed,decoder,total));
+                assert(exists|next:Seq<crate::specs::Part2Tier1StorageEvent>|
+                    #[trigger] crate::specs::compact_loop_progress(initial,passes,next,self.compact_run(packed,decoder,total),(passes-decoded-1) as nat));
             }
-            decoded += 1;
-        }
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            crate::specs::compact_normal_finish(initial,passes,self.compact_run(packed,decoder,total));
-            crate::specs::compact_cold_finish(initial,passes,prefix,self.compact_run(packed,decoder,total));
-        }
         Ok(total)
     }
 }
