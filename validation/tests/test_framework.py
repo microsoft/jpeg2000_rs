@@ -10059,7 +10059,7 @@ class FrameworkTests(WorkingFiles):
             ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_legacy_segment",
              "self.decode_legacy_segment_with_compact(input, pass_count, limits, true)",
              "self.decode_legacy_segment_with_compact(input, pass_count, limits, false)"),
-            ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_legacy_segment_with_compact",
+            ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_selected_mq_segment_passes",
              "if compact_allowed", "if false"),
         )
         for relative, symbol, before, after in cases:
