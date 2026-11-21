@@ -105,15 +105,17 @@ owners on checked fallback, original numeric/limit precedence, and late-placemen
 partial buffers. Legacy midpoint and scalar quantization helpers are shared.
 The optional deadline profile checks preflight and write work periodically.
 
-This is a native experiment, **not** a completed source-proof or release
-qualification claim. Its strong scalar-normal contracts and explicit new
-allocation model still require complete native-source/model proofs, whole-root
-and actual-archive verification, and the unchanged retention/CI gates before
-adoption. A model-only focus does not qualify its executing native body.
-Focused proofs cover the executing scalar extraction/quantization helpers,
-the exact non-error eligibility preflight, and row-splice equivalence to the
-original checked placement model. Executing writer-loop state and complete
-band-to-block storage composition remain open; the candidate is not yet qualified.
+Focused proofs cover the executing scalar extraction/quantization helpers, exact
+non-error preflight, optimized mutable-row writer, checked fallback and complete
+band-to-block storage lifting. The latter preserves the actual zero-event fused
+program and ordered checked staging events, including refusal and unused-tail
+frames. Scalar-normal specifications are unchanged. Mutable row borrows use the
+existing slice specifications via `as_mut_slice`, without a new trusted wrapper.
+
+These are focused actual-source/model proofs, **not** whole-production-root,
+actual-archive or release qualification. Fresh complete verification and the
+unchanged retention/normal-CI gates are still required before adoption; a
+model-only focus is not a substitute for executing-body verification.
 
 ### Selected opaque ICC metadata
 

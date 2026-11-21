@@ -116,7 +116,9 @@ specs/decoder_input.rs
 specs/esrgb.rs
 specs/esrgb_image.rs
 specs/fused_reconstruction.rs
+specs/fused_reconstruction_equivalence.rs
 specs/fused_reconstruction_placement.rs
+specs/fused_reconstruction_storage.rs
 specs/header.rs
 specs/jp2_associated_header.rs
 specs/jp2_box_reader.rs

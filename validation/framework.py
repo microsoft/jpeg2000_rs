@@ -294,6 +294,15 @@ def _coverage_spec_function_body(text: str, symbol: str) -> str | None:
     return _coverage_function_body(text, headers[0]) if len(headers) == 1 else None
 
 
+def _coverage_proof_function_body(text: str, symbol: str) -> str | None:
+    """Read a unique formatted proof body without accepting a spec substitute."""
+    headers = list(re.finditer(
+        r"(?m)^([ \t]*)pub(?:\((?:crate|super)\))?[ \t]+proof[ \t]+fn[ \t]+"
+        + re.escape(symbol) + r"\b", text,
+    ))
+    return _coverage_function_body(text, headers[0]) if len(headers) == 1 else None
+
+
 def _coverage_same_file_call(
     text: str, caller: str, callee: str, *, distinct_file: bool = False, module_scope: bool = False,
 ) -> bool:
@@ -8713,7 +8722,8 @@ _QUANTIZATION_OUTPUT_NATIVE_ORDER = {
     ),
     ("src/decode/reconstruction/fused.rs", "place"): (
         "x.checked_add(width)", "if let Some(quantizer) = preflight(", "return write(",
-        "let coefficients = collect_prepare_coefficients(plane)?", "let quantized = inverse_quantize_magnitudes(",
+        "let collected = collect_prepare_coefficients(plane)", "let coefficients = collected?",
+        "let quantized_result = inverse_quantize_magnitudes(", "let quantized = quantized_result?",
         "quantized.fraction_bits()", "write_quantized_block(",
     ),
 }
@@ -11059,6 +11069,10 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
     ("specs/fused_reconstruction.rs", "part2_fused_place_run"): (
         "Some((Ok(part1_prepare_place_plane(working,geometry,placement,plane,reversible,maximum)),calls))",
     ),
+    ("specs/fused_reconstruction_storage.rs", "part2_fused_band_result"): (
+        "part2_extraction_place_result((seq![destination],0u64),seq![geometry],seq![seq![plane]],part2_fused_position(x,y),reversible,maximum,",
+        "(effect.0,(seq![effect.1],0u64))",
+    ),
     ("specs/cold_extraction_reconstruction.rs", "part2_extraction_placements_next"): (
         "if effect.0.is_err(){Some((Ok(effect),calls))}",
         "part2_extraction_place_run(effect.1,plan.subbands,precincts,plan.placements[index as int],reversible,maximum,calls)",
@@ -11066,6 +11080,18 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
     ("specs/cold_decode_packets.rs", "part2_planned_decode_run"): (
         "part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
         "part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest)",
+    ),
+}
+_COEFFICIENT_EXTRACTION_PROOF_GUARDS = {
+    ("specs/fused_reconstruction_storage.rs", "part2_fused_run_lift"): (
+        "part2_extraction_run(plane,true,calls)",
+        "part2_quantization_plane_run(values,geometry.quantization_step.exponent,geometry.quantization_step.mantissa,",
+        "part2_fused_quantized_lift(working,geometry,placement,plane,reversible,quantized)",
+    ),
+    ("specs/fused_reconstruction_storage.rs", "part2_fused_allocation_lift"): (
+        "part2_tier1_storage_at(run,prefix,Ok(effect),tail)",
+        "part2_fused_run_lift(working,bands,precincts,placement,geometry,plane,reversible,maximum,prefix+tail)",
+        "prefix,Ok((Err(crate::DecodeError::AllocationFailed),working))",
     ),
 }
 _COEFFICIENT_EXTRACTION_NATIVE_ORDER = {
@@ -18857,11 +18883,15 @@ def validate_normative_coverage(
         if not _COEFFICIENT_EXTRACTION_TESTS.issubset({
                 (ref["path"], ref["symbol"]) for ref in coefficient_entry["test_refs"]}):
             raise ValueError("coefficient extraction requires bounded real raw/empty/refusal/restore/public controls")
-        for (relative, symbol), fragments in _COEFFICIENT_EXTRACTION_GUARDS.items():
-            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
-            compact = "".join(body.split()) if body is not None else ""
-            if any("".join(fragment.split()) not in compact for fragment in fragments):
-                raise ValueError("coefficient extraction requires actual raw count/role, numerical child, owner/error/tail composition")
+        for guards, reader in (
+            (_COEFFICIENT_EXTRACTION_GUARDS, _coverage_spec_function_body),
+            (_COEFFICIENT_EXTRACTION_PROOF_GUARDS, _coverage_proof_function_body),
+        ):
+            for (relative, symbol), fragments in guards.items():
+                body = reader(source_text((ROOT / relative).resolve()), symbol)
+                compact = "".join(body.split()) if body is not None else ""
+                if any("".join(fragment.split()) not in compact for fragment in fragments):
+                    raise ValueError("coefficient extraction requires actual raw count/role, numerical child, owner/error/tail composition")
         for (relative, symbol), fragments in _COEFFICIENT_EXTRACTION_NATIVE_ORDER.items():
             path = (ROOT / relative).resolve()
             body = _coverage_function_body(source_text(path), function_header(path, symbol))

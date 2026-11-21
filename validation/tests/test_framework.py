@@ -9962,6 +9962,13 @@ class FrameworkTests(WorkingFiles):
         with self.assertRaisesRegex(ValueError, "initial bitplane storage requires bounded"):
             framework.validate_normative_coverage(missing)
 
+    def test_inventory_proof_body_reader_requires_unique_proof_declaration(self):
+        source = "pub(crate) proof fn lift()\n{\n    real_child();\n}\n"
+        self.assertIn("real_child()", framework._coverage_proof_function_body(source, "lift"))
+        self.assertIsNone(framework._coverage_proof_function_body(source + source, "lift"))
+        self.assertIsNone(framework._coverage_proof_function_body(
+            source.replace("proof fn", "open spec fn"), "lift"))
+
     def test_inventory_coefficient_extraction_requires_actual_raw_role_error_tail_and_first_normal(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         data = dict(coverage, requirements=[
@@ -9981,6 +9988,9 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run", "part2_extraction_run(plane,true,calls)", "part2_extraction_run(plane,false,calls)"),
             ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run", "part2_fused_placement_enabled(working,geometry", "part2_fused_placement_enabled(working,other_geometry"),
             ("specs/fused_reconstruction.rs", "part2_fused_place_run", "maximum)),calls", "maximum)),calls.drop_first()"),
+            ("specs/fused_reconstruction_storage.rs", "part2_fused_run_lift", "part2_extraction_run(plane,true,calls)", "part2_extraction_run(plane,false,calls)"),
+            ("specs/fused_reconstruction_storage.rs", "part2_fused_band_result", "seq![effect.1]", "seq![destination]"),
+            ("specs/fused_reconstruction_storage.rs", "part2_fused_allocation_lift", "part2_fused_run_lift(working,bands,precincts,placement,geometry,plane,reversible,maximum,prefix+tail)", "part2_fused_run_lift(working,bands,precincts,placement,geometry,plane,reversible,maximum,prefix)"),
             ("specs/cold_extraction_reconstruction.rs", "part2_extraction_placements_next", "Some((Ok(effect),calls))", "Some((Ok(effect),Seq::empty()))"),
             ("specs/cold_decode_packets.rs", "part2_planned_decode_run", "work,decoded.1,rest", "work,plan.precincts,rest"),
             ("src/decode/code_blocks.rs", "collect_code_block_coefficients", "empty_with_capacity(count)", "empty_with_capacity(1)"),
@@ -9991,6 +10001,8 @@ class FrameworkTests(WorkingFiles):
             original = source.read_text()
             body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
                     if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            if body is None and (relative, symbol) in framework._COEFFICIENT_EXTRACTION_PROOF_GUARDS:
+                body = framework._coverage_proof_function_body(original, symbol)
             changed_body, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, body, count=1)
             self.assertEqual(count, 1, (symbol, before))
             changed = original.replace(body, changed_body, 1)
