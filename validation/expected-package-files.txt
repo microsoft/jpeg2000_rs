@@ -261,9 +261,9 @@ src/decode/pdf_trailers.rs
 src/decode/planning.rs
 src/decode/proof_support.rs
 src/decode/raw_typed_result_tests.rs
-src/decode/reconstruction.rs
 src/decode/reconstruction/fused.rs
 src/decode/reconstruction/fused_tests.rs
+src/decode/reconstruction.rs
 src/decode/selection.rs
 src/decode/spatial.rs
 src/decode/tests.rs
@@ -397,8 +397,8 @@ src/transform/levels.rs
 src/transform/output.rs
 src/transform/proof_support.rs
 src/transform/quantization.rs
-src/transform/rowwise.rs
 src/transform/rowwise/fixed.rs
+src/transform/rowwise.rs
 src/transform/tests.rs
 src/transform/wavelets.rs
 src/transform.rs
