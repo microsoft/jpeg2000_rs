@@ -34,3 +34,12 @@ per-fixture median/p90 and matched-process-block uncertainty are separate.
 This does not qualify PDFium: GN configuration and direct backend integration
 must be measured independently. Full raw evidence belongs outside tracked
 source and no private PDF inputs are uploaded.
+
+The supplied example Hayro corpus revision did not resolve through the public
+commit API or Git. Broader strict/lenient artifact acceptance therefore uses a
+separately labeled fixed public corpus from published source anchor
+`4989f9c680beeb7bad4fbfd441a93aa373d2ba4f`, not an unpinned HEAD.
+`zune_acceptance.py` records each input, status and output against its backend's
+own generic result. Each file runs in its own bounded process so a malformed
+input cannot hide later cases; process failures and timeouts remain explicit.
+CPU-specific artifacts are not executed on a mismatched native CPU.

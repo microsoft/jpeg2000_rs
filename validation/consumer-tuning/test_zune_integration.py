@@ -5,9 +5,23 @@ import tempfile
 import unittest
 
 from zune_integration import compiler_records, read_outcomes, reductions
+from zune_acceptance import outcomes
 
 
 class ZuneIntegrationTests(unittest.TestCase):
+    def test_broader_acceptance_keeps_rejections_and_requires_all_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "good.jp2.bin").write_bytes(b"pixels")
+            text = ("file\tstatus\twidth\theight\tcolor\tp50_us\tp90_us\truns\n"
+                    "bad.jph\tPANIC\n"
+                    "good.jp2\tok\t2\t1\tRGB\t0\t0\t0\n")
+            result = outcomes(text, root, ["bad.jph", "good.jp2"])
+            self.assertEqual(result["bad.jph"]["status"], "PANIC")
+            self.assertEqual(result["good.jp2"]["bytes"], 6)
+            with self.assertRaisesRegex(ValueError, "omitted"):
+                outcomes(text, root, ["good.jp2"])
+
     def test_untimed_acceptance_is_not_accepted_as_timing(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
