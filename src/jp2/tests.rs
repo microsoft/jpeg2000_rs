@@ -4036,14 +4036,21 @@ fn later_ihdr_is_ignored_without_replacing_the_first_header_or_bypassing_framing
             Ok(expected.clone())
         );
         let capped = limits.with_maximum_work_units(2).unwrap();
-        assert!(matches!(
-            super::headers::parse_jp2_header(&input, &capped, 40),
-            Err(DecodeError::LimitExceeded {
-                resource: Resource::WorkUnits,
-                limit: 2,
-                actual: 3
+        assert_eq!(
+            super::headers::parse_jp2_header(&input, &capped, 40).err(),
+            Some(DecodeError::MalformedInput {
+                offset: 77,
+                kind: MalformedKind::InvalidBoxLength
             })
-        ));
+        );
+        assert_eq!(
+            super::headers::parse_jp2_header(
+                &input,
+                &limits.with_maximum_work_units(3).unwrap(),
+                40
+            ),
+            Ok(expected.clone())
+        );
     }
     let mut truncated = prefix;
     truncated.extend([0, 0, 0, 22, b'i', b'h', b'd', b'r']);
