@@ -1,0 +1,39 @@
+# Separate actual PDFium consumer
+
+This follows [the public #449 handoff](https://github.com/microsoft/jpeg2000_rs/issues/449#issuecomment-7071726628),
+using Gerrit CL 164990 patch set 2 (`ec9185e7d6b973d453f2fe6bf1d9eb9a1eb9ebc3`).
+Its original dependency is `89a85673266d204937025399ee921286dbce9c12`, not 0.2.2.
+The driver explicitly rolls DEPS to published source anchor
+`4989f9c680beeb7bad4fbfd441a93aa373d2ba4f`, regenerates the GN source list from
+that actual checkout, and adapts only the bridge's now-private JP2 fields to
+their public getters. Decoder source is not modified.
+
+Use a fresh directory outside an existing Cargo/PDFium workspace. The pinned
+depot_tools is `96a7c1418eedaa6bea333a8941e8a0078681b4d0`; auto-update is disabled.
+The minimal checkout still explicitly includes Rust, the decoder and matched
+testing corpus. At least 12 GiB is required; never free space by deleting
+shared user data.
+
+```sh
+python3 pdfium_integration.py prepare --work-root /new/pdfium-consumer
+python3 pdfium_integration.py run --work-root /new/pdfium-consumer \
+  --output /new/pdfium-results
+```
+
+Both optimized GN configurations use the same compiler, renderer and inputs,
+with V8, XFA, Skia and recovery disabled. Only the Rust JPEG 2000 switch differs.
+Cargo profile variables do not configure GN. Actual Ninja compiler/link commands
+and final link-step durations are preserved, with build time, RSS, executable
+size and `.text` separate.
+
+The unchanged pixel/corpus runners select the supplied `bug_304.pdf` and
+`fx/action/123.pdf` expectations. Missing inputs, failed golden tests and
+unsupported configurations remain visible. Actual OpenJPEG/Rust rendered
+page parity is checked with `pdfium_diff` before comparing timings; failures
+produce no speed claim. Eight reversed process pairs use warm filesystem
+caches and fresh processes, timing the entire PDFium invocation including
+parse/decode/render/PNG output. Per-case median/p90 and paired uncertainty
+are therefore not isolated decoder timings or a substitute for zune results.
+
+No expected image is regenerated or ignored, no private PDF input is uploaded,
+and source/proof/package/default-profile or publication policy is unchanged.
