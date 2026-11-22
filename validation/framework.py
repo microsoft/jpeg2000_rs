@@ -6788,7 +6788,7 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         expected = "exists|prefix: Seq<Part2JpipSnapshotEvent>| #[trigger] part2_packet_prefix(parts, grid, precincts, selection, limits, prefix, result)"
     elif model == "part1_tile_progression_payload_storage_result":
         expected = """
-            if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
+            if segment.marker == 0xff5f && !raw.poc_seen {
                 exists|reserved: bool| result == part1_tile_progression_payload_storage(
                     reader, raw, segment, components, tile_part_index, lengths, headers, reserved)
             } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
@@ -11697,10 +11697,21 @@ _QUANTIZATION_COLD_GUARDS = {
         "Some((Err(error), rest)) => Some(((Err(error), reader, changed), rest))",
     ),
     ("specs/cold_header_progression.rs", "part1_tile_progression_payload"): (
-        "segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0",
+        "segment.marker == 0xff5f && !raw.poc_seen",
         "Part1TileHeaderAccumulator { poc_seen: true, ..raw }",
         "part1_poc_cold_run(13, segment, components, events)",
         "Some((Err(error), rest)) => Some(((Err(error), reader, changed), rest))",
+    ),
+    ("src/codestream/layout.rs", "Parser::parse_layout"): (
+        "parser.validate_tile_progression_coverage(&tile_part_payloads)?",
+        "let codestream_profile = classify_codestream_profile(",
+    ),
+    ("specs/raw_layout.rs", "part1_layout_after_tiles"): (
+        "match part1_complete_poc_coverage(state.3, reader.limits)",
+        "Err(error)=>Err(error),Ok(())=>match part1_classify_codestream_profile(",
+    ),
+    ("src/codestream/tiles.rs", "Parser::read_tile_part"): (
+        "has_progression_marker: poc_seen",
     ),
     ("specs/cold_layout.rs", "part1_cold_layout_after_inherited_copy"): (
         "part1_inherited_tile_owner(tile.2 as usize, main.raw.progression, state.0.5)",
