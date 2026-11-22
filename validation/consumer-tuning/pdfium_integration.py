@@ -31,6 +31,16 @@ COMMON_ARGS = (
 def checked(command, **kwargs):
     subprocess.run(command, check=True, **kwargs)
 
+def capture_commands(command, prefix):
+    result = subprocess.run(command, capture_output=True)
+    Path(str(prefix) + ".stdout.bin").write_bytes(result.stdout)
+    Path(str(prefix) + ".stderr.bin").write_bytes(result.stderr)
+    return {"command": command, "returncode": result.returncode,
+            "stdout": result.stdout.decode("utf-8", errors="backslashreplace"),
+            "stderr": result.stderr.decode("utf-8", errors="backslashreplace"),
+            "stdout_sha256": hashlib.sha256(result.stdout).hexdigest(),
+            "stderr_sha256": hashlib.sha256(result.stderr).hexdigest()}
+
 
 def replace_exact(text, before, after, count):
     if text.count(before) != count:
@@ -166,7 +176,13 @@ def run(options):
         if set(links) != {"pdfium_test", "pdfium_diff"}:
             raise ValueError("actual final Ninja link durations unavailable")
         metrics["final_link_ninja_ms"] = links
-        commands = capture(["ninja", "-C", str(build), "-t", "commands", "pdfium_test"])
+        preserved = output / "binaries" / backend
+        preserved.mkdir(parents=True)
+        for target in ("pdfium_test", "pdfium_diff"):
+            shutil.copyfile(build / target, preserved / target)
+            (preserved / target).chmod(0o755)
+        commands = capture_commands(["ninja", "-C", str(build), "-t", "commands", "pdfium_test"],
+                                    output / f"commands-{backend}")
         (output / f"commands-{backend}.json").write_text(json.dumps(commands, indent=2) + "\n")
         if commands["returncode"]:
             raise ValueError("effective PDFium compiler/link commands unavailable")

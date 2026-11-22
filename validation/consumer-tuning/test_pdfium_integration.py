@@ -1,11 +1,24 @@
 import unittest
 from pathlib import Path
 from unittest import mock
+import subprocess
+import tempfile
 
-from pdfium_integration import environment, replace_exact, roll_bridge, roll_source_list
+from pdfium_integration import capture_commands, environment, replace_exact, roll_bridge, roll_source_list
 
 
 class PdfiumIntegrationTests(unittest.TestCase):
+    def test_command_capture_preserves_non_utf8_and_failure_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            prefix = Path(directory) / "commands"
+            result = subprocess.CompletedProcess(["ninja"], 17, b"rustc \xc3(", b"\xff")
+            with mock.patch("subprocess.run", return_value=result):
+                captured = capture_commands(["ninja"], prefix)
+            self.assertEqual(captured["returncode"], 17)
+            self.assertIn("\\xc3", captured["stdout"])
+            self.assertEqual(Path(str(prefix) + ".stdout.bin").read_bytes(), result.stdout)
+            self.assertEqual(Path(str(prefix) + ".stderr.bin").read_bytes(), result.stderr)
+
     def test_environment_bootstraps_only_the_pinned_owned_tools(self):
         with mock.patch.dict("os.environ", {"DEPOT_TOOLS_DIR": "/another/checkout",
                                           "DEPOT_TOOLS_UPDATE": "1", "RUSTFLAGS": "-Ctarget-cpu=native"}):

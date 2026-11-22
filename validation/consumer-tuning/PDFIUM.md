@@ -27,6 +27,9 @@ with V8, XFA, Skia and recovery disabled. Only the Rust JPEG 2000 switch differs
 Cargo profile variables do not configure GN. Actual Ninja compiler/link commands
 and final link-step durations are preserved, with build time, RSS, executable
 size and `.text` separate.
+Ninja command output is retained verbatim even if it contains non-UTF-8 bytes;
+only its human-readable JSON rendering escapes them. Built executables are
+preserved before subsequent diagnostics so a logging failure cannot erase them.
 
 The unchanged pixel/corpus runners select the supplied `bug_304.pdf` and
 `fx/action/123.pdf` expectations. Missing inputs, failed golden tests and
