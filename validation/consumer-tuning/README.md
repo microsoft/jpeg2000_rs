@@ -1,8 +1,9 @@
 # Final-consumer build qualification (#449)
 
-This is a **standalone final Cargo consumer**, not a change to the decoder's
-release profile, supported CPUs, publisher settings or verification boundary.
-It selects exactly one linked backend per executable:
+This directory includes the historical **standalone final Cargo consumer**,
+the supplied actual zune adapter and a separate PDFium GN study. None changes
+the decoder's release profile, supported CPUs, publisher settings or verification
+boundary. The standalone study selects exactly one linked backend per executable:
 
 * `current`: Git revision `97d5162b3f43fb14942c46bbea73752d26fb24b4`;
 * `release022`: published `jpeg2000-decoder =0.2.2`, archive SHA256
@@ -233,9 +234,11 @@ fixture recipe. See [the imported handoff](zune-handoff/README.md) and
 [`zune_integration.py`](zune_integration.py). The optional workflow dispatch
 scope `zune` builds the five isolated profile cells on native x86-64 and ARM64,
 using one verified input cohort. This is separate from the earlier standalone
-study and does not edit the shared workspace described below. Results are not
-claimed until the actual-consumer matrix completes. PDFium uses GN and needs
-its own direct-backend qualification.
+study and does not edit the shared workspace described below. The native matrix
+and broader acceptance completed; [ZUNE_RESULTS.md](ZUNE_RESULTS.md) records
+qualified results, changed Hayro outputs and deployment CPU limitations.
+Dispatch scope `zune-acceptance` runs unchanged artifacts on a fixed public
+corpus. PDFium uses GN and [its own direct-backend qualification](PDFIUM.md).
 
 ### Historical shared zune workspace inspection
 
@@ -281,12 +284,12 @@ execution; the declarations alone are not end-to-end qualification. If a
 different application workspace consumes zune-image as a dependency, **that
 application's** root profiles govern instead.
 
-`/workspace/pdfium-dev` is absent, so no PDFium GN/C++/Rust final configuration
-was inspected or qualified. Actual J2K integration/harness, GN/Rust/C++
-linkage where relevant, portable-CPU execution and end-to-end performance/
-memory remain residual acceptance items. Hosted observations do not cover
-every supported CPU. Build tuning alone is not an explanation for the large
-decoder gap. Keep #449 open until the real-consumer criteria are resolved.
+At the time of the historical inspection, `/workspace/pdfium-dev` was absent.
+The public handoff now supplies an independently pinned PDFium GN checkout;
+its acceptance/parity results are separate from the actual zune study.
+Hosted observations do not cover every supported CPU. Build tuning alone
+is not an explanation for the large decoder gap. Keep #449 open until its
+remaining direct-consumer criteria are resolved.
 
 See [RESULTS.md](RESULTS.md) for observed native results, all raw data and
 explicitly unmet actual-consumer acceptance. Derived analysis can be written

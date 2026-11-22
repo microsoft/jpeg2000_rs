@@ -67,6 +67,7 @@
     }
   ],
   "retention_policy": "Hosted artifacts have 30-day retention; run links alone do not retain downloads. Generated reports are not tracked source. Ordinary deletion does not erase prior Git history.",
-  "remaining_acceptance": "Actual zune J2K integration/comparison harness is missing despite an existing workspace; /workspace/pdfium-dev is absent. End-to-end and supported-CPU qualification remain open.",
+  "actual_consumer_followup": "actual-evidence.json",
+  "remaining_acceptance": "Actual zune study and bounded corpus acceptance completed separately; direct PDFium GN pixel/error qualification remains pending. This index preserves the historical standalone cohort.",
   "issue_must_remain_open": true
 }

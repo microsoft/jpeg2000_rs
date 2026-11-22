@@ -1,5 +1,10 @@
 # Native final-consumer results for #449
 
+This document preserves the **earlier standalone** study. The completed
+[actual zune adapter study](ZUNE_RESULTS.md) is separate: its qualified combined
+N2 gain is 6.75%, not the 2.78% standalone result below. PDFium qualification
+uses [its own GN study](PDFIUM.md). No observations are pooled.
+
 ## Scope and evidence
 
 [PR #450](https://github.com/microsoft/jpeg2000_rs/pull/450), manual
@@ -77,22 +82,22 @@ Decode-process peaks were 353.9 / 353.4 MiB; generic Hayro peaks were 38.0 /
 API footprints, **not** isolated or adapter-identical allocation peaks.
 Per-input, backend, configuration and round detail remains in external data.
 
-## Recommendation and remaining acceptance
+## Standalone recommendation and historical handoff
 
 Retain portable defaults. CPU tuning and CGU1 are not universal improvements;
 the small combined ARM gain does not improve EPYC or explain the large gap.
 ThinLTO can be tested for modest code-size benefits on the actual stripped
 consumer artifact, not assumed to produce a decode-speed gain.
 
-The actual zune workspace exists at `/workspace/zune-image/zune-image`, HEAD
+At the time of this standalone study, the shared zune workspace existed at `/workspace/zune-image/zune-image`, HEAD
 `13edc8d07f1572f149f83c59cf861211042c9874`. Its release profile declares debug=2;
 dist inherits release with ThinLTO. No workspace Cargo manifest has a JPEG
 2000/Hayro/JP2/J2K dependency/feature and benchmarks have no J2K entry.
 The missing item is **actual J2K integration/comparison harness**, not the
 workspace. See [root-profile propagation](README.md#actual-zune-workspace-inspected-not-j2k-integrated).
 Shared dirty changes were not edited/copied/published; no zune build was run.
-`/workspace/pdfium-dev` is absent. **Keep #449 open** for actual integration,
-final-link/output/performance/memory and supported-CPU qualification.
+`/workspace/pdfium-dev` was absent. Actual integration was therefore a
+remaining qualification item, subsequently unblocked by the public handoff.
 No decoder/default/release-policy change or merge is proposed.
 
 The [subsequent consumer handoff](https://github.com/microsoft/jpeg2000_rs/issues/449#issuecomment-7071726628)
@@ -101,9 +106,11 @@ Its exact sixteen historical input/reference hashes were reproduced with
 Python 3.12, Pillow 12.0.0 and OpenJPEG 2.5.4. Both locked generic consumers
 accept all eight inputs on native x86-64 and reproduce all four lossless source
 references; supplied adapter controls pass against published 0.2.2. This is
-smoke evidence, not a profile-speed claim. The new optional native integration
-matrix and the separate PDFium GN roll remain additional qualification work;
-the standalone measurements above are not substituted for them.
+smoke evidence, not a profile-speed claim. The completed optional native
+integration matrix and expanded acceptance are documented in
+[ZUNE_RESULTS.md](ZUNE_RESULTS.md); the standalone measurements above are not
+substituted for them. The separate PDFium GN study still requires its own
+pixel/error qualification.
 
 ## Raw-data access and retention
 

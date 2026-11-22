@@ -1,0 +1,85 @@
+{
+  "scope": "actual supplied zune adapter; PDFium parity remains separate and pending",
+  "issue": "https://github.com/microsoft/jpeg2000_rs/issues/449",
+  "pull_request": "https://github.com/microsoft/jpeg2000_rs/pull/450",
+  "handoff": "https://github.com/microsoft/jpeg2000_rs/issues/449#issuecomment-7071726628",
+  "measurement_commit": "6ccff3fd058569ff602519c3b064874bb903dea7",
+  "zune_pin": "fa80e24b17ff388ac850d6042bdca391f9913c4e",
+  "decoder_version": "0.2.2",
+  "decoder_source_anchor": "4989f9c680beeb7bad4fbfd441a93aa373d2ba4f",
+  "hayro_version": "0.3.5 scalar",
+  "rust": "1.93.1",
+  "native_matrix": {
+    "run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44970463577",
+    "cold_builds": 40,
+    "processes": 128,
+    "timed_decodes": 15360,
+    "historical_input_and_reference_hashes_reproduced": 16,
+    "rust_all_profiles_output_invariant": true,
+    "n2_combined_elapsed_reduction_percent": 6.7541,
+    "n2_combined_paired_block_bootstrap95_percent": [6.4603, 7.1601],
+    "x86_aggregate_speed_gain": false,
+    "hayro_x86_cpu_and_combined_qualified": false
+  },
+  "broader_acceptance": {
+    "run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44976887228",
+    "cases": 40,
+    "corpus_pin": "4989f9c680beeb7bad4fbfd441a93aa373d2ba4f",
+    "scope": "alternative immutable public decoder corpus, not unavailable handoff Hayro pin",
+    "n2_all_profiles_match_own_generic": true,
+    "x86_host": "AMD EPYC 7763 znver3",
+    "x86_supported_profiles_match_own_generic": ["generic", "thinlto", "cgu1"],
+    "x86_cpu_and_combined": "explicitly skipped: znver4-built CPU artifacts differ from acceptance host",
+    "rust_accepted_strict": 25,
+    "rust_accepted_lenient": 26,
+    "rust_panics_process_failures_timeouts": 0,
+    "hayro_accepted_strict": 29,
+    "hayro_accepted_lenient": 30,
+    "hayro_panics_per_mode": 2
+  },
+  "hosted_artifacts": [
+    {
+      "host": "AMD EPYC 9V74 znver4",
+      "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44970463577/artifacts/14734129739",
+      "github_reported_zip_sha256": "bba1a0925d4170cd1e4b48391ac4d87ec8c8ec83d53c49e7531c2b1b314c1490",
+      "expires_at": "2026-12-22T02:09:19Z"
+    },
+    {
+      "host": "Neoverse-N2",
+      "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44970463577/artifacts/14734313912",
+      "github_reported_zip_sha256": "5e2caa92b7caab1538b098e76ba9171e64a6304f7d13951dd5436b45edc2752d",
+      "expires_at": "2026-12-22T02:04:59Z"
+    },
+    {
+      "host": "AMD EPYC 7763 znver3 acceptance",
+      "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44976887228/artifacts/14735634247",
+      "github_reported_zip_sha256": "cfe145a8fc4997f5f293483709b23104bb8366454ebfec2083422e75a810cca9",
+      "expires_at": "2026-12-22T02:37:07Z"
+    },
+    {
+      "host": "Neoverse-N2 acceptance",
+      "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44976887228/artifacts/14735903731",
+      "github_reported_zip_sha256": "393a5c395bf592ec9da1253c27214cf25572086f17a6bcadf0107a5e873c3a43",
+      "expires_at": "2026-12-22T02:37:13Z"
+    }
+  ],
+  "local_preservation": {
+    "root": "/home/sergiog/.copilot/session-state/a689d42c-16cd-4089-bbc6-f20300bb6cc3/files/actual-consumer449-evidence",
+    "inventory": "preservation-manifest.json",
+    "checksums": "SHA256SUMS",
+    "checksums_sha256": "21bc78fda363b3e8993359953f29076ad7a06db1ea403482146b4f119d405b13",
+    "files": 12536,
+    "bytes": 3075341517,
+    "scope": "full zune/corpus artifacts plus strict PDFium run44973999987 with failed parity; not PDFium qualification",
+    "retention": "host-local, not indefinite; copy to owner-managed evidence store"
+  },
+  "pdfium": {
+    "pin": "ec9185e7d6b973d453f2fe6bf1d9eb9a1eb9ebc3",
+    "strict_observational_run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44973999987",
+    "strict_pixel_parity": false,
+    "diagnostic_strict_and_recovery_run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44977828206",
+    "qualification": "pending; no PDFium performance win claimed"
+  },
+  "portable_defaults_unchanged": true,
+  "issue_must_remain_open": true
+}
