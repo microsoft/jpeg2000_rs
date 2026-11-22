@@ -59,7 +59,9 @@ def roll_source_list(text, sources):
 def environment(root):
     env = os.environ.copy()
     env["PATH"] = str(root / "depot_tools") + os.pathsep + env["PATH"]
+    env["DEPOT_TOOLS_DIR"] = str(root / "depot_tools")
     env["DEPOT_TOOLS_UPDATE"] = "0"
+    env["DEPOT_TOOLS_BOOTSTRAP_PYTHON3"] = "1"
     for key in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "RUSTC_WRAPPER", "RUSTC_WORKSPACE_WRAPPER"):
         env.pop(key, None)
     return env
@@ -92,6 +94,7 @@ def prepare(root):
         "'checkout_rust': True, 'checkout_jpeg2000_decoder': True, "
         "'checkout_testing_corpus': True}}]\ntarget_os = ['linux']\n")
     env = environment(root)
+    checked([str(depot / "ensure_bootstrap")], cwd=root, env=env)
     checked(["gclient", "sync", "--nohooks", "--shallow"], cwd=root, env=env)
     upstream = pdfium / "third_party/jpeg2000_decoder/upstream"
     if capture(["git", "-C", str(upstream), "rev-parse", "HEAD"])["stdout"].strip() != DECODER_PIN:

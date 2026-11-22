@@ -1,9 +1,20 @@
 import unittest
+from pathlib import Path
+from unittest import mock
 
-from pdfium_integration import replace_exact, roll_bridge, roll_source_list
+from pdfium_integration import environment, replace_exact, roll_bridge, roll_source_list
 
 
 class PdfiumIntegrationTests(unittest.TestCase):
+    def test_environment_bootstraps_only_the_pinned_owned_tools(self):
+        with mock.patch.dict("os.environ", {"DEPOT_TOOLS_DIR": "/another/checkout",
+                                          "DEPOT_TOOLS_UPDATE": "1", "RUSTFLAGS": "-Ctarget-cpu=native"}):
+            env = environment(Path("/owned/consumer"))
+        self.assertEqual(env["DEPOT_TOOLS_DIR"], "/owned/consumer/depot_tools")
+        self.assertEqual(env["DEPOT_TOOLS_UPDATE"], "0")
+        self.assertEqual(env["DEPOT_TOOLS_BOOTSTRAP_PYTHON3"], "1")
+        self.assertNotIn("RUSTFLAGS", env)
+
     def test_bridge_roll_only_adapts_required_public_getters(self):
         text = ("file.file_type.brand;file.file_type.brand;"
                 "match file.header.color.method;convert(&file.header.color);")

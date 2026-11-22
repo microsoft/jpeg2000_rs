@@ -10,6 +10,8 @@ their public getters. Decoder source is not modified.
 
 Use a fresh directory outside an existing Cargo/PDFium workspace. The pinned
 depot_tools is `96a7c1418eedaa6bea333a8941e8a0078681b4d0`; auto-update is disabled.
+Its supported `ensure_bootstrap` initializes the owned Python/CIPD helpers
+without updating that source checkout; inherited depot_tools roots are not used.
 The minimal checkout still explicitly includes Rust, the decoder and matched
 testing corpus. At least 12 GiB is required; never free space by deleting
 shared user data.
