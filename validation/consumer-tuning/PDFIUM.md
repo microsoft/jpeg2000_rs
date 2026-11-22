@@ -6,9 +6,13 @@ Its original dependency is `89a85673266d204937025399ee921286dbce9c12`, not 0.2.2
 The driver explicitly rolls DEPS to published source anchor
 `4989f9c680beeb7bad4fbfd441a93aa373d2ba4f`, regenerates the GN source list from
 that actual checkout, and adapts the bridge's now-private JP2 fields to
-their public getters. The supplied experimental bridge also omitted one
-space from the four-byte `jP  ` signature type; that detection bug is fixed.
+their public getters. The correct four-byte `jP  ` signature is validated
+against the raw pinned source, not inferred from HTML-rendered spacing.
 Decoder source is not modified.
+The owned experimental consumer retains failure-only release diagnostics for
+inspection/decode and rejected pixel layouts; successful rendering is not logged
+or timed differently. These expose adapter failures instead of hiding them
+behind the original debug-only logger.
 
 Use a fresh directory outside an existing Cargo/PDFium workspace. The pinned
 depot_tools is `96a7c1418eedaa6bea333a8941e8a0078681b4d0`; auto-update is disabled.

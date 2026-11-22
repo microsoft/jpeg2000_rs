@@ -48,7 +48,8 @@ def replace_exact(text, before, after, count):
 
 
 def roll_bridge(text):
-    text = replace_exact(text, r'jP \x0d\x0a\x87\x0a', r'jP  \x0d\x0a\x87\x0a', 1)
+    if text.count(r'jP  \x0d\x0a\x87\x0a') != 1:
+        raise ValueError("pinned bridge JP2 signature changed")
     text = replace_exact(text, "file.file_type.brand", "file.file_type().brand", 2)
     text = replace_exact(text, "file.header.color.method", "file.header().color.method()", 1)
     return replace_exact(text, "&file.header.color", "&file.header().color", 1)
@@ -110,7 +111,15 @@ def prepare(root):
     if capture(["git", "-C", str(upstream), "rev-parse", "HEAD"])["stdout"].strip() != DECODER_PIN:
         raise ValueError("PDFium did not resolve the published0.2.2 source anchor")
     bridge = pdfium / "core/fxcodec/jpx/rust_jpx_ffi.rs"
-    bridge.write_text(roll_bridge(bridge.read_text()))
+    text = roll_bridge(bridge.read_text())
+    text = replace_exact(text, "            return false;\n        }\n        let dest = &mut dest[..output_size];",
+                         '            eprintln!("Rust JPX pixel layout rejected: {width}x{height} channels={channels} count={count} pitch={pitch} dest={} pixels={}", dest.len(), self.pixels.len());\n'
+                         "            return false;\n        }\n        let dest = &mut dest[..output_size];", 1)
+    bridge.write_text(text)
+    logger = pdfium / "core/fxcodec/jpx/rust_jpx_decoder.cpp"
+    text = replace_exact(logger.read_text(), "#if !defined(NDEBUG)\n", "", 1)
+    logger.write_text(replace_exact(text, "          std::string(error).c_str());\n#endif",
+                                    "          std::string(error).c_str());", 1))
     gn = pdfium / "third_party/jpeg2000_decoder/BUILD.gn"
     sources = [p.relative_to(upstream.parent).as_posix() for p in (upstream / "src").rglob("*.rs")]
     gn.write_text(roll_source_list(gn.read_text(), sources))

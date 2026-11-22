@@ -33,7 +33,7 @@ class PdfiumIntegrationTests(unittest.TestCase):
     def test_bridge_roll_only_adapts_required_public_getters(self):
         text = ("file.file_type.brand;file.file_type.brand;"
                 "match file.header.color.method;convert(&file.header.color);"
-                r'src.starts_with(b"\x00\x00\x00\x0cjP \x0d\x0a\x87\x0a")')
+                r'src.starts_with(b"\x00\x00\x00\x0cjP  \x0d\x0a\x87\x0a")')
         changed = roll_bridge(text)
         self.assertEqual(changed.count("file.file_type().brand"), 2)
         self.assertIn("file.header().color.method()", changed)
