@@ -210,9 +210,9 @@ pub(crate) proof fn part2_wavelet_rows_child_error(low:Part1WaveletBand,high:Par
 pub(crate) proof fn part2_wavelet_columns_child_error(low:Part1WaveletBand,high:Part1WaveletBand,height:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,length:usize,x:nat,previous:Seq<i64>,error:crate::DecodeError)
     requires x<low.0,part2_wavelet_column_result(low,high,x as u32,first,irreversible,kernel,Err(error)),
         (match kernel{None=>part1_vertical_prefix(low,high,height,first,irreversible,length,x),Some(kernel)=>part2_atk_vertical_prefix(low,high,height,first,kernel,length,x)})==Ok(previous),
-    ensures part2_wavelet_columns_result(low,high,height,first,irreversible,kernel,length,Err(error)),
+    ensures part2_wavelet_scalar_columns_result(low,high,height,first,irreversible,kernel,length,Err(error)),
 {
-    reveal(part2_wavelet_columns_run);reveal(part2_wavelet_vertical_lines_run);
+    reveal(part2_wavelet_scalar_columns_run);reveal(part2_wavelet_vertical_lines_run);
     part2_tier1_storage_eta(|calls|part2_wavelet_column_run(low,high,x as u32,first,irreversible,kernel,calls),Err(error));
     part2_tier1_storage_bind_frame(|calls|part2_wavelet_column_run(low,high,x as u32,first,irreversible,kernel,calls),
         |column:Seq<i64>,rest|{let stored=part1_store_column_prefix(previous,low.0,x as u32,column,height as nat);Some((match stored.0{Err(error)=>Err(error),Ok(())=>Ok(stored.1)},rest))},Err(error),Err(error));
