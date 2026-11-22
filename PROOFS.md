@@ -124,6 +124,10 @@ plain/cold tile-run programs retain unique-coordinate suppression, packet/body
 and packed-header accounting, first errors and exact storage tails. Completion
 still requires the existing whole-tile seen/accounting checks; no partial byte
 or entropy result is promoted to a complete image.
+The unchanged compact scheduled-pass proof uses the existing independent-query
+annotation to stay within the same verifier budget after the metadata theory
+expands. Its runtime, contracts and storage program are unchanged; this is not
+a budget increase, additional assumption or verification exclusion.
 
 ### Allocation-aware reversible vertical traversal
 
