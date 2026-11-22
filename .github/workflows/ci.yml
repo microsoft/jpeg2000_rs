@@ -120,13 +120,13 @@ jobs:
       - name: Prepare only the supplied clean integration
         run: |
           python3 validation/consumer-tuning/zune_integration.py prepare \
-            --work-root target/consumer-integration/work
+            --work-root "$RUNNER_TEMP/zune-consumer"
       - name: Qualify actual final consuming builds
         env:
           PAIRS: ${{ inputs.consumer_benchmark_pairs }}
         run: |
           python3 validation/consumer-tuning/zune_integration.py run \
-            --work-root target/consumer-integration/work \
+            --work-root "$RUNNER_TEMP/zune-consumer" \
             --fixtures target/consumer-integration/fixtures \
             --output target/consumer-integration/results --pairs "$PAIRS"
       - name: Preserve actual-consumer build, pixel and timing evidence
