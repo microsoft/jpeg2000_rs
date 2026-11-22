@@ -7192,7 +7192,7 @@ _LEGACY_SNAPSHOT_NATIVE_ORDER = {
         "if let Err(error)=segment.append(input,replay_passes)", "if had_segment", "self.legacy_segment=Some(segment)",
         "part2_legacy_replay_append_error(", "return Err(error)",
         "self.restore_legacy_segment(&segment)", "part2_legacy_replay_restored(", "restored?",
-        "self.decode_legacy_segment(&segment.input,segment.passes,limits)", "part2_legacy_replay_segment_observed(", "decoded?", "self.commit_legacy_replay(segment)",
+        "self.decode_legacy_segment_with_compact(&segment.input,segment.passes,limits,false)", "part2_legacy_replay_segment_observed(", "decoded?", "self.commit_legacy_replay(segment)",
     ),
     ("src/packet/body.rs", "decode_legacy_code_block_segment"): (
         "contribution.segment(*segment_index)?", "usize::try_from(segment.data_length)", "checked_add(segment_length)", "if end>body.len()",
@@ -7266,12 +7266,23 @@ _BITPLANE_INITIAL_NATIVE_ORDER = {
         "self.bitplane_state=Some(constructed?)", "part2_legacy_ensure_present(",
     ),
     ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_legacy_segment"): (
+        "self.decode_legacy_segment_with_compact(input,pass_count,limits,true)",
+    ),
+    ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_legacy_segment_with_compact"): (
         "self.validate_legacy_segment(input,pass_count,limits)", "admitted?", "self.style.pass_plan(self.next_pass).coding_mode",
         "crate::mq::mq_from_input(", "constructed?", "initialize_tier1_contexts(", "self.reset_contexts_before_mq=false",
-        "self.decode_mq_segment_passes(", "part2_legacy_segment_observed(", "part2_legacy_segment_finish_equation(",
+        "self.decode_selected_mq_segment_passes(&mut decoder,pass_count,limits,compact_allowed,)",
+        "compact_segment_observed(", "part2_legacy_segment_finish_equation(",
         "part2_legacy_segment_primary_consequence(", "statistics=decoded?", "decoder.validate_predictable_termination()?",
         "self.mq_context_state=Some(decoder.context_state())", "raw_reader_from_input(", "self.decode_raw_segment_passes(",
         "reader.validate_predictable_termination()?", "self.commit_legacy_segment(input.len(),pass_count,statistics)",
+    ),
+    ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_selected_mq_segment_passes"): (
+        "if compact_allowed", "self.try_compact_legacy(decoder,pass_count,limits)",
+        "Some(result)=>result",
+        "None=>self.decode_mq_segment_passes(decoder,pass_count)",
+        "else{self.decode_mq_segment_passes(decoder,pass_count)}",
+        "compact_selected_inner_observed(", "decoded",
     ),
 }
 _PREPARE_WORKING_MODELS = {("specs/cold_prepare_copies.rs", name) for name in (
@@ -17248,6 +17259,7 @@ def validate_normative_coverage(
                 ("src/tier1/ht_refinement.rs", "copy_ht_refinement_bytes"): "ht_byte_vector_outcome",
                 ("src/tier1/state.rs", "code_block_plane_from_dimensions"): "code_block_plane_outcome",
                 ("src/tier1/state.rs", "coefficient_from_magnitude"): "coefficient_raw_outcome",
+                ("src/tier1/compact_legacy.rs", "unpack_word"): "super::coefficient_raw_view",
                 ("src/tier1/state.rs", "coefficient"): "coefficient_raw_outcome",
                 ("src/tier1/state.rs", "signed_magnitude"): "coefficient_signed_outcome",
                 ("src/tier1/state.rs", "coefficients"): "coefficient_slice_view",
@@ -17323,6 +17335,11 @@ def validate_normative_coverage(
                 ("src/tier1/legacy_passes.rs", "merge"): "tier1_statistics_merge",
                 ("src/tier1/state.rs", "code_block_plane_from_dimensions"): "tier1_empty_plane",
                 ("src/tier1/state.rs", "coefficient_from_magnitude"): "tier1_coefficient_new_outcome",
+                ("src/tier1/compact_legacy.rs", "unpack_word"): "compact_coefficient",
+                ("src/tier1/compact_legacy.rs", "mark_word"): "compact_mark_word",
+                ("src/tier1/compact_legacy.rs", "cache_word"): "compact_add_neighbor",
+                ("src/tier1/compact_legacy.rs", "refine_word"): "compact_refine_word",
+                ("src/tier1/compact_legacy.rs", "word_flag_summary"): "compact_flag_summary",
                 ("src/tier1/ht_cleanup.rs", "complete_ht_kappa"): "ht_complete_kappa",
                 ("src/tier1/state.rs", "ht_statistics_zero"): "tier1_statistics_zero",
                 ("src/tier1/state.rs", "width"): "tier1_raw_plane_width",
@@ -18265,6 +18282,125 @@ def validate_normative_coverage(
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact e-sRGB ordinary/storage projection")
                 scalar_result = normal
                 expected_result_model = model
+            compact_boundary = {
+                "new_compact_plane": (
+                    "compact_initial_result",
+                    r"width\s*,\s*height\s*,\s*" + _coverage_call("compact_plane_outcome", r"\1"),
+                    "requires 0<width<=4096,0<height<=4096,width*height<=4096,",
+                    None,
+                ),
+                "CompactPlane::initial_state": (
+                    "part2_bitplane_initial_result",
+                    _coverage_call("self.view") + r"\s*,\s*bp\s*,\s*"
+                    + _coverage_call("super::legacy_bitplane_outcome", r"\1"),
+                    "requires self.shape(),bp<31,",
+                    None,
+                ),
+                "CompactPlane::commit": (
+                    "compact_bulk_commit",
+                    _coverage_call("super::code_block_plane_view", _coverage_call("old", "wide")) + r"\s*,\s*self\.entries@",
+                    "requires self.shape(),wide.width==self.width,wide.height==self.height,wide.coefficients.len()==self.entries.len(),",
+                    _coverage_call("super::code_block_plane_view", _coverage_call("final", "wide")),
+                ),
+                "Tier1CodeBlockDecoder::compact_eligible": (
+                    "compact_eligible",
+                    _coverage_call("super::tier1_decoder_state", "self") + r"\s*,\s*passes\s*,\s*decoded\s*,\s*wide_bytes",
+                    "",
+                    "",
+                ),
+            }.get(reference["symbol"]) if reference["path"] == "src/tier1/compact_legacy.rs" else None
+            if compact_boundary is not None:
+                model, arguments, required_precondition, state_projection = compact_boundary
+                compact_prefix = re.search(r"\bverus_spec\(\s*\w+\s*=>\s*(.*?)\bensures\b", contract, re.S)
+                if state_projection is None:
+                    pattern = (named_prefix + r"crate::specs::(?P<model>" + re.escape(model)
+                               + r")\s*\(\s*" + arguments + r"\s*,?\s*\)")
+                elif state_projection:
+                    pattern = (named_prefix + r"(?P<state>\(\s*\(\s*\)\s*,\s*" + state_projection + r"\s*\))"
+                               + r"\s*==\s*crate::specs::(?P<model>" + re.escape(model)
+                               + r")\s*\(\s*" + arguments + r"\s*,?\s*\)")
+                else:
+                    pattern = (named_prefix + r"\1\s*==\s*crate::specs::(?P<model>" + re.escape(model)
+                               + r")\s*\(\s*" + arguments + r"\s*,?\s*\)")
+                relation = re.search(pattern, contract, re.S)
+                if (relation is None or compact_prefix is None
+                        or "".join(compact_prefix[1].split()) != "".join(required_precondition.split())):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact compact owner/input frame")
+                if state_projection:
+                    state_result = relation
+                else:
+                    scalar_result = relation
+                expected_result_model = model
+                if reference["symbol"] == "CompactPlane::initial_state" and not _coverage_extraction_normal_arguments(
+                        contract, "super::legacy_bitplane_outcome", "part1_legacy_bitplane_initial",
+                        _coverage_call("self.view") + r"\s*,\s*bp"):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing ordinary bitplane construction")
+                native_order = {
+                    "new_compact_plane": (
+                        "let count = width * height;", "crate::allocation::empty_with_capacity(count)",
+                        "let mut entries = allocated?;", "entries.resize(count, EMPTY);",
+                    ),
+                    "CompactPlane::initial_state": (
+                        "crate::allocation::empty_with_capacity(self.entries.len())",
+                        "let mut significant_before = allocated?;",
+                        "significant_before.push(self.entries[index] & SIG != 0);",
+                        "crate::allocation::filled_values(false, self.entries.len())",
+                    ),
+                    "CompactPlane::commit": (
+                        "while index < self.entries.len()", "wide.coefficients[index] = unpack_word(self.entries[index]);",
+                    ),
+                }.get(reference["symbol"], ())
+                native_body = _coverage_function_body(text, function_header(path, reference["symbol"]))
+                compact_body = "".join(native_body.split()) if native_body is not None else ""
+                position = 0
+                for fragment in native_order:
+                    token = "".join(fragment.split())
+                    found = compact_body.find(token, position)
+                    if found < 0:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid compact producer/request/commit order")
+                    position = found + len(token)
+                if reference["symbol"] in ("new_compact_plane", "CompactPlane::initial_state"):
+                    if len(re.findall(r"\bempty_with_capacity\s*\(", native_body or "")) != 1:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; compact owner requires one original reservation")
+                if reference["symbol"] == "CompactPlane::initial_state" and len(re.findall(
+                        r"\bfilled_values\s*\(", native_body or "")) != 1:
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; compact bitplane requires its separate visited owner")
+                if reference["symbol"] == "CompactPlane::commit" and "->" in text[signature:body_start]:
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; compact commit requires its actual unit return")
+                if reference["symbol"] in ("new_compact_plane", "CompactPlane::commit"):
+                    owner_models = {
+                        "compact_capacity_run": (
+                            "specs/cold_compact_legacy.rs",
+                            "let count=width as nat*height as nat;"
+                            "if count==0{Some((Ok(()),calls))}else if calls.len()==0{None}else{match calls[0]{"
+                            "Part2Tier1StorageEvent::CompactInitialCapacity {width:actual_width,height:actual_height,elements,succeeded}=>"
+                            "if actual_width!=width || actual_height!=height || elements!=count{None}"
+                            "else{Some((if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))},"
+                            "_=>None,}}",
+                        ),
+                        "compact_initial_run": (
+                            "specs/cold_compact_legacy.rs",
+                            "part2_tier1_storage_bind(compact_capacity_run(width,height,calls),"
+                            "|_:(),rest|Some((Ok((width,height,Seq::new(width as nat*height as nat,"
+                            "|_:int|0x3f_0000_0000u64))),rest)))",
+                        ),
+                        "compact_initial_result": (
+                            "specs/cold_compact_legacy.rs",
+                            "part2_tier1_storage_framed(|calls|compact_initial_run(width,height,calls),result)",
+                        ),
+                        "compact_bulk_commit": (
+                            "specs/compact_legacy.rs",
+                            "((),Tier1RawPlane {coefficients:words.map_values(|word:u64|compact_coefficient(word)),..before})",
+                        ),
+                    }
+                    for owner_model, (relative, expected_body) in owner_models.items():
+                        model_body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), owner_model)
+                        if model_body is None or "".join(model_body.split()) != "".join(expected_body.split()):
+                            raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact compact owner program")
+                    projection_body = _coverage_spec_function_body(text, "compact_plane_outcome")
+                    if projection_body is None or "".join(projection_body.split()) != (
+                            "match result{Err(error)=>Err(error),Ok(plane)=>Ok((plane.width,plane.height,plane.entries@)),}").replace(" ", ""):
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; incomplete physical compact-owner projection")
             recovery_relations = (
                 _RAW_RECOVERY_RELATIONS if entry["id"] == _RAW_RECOVERY_ENTRY
                 else _RECONSTRUCTED_RECOVERY_RELATIONS if entry["id"] == _RECONSTRUCTED_RECOVERY_ENTRY
@@ -18738,6 +18874,25 @@ def validate_normative_coverage(
                     + re.escape(statistic_arguments[1]),
                 )
             )
+            compact_word_contract = {
+                "unpack_word": ("compact_coefficient", r"value", ""),
+                "mark_word": ("compact_mark_word", r"value\s*,\s*bp\s*,\s*negative", "requires bp<31,"),
+                "cache_word": ("compact_add_neighbor", r"value\s*,\s*direction\s*,\s*negative", "requires direction<8,"),
+                "refine_word": (
+                    "compact_refine_word", r"value\s*,\s*bp\s*,\s*bit",
+                    "requires bp<31,value & MAG<1u64<<31,value & (((1u64<<((bp+1) as u16))-1) as u64)==0,",
+                ),
+                "word_flag_summary": ("compact_flag_summary", r"sig\s*,\s*neg", ""),
+            }.get(short) if reference["path"] == "src/tier1/compact_legacy.rs" else None
+            compact_word_arguments_bound = True
+            if compact_word_contract is not None:
+                compact_model, compact_inputs, compact_requires = compact_word_contract
+                compact_prefix = re.search(r"\bverus_spec\(\s*\w+\s*=>\s*(.*?)\bensures\b", contract, re.S)
+                compact_word_arguments_bound = (
+                    compact_prefix is not None
+                    and "".join(compact_prefix[1].split()) == "".join(compact_requires.split())
+                    and _coverage_result_arguments(contract, named_result, compact_model, compact_inputs)
+                )
             if ("verus_spec(" not in contract
                     or (mutating and (state_result is None or not complete_state))
                     or not metadata_arguments_bound
@@ -18751,6 +18906,7 @@ def validate_normative_coverage(
                     or not selection_arguments_bound
                     or not header_arguments_bound
                     or not statistic_arguments_bound
+                    or not compact_word_arguments_bound
                     or (expected_result_model is not None
                         and (named_result is None or named_result["model"] != expected_result_model))
                     or not ("ensures returns" in contract

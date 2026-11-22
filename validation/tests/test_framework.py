@@ -318,6 +318,121 @@ class FrameworkTests(WorkingFiles):
             ("== crate::specs::part2_owned_layer_input(", "== crate::specs::unlisted_model("),
         ))
 
+    def test_inventory_binds_compact_word_result_projection_and_actual_input(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part1-unqualified-compact-legacy-prototype"
+        ]
+        coverage["requirements"][0]["contract_refs"] = [{
+            "path": "src/tier1/compact_legacy.rs", "symbol": "unpack_word",
+        }]
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        self._assert_contract_text_mutations(coverage, (
+            ("super::coefficient_raw_view(result)", "super::coefficient_raw_view(unrelated)"),
+            ("crate::specs::compact_coefficient(value)", "crate::specs::compact_coefficient(0)"),
+            ("crate::specs::compact_coefficient(value)", "crate::specs::compact_flag_summary(value)"),
+            ("ensures super::coefficient_raw_view", "requires false, ensures super::coefficient_raw_view"),
+        ))
+
+    def test_inventory_binds_compact_word_bounds_and_all_coded_arguments(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part1-unqualified-compact-legacy-prototype"
+        ]
+        words = {"unpack_word", "mark_word", "cache_word", "refine_word", "word_flag_summary"}
+        coverage["requirements"][0]["contract_refs"] = [
+            ref for ref in coverage["requirements"][0]["contract_refs"] if ref["symbol"] in words
+        ]
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        self._assert_contract_text_mutations(coverage, (
+            ("compact_mark_word(value,bp,negative)", "compact_mark_word(value,0,negative)"),
+            ("requires bp<31,", "requires false,"),
+            ("compact_add_neighbor(value,direction,negative)", "compact_add_neighbor(value,direction,false)"),
+            ("requires direction<8,", "requires direction<9,"),
+            ("compact_refine_word(value,bp,bit)", "compact_refine_word(value,bp,!bit)"),
+            ("value & MAG<1u64<<31", "value & MAG<1u64<<32"),
+            ("compact_flag_summary(sig,neg)", "compact_flag_summary(neg,sig)"),
+        ))
+
+    def test_inventory_binds_all_compact_owner_and_function_results(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part1-unqualified-compact-legacy-prototype"
+        ]
+        result = framework.validate_normative_coverage(coverage)
+        self.assertEqual(result["referenced_contract_functions"], 9)
+        self._assert_contract_text_mutations(coverage, (
+            ("compact_plane_outcome(result)", "compact_plane_outcome(unrelated)"),
+            ("compact_initial_result(width,height", "compact_initial_result(height,width"),
+            ("requires 0<width<=4096,", "requires 0<width<=8192,"),
+            ("super::code_block_plane_view(final(wide))", "super::code_block_plane_view(old(wide))"),
+            ("super::code_block_plane_view(old(wide)),self.entries@", "super::code_block_plane_view(old(wide)),seq![]"),
+            ("self.view(),bp,super::legacy_bitplane_outcome(result)", "self.view(),0,super::legacy_bitplane_outcome(result)"),
+            ("super::legacy_bitplane_outcome(result)!=Err(DecodeError::AllocationFailed)",
+             "super::legacy_bitplane_outcome(result)==Err(DecodeError::AllocationFailed)"),
+            ("super::tier1_decoder_state(self),passes,decoded,wide_bytes",
+             "super::tier1_decoder_state(self),passes,0,wide_bytes"),
+        ))
+
+    def test_inventory_rejects_compact_phantom_capacity_and_incomplete_owners(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part1-unqualified-compact-legacy-prototype"
+        ]
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        read_text = Path.read_text
+        mutations = (
+            ("src/tier1/compact_legacy.rs", "crate::allocation::empty_with_capacity(count)",
+             "crate::allocation::empty_with_capacity(count+1)"),
+            ("src/tier1/compact_legacy.rs", "crate::allocation::filled_values(false, self.entries.len())",
+             "crate::allocation::filled_values(false, self.entries.len()+1)"),
+            ("src/tier1/compact_legacy.rs", "Ok((plane.width,plane.height,plane.entries@))",
+             "Ok((plane.width,plane.height,Seq::empty()))"),
+            ("specs/cold_compact_legacy.rs", "let count=width as nat*height as nat;",
+             "let count=width as nat*height as nat+1;"),
+            ("specs/cold_compact_legacy.rs", "calls.drop_first()", "Seq::empty()"),
+        )
+        for relative, before, after in mutations:
+            source = (framework.ROOT / relative).resolve()
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, after=after), mock.patch.object(
+                    Path, "read_text", altered), self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
+                framework.validate_normative_coverage(coverage)
+
+    def test_inventory_rejects_changed_selected_compact_dispatch(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        source = (framework.ROOT / "src/tier1/legacy_segments.rs").resolve()
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("                compact_allowed,\n", "                false,\n"),
+            ("self.try_compact_legacy(decoder, pass_count, limits)",
+             "self.try_compact_legacy(decoder, 1, limits)"),
+            ("Some(result) => result,",
+             "Some(_) => self.decode_mq_segment_passes(decoder, pass_count),"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(after=after), mock.patch.object(
+                    Path, "read_text", altered), self.assertRaisesRegex(
+                        ValueError, "initial bitplane storage"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_checks_each_complete_frame_stage_result_projection(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [
@@ -9887,6 +10002,9 @@ class FrameworkTests(WorkingFiles):
             ("src/tier1/contributions.rs", "LegacySegmentState::append", "extended?", "let ignored = extended"),
             ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay", "self.legacy_segment = Some(segment)", "self.legacy_segment = None"),
             ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay", "restored?", "let ignored = restored"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay",
+             "self.decode_legacy_segment_with_compact(&segment.input, segment.passes, limits, false)",
+             "self.decode_legacy_segment_with_compact(&segment.input, segment.passes, limits, true)"),
             ("src/packet/body.rs", "decode_legacy_code_block_segment", "decoded?", "let ignored = decoded"),
         )
         for relative, symbol, before, after in cases:
@@ -9938,6 +10056,11 @@ class FrameworkTests(WorkingFiles):
             ("src/tier1/legacy_passes.rs", "legacy_bitplane_from_plane", "filled_values(false, significant_before.len())", "filled_values(true, significant_before.len())"),
             ("src/tier1/legacy_passes.rs", "legacy_bitplane_from_plane", "Some(significant_before@)", "Some(Seq::empty())"),
             ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::ensure_bitplane_state", "self.bitplane_state = Some(constructed?)", "self.bitplane_state = None"),
+            ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_legacy_segment",
+             "self.decode_legacy_segment_with_compact(input, pass_count, limits, true)",
+             "self.decode_legacy_segment_with_compact(input, pass_count, limits, false)"),
+            ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_selected_mq_segment_passes",
+             "if compact_allowed", "if false"),
         )
         for relative, symbol, before, after in cases:
             source = framework.ROOT / relative
