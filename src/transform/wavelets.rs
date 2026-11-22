@@ -276,6 +276,40 @@ fn inverse_lifting_value(
     } else {
         samples[index - 1]
     };
+    inverse_lifting_neighbors(samples[index], left, right, step)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part1_lifting_sample(
+        seq![left, current, right], 1, false, lifting_step_view(step).0, lifting_step_view(step).1,
+    ),
+))]
+#[inline]
+pub(super) fn inverse_lifting_neighbors(
+    current: i64,
+    left: i64,
+    right: i64,
+    step: InverseLiftingStep,
+) -> Result<i64, DecodeError> {
+    if matches!(step, InverseLiftingStep::ReversibleUpdate)
+        || matches!(step, InverseLiftingStep::ReversiblePredict)
+    {
+        let predict = matches!(step, InverseLiftingStep::ReversiblePredict);
+        let bound = if predict {
+            2_147_483_648
+        } else {
+            1_073_741_824
+        };
+        if current >= -bound
+            && current <= bound
+            && left >= -bound
+            && left <= bound
+            && right >= -bound
+            && right <= bound
+        {
+            return Ok(inverse_reversible_bounded(current, left, right, predict));
+        }
+    }
     let sum = left.checked_add(right).ok_or_else(arithmetic_overflow)?;
     let adjustment = match step {
         InverseLiftingStep::Fixed(coefficient) => fixed_mul(sum, coefficient)?,
@@ -286,13 +320,37 @@ fn inverse_lifting_value(
         InverseLiftingStep::ReversiblePredict => crate::refinement::five_three_predict(sum),
     };
     if matches!(step, InverseLiftingStep::ReversiblePredict) {
-        samples[index]
+        current
             .checked_add(adjustment)
             .ok_or_else(arithmetic_overflow)
     } else {
-        samples[index]
+        current
             .checked_sub(adjustment)
             .ok_or_else(arithmetic_overflow)
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires
+        -(if predict{2147483648int}else{1073741824int})<=current<=if predict{2147483648int}else{1073741824int},
+        -(if predict{2147483648int}else{1073741824int})<=left<=if predict{2147483648int}else{1073741824int},
+        -(if predict{2147483648int}else{1073741824int})<=right<=if predict{2147483648int}else{1073741824int},
+    ensures crate::specs::rowwise_neighbors(current,left,right,predict)==Ok(result),
+))]
+#[inline]
+pub(super) fn inverse_reversible_bounded(
+    current: i64,
+    left: i64,
+    right: i64,
+    predict: bool,
+) -> i64 {
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::rowwise_neighbors_bounded(current,left,right,predict);}
+    let sum = left + right;
+    if predict {
+        current + crate::refinement::five_three_predict(sum)
+    } else {
+        current - crate::refinement::five_three_update(sum + 2)
     }
 }
 
@@ -348,7 +406,8 @@ pub(super) fn scale_parity(
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part1_fixed_product(value, factor),
 ))]
-fn fixed_mul(value: i64, factor: i64) -> Result<i64, DecodeError> {
+#[inline]
+pub(super) fn fixed_mul(value: i64, factor: i64) -> Result<i64, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { assert(FIXED_ONE == 65536) by(compute); }
     // Two signed 32-bit operands leave room for the Q16 rounding bias.

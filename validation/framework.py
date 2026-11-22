@@ -294,6 +294,15 @@ def _coverage_spec_function_body(text: str, symbol: str) -> str | None:
     return _coverage_function_body(text, headers[0]) if len(headers) == 1 else None
 
 
+def _coverage_proof_function_body(text: str, symbol: str) -> str | None:
+    """Read a unique formatted proof body without accepting a spec substitute."""
+    headers = list(re.finditer(
+        r"(?m)^([ \t]*)pub(?:\((?:crate|super)\))?[ \t]+proof[ \t]+fn[ \t]+"
+        + re.escape(symbol) + r"\b", text,
+    ))
+    return _coverage_function_body(text, headers[0]) if len(headers) == 1 else None
+
+
 def _coverage_same_file_call(
     text: str, caller: str, callee: str, *, distinct_file: bool = False, module_scope: bool = False,
 ) -> bool:
@@ -8452,8 +8461,35 @@ _WAVELET_PLANE_GUARDS = {
         "part2_wavelet_horizontal_lines_run(low,high,first,irreversible,kernel,low.1 as nat,rest)",
     ),
     ("specs/cold_wavelet_planes.rs", "part2_wavelet_columns_run"): (
+        "!irreversible && kernel.is_none() && rowwise_eligible(low,high,height,first,length)",
+        "rowwise_run(low,high,height,first,length,calls)",
+        "irreversible && kernel.is_none() && height>1 && rowwise_eligible(low,high,height,first,length)",
+        "rowwise_fixed_run(low,high,height,first,length,calls)",
+        "part2_wavelet_scalar_columns_run(low,high,height,first,irreversible,kernel,length,calls)",
+    ),
+    ("specs/cold_wavelet_planes.rs", "part2_wavelet_scalar_columns_run"): (
         "Part2WaveletPlaneOwner::Columns,length as nat,calls",
         "part2_wavelet_vertical_lines_run(low,high,height,first,irreversible,kernel,length,low.0 as nat,rest)",
+    ),
+    ("specs/rowwise_wavelet.rs", "rowwise_run"): (
+        "Part2WaveletPlaneOwner::Columns,length as nat,calls",
+        "Some((Ok(rowwise_output(low,high,height,first)),rest))",
+    ),
+    ("specs/rowwise_fixed_wavelet.rs", "rowwise_fixed_run"): (
+        "Part2WaveletPlaneOwner::Columns,length as nat,calls",
+        "Some((Ok(rowwise_fixed_output(low,high,height,first)),rest))",
+    ),
+    ("specs/rowwise_fixed_wavelet.rs", "rowwise_fixed_output"): (
+        "rowwise_interleaved(low,high,height,first)",
+        "rowwise_scaled(samples,low.0 as nat,first,part1_nine_seven_scale(true))",
+        "rowwise_scaled(a,low.0 as nat,!first,part1_nine_seven_scale(false))",
+        "rowwise_fixed_lifts(b,low.0 as nat,height as nat,first,4)",
+    ),
+    ("specs/rowwise_wavelet.rs", "rowwise_eligible"): (
+        "low.0>=2 && height>0", "low.0==high.0", "low.1==part1_low_count(height,first)",
+        "high.1==height-low.1", "low.2.len()+high.2.len()==length",
+        "low.0 as int*height as int==length", "low.0 as int*low.1 as int==low.2.len()",
+        "rowwise_bounded(low.2) && rowwise_bounded(high.2)",
     ),
     ("specs/cold_wavelet_planes.rs", "part2_wavelet_level_rows_run"): (
         "part1_transform_area(level.4,level.0.1)", "part2_wavelet_rows_run(level.0,level.1,level.6,irreversible,kernel,capacity,calls)",
@@ -8482,8 +8518,29 @@ _WAVELET_PLANE_NATIVE_ORDER = {
         "inverse_row_pair(", "samples.extend_from_slice(&row)",
     ),
     ("src/transform/levels.rs", "inverse_columns"): (
+        "!irreversible", "kernel.is_none()", "super::rowwise::eligible(",
+        "super::rowwise::inverse(", "if irreversible", "output_height > 1",
+        "super::rowwise::inverse_fixed(", "inverse_columns_scalar(",
+    ),
+    ("src/transform/levels.rs", "inverse_columns_scalar"): (
         "crate::allocation::zero_i64_values(output_len)", "let mut samples = allocated?",
         "inverse_column_pair(", "store_column(&mut samples",
+    ),
+    ("src/transform/rowwise.rs", "assemble"): (
+        "crate::allocation::empty_with_capacity(length)", "let mut output = allocated?",
+        "append_row(&mut output", "Ok(output)",
+    ),
+    ("src/transform/rowwise.rs", "inverse"): (
+        "assemble(low, high, height, first, length)", "let mut output = rows?",
+        "if height == 1", "output[x] >>= 1",
+        "lift_rows(&mut output, width, height as usize, first, false)?",
+        "lift_rows(&mut output, width, height as usize, !first, true)?",
+    ),
+    ("src/transform/rowwise/fixed.rs", "inverse"): (
+        "assemble(low, high, height, first, length)", "let mut output = rows?",
+        "scale_rows(&mut output, width, height as usize, first, true)?",
+        "scale_rows(&mut output, width, height as usize, !first, false)?",
+        "while stage < 4", "lift_rows(&mut output, width, height as usize, target, stage)?",
     ),
     ("src/transform/levels.rs", "inverse_level"): (
         "validate_level(level)?", "validate_output_size(output_len, limits)?", "let low_capacity = checked_area(",
@@ -8492,6 +8549,9 @@ _WAVELET_PLANE_NATIVE_ORDER = {
     ),
 }
 _WAVELET_PLANE_TESTS = {
+    ("src/transform/tests.rs", "rowwise_vertical_five_three_exact_boundaries_origins_and_single_output_owner"),
+    ("src/transform/tests.rs", "rowwise_vertical_fallback_keeps_scalar_refusal_and_error_order"),
+    ("src/transform/tests.rs", "rowwise_vertical_nine_seven_preserves_q16_stages_bounds_and_singleton_fallback"),
     ("src/transform/tests.rs", "wavelet_plane_storage_standard_level_first_later_owners_exact_reference_and_restore"),
     ("src/transform/tests.rs", "wavelet_plane_storage_empty_no_request_geometry_budget_and_numerical_error_order"),
     ("src/transform/tests.rs", "wavelet_plane_storage_actual_custom_kernel_level_rows_columns_and_restore"),
@@ -8668,7 +8728,13 @@ _QUANTIZATION_OUTPUT_NATIVE_ORDER = {
     ),
     ("src/decode/code_blocks.rs", "copy_code_block_samples"): ("let source = plane.samples()", "crate::allocation::copy_values(source)"),
     ("src/decode/reconstruction.rs", "place_prepare_block"): (
-        "let coefficients = collected?", "let quantized_result = inverse_quantize_magnitudes(", "let quantized = quantized_result?",
+        "let decoder = precinct.decoder(placement.decoder_index)?", "let plane = decoder.plane()",
+        "let destination = working", "let result = fused::place(",
+    ),
+    ("src/decode/reconstruction/fused.rs", "place"): (
+        "x.checked_add(width)", "if let Some(quantizer) = preflight(", "return write(",
+        "let collected = collect_prepare_coefficients(plane)", "let coefficients = collected?",
+        "let quantized_result = inverse_quantize_magnitudes(", "let quantized = quantized_result?",
         "quantized.fraction_bits()", "write_quantized_block(",
     ),
 }
@@ -11006,8 +11072,17 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
     ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run"): (
         "Err(error)=>Some((Ok((Err(error),working)),calls))",
         "Ok(None)=>Some((Ok((Ok(()),working)),calls))",
+        "part2_fused_placement_enabled(working,geometry,placement,plane,reversible,maximum)",
+        "part2_fused_place_run(working,geometry,placement,plane,reversible,maximum,calls)",
         "part2_tier1_storage_resume(part2_extraction_run(plane,true,calls)",
         "part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,result,rest)",
+    ),
+    ("specs/fused_reconstruction.rs", "part2_fused_place_run"): (
+        "Some((Ok(part1_prepare_place_plane(working,geometry,placement,plane,reversible,maximum)),calls))",
+    ),
+    ("specs/fused_reconstruction_storage.rs", "part2_fused_band_result"): (
+        "part2_extraction_place_result((seq![destination],0u64),seq![geometry],seq![seq![plane]],part2_fused_position(x,y),reversible,maximum,",
+        "(effect.0,(seq![effect.1],0u64))",
     ),
     ("specs/cold_extraction_reconstruction.rs", "part2_extraction_placements_next"): (
         "if effect.0.is_err(){Some((Ok(effect),calls))}",
@@ -11016,6 +11091,18 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
     ("specs/cold_decode_packets.rs", "part2_planned_decode_run"): (
         "part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
         "part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest)",
+    ),
+}
+_COEFFICIENT_EXTRACTION_PROOF_GUARDS = {
+    ("specs/fused_reconstruction_storage.rs", "part2_fused_run_lift"): (
+        "part2_extraction_run(plane,true,calls)",
+        "part2_quantization_plane_run(values,geometry.quantization_step.exponent,geometry.quantization_step.mantissa,",
+        "part2_fused_quantized_lift(working,geometry,placement,plane,reversible,quantized)",
+    ),
+    ("specs/fused_reconstruction_storage.rs", "part2_fused_allocation_lift"): (
+        "part2_tier1_storage_at(run,prefix,Ok(effect),tail)",
+        "part2_fused_run_lift(working,bands,precincts,placement,geometry,plane,reversible,maximum,prefix+tail)",
+        "prefix,Ok((Err(crate::DecodeError::AllocationFailed),working))",
     ),
 }
 _COEFFICIENT_EXTRACTION_NATIVE_ORDER = {
@@ -18952,11 +19039,15 @@ def validate_normative_coverage(
         if not _COEFFICIENT_EXTRACTION_TESTS.issubset({
                 (ref["path"], ref["symbol"]) for ref in coefficient_entry["test_refs"]}):
             raise ValueError("coefficient extraction requires bounded real raw/empty/refusal/restore/public controls")
-        for (relative, symbol), fragments in _COEFFICIENT_EXTRACTION_GUARDS.items():
-            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
-            compact = "".join(body.split()) if body is not None else ""
-            if any("".join(fragment.split()) not in compact for fragment in fragments):
-                raise ValueError("coefficient extraction requires actual raw count/role, numerical child, owner/error/tail composition")
+        for guards, reader in (
+            (_COEFFICIENT_EXTRACTION_GUARDS, _coverage_spec_function_body),
+            (_COEFFICIENT_EXTRACTION_PROOF_GUARDS, _coverage_proof_function_body),
+        ):
+            for (relative, symbol), fragments in guards.items():
+                body = reader(source_text((ROOT / relative).resolve()), symbol)
+                compact = "".join(body.split()) if body is not None else ""
+                if any("".join(fragment.split()) not in compact for fragment in fragments):
+                    raise ValueError("coefficient extraction requires actual raw count/role, numerical child, owner/error/tail composition")
         for (relative, symbol), fragments in _COEFFICIENT_EXTRACTION_NATIVE_ORDER.items():
             path = (ROOT / relative).resolve()
             body = _coverage_function_body(source_text(path), function_header(path, symbol))
