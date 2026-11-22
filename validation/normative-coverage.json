@@ -14469,6 +14469,100 @@
       ]
     },
     {
+      "id": "part1-unqualified-compact-legacy-prototype",
+      "topic": "Issue-447 compact legacy candidate: actual word, cache/context, cell/pass, whole-block and selected outer-segment refinements use producer-established bitplane-frontier invariants. A real additional scratch-capacity reply precedes the original bitplane-owner program; the selected storage model retains actual decoded-byte eligibility and wide-entry size. The original storage-result relation is a separately proved conservative outcome consequence, not the new allocation trace. Checked preparation, statistics and dispatch helpers close executing composition under unchanged budgets. Replay remains wide-only. Full source proofs do not by themselves establish packaged-source qualification, final performance, RSS reduction, source-function coverage, normative-model completeness or adoption readiness.",
+      "contract_refs": [
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "unpack_word"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "mark_word"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "cache_word"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "refine_word"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "word_flag_summary"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "new_compact_plane"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "CompactPlane::commit"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "CompactPlane::initial_state"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_eligible"}
+      ],
+      "implementation_refs": [
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "CompactPlane::commit"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "CompactPlane::mark"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "CompactPlane::summary"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "CompactPlane::refine_cell"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::try_compact_legacy"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_passes"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_scheduled_pass"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_prepare_bitplane"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "compact_merge_statistics"},
+        {"path": "src/tier1/legacy_segments.rs", "symbol": "Tier1CodeBlockDecoder::decode_selected_mq_segment_passes"},
+        {"path": "src/tier1/legacy_segments.rs", "symbol": "Tier1CodeBlockDecoder::decode_legacy_segment_with_compact"}
+      ],
+      "spec_refs": [
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_coefficient"},
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_mark_word"},
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_refine_word"},
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_flag_summary"},
+        {"path": "specs/compact_legacy_cache.rs", "symbol": "compact_add_neighbor"},
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_plane"},
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_bulk_commit"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_initial_run"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_initial_result"},
+        {"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_bitplane_initial_result"},
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_cache"},
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_eligible"},
+        {"path": "specs/compact_legacy_refinement.rs", "symbol": "compact_refinement_frontier"},
+        {"path": "specs/compact_legacy_pass.rs", "symbol": "compact_refinement_pending"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_block_phase"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_normal_suffix"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_cold_suffix"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_physical_frame"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_substitute_plane"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_loop_progress"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "Part2CompactLegacyCaps"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_capacity_run"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_inner_run"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_selected_inner_run"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_selected_inner_result"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_segment_run"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_segment_result"}
+      ],
+      "proof_refs": [
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_mark_coefficient"},
+        {"path": "specs/compact_legacy_cache.rs", "symbol": "compact_cache_mark_step"},
+        {"path": "specs/compact_legacy_context.rs", "symbol": "compact_cached_summary"},
+        {"path": "specs/compact_legacy_refinement.rs", "symbol": "compact_refinement_plane"},
+        {"path": "specs/compact_legacy_pass.rs", "symbol": "compact_frontier_row_step"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_block_schedule"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_total_merge"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_pass_observed"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_normal_step"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_cold_step"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_physical_updated"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_success_store_frame"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_allocation_error_exit"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_pass_error_exit"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_native_store"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_capacity_observed"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_initial_observed"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_initial_normal"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_inner_first_error"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_inner_observed"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_inner_normal"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_original_first_error"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_selected_inner_observed"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_segment_prepared_error"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_segment_observed"},
+        {"path": "src/tier1/proof_support.rs", "symbol": "compact_legacy_storage_limits"}
+      ],
+      "test_refs": [
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "incremental_flags_match_checked_neighbors_after_every_mark"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "bounded_complete_mq_block_reaches_compact_kernel"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "compact_matches_checked_result_and_every_visible_error_prefix"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "compact_preserves_actual_mq_register_context_and_work_error_state"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "scratch_is_one_real_owner_before_the_original_bitplane_owners"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "compact_admission_uses_coded_bitplanes_exact_capacity_and_pristine_state"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "inherited_replay_keeps_checked_allocation_and_error_frontiers"}
+      ]
+    },
+    {
       "id": "part15-actual-selected-staged-ht-packet-group",
       "topic": "Actual selected HT decode_segment branch with faithful whole raw clone, complete placeholder-group loop, substantive decode, rollback/commit and native state/errors; legacy else/full mixed/packet composition remain open",
       "contract_refs": [
@@ -16087,6 +16181,9 @@
         },
         {
           "path": "src/tier1/legacy_segments.rs", "symbol": "decode_legacy_segment"
+        },
+        {
+          "path": "src/tier1/legacy_segments.rs", "symbol": "decode_legacy_segment_with_compact"
         },
         {
           "path": "src/tier1/legacy_passes.rs", "symbol": "decode_raw_significance_propagation_pass"
