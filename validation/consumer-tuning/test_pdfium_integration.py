@@ -1,4 +1,6 @@
 import unittest
+import ast
+import re
 from pathlib import Path
 from unittest import mock
 import subprocess
@@ -30,11 +32,15 @@ class PdfiumIntegrationTests(unittest.TestCase):
 
     def test_bridge_roll_only_adapts_required_public_getters(self):
         text = ("file.file_type.brand;file.file_type.brand;"
-                "match file.header.color.method;convert(&file.header.color);")
+                "match file.header.color.method;convert(&file.header.color);"
+                r'src.starts_with(b"\x00\x00\x00\x0cjP \x0d\x0a\x87\x0a")')
         changed = roll_bridge(text)
         self.assertEqual(changed.count("file.file_type().brand"), 2)
         self.assertIn("file.header().color.method()", changed)
         self.assertIn("&file.header().color", changed)
+        self.assertIn(r'jP  \x0d\x0a\x87\x0a', changed)
+        literal = re.search(r"src\.starts_with\((b\"[^\"]+\")\)", changed)[1]
+        self.assertEqual(ast.literal_eval(literal), b"\0\0\0\x0cjP  \r\n\x87\n")
         with self.assertRaisesRegex(ValueError, "pinned source"):
             roll_bridge(changed)
 

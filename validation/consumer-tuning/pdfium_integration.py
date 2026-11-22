@@ -23,8 +23,7 @@ DECODER_PIN = "4989f9c680beeb7bad4fbfd441a93aa373d2ba4f"
 COMMON_ARGS = (
     "is_debug=false pdf_is_standalone=true is_component_build=false "
     "pdf_enable_v8=false pdf_enable_xfa=false pdf_use_skia=false "
-    "use_remoteexec=false enable_rust=true enable_rust_cxx=true "
-    "pdf_enable_rust_jpeg2000_pdf_recovery=false"
+    "use_remoteexec=false enable_rust=true enable_rust_cxx=true"
 )
 
 
@@ -49,6 +48,7 @@ def replace_exact(text, before, after, count):
 
 
 def roll_bridge(text):
+    text = replace_exact(text, r'jP \x0d\x0a\x87\x0a', r'jP  \x0d\x0a\x87\x0a', 1)
     text = replace_exact(text, "file.file_type.brand", "file.file_type().brand", 2)
     text = replace_exact(text, "file.header.color.method", "file.header().color.method()", 1)
     return replace_exact(text, "&file.header.color", "&file.header().color", 1)
@@ -134,74 +134,8 @@ def render(binary, input_pdf, directory, prefix, env):
     return metrics, pages
 
 
-def run(options):
-    root, output = options.work_root.resolve(), options.output.resolve()
+def compare_cases(pdfium, output, binaries, env):
     output.mkdir(parents=True, exist_ok=False)
-    pdfium = root / "pdfium"
-    os.chdir(pdfium)
-    env = environment(root)
-    env["TZ"] = "America/Los_Angeles"
-    metadata = {
-        "pdfium_pin": PDFIUM_PIN, "depot_tools_pin": DEPOT_PIN, "decoder_pin": DECODER_PIN,
-        "configuration": COMMON_ARGS, "profile_environment_is_not_gn": True,
-        "platform": capture(["uname", "-a"]), "cpu": capture(["lscpu", "--json"]),
-        "source_diff": capture(["git", "-C", str(pdfium), "diff", "--binary"]),
-        "coverage": {"actual_pdfium_direct_backend": True, "cargo_substitute": False,
-                     "v8": False, "xfa": False, "skia": False, "recovery": False},
-    }
-    for directory, expected in ((pdfium, PDFIUM_PIN),
-                                (root / "depot_tools", DEPOT_PIN),
-                                (pdfium / "third_party/jpeg2000_decoder/upstream", DECODER_PIN)):
-        actual = capture(["git", "-C", str(directory), "rev-parse", "HEAD"])
-        if actual["returncode"] or actual["stdout"].strip() != expected:
-            raise ValueError(f"prepared source pin changed: {directory}")
-    (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
-    binaries, builds, test_results = {}, {}, []
-    for backend in ("openjpeg", "rust"):
-        build = pdfium / "out" / backend
-        args = COMMON_ARGS + " pdf_enable_rust_jpeg2000=" + ("true" if backend == "rust" else "false")
-        checked(["gn", "gen", str(build), "--args=" + args], cwd=pdfium, env=env)
-        metrics = measure(["ninja", "-C", build, "-j", "2", "pdfium_test", "pdfium_diff"],
-                          output / f"build-{backend}", env=env, sample_tree=True)
-        builds[backend] = metrics
-        if metrics["returncode"]:
-            raise ValueError(f"PDFium {backend} build failed; inspect preserved build stderr")
-        log = (build / ".ninja_log").read_text()
-        (output / f"build-{backend}-ninja.log").write_text(log)
-        links = {}
-        for line in log.splitlines():
-            fields = line.split("\t")
-            if len(fields) >= 5 and fields[3] in {"pdfium_test", "pdfium_diff"}:
-                links[fields[3]] = int(fields[1]) - int(fields[0])
-        if set(links) != {"pdfium_test", "pdfium_diff"}:
-            raise ValueError("actual final Ninja link durations unavailable")
-        metrics["final_link_ninja_ms"] = links
-        preserved = output / "binaries" / backend
-        preserved.mkdir(parents=True)
-        for target in ("pdfium_test", "pdfium_diff"):
-            shutil.copyfile(build / target, preserved / target)
-            (preserved / target).chmod(0o755)
-        commands = capture_commands(["ninja", "-C", str(build), "-t", "commands", "pdfium_test"],
-                                    output / f"commands-{backend}")
-        (output / f"commands-{backend}.json").write_text(json.dumps(commands, indent=2) + "\n")
-        if commands["returncode"]:
-            raise ValueError("effective PDFium compiler/link commands unavailable")
-        if backend == "rust" and not any("rustc" in line and "jpeg2000_decoder" in line
-                                        for line in commands["stdout"].splitlines()):
-            raise ValueError("actual JPEG2000 Rust compile not present in Ninja commands")
-        binary = build / "pdfium_test"
-        binaries[backend] = binary
-        (output / f"binary-{backend}.json").write_text(json.dumps({
-            "sha256": sha(binary), "bytes": binary.stat().st_size,
-            "sections": capture(["size", "-A", str(binary)]),
-            "help": capture([str(binary), "--help"]),
-        }, indent=2) + "\n")
-        for suite, selected in (("pixel", "bug_304.pdf"), ("corpus", "fx/action/123.pdf")):
-            result = measure(["vpython3", f"testing/tools/run_{suite}_tests.py",
-                              "--build-dir=out/" + backend, "-j", "2", selected],
-                             output / f"tests-{backend}-{suite}", env=env)
-            test_results.append({"backend": backend, "suite": suite, "selection": selected,
-                                 "metrics": result})
     cases = {"bug_304": pdfium / "testing/resources/pixel/bug_304.pdf",
              "action_123": pdfium / "testing/corpus/fx/action/123.pdf"}
     summaries = {}
@@ -256,6 +190,85 @@ def run(options):
         }
         record["scope"] = "fresh PDFium process, warm filesystem cache; parse/decode/render/PNG output included"
         summaries[name] = record
+    return summaries
+
+
+def run(options):
+    root, output = options.work_root.resolve(), options.output.resolve()
+    output.mkdir(parents=True, exist_ok=False)
+    pdfium = root / "pdfium"
+    os.chdir(pdfium)
+    env = environment(root)
+    env["TZ"] = "America/Los_Angeles"
+    metadata = {
+        "pdfium_pin": PDFIUM_PIN, "depot_tools_pin": DEPOT_PIN, "decoder_pin": DECODER_PIN,
+        "configuration": COMMON_ARGS, "profile_environment_is_not_gn": True,
+        "platform": capture(["uname", "-a"]), "cpu": capture(["lscpu", "--json"]),
+        "source_diff": capture(["git", "-C", str(pdfium), "diff", "--binary"]),
+        "coverage": {"actual_pdfium_direct_backend": True, "cargo_substitute": False,
+                     "v8": False, "xfa": False, "skia": False,
+                     "recovery": "separate strict and bounded-recovery configurations"},
+    }
+    for directory, expected in ((pdfium, PDFIUM_PIN),
+                                (root / "depot_tools", DEPOT_PIN),
+                                (pdfium / "third_party/jpeg2000_decoder/upstream", DECODER_PIN)):
+        actual = capture(["git", "-C", str(directory), "rev-parse", "HEAD"])
+        if actual["returncode"] or actual["stdout"].strip() != expected:
+            raise ValueError(f"prepared source pin changed: {directory}")
+    (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+    binaries, builds, test_results = {}, {}, []
+    for backend in ("openjpeg", "rust", "rust-recovery"):
+        build = pdfium / "out" / backend
+        args = (COMMON_ARGS + " pdf_enable_rust_jpeg2000=" + ("false" if backend == "openjpeg" else "true")
+                + " pdf_enable_rust_jpeg2000_pdf_recovery=" + ("true" if backend == "rust-recovery" else "false"))
+        checked(["gn", "gen", str(build), "--args=" + args], cwd=pdfium, env=env)
+        metrics = measure(["ninja", "-C", build, "-j", "2", "pdfium_test", "pdfium_diff"],
+                          output / f"build-{backend}", env=env, sample_tree=True)
+        builds[backend] = metrics
+        if metrics["returncode"]:
+            raise ValueError(f"PDFium {backend} build failed; inspect preserved build stderr")
+        log = (build / ".ninja_log").read_text()
+        (output / f"build-{backend}-ninja.log").write_text(log)
+        links = {}
+        for line in log.splitlines():
+            fields = line.split("\t")
+            if len(fields) >= 5 and fields[3] in {"pdfium_test", "pdfium_diff"}:
+                links[fields[3]] = int(fields[1]) - int(fields[0])
+        if set(links) != {"pdfium_test", "pdfium_diff"}:
+            raise ValueError("actual final Ninja link durations unavailable")
+        metrics["final_link_ninja_ms"] = links
+        preserved = output / "binaries" / backend
+        preserved.mkdir(parents=True)
+        for target in ("pdfium_test", "pdfium_diff"):
+            shutil.copyfile(build / target, preserved / target)
+            (preserved / target).chmod(0o755)
+        commands = capture_commands(["ninja", "-C", str(build), "-t", "commands", "pdfium_test"],
+                                    output / f"commands-{backend}")
+        (output / f"commands-{backend}.json").write_text(json.dumps(commands, indent=2) + "\n")
+        if commands["returncode"]:
+            raise ValueError("effective PDFium compiler/link commands unavailable")
+        if backend.startswith("rust") and not any("rustc" in line and "jpeg2000_decoder" in line
+                                        for line in commands["stdout"].splitlines()):
+            raise ValueError("actual JPEG2000 Rust compile not present in Ninja commands")
+        binary = build / "pdfium_test"
+        binaries[backend] = binary
+        (output / f"binary-{backend}.json").write_text(json.dumps({
+            "sha256": sha(binary), "bytes": binary.stat().st_size,
+            "sections": capture(["size", "-A", str(binary)]),
+            "help": capture([str(binary), "--help"]),
+        }, indent=2) + "\n")
+        for suite, selected in (("pixel", "bug_304.pdf"), ("corpus", "fx/action/123.pdf")):
+            result = measure(["vpython3", f"testing/tools/run_{suite}_tests.py",
+                              "--build-dir=out/" + backend, "-j", "2", selected],
+                             output / f"tests-{backend}-{suite}", env=env)
+            test_results.append({"backend": backend, "suite": suite, "selection": selected,
+                                 "metrics": result})
+    summaries = {
+        "strict": compare_cases(pdfium, output / "strict",
+                                {"openjpeg": binaries["openjpeg"], "rust": binaries["rust"]}, env),
+        "bounded_recovery": compare_cases(pdfium, output / "bounded-recovery",
+                                         {"openjpeg": binaries["openjpeg"], "rust": binaries["rust-recovery"]}, env),
+    }
     (output / "summary.json").write_text(json.dumps({
         "builds": builds, "pixel_and_corpus_tests": test_results, "cases": summaries,
         "coverage": metadata["coverage"],
