@@ -6,10 +6,22 @@ from unittest import mock
 import subprocess
 import tempfile
 
-from pdfium_integration import capture_commands, environment, replace_exact, roll_bridge, roll_source_list
+from pdfium_integration import capture_commands, environment, failure_diagnostics, replace_exact, roll_bridge, roll_source_list
 
 
 class PdfiumIntegrationTests(unittest.TestCase):
+    def test_failure_diagnostics_preserve_every_nonlogging_line(self):
+        text = ('                self.error = format!("{error:?}");\n                false\n'
+                '                self.error = error;\n                false\n'
+                '            return false;\n        }\n        let dest = &mut dest[..output_size];\n'
+                '        true\n')
+        changed = failure_diagnostics(text)
+        self.assertEqual(changed.count("eprintln!"), 3)
+        self.assertEqual("".join(line for line in changed.splitlines(keepends=True)
+                                 if "eprintln!" not in line), text)
+        with self.assertRaisesRegex(ValueError, "pinned source"):
+            failure_diagnostics(text + '                self.error = error;\n                false')
+
     def test_command_capture_preserves_non_utf8_and_failure_status(self):
         with tempfile.TemporaryDirectory() as directory:
             prefix = Path(directory) / "commands"

@@ -94,7 +94,7 @@ At the time of this standalone study, the shared zune workspace existed at `/wor
 dist inherits release with ThinLTO. No workspace Cargo manifest has a JPEG
 2000/Hayro/JP2/J2K dependency/feature and benchmarks have no J2K entry.
 The missing item is **actual J2K integration/comparison harness**, not the
-workspace. See [root-profile propagation](README.md#actual-zune-workspace-inspected-not-j2k-integrated).
+workspace. See [root-profile propagation](README.md#historical-shared-zune-workspace-inspection).
 Shared dirty changes were not edited/copied/published; no zune build was run.
 `/workspace/pdfium-dev` was absent. Actual integration was therefore a
 remaining qualification item, subsequently unblocked by the public handoff.

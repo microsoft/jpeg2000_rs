@@ -70,6 +70,7 @@
     "checksums_sha256": "21bc78fda363b3e8993359953f29076ad7a06db1ea403482146b4f119d405b13",
     "files": 12536,
     "bytes": 3075341517,
+    "native_executable_hashes_and_sizes_verified_against_build_receipts": 40,
     "scope": "full zune/corpus artifacts plus strict PDFium run44973999987 with failed parity; not PDFium qualification",
     "retention": "host-local, not indefinite; copy to owner-managed evidence store"
   },
@@ -77,7 +78,9 @@
     "pin": "ec9185e7d6b973d453f2fe6bf1d9eb9a1eb9ebc3",
     "strict_observational_run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44973999987",
     "strict_pixel_parity": false,
-    "diagnostic_strict_and_recovery_run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44977828206",
+    "failed_diagnostic_run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44977828206",
+    "failed_diagnostic_disposition": "C++ release logger compilation rejected; original C++ logger restored and diagnostics moved to Rust error producers",
+    "diagnostic_strict_and_recovery_run": "pending corrected producer-only run",
     "qualification": "pending; no PDFium performance win claimed"
   },
   "portable_defaults_unchanged": true,
