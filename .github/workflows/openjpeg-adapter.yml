@@ -1,0 +1,37 @@
+name: OpenJPEG adapter
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: OpenJPEG adapter (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - run: sudo apt-get update && sudo apt-get install -y libopenjp2-7-dev pkg-config
+      - run: rustup toolchain install 1.88.0 --profile minimal
+      - run: cargo +1.88.0 build -p jpeg2000-openjpeg-compat --release --locked
+      - name: Test C shim with address and undefined-behavior sanitizers
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined \
+            $(pkg-config --cflags libopenjp2) \
+            adapters/openjpeg-capi/shim.c adapters/openjpeg-capi/tests/regression.c \
+            target/release/libjpeg2000_openjpeg_compat.a -lpthread -ldl -lm \
+            -o target/openjpeg-adapter-tests
+          ASAN_OPTIONS=detect_leaks=1 ./target/openjpeg-adapter-tests
+      - run: cargo fmt -p jpeg2000-openjpeg-compat -- --check
+      - run: cargo clippy -p jpeg2000-openjpeg-compat --all-targets --locked -- -D warnings
