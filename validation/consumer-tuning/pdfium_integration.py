@@ -67,6 +67,41 @@ def failure_diagnostics(text):
                          "            return false;\n        }\n        let dest = &mut dest[..output_size];", 1)
 
 
+def preserve_rust_flags(build, output):
+    manifests = sorted(build.rglob("*.rustflags.json"))
+    required = build / "obj/third_party/jpeg2000_decoder/lib.rustflags.json"
+    if required not in manifests:
+        raise ValueError("actual decoder Rust flag dump unavailable")
+    records = []
+    for manifest in manifests:
+        data = json.loads(manifest.read_text())
+        if set(data) != {"rustenv", "rustflags"} or not isinstance(data["rustflags"], list):
+            raise ValueError("pinned Rust flag dump schema changed")
+        relative = manifest.relative_to(build)
+        target = output / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(manifest, target)
+        flags, responses = [], []
+        for flag in data["rustflags"]:
+            if not isinstance(flag, str):
+                raise ValueError("non-string effective Rust compiler argument")
+            if not flag.startswith("@"):
+                flags.append(flag)
+                continue
+            response = (build / flag[1:]).resolve()
+            if not response.is_relative_to(build.resolve()):
+                raise ValueError("Rust response file escapes owned build")
+            relative_response = response.relative_to(build.resolve())
+            destination = output / relative_response
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(response, destination)
+            flags.extend(response.read_text().splitlines())
+            responses.append({"path": relative_response.as_posix(), "sha256": sha(response)})
+        records.append({"manifest": relative.as_posix(), "sha256": sha(manifest),
+                        "effective_flags": flags, "responses": responses})
+    return records
+
+
 def roll_source_list(text, sources):
     if not sources or "upstream/src/lib.rs" not in sources:
         raise ValueError("missing actual rolled decoder crate root")
@@ -263,6 +298,10 @@ def run(options):
         if backend.startswith("rust") and not any("rustc" in line and "jpeg2000_decoder" in line
                                         for line in commands["stdout"].splitlines()):
             raise ValueError("actual JPEG2000 Rust compile not present in Ninja commands")
+        if backend.startswith("rust"):
+            flags = preserve_rust_flags(build, output / "rust-flags" / backend)
+            (output / f"effective-rust-flags-{backend}.json").write_text(
+                json.dumps(flags, indent=2) + "\n")
         binary = build / "pdfium_test"
         binaries[backend] = binary
         (output / f"binary-{backend}.json").write_text(json.dumps({

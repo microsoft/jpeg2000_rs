@@ -5,11 +5,31 @@ from pathlib import Path
 from unittest import mock
 import subprocess
 import tempfile
+import json
 
-from pdfium_integration import capture_commands, environment, failure_diagnostics, replace_exact, roll_bridge, roll_source_list
+from pdfium_integration import capture_commands, environment, failure_diagnostics, preserve_rust_flags, replace_exact, roll_bridge, roll_source_list
 
 
 class PdfiumIntegrationTests(unittest.TestCase):
+    def test_effective_flags_expand_and_preserve_actual_response_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "build/obj/third_party/jpeg2000_decoder/lib.rustflags.json"
+            manifest.parent.mkdir(parents=True)
+            response = manifest.with_name("lib.rsp.rust")
+            response.write_text("-Copt-level=3\n-Ccodegen-units=16\n")
+            manifest.write_text(json.dumps({"rustenv": {"OUT_DIR": "gen/decoder"},
+                                           "rustflags": ["src/lib.rs",
+                                                         "@obj/third_party/jpeg2000_decoder/lib.rsp.rust"]}))
+            records = preserve_rust_flags(root / "build", root / "output")
+            self.assertEqual(records[0]["effective_flags"],
+                             ["src/lib.rs", "-Copt-level=3", "-Ccodegen-units=16"])
+            self.assertEqual((root / "output" / response.relative_to(root / "build")).read_bytes(),
+                             response.read_bytes())
+            response.unlink()
+            with self.assertRaises(FileNotFoundError):
+                preserve_rust_flags(root / "build", root / "missing")
+
     def test_failure_diagnostics_preserve_every_nonlogging_line(self):
         text = ('                self.error = format!("{error:?}");\n                false\n'
                 '                self.error = error;\n                false\n'

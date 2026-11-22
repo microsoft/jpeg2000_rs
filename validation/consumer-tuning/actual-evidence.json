@@ -80,7 +80,7 @@
     "strict_pixel_parity": false,
     "failed_diagnostic_run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44977828206",
     "failed_diagnostic_disposition": "C++ release logger compilation rejected; original C++ logger restored and diagnostics moved to Rust error producers",
-    "diagnostic_strict_and_recovery_run": "pending corrected producer-only run",
+    "diagnostic_strict_and_recovery_run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44979836962",
     "qualification": "pending; no PDFium performance win claimed"
   },
   "portable_defaults_unchanged": true,

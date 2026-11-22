@@ -34,6 +34,8 @@ it is not substituted for strict qualification.
 Cargo profile variables do not configure GN. Actual Ninja compiler/link commands
 and final link-step durations are preserved, with build time, RSS, executable
 size and `.text` separate.
+Rust wrapper flag dumps and their expanded response files are preserved too:
+the Ninja wrapper invocation alone does not expose the effective codegen flags.
 Ninja command output is retained verbatim even if it contains non-UTF-8 bytes;
 only its human-readable JSON rendering escapes them. Built executables are
 preserved before subsequent diagnostics so a logging failure cannot erase them.
