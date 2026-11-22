@@ -297,6 +297,34 @@ static void test_output_failure_preserves_header(void) {
     close_decoder(&d);
 }
 
+static void test_lenient_ht(int boxed, int indexed) {
+    static const uint8_t raw[] = {
+        0xff, 0x4f, 0xff, 0x51, 0x00, 0x29, 0x40, 0x00,
+        0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 1, 7, 1, 1,
+        0xff, 0x50, 0, 8, 0, 2, 0, 0, 0, 8,
+        0xff, 0x52, 0, 12, 0, 0, 0, 1, 0, 0, 0, 0, 0x40, 1,
+        0xff, 0x5c, 0, 4, 0, 0x40,
+        0xff, 0x90, 0, 10, 0, 0, 0, 0, 0, 15, 0, 1,
+        0xff, 0x93, 0, 0xff, 0xd9
+    };
+    struct Bytes stream = {0};
+    append(&stream, raw, sizeof(raw));
+    struct Bytes input = boxed ? jp2(&stream, 1, 17, 0) : stream;
+    if (boxed == 2) {
+        memcpy(input.data + 20, "jph ", 4);
+        memcpy(input.data + 28, "jph ", 4);
+    }
+    struct Decoder d;
+    open_decoder(&d, &input, boxed != 0, indexed, 1, 0);
+    assert(opj_decode(d.codec, d.stream, d.image));
+    assert(d.image->numcomps == 1 && d.image->comps[0].data[0] == 128);
+    assert(opj_end_decompress(d.codec, d.stream));
+    assert(d.errors == 0);
+    close_decoder(&d);
+}
+
 int main(void) {
     test_origin(1, 0);
     test_origin(2, 0);
@@ -307,6 +335,9 @@ int main(void) {
     test_unhandled_color(14);
     test_unhandled_color(0);
     test_output_failure_preserves_header();
-    puts("10 OpenJPEG adapter regression cases passed");
+    for (int boxed = 0; boxed <= 2; ++boxed)
+        for (int indexed = 0; indexed <= 1; ++indexed)
+            test_lenient_ht(boxed, indexed);
+    puts("16 OpenJPEG adapter regression cases passed");
     return 0;
 }

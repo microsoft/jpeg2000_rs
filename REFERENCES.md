@@ -58,8 +58,10 @@ waiving other container, colour, codestream or boundary checks. They do not
 establish conformance of an entire PDF image or resolve the selected-edition
 reconciliation identified above.
 The common PDF single-codestream profile likewise retains JP2-primary files
-with additional JPX compatibility codes; its separate restrictions on
-non-JP2-primary JPX, JPH and multiple codestreams are unchanged.
+with additional JPX compatibility codes. Announced HT in raw, JP2 or JPH form
+uses ordinary decoding with strict metadata and complete framing, not legacy
+damaged-input repair. Restrictions on non-JP2-primary JPX and multiple
+codestreams remain separate.
 
 ### e-sRGB is not an sRGB enumeration alias
 

@@ -1,5 +1,101 @@
 use super::*;
 
+fn pdf_empty_ht_codestream() -> Vec<u8> {
+    let hex = concat!(
+        "ff4fff5100294000000000010000000100000000000000000000000100000001",
+        "00000000000000000001070101ff500008000200000008ff52000c00000001",
+        "000000004001ff5c00040040ff90000a00000000000f0001ff9300ffd9"
+    );
+    hex.as_bytes()
+        .chunks_exact(2)
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect()
+}
+
+#[test]
+fn pdf_ht_uses_ordinary_decoding_for_raw_jp2_and_jph_without_repair() {
+    let raw = pdf_empty_ht_codestream();
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let expected = decode_codestream_selected(&raw, &options, &selection).unwrap();
+    assert_eq!(
+        expected.component(0).unwrap().samples(),
+        &crate::TypedSamples::Unsigned(vec![128])
+    );
+    let jp2 = jp2_for_codestream(&raw, 1, 1);
+    let mut jph = jp2.clone();
+    jph[20..24].copy_from_slice(b"jph ");
+    jph[28..32].copy_from_slice(b"jph ");
+    for input in [&raw, &jp2, &jph] {
+        let inspected = crate::inspect_pdf_compatible(input, &options).unwrap();
+        assert!(inspected.profile.is_part15());
+        let decoded = crate::decode_pdf_compatible(input, &options, &selection).unwrap();
+        assert_eq!(decoded.image, expected);
+        assert_eq!(
+            decoded.recovery,
+            crate::PdfRecovery {
+                original_codestream_bytes: raw.len() as u64,
+                effective_codestream_bytes: raw.len() as u64,
+                ..crate::PdfRecovery::default()
+            }
+        );
+        let centered = crate::decode_pdf_reconstructed(input, &options, &selection).unwrap();
+        assert_eq!(
+            centered.image,
+            decode_codestream_reconstructed_selected(&raw, &options, &selection).unwrap()
+        );
+        assert_eq!(centered.recovery, decoded.recovery);
+    }
+}
+
+#[test]
+fn pdf_ht_does_not_apply_legacy_framing_count_dimension_or_tile_repair() {
+    let raw = pdf_empty_ht_codestream();
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let sot = raw.windows(2).position(|p| p == [0xff, 0x90]).unwrap();
+    let mut missing = raw.clone();
+    missing.truncate(missing.len() - 2);
+    let mut count = raw.clone();
+    count[sot + 11] = 2;
+    let mut trailer = raw.clone();
+    let length = u32::from_be_bytes(trailer[sot + 6..sot + 10].try_into().unwrap());
+    trailer[sot + 6..sot + 10].copy_from_slice(&(length + 1).to_be_bytes());
+    trailer.insert(trailer.len() - 2, 0);
+    for input in [missing, count, trailer] {
+        assert!(crate::decode_pdf_compatible(&input, &options, &selection).is_err());
+        assert!(crate::decode_pdf_reconstructed(&input, &options, &selection).is_err());
+    }
+    let mismatched = jp2_for_codestream(&raw, 2, 1);
+    assert!(matches!(
+        crate::inspect_pdf_compatible(&mismatched, &options),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::ContainerCodestreamMismatch,
+            ..
+        })
+    ));
+    let mut missing_tile = raw.clone();
+    missing_tile[8..12].copy_from_slice(&2_u32.to_be_bytes());
+    assert!(crate::decode_pdf_compatible(&missing_tile, &options, &selection).is_err());
+    for limits in [
+        ResourceLimits::HARDENED.with_maximum_work_units(0).unwrap(),
+        ResourceLimits::HARDENED
+            .with_maximum_decoded_bytes(1)
+            .unwrap(),
+    ] {
+        assert!(matches!(
+            crate::decode_pdf_compatible(&raw, &DecodeOptions::new(limits), &selection),
+            Err(DecodeError::LimitExceeded { .. })
+        ));
+    }
+    assert_eq!(
+        crate::allocation::with_refusal(0, || crate::decode_pdf_compatible(
+            &raw, &options, &selection
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+}
+
 #[cfg(feature = "cooperative-deadlines")]
 #[test]
 fn cooperative_deadline_pdf_modes_preserve_recovery_and_error_categories() {

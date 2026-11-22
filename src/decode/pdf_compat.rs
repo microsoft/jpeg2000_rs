@@ -53,6 +53,7 @@ struct PreparedPdfInput<'a> {
     original: &'a [u8],
     repaired: Option<Vec<u8>>,
     preflight_work: u64,
+    ordinary: bool,
 }
 
 #[cfg(verus_keep_ghost)]
@@ -67,6 +68,7 @@ verus! {
             original: value.original@,
             repaired: match value.repaired { None => None, Some(bytes) => Some(bytes@) },
             preflight_work: value.preflight_work,
+            ordinary: value.ordinary,
         }
     }
 
@@ -109,6 +111,18 @@ fn invalid_profile() -> DecodeError {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_pdf_ht_announcement(input@),
+))]
+fn ht_announcement(input: &[u8]) -> bool {
+    input.len() >= 8
+        && input[0] == 0xff
+        && input[1] == 0x4f
+        && input[2] == 0xff
+        && input[3] == 0x51
+        && input[6] & 0x40 != 0
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part2_pdf_prepare_result(input@, crate::options::decode_options_limits(options), prepared_pdf_input_outcome(result)),
         prepared_pdf_input_outcome(result) != Err(DecodeError::AllocationFailed) ==>
             prepared_pdf_input_outcome(result) == crate::specs::part2_pdf_prepare_value(input@, crate::options::decode_options_limits(options)),
@@ -136,11 +150,11 @@ fn prepare_pdf_input<'a>(
         #[cfg(verus_keep_ghost)]
         proof! { jp2::raw_render_file_known(&file); }
         let kind = file.file_type();
-        if !kind.is_compatible_with(jp2::BoxType::JP2_BRAND)
-            || (kind.is_jpx_compatible() && !kind.is_jp2_primary())
-            || kind.is_jph_compatible()
-            || file.codestream_count() != 1
-        {
+        let legacy = kind.is_compatible_with(jp2::BoxType::JP2_BRAND)
+            && (!kind.is_jpx_compatible() || kind.is_jp2_primary())
+            && !kind.is_jph_compatible();
+        let jph = kind.is_jph_primary() && kind.is_jph_compatible() && !kind.is_jpx_compatible();
+        if (!legacy && !jph) || file.codestream_count() != 1 {
             return Err(invalid_profile());
         }
         Some(file)
@@ -157,6 +171,26 @@ fn prepare_pdf_input<'a>(
         None => input,
         Some(file) => file.codestream(0)?.data(),
     };
+    let ordinary = ht_announcement(original)
+        || match &file {
+            None => false,
+            Some(file) => file.file_type().is_jph_compatible(),
+        };
+    if ordinary {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_pdf_prepare_ordinary_actual(
+                input@, crate::options::decode_options_limits(options), file_value);
+            reveal(prepared_pdf_input_view);
+        }
+        return Ok(PreparedPdfInput {
+            file,
+            original,
+            repaired: None,
+            preflight_work: 0,
+            ordinary,
+        });
+    }
     let frame = codestream::recovery_framing(original, options.limits())?;
     let repaired = if frame.append_eoc {
         crate::recovery::admit_repair(original.len(), frame.work_units, options.limits())?;
@@ -182,6 +216,7 @@ fn prepare_pdf_input<'a>(
         original,
         repaired,
         preflight_work: frame.work_units,
+        ordinary,
     })
 }
 
@@ -200,18 +235,78 @@ fn validate_pdf_layout(
         reveal(prepared_pdf_input_view);
         codestream::complete_codestream_info_known_fields(&layout.info);
     }
-    if layout.info.profile.is_part15() {
+    if layout.info.profile.is_part15() != prepared.ordinary {
         return Err(invalid_profile());
     }
     match &prepared.file {
         None => Ok(false),
-        Some(file) => Ok(super::pdf_dimensions::validate_header(
-            input,
-            file,
-            &layout.info,
-            options.limits(),
-        )?
-        .ignored_container_dimensions),
+        Some(file) => {
+            let ignored = super::pdf_dimensions::validate_header(
+                input,
+                file,
+                &layout.info,
+                options.limits(),
+            )?
+            .ignored_container_dimensions;
+            if prepared.ordinary && ignored {
+                return Err(DecodeError::malformed(
+                    0,
+                    MalformedKind::ContainerCodestreamMismatch,
+                ));
+            }
+            Ok(ignored)
+        }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_pdf_layout_result(
+        codestream::decoder_layout_input_view(layout), crate::options::decode_selection_view(selected),
+        limits, ordinary, super::pdf_trailers::trailer_layout_outcome(result)),
+        super::pdf_trailers::trailer_layout_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            super::pdf_trailers::trailer_layout_outcome(result) == crate::specs::part2_pdf_layout_value(
+                codestream::decoder_layout_input_view(layout), crate::options::decode_selection_view(selected),
+                limits, ordinary),
+))]
+fn decode_pdf_layout(
+    layout: &CodestreamLayout<'_>,
+    selected: &DecodeSelection,
+    limits: &ResourceLimits,
+    ordinary: bool,
+) -> Result<(DecodedImage, super::pdf_trailers::TileTrailerRecoveryReport), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::decoder_layout_input_fields(layout);
+        reveal(crate::specs::part2_pdf_layout_result);
+        reveal(crate::specs::part2_pdf_layout_value);
+        reveal(crate::specs::part2_decode_layout_selected);
+    }
+    if ordinary {
+        let decoded = super::execution::decode_layout_selected(layout, selected, limits);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_pdf_layout_ordinary_actual(
+                codestream::decoder_layout_input_view(layout),
+                crate::options::decode_selection_view(selected), limits,
+                crate::image::decoded_image_outcome(decoded));
+        }
+        let image = decoded?;
+        Ok((
+            image,
+            super::pdf_trailers::TileTrailerRecoveryReport {
+                discarded_tile_trailer_bytes: 0,
+            },
+        ))
+    } else {
+        let decoded = super::pdf_trailers::decode_trailer_layout(layout, selected, limits);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_pdf_layout_trailer_actual(
+                codestream::decoder_layout_input_view(layout),
+                crate::options::decode_selection_view(selected), limits,
+                super::pdf_trailers::trailer_layout_outcome(decoded));
+        }
+        decoded
     }
 }
 
@@ -302,19 +397,29 @@ fn decode_pdf_compatible_untrimmed(
         codestream::decoder_layout_complete_info_matches_raw(&layout);
     }
     let ignored = validate_pdf_layout(input, &prepared, &layout, options)?;
-    let chosen = automatic_tile(&layout, requested)?;
+    let chosen = if prepared.ordinary {
+        None
+    } else {
+        automatic_tile(&layout, requested)?
+    };
     let adjusted = effective_selection(chosen, requested);
     let selected = match &adjusted {
         None => requested,
         Some(value) => value,
     };
     #[cfg(any(not(feature = "pdf-mq-recovery"), verus_keep_ghost))]
-    let decoded_result =
-        super::pdf_trailers::decode_trailer_layout(&layout, selected, options.limits());
+    let decoded_result = decode_pdf_layout(&layout, selected, options.limits(), prepared.ordinary);
     #[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
-    let ((decoded, trailer), empty_mq_prefixes) = crate::pdf_mq::with_policy(|| {
-        super::pdf_trailers::decode_trailer_layout(&layout, selected, options.limits())
-    })?;
+    let ((decoded, trailer), empty_mq_prefixes) = if prepared.ordinary {
+        (
+            decode_pdf_layout(&layout, selected, options.limits(), true)?,
+            0,
+        )
+    } else {
+        crate::pdf_mq::with_policy(|| {
+            decode_pdf_layout(&layout, selected, options.limits(), false)
+        })?
+    };
     #[cfg(verus_keep_ghost)]
     proof! {
         if let Ok(raw) = crate::specs::part1_parse_layout(encoded@, crate::options::decode_options_limits(options)) {
@@ -432,19 +537,29 @@ fn decode_pdf_reconstructed_untrimmed(
         codestream::decoder_layout_complete_info_matches_raw(&layout);
     }
     let ignored = validate_pdf_layout(input, &prepared, &layout, options)?;
-    let chosen = automatic_tile(&layout, requested)?;
+    let chosen = if prepared.ordinary {
+        None
+    } else {
+        automatic_tile(&layout, requested)?
+    };
     let adjusted = effective_selection(chosen, requested);
     let selected = match &adjusted {
         None => requested,
         Some(value) => value,
     };
     #[cfg(any(not(feature = "pdf-mq-recovery"), verus_keep_ghost))]
-    let decoded_result =
-        super::pdf_trailers::decode_trailer_layout(&layout, selected, options.limits());
+    let decoded_result = decode_pdf_layout(&layout, selected, options.limits(), prepared.ordinary);
     #[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
-    let ((image, trailer), empty_mq_prefixes) = crate::pdf_mq::with_policy(|| {
-        super::pdf_trailers::decode_trailer_layout(&layout, selected, options.limits())
-    })?;
+    let ((image, trailer), empty_mq_prefixes) = if prepared.ordinary {
+        (
+            decode_pdf_layout(&layout, selected, options.limits(), true)?,
+            0,
+        )
+    } else {
+        crate::pdf_mq::with_policy(|| {
+            decode_pdf_layout(&layout, selected, options.limits(), false)
+        })?
+    };
     #[cfg(verus_keep_ghost)]
     proof! {
         if let Ok(raw) = crate::specs::part1_parse_layout(encoded@, crate::options::decode_options_limits(options)) {
@@ -804,7 +919,7 @@ fn count_repair_base(
 ) -> Result<usize, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { reveal(prepared_pdf_input_view); }
-    if prepared.repaired.is_some() {
+    if prepared.repaired.is_some() || prepared.ordinary {
         return Err(error);
     }
     match &prepared.file {
