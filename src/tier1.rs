@@ -574,6 +574,7 @@ mod ht_refinement_readers;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod ht_segments;
 pub use ht_segments::parse_ht_block_segments;
+mod compact_legacy;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod legacy_passes;
 pub use legacy_passes::decode_cleanup_pass;
