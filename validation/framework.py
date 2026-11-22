@@ -639,6 +639,7 @@ def _packet_progression_contracts() -> dict[tuple[str, str], tuple[str, str, str
             view("progression_packet_iterator_view", old("self"))),
         "progression_prior_contains": (
             "part1_progression_prior_contains", r"\1", None, args(changes, "end", "0", "coordinate")),
+        "bounded_window": ("part1_packet_window_bounds", r"\1", None, args(grid, "record")),
         "window_candidate_count": ("part1_packet_window_count", r"\1", None, args(grid, "record")),
         "decode_window_candidate": (
             "part1_packet_window_candidate", r"\1", None, args(grid, "record", "candidate")),

@@ -3183,7 +3183,7 @@
     },
     {
       "id": "part2-complete-native-raw-jp2-header-result",
-      "topic": "Complete actual raw header assembler Result over bytes/limits/base/profile: strict JP2 wrapper delegates to the sole profile-aware producer withfalse; actual JPH file branding selects profile admission. Sarah DEV-174EC5FEE4: absent COLR is explicitly ColorMethod::Unspecified only when JPH context and actual IHDR unknown flag permit it; its checked constructor scan rejects colour-channel claims without specified colour. No invented enumerated colour/ICC profile; explicit conversion returns UnspecifiedColorSpace while typed full/selected planes remain independent. Every image/color/ICC/count/palette/mapping/definition/resolution field and original producer/error order retained. Sarah DEV-629A0A9C39: parse first selected color, retain it and ignore later interpretations after shared three-byte prefix validation; frame/count/charge every later box and reject short prefixes. Initial required versus later progress-before-error, second resolution parse-before-duplicate and actual mapping count at definitions preserved. No supplied successful parsed-header bank/validity premise/owner inversion/runtime proof clone. Independent selected-edition review/coverage/cfg/erasure/lifetimes/release remain separate.",
+      "topic": "Complete actual raw header assembler Result over bytes/limits/base/profile: strict JP2 wrapper delegates to the sole profile-aware producer withfalse; actual JPH file branding selects profile admission. Sarah DEV-174EC5FEE4: absent COLR is explicitly ColorMethod::Unspecified only when JPH context and actual IHDR unknown flag permit it; its checked constructor scan rejects colour-channel claims without specified colour. No invented enumerated colour/ICC profile; explicit conversion returns UnspecifiedColorSpace while typed full/selected planes remain independent. Every selected image/color/ICC/count/palette/mapping/definition/resolution field is retained. The leading IHDR remains authoritative; later bounded IHDR payloads are ignored without replacing metadata or skipping framing/count/work checks. Sarah DEV-629A0A9C39: parse first selected color, retain it and ignore later interpretations after shared three-byte prefix validation; frame/count/charge every later box and reject short prefixes. Initial required versus later progress-before-error, second resolution parse-before-duplicate and actual mapping count at definitions preserved. No supplied successful parsed-header bank/validity premise/owner inversion/runtime proof clone. Independent selected-edition review/coverage/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header_profile"},
@@ -7331,7 +7331,7 @@
     },
     {
       "id": "part1-complete-native-raw-progression-bytes",
-      "topic": "Complete actual raw POC syntax Result and every progression-record field in source order, from actual component-count/segment offset/bytes. Real byte/component helpers preserve width1 versus every-other-width two-byte behavior, checked overflow-before-range for two-byte reads and segment rather than cursor error offsets. Actual parser derives7/9byte records at threshold257; empty/alignment rejection precedes reads, actual source fields and progression0..4 discrimination precede append, and encoded component-end0 becomes256 only for Csiz256. All other raw layer/resolution/component values remain untouched, including otherwise-invalid ranges. Actual alignment/count geometry establishes every read/advance/decrease bound without admitted records, successful syntax/range/coverage premises or result banks. Semantic range/coverage/duplicate validation in the real downstream validate_progression_changes remains separate, as do other metadata/layout/file/layer/F2/F4/final F8 joins. No new trust/cap/pin/budget/termination bypass.",
+      "topic": "Complete actual raw POC syntax Result and every progression-record field in source order, from actual component-count/segment offset/bytes. Byte/component helpers preserve one-byte versus every-other-width two-byte reads, overflow-before-range and segment error offsets. Parser derives 7/9-byte records at threshold 257; empty/alignment rejection precedes reads, progression 0..4 discrimination precedes append, and encoded component-end zero denotes 256. Other raw endpoints remain unchanged, including legal endpoints beyond the tile grid. Per-header admission checks syntax and effective contribution; packet count/candidate decoding intersects the volume with the actual grid. Actual alignment/count geometry establishes bounds without admitted-record or successful syntax/coverage premises. Complete tile coverage and declaration scope remain separate checked producers. No new trust/cap/pin/budget/termination bypass or result bank.",
       "implementation_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
@@ -12682,6 +12682,30 @@
           "path": "src/codestream/tests.rs",
           "symbol": "packet_lengths_exhaustive_two_byte_windows_and_every_raw_iterator_field"
         }
+      ]
+    },
+    {
+      "id": "part1-complete-native-bounded-progression-window",
+      "topic": "Actual allocation-free temporary progression volume intersects raw declared endpoints with the real packet grid. The same executing bounded-window helper precedes candidate-count work admission and coordinate decoding, retaining raw records, starts, order and the original grid. No fictitious grid, enlarged budget, owner normalization, allocation or successful-decoder premise. This is source/model correspondence for the supported volume interpretation, not independent normative certification.",
+      "implementation_refs": [
+        {"path": "src/packet/progression.rs", "symbol": "window_candidate_count"},
+        {"path": "src/packet/progression.rs", "symbol": "decode_window_candidate"},
+        {"path": "src/packet/progression.rs", "symbol": "bounded_window"}
+      ],
+      "contract_refs": [
+        {"path": "src/packet/progression.rs", "symbol": "bounded_window"}
+      ],
+      "spec_refs": [
+        {"path": "specs/packet_progression.rs", "symbol": "part1_packet_window_bounds"},
+        {"path": "specs/packet_progression.rs", "symbol": "part1_packet_window_count"},
+        {"path": "specs/packet_progression.rs", "symbol": "part1_packet_window_candidate"}
+      ],
+      "proof_refs": [
+        {"path": "src/packet/progression.rs", "symbol": "bounded_window"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "poc_declared_volumes_intersect_the_actual_grid_without_changing_raw_records"},
+        {"path": "src/packet/tests.rs", "symbol": "preparation_storage_empty_geometry_and_iterator_errors_consume_no_later_request"}
       ]
     },
     {

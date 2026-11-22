@@ -9632,6 +9632,31 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "selected tile storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_bounded_progression_window_keeps_actual_grid_and_raw_record(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-bounded-progression-window")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/packet/progression.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("part1_packet_window_bounds(packet_grid_view(grid), record)",
+             "part1_packet_window_bounds(packet_grid_view(grid), bounded_window(grid, record))"),
+            ("part1_packet_window_bounds(packet_grid_view(grid), record)",
+             "part1_packet_window_bounds(arbitrary_grid(), record)"),
+        ):
+            changed = original.replace(before, after)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=after), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_complete_tile_progression_binds_actual_parts_limits_and_full_result(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]
