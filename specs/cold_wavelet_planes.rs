@@ -41,9 +41,22 @@ pub(crate) open spec fn part2_wavelet_rows_result(low:Part1WaveletBand,high:Part
     part2_tier1_storage_framed(|calls|part2_wavelet_rows_run(low,high,first,irreversible,kernel,capacity,calls),result)
 }
 #[verifier::opaque]
-pub(crate) open spec fn part2_wavelet_columns_run(low:Part1WaveletBand,high:Part1WaveletBand,height:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,length:usize,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Seq<i64>> {
+pub(crate) open spec fn part2_wavelet_scalar_columns_run(low:Part1WaveletBand,high:Part1WaveletBand,height:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,length:usize,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Seq<i64>> {
     part2_tier1_storage_bind(part2_wavelet_capacity_run(Part2WaveletPlaneOwner::Columns,length as nat,calls),
         |_:(),rest|part2_wavelet_vertical_lines_run(low,high,height,first,irreversible,kernel,length,low.0 as nat,rest))
+}
+pub(crate) open spec fn part2_wavelet_scalar_columns_result(low:Part1WaveletBand,high:Part1WaveletBand,height:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,length:usize,result:Result<Seq<i64>,crate::DecodeError>)->bool {
+    part2_tier1_storage_framed(|calls|part2_wavelet_scalar_columns_run(low,high,height,first,irreversible,kernel,length,calls),result)
+}
+#[verifier::opaque]
+pub(crate) open spec fn part2_wavelet_columns_run(low:Part1WaveletBand,high:Part1WaveletBand,height:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,length:usize,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Seq<i64>> {
+    if !irreversible && kernel.is_none() && rowwise_eligible(low,high,height,first,length) {
+        rowwise_run(low,high,height,first,length,calls)
+    }else if irreversible && kernel.is_none() && height>1 && rowwise_eligible(low,high,height,first,length){
+        rowwise_fixed_run(low,high,height,first,length,calls)
+    }else{
+        part2_wavelet_scalar_columns_run(low,high,height,first,irreversible,kernel,length,calls)
+    }
 }
 pub(crate) open spec fn part2_wavelet_columns_result(low:Part1WaveletBand,high:Part1WaveletBand,height:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,length:usize,result:Result<Seq<i64>,crate::DecodeError>)->bool {
     part2_tier1_storage_framed(|calls|part2_wavelet_columns_run(low,high,height,first,irreversible,kernel,length,calls),result)
@@ -58,15 +71,46 @@ pub(crate) proof fn part2_wavelet_rows_normal(low:Part1WaveletBand,high:Part1Wav
     part2_tier1_storage_bind_frame(|calls|part2_wavelet_capacity_run(Part2WaveletPlaneOwner::Rows,capacity as nat,calls),
         |_:(),rest|part2_wavelet_horizontal_lines_run(low,high,first,irreversible,kernel,low.1 as nat,rest),Ok(()),result);
 }
-pub(crate) proof fn part2_wavelet_columns_normal(low:Part1WaveletBand,high:Part1WaveletBand,height:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,length:usize)
-    ensures part2_wavelet_columns_result(low,high,height,first,irreversible,kernel,length,part2_wavelet_columns_value(low,high,height,first,irreversible,kernel,length)),
+pub(crate) proof fn part2_wavelet_scalar_columns_normal(low:Part1WaveletBand,high:Part1WaveletBand,height:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,length:usize)
+    ensures part2_wavelet_scalar_columns_result(low,high,height,first,irreversible,kernel,length,part2_wavelet_columns_value(low,high,height,first,irreversible,kernel,length)),
 {
-    reveal(part2_wavelet_columns_run);let result=part2_wavelet_columns_value(low,high,height,first,irreversible,kernel,length);
+    reveal(part2_wavelet_scalar_columns_run);let result=part2_wavelet_columns_value(low,high,height,first,irreversible,kernel,length);
     part2_wavelet_capacity_observed(Part2WaveletPlaneOwner::Columns,length as nat,Ok(()));
     part2_wavelet_vertical_lines_normal(low,high,height,first,irreversible,kernel,length,low.0 as nat);
     part2_tier1_storage_eta(|calls|part2_wavelet_vertical_lines_run(low,high,height,first,irreversible,kernel,length,low.0 as nat,calls),result);
     part2_tier1_storage_bind_frame(|calls|part2_wavelet_capacity_run(Part2WaveletPlaneOwner::Columns,length as nat,calls),
         |_:(),rest|part2_wavelet_vertical_lines_run(low,high,height,first,irreversible,kernel,length,low.0 as nat,rest),Ok(()),result);
+}
+pub(crate) proof fn part2_wavelet_columns_observed(low:Part1WaveletBand,high:Part1WaveletBand,height:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,length:usize,result:Result<Seq<i64>,crate::DecodeError>)
+    requires if !irreversible && kernel.is_none() && rowwise_eligible(low,high,height,first,length) {
+        rowwise_result(low,high,height,first,length,result)
+    }else if irreversible && kernel.is_none() && height>1 && rowwise_eligible(low,high,height,first,length){
+        rowwise_fixed_result(low,high,height,first,length,result)
+    }else{part2_wavelet_scalar_columns_result(low,high,height,first,irreversible,kernel,length,result)},
+    ensures part2_wavelet_columns_result(low,high,height,first,irreversible,kernel,length,result),
+{
+    reveal(part2_wavelet_columns_run);
+    if !irreversible && kernel.is_none() && rowwise_eligible(low,high,height,first,length) {
+        part2_tier1_storage_eta(|calls|rowwise_run(low,high,height,first,length,calls),result);
+    }else if irreversible && kernel.is_none() && height>1 && rowwise_eligible(low,high,height,first,length){
+        part2_tier1_storage_eta(|calls|rowwise_fixed_run(low,high,height,first,length,calls),result);
+    }else{
+        part2_tier1_storage_eta(|calls|part2_wavelet_scalar_columns_run(low,high,height,first,irreversible,kernel,length,calls),result);
+    }
+}
+pub(crate) proof fn part2_wavelet_columns_normal(low:Part1WaveletBand,high:Part1WaveletBand,height:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,length:usize)
+    ensures part2_wavelet_columns_result(low,high,height,first,irreversible,kernel,length,part2_wavelet_columns_value(low,high,height,first,irreversible,kernel,length)),
+{
+    if !irreversible && kernel.is_none() && rowwise_eligible(low,high,height,first,length) {
+        rowwise_equivalent(low,high,height,first,length);
+        part2_wavelet_capacity_observed(Part2WaveletPlaneOwner::Columns,length as nat,Ok(()));
+        rowwise_observed(low,high,height,first,length,Ok(()));
+    }else if irreversible && kernel.is_none() && height>1 && rowwise_eligible(low,high,height,first,length){
+        rowwise_fixed_equivalent(low,high,height,first,length);
+        part2_wavelet_capacity_observed(Part2WaveletPlaneOwner::Columns,length as nat,Ok(()));
+        rowwise_fixed_observed(low,high,height,first,length,Ok(()));
+    }else{part2_wavelet_scalar_columns_normal(low,high,height,first,irreversible,kernel,length);}
+    part2_wavelet_columns_observed(low,high,height,first,irreversible,kernel,length,part2_wavelet_columns_value(low,high,height,first,irreversible,kernel,length));
 }
 pub(crate) proof fn part2_wavelet_rows_refused(low:Part1WaveletBand,high:Part1WaveletBand,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,capacity:usize,error:crate::DecodeError)
     requires part2_wavelet_capacity_result(Part2WaveletPlaneOwner::Rows,capacity as nat,Err(error)),
@@ -76,11 +120,11 @@ pub(crate) proof fn part2_wavelet_rows_refused(low:Part1WaveletBand,high:Part1Wa
     part2_tier1_storage_bind_frame(|calls|part2_wavelet_capacity_run(Part2WaveletPlaneOwner::Rows,capacity as nat,calls),
         |_:(),rest|part2_wavelet_horizontal_lines_run(low,high,first,irreversible,kernel,low.1 as nat,rest),Err(error),Err(error));
 }
-pub(crate) proof fn part2_wavelet_columns_refused(low:Part1WaveletBand,high:Part1WaveletBand,height:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,length:usize,error:crate::DecodeError)
+pub(crate) proof fn part2_wavelet_scalar_columns_refused(low:Part1WaveletBand,high:Part1WaveletBand,height:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,length:usize,error:crate::DecodeError)
     requires part2_wavelet_capacity_result(Part2WaveletPlaneOwner::Columns,length as nat,Err(error)),
-    ensures part2_wavelet_columns_result(low,high,height,first,irreversible,kernel,length,Err(error)),
+    ensures part2_wavelet_scalar_columns_result(low,high,height,first,irreversible,kernel,length,Err(error)),
 {
-    reveal(part2_wavelet_columns_run);
+    reveal(part2_wavelet_scalar_columns_run);
     part2_tier1_storage_bind_frame(|calls|part2_wavelet_capacity_run(Part2WaveletPlaneOwner::Columns,length as nat,calls),
         |_:(),rest|part2_wavelet_vertical_lines_run(low,high,height,first,irreversible,kernel,length,low.0 as nat,rest),Err(error),Err(error));
 }
