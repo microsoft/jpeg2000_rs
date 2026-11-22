@@ -480,12 +480,11 @@ impl<'a> Parser<'a> {
             };
             let encoded_component_end =
                 self.read_poc_component(segment, position, component_bytes)?;
-            let component_end =
-                if component_bytes == 1 && encoded_component_end == 0 && components == 256 {
-                    256
-                } else {
-                    encoded_component_end
-                };
+            let component_end = if encoded_component_end == 0 {
+                256
+            } else {
+                encoded_component_end
+            };
             position = match position.checked_add(component_bytes) {
                 Some(value) => value,
                 None => {
@@ -613,7 +612,7 @@ impl<'a> Parser<'a> {
             return Ok(());
         }
         let components = component_styles.components;
-        let (active_coordinates, maximum_resolutions) =
+        let (active_coordinates, _maximum_resolutions) =
             self.progression_validation_shape(layers, component_styles, offset)?;
         let validation_work =
             match (changes.records.len() as u64).checked_mul(active_coordinates as u64) {
@@ -653,7 +652,7 @@ impl<'a> Parser<'a> {
                     crate::specs::part1_validate_progression_changes(
                         offset, progression_changes_view(changes), layers, component_styles, self.limits)
                         == crate::specs::part1_poc_admit_records(offset, progression_changes_view(changes),
-                            layers, component_styles, maximum_resolutions, record_index as nat, owners@),
+                            layers, component_styles, _maximum_resolutions, record_index as nat, owners@),
                 decreases changes.records.len() - record_index,
             )
         )]
@@ -662,11 +661,10 @@ impl<'a> Parser<'a> {
             proof! { reveal_with_fuel(crate::specs::part1_poc_admit_records, 1); }
             let record = changes.records[record_index];
             if record.layer_end == 0
-                || record.layer_end > layers
                 || record.component_start >= record.component_end
-                || record.component_end > components
+                || record.component_end > 16384
                 || record.resolution_start >= record.resolution_end
-                || record.resolution_end > maximum_resolutions
+                || record.resolution_end > 33
             {
                 return Err(self.malformed_at(offset, MalformedKind::InvalidProgressionOrderChange));
             }

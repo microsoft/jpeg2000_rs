@@ -15,6 +15,37 @@ contracts and models. Exact run counts and source/tool hashes belong in fresh
 CI artifacts, not committed result snapshots. Independent model-to-standard
 review and official conformance testing remain separate.
 
+## POC endpoint intersection and authoritative JP2 image header
+
+The #456 POC reader retains declared endpoints, including zero's specified
+256-component interpretation. Per-header bitmap admission still scans and
+charges the actual grid and checks marker syntax and effective contribution.
+The executing [`bounded_window`](src/packet/progression.rs) helper and
+[`packet progression model`](specs/packet_progression.rs) intersect endpoints
+with the actual grid before both candidate-count admission and coordinate
+decoding. There is no new allocation, enlarged grid or renewed work limit.
+The [`complete coverage traversal`](src/codestream/progression_coverage.rs)
+and [matching model](specs/progression_coverage.rs) compare actual layer coverage
+and reject declarations that add no effective layer even when their raw
+endpoints grow.
+
+The main [`JP2 header reader`](src/jp2/headers.rs) and
+[`raw header step`](specs/jp2_header.rs) preserve the leading `ihdr` metadata
+when another bounded instance appears. Existing box-reader framing, charged
+work and nested counts remain in the source/storage traversal; the ignored
+payload creates no new storage request. Associated JPX header overrides are
+unchanged.
+
+The [eleven retained refusals](SUPPORTED.md#openjpeg-tolerance-dispositions)
+use the existing executing box/header, tile-window/termination, quantization,
+zero-bitplane, component-transform and palette-output contracts. In particular,
+[`header_zero_loop`](specs/header.rs) retains the actual tag-tree/reader mutation
+and error, and [`cold output storage`](specs/cold_output_storage.rs) preserves
+palette reservation/error ordering. Documentation of those refusals adds no
+trusted premise, success fallback or recovery branch. These are implementation
+relations; independent correspondence to the normative text and official
+conformance remain separate.
+
 ## Native-only cooperative deadline profile
 
 The optional `cooperative-deadlines` feature is **outside** this pinned proof

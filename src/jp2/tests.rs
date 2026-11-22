@@ -4016,6 +4016,47 @@ fn actual_raw_jp2_header_keeps_initial_required_input_metadata_and_later_progres
 }
 
 #[test]
+fn later_ihdr_is_ignored_without_replacing_the_first_header_or_bypassing_framing() {
+    let limits = ResourceLimits::default();
+    let mut prefix = box32(*b"ihdr", &raw_image_header_payload(1, 1, 1, 7, [1, 1]));
+    prefix.extend(raw_jp2_header_color());
+    let mut expected = super::headers::parse_jp2_header(&prefix, &limits, 40).unwrap();
+    expected.nested_box_count += 1;
+    for later in [raw_jp2_header_image(u8::MAX, 17), box32(*b"ihdr", &[])] {
+        let mut input = prefix.clone();
+        input.extend(later);
+        assert_eq!(
+            super::headers::parse_jp2_header(&input, &limits, 40).unwrap(),
+            expected
+        );
+        assert_eq!(
+            crate::allocation::with_refusal(0, || super::headers::parse_jp2_header(
+                &input, &limits, 40
+            )),
+            Ok(expected.clone())
+        );
+        let capped = limits.with_maximum_work_units(2).unwrap();
+        assert!(matches!(
+            super::headers::parse_jp2_header(&input, &capped, 40),
+            Err(DecodeError::LimitExceeded {
+                resource: Resource::WorkUnits,
+                limit: 2,
+                actual: 3
+            })
+        ));
+    }
+    let mut truncated = prefix;
+    truncated.extend([0, 0, 0, 22, b'i', b'h', b'd', b'r']);
+    assert!(matches!(
+        super::headers::parse_jp2_header(&truncated, &limits, 40),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::InvalidBoxLength,
+            ..
+        })
+    ));
+}
+
+#[test]
 fn actual_raw_jp2_header_keeps_duplicate_checks_and_resolution_parse_before_duplicate() {
     let mut prefix = raw_jp2_header_image(u8::MAX, 1);
     prefix.extend_from_slice(&raw_jp2_header_color());

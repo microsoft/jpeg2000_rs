@@ -249,7 +249,7 @@ impl Parser<'_> {
                 (index, record_index),
                 work,
             )?;
-            if record.layer_end > before {
+            if record.layer_end.min(part.coding_style.layers) > before {
                 return Ok(true);
             }
             resolution += 1;
@@ -299,7 +299,9 @@ impl Parser<'_> {
                         component, *work, self.limits),
             decreases if component < record.component_end { record.component_end - component } else { 0 },
         ))]
-        while component < record.component_end {
+        while component < record.component_end
+            && component < part.component_coding_styles.components
+        {
             #[cfg(verus_keep_ghost)]
             proof! { reveal_with_fuel(crate::specs::part1_poc_novel_components, 1); }
             let resolutions = self.poc_resolutions(part, component)?;
@@ -359,7 +361,7 @@ impl Parser<'_> {
                 (parts.len(), 0),
                 work,
             )?;
-            if frontier != part.coding_style.layers {
+            if frontier < part.coding_style.layers {
                 return Err(self.malformed_at(0, MalformedKind::InvalidProgressionOrderChange));
             }
             resolution += 1;

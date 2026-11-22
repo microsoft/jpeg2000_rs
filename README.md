@@ -228,8 +228,13 @@ the final part. `TilePartPayload::has_progression_marker` distinguishes a
 marker in that header from inherited records. Packet traversal advances the
 physical header before requesting coordinates from the next progression,
 while preserving duplicate suppression, lengths and resource limits.
-Out-of-range, redundant and incomplete declarations remain errors in both
-ordinary and PDF-compatible APIs.
+POC volumes intersect the actual component/resolution/layer grid. Declared
+endpoints may exceed that grid within the marker's syntax ranges; a zero
+component endpoint denotes 256. Raw parsed records remain unchanged, while
+packet enumeration and its work admission use the effective volume.
+Invalid syntax, redundant effective declarations and incomplete full-tile
+coverage remain errors in both ordinary and PDF-compatible APIs.
+See the [individual tolerance dispositions](SUPPORTED.md#openjpeg-tolerance-dispositions).
 
 ### Common PDF recovery and inspection
 

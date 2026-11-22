@@ -84,9 +84,7 @@ pub open spec fn part2_raw_header_step(
     input: Part2BoxReference, state: Part2RawHeaderState, limits: crate::ResourceLimits, base: u64,
 ) -> Result<Part2RawHeaderState, crate::DecodeError> {
     let kind = input.0.0;
-    if kind == crate::jp2::BoxType::IMAGE_HEADER {
-        Err(part2_image_box_error(base, input.0, crate::MalformedKind::InvalidBoxOrder))
-    } else if kind == crate::jp2::BoxType::BITS_PER_COMPONENT {
+    if kind == crate::jp2::BoxType::BITS_PER_COMPONENT {
         if state.saw_bpcc { Err(part2_image_box_error(base, input.0, crate::MalformedKind::InvalidBoxOrder)) }
         else { match part2_validate_bpcc(input, state.image, base) {
             Err(error) => Err(error), Ok(()) => Ok(Part2RawHeaderState { saw_bpcc: true, ..state }),

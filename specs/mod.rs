@@ -15892,7 +15892,7 @@ pub open spec fn part1_poc_record(segment: Part1CodestreamSegment, components: u
             component_start: part1_poc_component_value(segment.payload, position + 1, width),
             layer_end: part1_marker_value(segment.payload[position + 1 + width as int], segment.payload[position + 2 + width as int]),
             resolution_end: segment.payload[position + 3 + width as int],
-            component_end: if width == 1 && component_end == 0 && components == 256 { 256 } else { component_end },
+            component_end: if component_end == 0 { 256 } else { component_end },
             progression_order,
         }),
     }
@@ -16041,10 +16041,9 @@ pub open spec fn part1_poc_admit_records(
         Ok(())
     } else {
         let record = records[index as int];
-        if !valid_poc_record(record.resolution_start as nat, record.resolution_end as nat,
-            record.component_start as nat, record.component_end as nat, record.layer_end as nat,
-            crate::codestream::component_coding_style_count(styles) as nat, layers as nat, maximum as nat,
-            part1_cod_progression_byte(record.progression_order) as nat) {
+        if record.layer_end == 0
+            || record.component_start >= record.component_end || record.component_end > 16384
+            || record.resolution_start >= record.resolution_end || record.resolution_end > 33 {
             Err(part1_codestream_malformed(offset, crate::MalformedKind::InvalidProgressionOrderChange))
         } else {
             let marked = part1_poc_mark_record(offset, record, layers, styles, owners);

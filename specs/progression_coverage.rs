@@ -108,7 +108,7 @@ pub(crate) open spec fn part1_poc_novel_resolutions(
         let before=part1_poc_frontier_run(parts,part.tile_index,(component,resolution),(index,record_index),0,0,work,limits);
         match before.0 {
             Err(error)=>(Err(error),before.1),
-            Ok(value)=>if record.layer_end > value {(Ok(true),before.1)}
+            Ok(value)=>if (if record.layer_end < part.coding_style.layers {record.layer_end}else{part.coding_style.layers}) > value {(Ok(true),before.1)}
                 else{part1_poc_novel_resolutions(parts,index,record_index,component,(resolution+1) as u8,resolutions,before.1,limits)},
         }
     }
@@ -122,7 +122,7 @@ pub(crate) open spec fn part1_poc_novel_components(
     decreases parts[index as int].progression_changes[record_index as int].component_end - component,
 {
     let part=parts[index as int];let record=part.progression_changes[record_index as int];
-    if component >= record.component_end {(Ok(false),work)}else{
+    if component >= record.component_end || component >= part.component_coding_styles.0 {(Ok(false),work)}else{
         match part1_poc_resolutions(part,component) {
             Err(error)=>(Err(error),work),
             Ok(resolutions)=>{
@@ -156,7 +156,7 @@ pub(crate) open spec fn part1_poc_complete_resolutions(
         let covered=part1_poc_frontier_run(parts,part.tile_index,(component,resolution),(parts.len() as usize,0),0,0,work,limits);
         match covered.0 {
             Err(error)=>(Err(error),covered.1),
-            Ok(value)=>if value!=part.coding_style.layers{
+            Ok(value)=>if value<part.coding_style.layers{
                 (Err(part1_codestream_malformed(0,crate::MalformedKind::InvalidProgressionOrderChange)),covered.1)
             }else{part1_poc_complete_resolutions(parts,index,component,(resolution+1) as u8,resolutions,covered.1,limits)},
         }

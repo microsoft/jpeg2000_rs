@@ -3373,10 +3373,10 @@ fn preparation_storage_empty_geometry_and_iterator_errors_consume_no_later_reque
     };
     let tight = limits.with_maximum_work_units(1).unwrap();
     let mut costly = [literal_progression_tile(&[], 1, 0, 0, 1)];
-    costly[0].progression_changes = ProgressionChanges::from_records(vec![ProgressionChange {
-        layer_end: 2,
-        ..literal_progression_window()
-    }]);
+    costly[0].progression_changes = ProgressionChanges::from_records(vec![
+        literal_progression_window(),
+        literal_progression_window(),
+    ]);
     let admitted =
         prepare_progression_tile_input(&costly, &positive, &precincts, None, &tight).unwrap();
     let limited = ProgressionTileParameters {

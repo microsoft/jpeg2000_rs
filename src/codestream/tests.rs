@@ -10410,6 +10410,89 @@ fn multipart_poc_defers_complete_coverage_and_retains_actual_header_declarations
 }
 
 #[test]
+fn poc_declared_volumes_intersect_the_actual_grid_without_changing_raw_records() {
+    let options = crate::DecodeOptions::default();
+    let selection = crate::DecodeSelection::full_image();
+    let make = |record| {
+        let mut input = two_part_codestream(&[poc(&[record])], &[]);
+        for position in [8, 12, 24, 28] {
+            input[position..position + 4].copy_from_slice(&1_u32.to_be_bytes());
+        }
+        let qcd = input
+            .windows(2)
+            .position(|bytes| bytes == [0xff, 0x5c])
+            .unwrap();
+        input[qcd + 5] = 0x40;
+        input
+    };
+    let ordinary = make([0, 0, 0, 2, 1, 1, 1]);
+    let expected = crate::decode_codestream_selected(&ordinary, &options, &selection).unwrap();
+    let centered =
+        crate::decode_codestream_reconstructed_selected(&ordinary, &options, &selection).unwrap();
+    for record in [
+        [0, 0, 0, 200, 33, 0, 1],
+        [0, 0, 255, 255, 33, 255, 1],
+        [0, 0, 0, 2, 1, 0, 1],
+    ] {
+        let input = make(record);
+        let layout = parse_layout(&input, options.limits()).unwrap();
+        let declared = layout.tile_parts[0].progression_changes.records()[0];
+        assert_eq!(
+            declared.layer_end,
+            u16::from_be_bytes([record[2], record[3]])
+        );
+        assert_eq!(declared.resolution_end, record[4]);
+        assert_eq!(
+            declared.component_end,
+            if record[5] == 0 {
+                256
+            } else {
+                u16::from(record[5])
+            }
+        );
+        assert_eq!(
+            crate::decode_codestream_selected(&input, &options, &selection).unwrap(),
+            expected
+        );
+        assert_eq!(
+            crate::decode_pdf_compatible(&input, &options, &selection)
+                .unwrap()
+                .image,
+            expected
+        );
+        assert_eq!(
+            crate::decode_codestream_reconstructed_selected(&input, &options, &selection).unwrap(),
+            centered
+        );
+    }
+    for record in [
+        [0, 0, 0, 0, 1, 1, 1],
+        [0, 0, 0, 2, 34, 1, 1],
+        [0, 0, 0, 2, 1, 1, 5],
+        [1, 0, 0, 2, 1, 1, 1],
+    ] {
+        assert!(matches!(
+            parse_layout(&make(record), options.limits()),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidProgressionOrderChange,
+                ..
+            })
+        ));
+    }
+    let redundant = two_part_codestream(
+        &[poc(&[[0, 0, 0, 200, 33, 0, 1]])],
+        &[poc(&[[0, 0, 255, 255, 33, 0, 1]])],
+    );
+    assert!(matches!(
+        parse_layout(&redundant, options.limits()),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::InvalidProgressionOrderChange,
+            ..
+        })
+    ));
+}
+
+#[test]
 fn multipart_poc_retains_scope_redundancy_ranges_and_final_completeness_checks() {
     let partial = poc(&[[0, 0, 0, 1, 1, 1, 1]]);
     let full = poc(&[[0, 0, 0, 2, 1, 1, 3]]);
@@ -10429,7 +10512,7 @@ fn multipart_poc_retains_scope_redundancy_ranges_and_final_completeness_checks()
     for input in [
         two_part_codestream(&[partial], &[]),
         two_part_codestream(std::slice::from_ref(&full), std::slice::from_ref(&full)),
-        two_part_codestream(&[poc(&[[0, 0, 0, 3, 1, 1, 0]])], &[]),
+        two_part_codestream(&[poc(&[[0, 0, 0, 3, 34, 1, 0]])], &[]),
     ] {
         assert!(matches!(
             parse_layout(&input, &ResourceLimits::default()),
@@ -16626,7 +16709,7 @@ fn reference_progression_admission(
         offset: offset as u64,
         kind: MalformedKind::InvalidProgressionOrderChange,
     };
-    let (active, maximum) = reference_progression_shape(layers, styles, offset)?;
+    let (active, _) = reference_progression_shape(layers, styles, offset)?;
     let cost = records.len() as u128 * active as u128;
     if cost > u128::from(u64::MAX) {
         return Err(DecodeError::MalformedInput {
@@ -16653,11 +16736,10 @@ fn reference_progression_admission(
     let mut owned = std::collections::BTreeSet::new();
     for record in records {
         if record.layer_end == 0
-            || record.layer_end > layers
             || record.component_start >= record.component_end
-            || record.component_end > styles.components
+            || record.component_end > 16384
             || record.resolution_start >= record.resolution_end
-            || record.resolution_end > maximum
+            || record.resolution_end > 33
         {
             return Err(malformed());
         }
@@ -17123,7 +17205,7 @@ fn reference_poc_payload(
             component_start,
             layer_end: u16::from_be_bytes([chunk[1 + width], chunk[2 + width]]),
             resolution_end: chunk[3 + width],
-            component_end: if components == 256 && component_end == 0 {
+            component_end: if component_end == 0 {
                 256
             } else {
                 component_end

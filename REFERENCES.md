@@ -55,6 +55,26 @@ novelty; physical packet traversal advances headers before exhausting an
 earlier partial progression window. This is Part 1 behavior, not a claim to
 implement the additional selected-2023 Part 2 progression extensions.
 
+For the endpoint control in #456, acquired T.800 (06/2019), A.6.6 Table A.32,
+permits endpoint values beyond an individual tile's grid and interprets zero
+component end as 256. B.12.1 defines the actual grid loops; B.12.2 bounds those
+loops by the progression volume. The implementation therefore enumerates
+their intersection, not an enlarged fictitious grid or a malformed-input
+clamping policy. Syntax ranges, effective contribution, duplicate suppression
+and complete-image accounting remain checked. B.12.3's broader empty/excess
+volume and partial final-volume possibilities are not a new partial-image
+support claim.
+
+Acquired T.800 (06/2019), I.5.3.1, makes the leading Image Header box
+authoritative and directs readers to ignore instances elsewhere. The main
+JP2 header reader accordingly ignores later bounded `ihdr` boxes without
+overriding the leading metadata; it still validates and charges their framing.
+This does not change the separate JPX associated-header override policy.
+The other [#456 dispositions](SUPPORTED.md#openjpeg-tolerance-dispositions)
+distinguish framing/coding inconsistencies from intentionally unsupported
+palette-index interpretation. These acquired clauses are not a reconciliation
+or certification of the selected 2024 edition.
+
 ### JP2 primary brand and additional compatibility codes
 
 T.800 (06/2019), I.5.2, Table I.3 and the CLi definition distinguish the
