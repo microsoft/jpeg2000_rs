@@ -1,0 +1,775 @@
+{
+  "schema": 1,
+  "cohort": "consumer-tuning-449-v1",
+  "decoder_main_control": "97d5162b3f43fb14942c46bbea73752d26fb24b4",
+  "encoder": {
+    "project": "OpenJPEG",
+    "version": "2.5.4",
+    "revision": "6c4a29b00211eb0430fa0e5e890f1ce5c80f409f"
+  },
+  "sample_layout": "unsigned 8-bit, interleaved y/x/channel order; SHA256 excludes PNM header",
+  "patterns": {
+    "smooth": "((3*x + 5*y + 97*c) // 16) & 255",
+    "noisy": "xorshift32 state=0x6d2b79f5 reset per source; for each y,x,c: s^=(s<<13)&0xffffffff; s^=s>>17; s^=(s<<5)&0xffffffff; byte=s>>24"
+  },
+  "sources": [
+    {
+      "path": "smooth-gray.pgm",
+      "sha256": "208eee0bc4a372b8783884e585efb7d7843ee7c81f9ffb06fcd1b69fdaebe565",
+      "samples_sha256": "f8520a531141b470830eea83d515c20779e0af7f080c534af8a49b2e9bf2878d",
+      "channels": 1,
+      "width": 1024,
+      "height": 1024,
+      "pattern": "smooth"
+    },
+    {
+      "path": "noisy-gray.pgm",
+      "sha256": "05a6b84ff8d6a6dcb5a346f4ed72dfa1861b9e0d3498d9c760bf4a5b9e56d66d",
+      "samples_sha256": "9be4f35563ede119bb4a85dd735a75da95b2d815d83a28e257efa93296d384a7",
+      "channels": 1,
+      "width": 1024,
+      "height": 1024,
+      "pattern": "noisy"
+    },
+    {
+      "path": "smooth-rgb.ppm",
+      "sha256": "76129e652e784d0002020806dbd40b7efd61436b8b12ac38f76c2ef0e8a92915",
+      "samples_sha256": "de85ac50140b4a439379457b0934e496aa22aff00628f2b3562d18f5147789c4",
+      "channels": 3,
+      "width": 1024,
+      "height": 1024,
+      "pattern": "smooth"
+    },
+    {
+      "path": "noisy-rgb.ppm",
+      "sha256": "5ce70ac537f9fd409b0b59b223a40180656d129d82a3e80abb513a958d423f90",
+      "samples_sha256": "d29168da35a4578465080abf504bf6336dfed729d6abf939495d27c0eded6122",
+      "channels": 3,
+      "width": 1024,
+      "height": 1024,
+      "pattern": "noisy"
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "smooth-gray-lossless-jp2",
+      "path": "smooth-gray-lossless.jp2",
+      "group": "generated-1024",
+      "format": "jp2",
+      "sha256": "0a278df10fdb4240c7cb6f39a391f28e6c3a666d227bccac098e7558597c7848",
+      "bytes": 47653,
+      "width": 1024,
+      "height": 1024,
+      "channels": 1,
+      "source": "smooth-gray.pgm",
+      "source_samples_sha256": "f8520a531141b470830eea83d515c20779e0af7f080c534af8a49b2e9bf2878d",
+      "expected_lossless_samples_sha256": "f8520a531141b470830eea83d515c20779e0af7f080c534af8a49b2e9bf2878d",
+      "coding": {
+        "resolutions": 6,
+        "mct": 0,
+        "wavelet": "5/3"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "0"
+      ],
+      "codestream_sha256": "30d303c836ce9754474840b53cef04c32ee020473673d941fa125bd784b5dd88",
+      "jp2_boxes": [
+        {
+          "type": "jP  ",
+          "bytes": 12,
+          "sha256": "7ccc55e3855843e35299487bcc6f30f68922e3c08eaa8c55887c43eac3e59cf6"
+        },
+        {
+          "type": "ftyp",
+          "bytes": 20,
+          "sha256": "24b5c1f5fcfd919a04f6b2977835cdaa4b6428c0f528a44a0b978d33624e0ea9"
+        },
+        {
+          "type": "jp2h",
+          "bytes": 45,
+          "sha256": "f20534a222b53ae0232e7ef97bdb11ece4da72cee2b292d2c91dc18d3ed31893"
+        },
+        {
+          "type": "jp2c",
+          "bytes": 47576,
+          "sha256": "572efa8b97dc3675fec3564745e19a585c927b6dffdf7f93529921a3550a00a6"
+        }
+      ],
+      "container_metadata_sha256": "8ae7daeacc63fffdd74e9edcbb3b7dee943a5633508f3380c79414dc28ce655e"
+    },
+    {
+      "id": "smooth-gray-lossless-j2k",
+      "path": "smooth-gray-lossless.j2k",
+      "group": "generated-1024",
+      "format": "j2k",
+      "sha256": "30d303c836ce9754474840b53cef04c32ee020473673d941fa125bd784b5dd88",
+      "bytes": 47568,
+      "width": 1024,
+      "height": 1024,
+      "channels": 1,
+      "source": "smooth-gray.pgm",
+      "source_samples_sha256": "f8520a531141b470830eea83d515c20779e0af7f080c534af8a49b2e9bf2878d",
+      "expected_lossless_samples_sha256": "f8520a531141b470830eea83d515c20779e0af7f080c534af8a49b2e9bf2878d",
+      "coding": {
+        "resolutions": 6,
+        "mct": 0,
+        "wavelet": "5/3"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "0"
+      ],
+      "codestream_sha256": "30d303c836ce9754474840b53cef04c32ee020473673d941fa125bd784b5dd88",
+      "jp2_boxes": [],
+      "container_metadata_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "smooth-gray-lossy-jp2",
+      "path": "smooth-gray-lossy.jp2",
+      "group": "generated-1024",
+      "format": "jp2",
+      "sha256": "4fd3018b63199c91564a10e9176f8423c1ea155da4f82a1d70c875ca7e2a7f26",
+      "bytes": 15270,
+      "width": 1024,
+      "height": 1024,
+      "channels": 1,
+      "source": "smooth-gray.pgm",
+      "source_samples_sha256": "f8520a531141b470830eea83d515c20779e0af7f080c534af8a49b2e9bf2878d",
+      "expected_lossless_samples_sha256": null,
+      "coding": {
+        "resolutions": 6,
+        "mct": 0,
+        "wavelet": "9/7"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "0",
+        "-I",
+        "-r",
+        "12"
+      ],
+      "codestream_sha256": "bbaf09e5336f4d98488bb107e973c2cb6bb0e745884440b1910bdad6d4251a64",
+      "jp2_boxes": [
+        {
+          "type": "jP  ",
+          "bytes": 12,
+          "sha256": "7ccc55e3855843e35299487bcc6f30f68922e3c08eaa8c55887c43eac3e59cf6"
+        },
+        {
+          "type": "ftyp",
+          "bytes": 20,
+          "sha256": "24b5c1f5fcfd919a04f6b2977835cdaa4b6428c0f528a44a0b978d33624e0ea9"
+        },
+        {
+          "type": "jp2h",
+          "bytes": 45,
+          "sha256": "f20534a222b53ae0232e7ef97bdb11ece4da72cee2b292d2c91dc18d3ed31893"
+        },
+        {
+          "type": "jp2c",
+          "bytes": 15193,
+          "sha256": "369ed0636cb68359b1c48a59d241d8ace93e93e597e83ec5ad95b5a37c00e28f"
+        }
+      ],
+      "container_metadata_sha256": "8ae7daeacc63fffdd74e9edcbb3b7dee943a5633508f3380c79414dc28ce655e"
+    },
+    {
+      "id": "smooth-gray-lossy-j2k",
+      "path": "smooth-gray-lossy.j2k",
+      "group": "generated-1024",
+      "format": "j2k",
+      "sha256": "bbaf09e5336f4d98488bb107e973c2cb6bb0e745884440b1910bdad6d4251a64",
+      "bytes": 15185,
+      "width": 1024,
+      "height": 1024,
+      "channels": 1,
+      "source": "smooth-gray.pgm",
+      "source_samples_sha256": "f8520a531141b470830eea83d515c20779e0af7f080c534af8a49b2e9bf2878d",
+      "expected_lossless_samples_sha256": null,
+      "coding": {
+        "resolutions": 6,
+        "mct": 0,
+        "wavelet": "9/7"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "0",
+        "-I",
+        "-r",
+        "12"
+      ],
+      "codestream_sha256": "bbaf09e5336f4d98488bb107e973c2cb6bb0e745884440b1910bdad6d4251a64",
+      "jp2_boxes": [],
+      "container_metadata_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "noisy-gray-lossless-jp2",
+      "path": "noisy-gray-lossless.jp2",
+      "group": "generated-1024",
+      "format": "jp2",
+      "sha256": "06ee42fe1664c416c2fc8bed1ba3d0c46c02287d0404ed3f8b48e721e8a835e0",
+      "bytes": 1139901,
+      "width": 1024,
+      "height": 1024,
+      "channels": 1,
+      "source": "noisy-gray.pgm",
+      "source_samples_sha256": "9be4f35563ede119bb4a85dd735a75da95b2d815d83a28e257efa93296d384a7",
+      "expected_lossless_samples_sha256": "9be4f35563ede119bb4a85dd735a75da95b2d815d83a28e257efa93296d384a7",
+      "coding": {
+        "resolutions": 6,
+        "mct": 0,
+        "wavelet": "5/3"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "0"
+      ],
+      "codestream_sha256": "278dded614dd932c31db71be3ccdffc3d31d5d873a9ef85b8cf67f31e1cbbf49",
+      "jp2_boxes": [
+        {
+          "type": "jP  ",
+          "bytes": 12,
+          "sha256": "7ccc55e3855843e35299487bcc6f30f68922e3c08eaa8c55887c43eac3e59cf6"
+        },
+        {
+          "type": "ftyp",
+          "bytes": 20,
+          "sha256": "24b5c1f5fcfd919a04f6b2977835cdaa4b6428c0f528a44a0b978d33624e0ea9"
+        },
+        {
+          "type": "jp2h",
+          "bytes": 45,
+          "sha256": "f20534a222b53ae0232e7ef97bdb11ece4da72cee2b292d2c91dc18d3ed31893"
+        },
+        {
+          "type": "jp2c",
+          "bytes": 1139824,
+          "sha256": "c9fe1e1b5e6d2b90c2877dd661d738069070284540b20aa4cb5669c3cc9dbe19"
+        }
+      ],
+      "container_metadata_sha256": "8ae7daeacc63fffdd74e9edcbb3b7dee943a5633508f3380c79414dc28ce655e"
+    },
+    {
+      "id": "noisy-gray-lossless-j2k",
+      "path": "noisy-gray-lossless.j2k",
+      "group": "generated-1024",
+      "format": "j2k",
+      "sha256": "278dded614dd932c31db71be3ccdffc3d31d5d873a9ef85b8cf67f31e1cbbf49",
+      "bytes": 1139816,
+      "width": 1024,
+      "height": 1024,
+      "channels": 1,
+      "source": "noisy-gray.pgm",
+      "source_samples_sha256": "9be4f35563ede119bb4a85dd735a75da95b2d815d83a28e257efa93296d384a7",
+      "expected_lossless_samples_sha256": "9be4f35563ede119bb4a85dd735a75da95b2d815d83a28e257efa93296d384a7",
+      "coding": {
+        "resolutions": 6,
+        "mct": 0,
+        "wavelet": "5/3"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "0"
+      ],
+      "codestream_sha256": "278dded614dd932c31db71be3ccdffc3d31d5d873a9ef85b8cf67f31e1cbbf49",
+      "jp2_boxes": [],
+      "container_metadata_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "noisy-gray-lossy-jp2",
+      "path": "noisy-gray-lossy.jp2",
+      "group": "generated-1024",
+      "format": "jp2",
+      "sha256": "3bed6ee902adc020d6e6f64dc11d2e08adf6f7845eb78d550e43d53a1ae30772",
+      "bytes": 87128,
+      "width": 1024,
+      "height": 1024,
+      "channels": 1,
+      "source": "noisy-gray.pgm",
+      "source_samples_sha256": "9be4f35563ede119bb4a85dd735a75da95b2d815d83a28e257efa93296d384a7",
+      "expected_lossless_samples_sha256": null,
+      "coding": {
+        "resolutions": 6,
+        "mct": 0,
+        "wavelet": "9/7"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "0",
+        "-I",
+        "-r",
+        "12"
+      ],
+      "codestream_sha256": "630ccda0b4062ae6b2043e5ab8913cc64ba3fbad7b3cee744014a768cc9cb5e2",
+      "jp2_boxes": [
+        {
+          "type": "jP  ",
+          "bytes": 12,
+          "sha256": "7ccc55e3855843e35299487bcc6f30f68922e3c08eaa8c55887c43eac3e59cf6"
+        },
+        {
+          "type": "ftyp",
+          "bytes": 20,
+          "sha256": "24b5c1f5fcfd919a04f6b2977835cdaa4b6428c0f528a44a0b978d33624e0ea9"
+        },
+        {
+          "type": "jp2h",
+          "bytes": 45,
+          "sha256": "f20534a222b53ae0232e7ef97bdb11ece4da72cee2b292d2c91dc18d3ed31893"
+        },
+        {
+          "type": "jp2c",
+          "bytes": 87051,
+          "sha256": "0ab49553219bd61a93d79f9d29bc51b27bb466d6d930b041e4a4939e57de60e4"
+        }
+      ],
+      "container_metadata_sha256": "8ae7daeacc63fffdd74e9edcbb3b7dee943a5633508f3380c79414dc28ce655e"
+    },
+    {
+      "id": "noisy-gray-lossy-j2k",
+      "path": "noisy-gray-lossy.j2k",
+      "group": "generated-1024",
+      "format": "j2k",
+      "sha256": "630ccda0b4062ae6b2043e5ab8913cc64ba3fbad7b3cee744014a768cc9cb5e2",
+      "bytes": 87043,
+      "width": 1024,
+      "height": 1024,
+      "channels": 1,
+      "source": "noisy-gray.pgm",
+      "source_samples_sha256": "9be4f35563ede119bb4a85dd735a75da95b2d815d83a28e257efa93296d384a7",
+      "expected_lossless_samples_sha256": null,
+      "coding": {
+        "resolutions": 6,
+        "mct": 0,
+        "wavelet": "9/7"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "0",
+        "-I",
+        "-r",
+        "12"
+      ],
+      "codestream_sha256": "630ccda0b4062ae6b2043e5ab8913cc64ba3fbad7b3cee744014a768cc9cb5e2",
+      "jp2_boxes": [],
+      "container_metadata_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "smooth-rgb-lossless-jp2",
+      "path": "smooth-rgb-lossless.jp2",
+      "group": "generated-1024",
+      "format": "jp2",
+      "sha256": "7cadeaa9b338b00b96c6585da74f0716cb8e57787f825900f6d348de43685457",
+      "bytes": 146957,
+      "width": 1024,
+      "height": 1024,
+      "channels": 3,
+      "source": "smooth-rgb.ppm",
+      "source_samples_sha256": "de85ac50140b4a439379457b0934e496aa22aff00628f2b3562d18f5147789c4",
+      "expected_lossless_samples_sha256": "de85ac50140b4a439379457b0934e496aa22aff00628f2b3562d18f5147789c4",
+      "coding": {
+        "resolutions": 6,
+        "mct": 1,
+        "wavelet": "5/3"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "1"
+      ],
+      "codestream_sha256": "4d8e71bb94e76611e7d024922e33a6567c1747c43ae36e29931e1d683fe0343f",
+      "jp2_boxes": [
+        {
+          "type": "jP  ",
+          "bytes": 12,
+          "sha256": "7ccc55e3855843e35299487bcc6f30f68922e3c08eaa8c55887c43eac3e59cf6"
+        },
+        {
+          "type": "ftyp",
+          "bytes": 20,
+          "sha256": "24b5c1f5fcfd919a04f6b2977835cdaa4b6428c0f528a44a0b978d33624e0ea9"
+        },
+        {
+          "type": "jp2h",
+          "bytes": 45,
+          "sha256": "249b290d43d1e42db9542d0652f6cd0b383b50ef46f95ad5a362effdb5eec2b0"
+        },
+        {
+          "type": "jp2c",
+          "bytes": 146880,
+          "sha256": "acfb483776ddfdb35303926f04c6efc92fa5d1e79da96dab81c8050d5aa522fc"
+        }
+      ],
+      "container_metadata_sha256": "ea237dc323dc37a16629aa1299534eab4c72d2bbeaf0be844989d272e90daad2"
+    },
+    {
+      "id": "smooth-rgb-lossless-j2k",
+      "path": "smooth-rgb-lossless.j2k",
+      "group": "generated-1024",
+      "format": "j2k",
+      "sha256": "4d8e71bb94e76611e7d024922e33a6567c1747c43ae36e29931e1d683fe0343f",
+      "bytes": 146872,
+      "width": 1024,
+      "height": 1024,
+      "channels": 3,
+      "source": "smooth-rgb.ppm",
+      "source_samples_sha256": "de85ac50140b4a439379457b0934e496aa22aff00628f2b3562d18f5147789c4",
+      "expected_lossless_samples_sha256": "de85ac50140b4a439379457b0934e496aa22aff00628f2b3562d18f5147789c4",
+      "coding": {
+        "resolutions": 6,
+        "mct": 1,
+        "wavelet": "5/3"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "1"
+      ],
+      "codestream_sha256": "4d8e71bb94e76611e7d024922e33a6567c1747c43ae36e29931e1d683fe0343f",
+      "jp2_boxes": [],
+      "container_metadata_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "smooth-rgb-lossy-jp2",
+      "path": "smooth-rgb-lossy.jp2",
+      "group": "generated-1024",
+      "format": "jp2",
+      "sha256": "25aa2fd4c4614a1ff0fbe472b98cda3d63126bd2263568d0c9c51bcf6cb4a1c3",
+      "bytes": 78091,
+      "width": 1024,
+      "height": 1024,
+      "channels": 3,
+      "source": "smooth-rgb.ppm",
+      "source_samples_sha256": "de85ac50140b4a439379457b0934e496aa22aff00628f2b3562d18f5147789c4",
+      "expected_lossless_samples_sha256": null,
+      "coding": {
+        "resolutions": 6,
+        "mct": 1,
+        "wavelet": "9/7"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "1",
+        "-I",
+        "-r",
+        "12"
+      ],
+      "codestream_sha256": "c5554b1fc204e74b2c2702bee2941a0c560f487402fe5f61a527c4c139264d97",
+      "jp2_boxes": [
+        {
+          "type": "jP  ",
+          "bytes": 12,
+          "sha256": "7ccc55e3855843e35299487bcc6f30f68922e3c08eaa8c55887c43eac3e59cf6"
+        },
+        {
+          "type": "ftyp",
+          "bytes": 20,
+          "sha256": "24b5c1f5fcfd919a04f6b2977835cdaa4b6428c0f528a44a0b978d33624e0ea9"
+        },
+        {
+          "type": "jp2h",
+          "bytes": 45,
+          "sha256": "249b290d43d1e42db9542d0652f6cd0b383b50ef46f95ad5a362effdb5eec2b0"
+        },
+        {
+          "type": "jp2c",
+          "bytes": 78014,
+          "sha256": "00e15c15e608aa3dce2f48b779e8d76d0aac56338cb4b7a90987b51daafafb4e"
+        }
+      ],
+      "container_metadata_sha256": "ea237dc323dc37a16629aa1299534eab4c72d2bbeaf0be844989d272e90daad2"
+    },
+    {
+      "id": "smooth-rgb-lossy-j2k",
+      "path": "smooth-rgb-lossy.j2k",
+      "group": "generated-1024",
+      "format": "j2k",
+      "sha256": "c5554b1fc204e74b2c2702bee2941a0c560f487402fe5f61a527c4c139264d97",
+      "bytes": 78006,
+      "width": 1024,
+      "height": 1024,
+      "channels": 3,
+      "source": "smooth-rgb.ppm",
+      "source_samples_sha256": "de85ac50140b4a439379457b0934e496aa22aff00628f2b3562d18f5147789c4",
+      "expected_lossless_samples_sha256": null,
+      "coding": {
+        "resolutions": 6,
+        "mct": 1,
+        "wavelet": "9/7"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "1",
+        "-I",
+        "-r",
+        "12"
+      ],
+      "codestream_sha256": "c5554b1fc204e74b2c2702bee2941a0c560f487402fe5f61a527c4c139264d97",
+      "jp2_boxes": [],
+      "container_metadata_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "noisy-rgb-lossless-jp2",
+      "path": "noisy-rgb-lossless.jp2",
+      "group": "generated-1024",
+      "format": "jp2",
+      "sha256": "1379d197189d120f8d59dc89b0a19223fd5d2da09df8d1115ff89ba1757c51e5",
+      "bytes": 3460634,
+      "width": 1024,
+      "height": 1024,
+      "channels": 3,
+      "source": "noisy-rgb.ppm",
+      "source_samples_sha256": "d29168da35a4578465080abf504bf6336dfed729d6abf939495d27c0eded6122",
+      "expected_lossless_samples_sha256": "d29168da35a4578465080abf504bf6336dfed729d6abf939495d27c0eded6122",
+      "coding": {
+        "resolutions": 6,
+        "mct": 1,
+        "wavelet": "5/3"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "1"
+      ],
+      "codestream_sha256": "64794837419ff36aa912902ea75117cbad21996f6bda21adf085bad7c96f336c",
+      "jp2_boxes": [
+        {
+          "type": "jP  ",
+          "bytes": 12,
+          "sha256": "7ccc55e3855843e35299487bcc6f30f68922e3c08eaa8c55887c43eac3e59cf6"
+        },
+        {
+          "type": "ftyp",
+          "bytes": 20,
+          "sha256": "24b5c1f5fcfd919a04f6b2977835cdaa4b6428c0f528a44a0b978d33624e0ea9"
+        },
+        {
+          "type": "jp2h",
+          "bytes": 45,
+          "sha256": "249b290d43d1e42db9542d0652f6cd0b383b50ef46f95ad5a362effdb5eec2b0"
+        },
+        {
+          "type": "jp2c",
+          "bytes": 3460557,
+          "sha256": "a6419522a623f6148df195fed0a3cf7b59c5e527e63be93d2aaa8bc3cb632bf0"
+        }
+      ],
+      "container_metadata_sha256": "ea237dc323dc37a16629aa1299534eab4c72d2bbeaf0be844989d272e90daad2"
+    },
+    {
+      "id": "noisy-rgb-lossless-j2k",
+      "path": "noisy-rgb-lossless.j2k",
+      "group": "generated-1024",
+      "format": "j2k",
+      "sha256": "64794837419ff36aa912902ea75117cbad21996f6bda21adf085bad7c96f336c",
+      "bytes": 3460549,
+      "width": 1024,
+      "height": 1024,
+      "channels": 3,
+      "source": "noisy-rgb.ppm",
+      "source_samples_sha256": "d29168da35a4578465080abf504bf6336dfed729d6abf939495d27c0eded6122",
+      "expected_lossless_samples_sha256": "d29168da35a4578465080abf504bf6336dfed729d6abf939495d27c0eded6122",
+      "coding": {
+        "resolutions": 6,
+        "mct": 1,
+        "wavelet": "5/3"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "1"
+      ],
+      "codestream_sha256": "64794837419ff36aa912902ea75117cbad21996f6bda21adf085bad7c96f336c",
+      "jp2_boxes": [],
+      "container_metadata_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "noisy-rgb-lossy-jp2",
+      "path": "noisy-rgb-lossy.jp2",
+      "group": "generated-1024",
+      "format": "jp2",
+      "sha256": "f485585df20af18bbda472172d3825d7f024e142e04f48fa49a6b9033ad48e02",
+      "bytes": 261956,
+      "width": 1024,
+      "height": 1024,
+      "channels": 3,
+      "source": "noisy-rgb.ppm",
+      "source_samples_sha256": "d29168da35a4578465080abf504bf6336dfed729d6abf939495d27c0eded6122",
+      "expected_lossless_samples_sha256": null,
+      "coding": {
+        "resolutions": 6,
+        "mct": 1,
+        "wavelet": "9/7"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "1",
+        "-I",
+        "-r",
+        "12"
+      ],
+      "codestream_sha256": "6d0410e6efb7cf5f947a67b26e0cd73b5ff728f8970d65d80be5bd8279e5bcb4",
+      "jp2_boxes": [
+        {
+          "type": "jP  ",
+          "bytes": 12,
+          "sha256": "7ccc55e3855843e35299487bcc6f30f68922e3c08eaa8c55887c43eac3e59cf6"
+        },
+        {
+          "type": "ftyp",
+          "bytes": 20,
+          "sha256": "24b5c1f5fcfd919a04f6b2977835cdaa4b6428c0f528a44a0b978d33624e0ea9"
+        },
+        {
+          "type": "jp2h",
+          "bytes": 45,
+          "sha256": "249b290d43d1e42db9542d0652f6cd0b383b50ef46f95ad5a362effdb5eec2b0"
+        },
+        {
+          "type": "jp2c",
+          "bytes": 261879,
+          "sha256": "2ea436b7797d9f89a2f6724b32e2eea1a33dc59c90e48571fdad75d4563c084d"
+        }
+      ],
+      "container_metadata_sha256": "ea237dc323dc37a16629aa1299534eab4c72d2bbeaf0be844989d272e90daad2"
+    },
+    {
+      "id": "noisy-rgb-lossy-j2k",
+      "path": "noisy-rgb-lossy.j2k",
+      "group": "generated-1024",
+      "format": "j2k",
+      "sha256": "6d0410e6efb7cf5f947a67b26e0cd73b5ff728f8970d65d80be5bd8279e5bcb4",
+      "bytes": 261871,
+      "width": 1024,
+      "height": 1024,
+      "channels": 3,
+      "source": "noisy-rgb.ppm",
+      "source_samples_sha256": "d29168da35a4578465080abf504bf6336dfed729d6abf939495d27c0eded6122",
+      "expected_lossless_samples_sha256": null,
+      "coding": {
+        "resolutions": 6,
+        "mct": 1,
+        "wavelet": "9/7"
+      },
+      "encoder_arguments": [
+        "-n",
+        "6",
+        "-mct",
+        "1",
+        "-I",
+        "-r",
+        "12"
+      ],
+      "codestream_sha256": "6d0410e6efb7cf5f947a67b26e0cd73b5ff728f8970d65d80be5bd8279e5bcb4",
+      "jp2_boxes": [],
+      "container_metadata_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "tracked-gray",
+      "path": "tracked/validation/image-consumer-probe/tests/fixtures/gray.jp2",
+      "group": "tracked-validation",
+      "format": "jp2",
+      "sha256": "df1abe6330374120f7bb5507009f82943f35d132ae0904314e38b3afeb534924",
+      "bytes": 167,
+      "origin": "validation/image-consumer-probe/tests/fixtures/gray.jp2",
+      "license": "MIT; repository LICENSE or adjacent LICENSE-MIT"
+    },
+    {
+      "id": "tracked-rgb",
+      "path": "tracked/validation/image-consumer-probe/tests/fixtures/rgb.jp2",
+      "group": "tracked-validation",
+      "format": "jp2",
+      "sha256": "66c24fe05379c3651747da63de69322116a2ecefec8b6e00d2defb40ead396b3",
+      "bytes": 175,
+      "origin": "validation/image-consumer-probe/tests/fixtures/rgb.jp2",
+      "license": "MIT; repository LICENSE or adjacent LICENSE-MIT"
+    },
+    {
+      "id": "tracked-raw-minimal",
+      "path": "tracked/validation/generated/corpus/raw-minimal.j2k",
+      "group": "tracked-validation",
+      "format": "j2k",
+      "sha256": "c781555cad8670d3763ef5c8b6be0a22e6827222faafe0fe3037c09f7167721c",
+      "bytes": 82,
+      "origin": "validation/generated/corpus/raw-minimal.j2k",
+      "license": "MIT; repository LICENSE or adjacent LICENSE-MIT"
+    },
+    {
+      "id": "tracked-raw-invalid-soc",
+      "path": "tracked/validation/generated/corpus/raw-invalid-soc.j2k",
+      "group": "tracked-validation",
+      "format": "j2k",
+      "sha256": "1029787e7f86917dae8346fe7662ae9901fee0db750cdbf4a3bbf0ea25ab8c9c",
+      "bytes": 82,
+      "origin": "validation/generated/corpus/raw-invalid-soc.j2k",
+      "license": "MIT; repository LICENSE or adjacent LICENSE-MIT"
+    },
+    {
+      "id": "tracked-jp2-invalid-signature",
+      "path": "tracked/validation/generated/corpus/jp2-invalid-signature.jp2",
+      "group": "tracked-validation",
+      "format": "jp2",
+      "sha256": "1cb48be12d72fd77835db163917aa1d54819f46b4d18252e1d99e3bc082b46cc",
+      "bytes": 167,
+      "origin": "validation/generated/corpus/jp2-invalid-signature.jp2",
+      "license": "MIT; repository LICENSE or adjacent LICENSE-MIT"
+    },
+    {
+      "id": "tracked-packets_mixed_levels_rpcl",
+      "path": "tracked/validation/fixtures/hayro-mixed-progression/packets_mixed_levels_rpcl.j2k",
+      "group": "tracked-validation",
+      "format": "j2k",
+      "sha256": "9d5c0737ec5744c3882066bac15d45227c8e1e7cdc11317ff797de8872681d44",
+      "bytes": 28734,
+      "origin": "validation/fixtures/hayro-mixed-progression/packets_mixed_levels_rpcl.j2k",
+      "license": "MIT; repository LICENSE or adjacent LICENSE-MIT"
+    },
+    {
+      "id": "tracked-codestream_single_row_odd_offset",
+      "path": "tracked/validation/fixtures/hayro-empty-axes/codestream_single_row_odd_offset.j2k",
+      "group": "tracked-validation",
+      "format": "j2k",
+      "sha256": "1b9e36c1e8b82f627fc801fc0146fb8a6304121a7e75f235a8fdc97f4635749f",
+      "bytes": 200,
+      "origin": "validation/fixtures/hayro-empty-axes/codestream_single_row_odd_offset.j2k",
+      "license": "MIT; repository LICENSE or adjacent LICENSE-MIT"
+    },
+    {
+      "id": "tracked-tile_parts_missing_eoc",
+      "path": "tracked/validation/fixtures/hayro-sized-eoc/tile_parts_missing_eoc.j2k",
+      "group": "tracked-validation",
+      "format": "j2k",
+      "sha256": "31ca91d8ad893468b21e5452f93fd46973a3e370829e255d33ed8d4e8f1b7c44",
+      "bytes": 7587,
+      "origin": "validation/fixtures/hayro-sized-eoc/tile_parts_missing_eoc.j2k",
+      "license": "MIT; repository LICENSE or adjacent LICENSE-MIT"
+    }
+  ]
+}

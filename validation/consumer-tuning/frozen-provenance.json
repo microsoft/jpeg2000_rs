@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "license": "MIT; repository LICENSE",
+  "origin": "Self-authored synthetic integer source patterns in generate_fixtures.py",
+  "canonical_manifest": "cohort-v1.json",
+  "canonical_manifest_sha256": "5c33c9699031796f293e4cb5357c56748367793cbd21c59e7ddaba219069c954",
+  "stored_inputs": "Only eight JP2 files in frozen/. Raw J2K is extracted from each jp2c payload.",
+  "encoder": {
+    "project": "OpenJPEG",
+    "version": "2.5.4",
+    "revision": "6c4a29b00211eb0430fa0e5e890f1ce5c80f409f",
+    "executable_sha256": "52148792cf282eedc0d1b4408d6e2cef8b2130339cf217f736e685b236e6ca11",
+    "compiler": "cc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "cmake_build_type": "Release",
+    "cmake_c_flags": "",
+    "cmake_c_flags_release": "-O3 -DNDEBUG",
+    "arguments": "-n 6 -mct 0 for gray / -mct 1 for RGB; lossy additionally -I -r 12",
+    "input": "P5/P6 PNM, 1024 1024, maxval 255; header and source-sample hashes in canonical manifest"
+  },
+  "native_reencoding_observation": {
+    "run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44822702787",
+    "result": "Native x86-64 and ARM64 re-encoded cohorts agreed with each other, but smooth-gray-lossy and noisy-rgb-lossy differed from the original frozen bytes. All other cases and all source samples matched. No timings were accepted from this run.",
+    "x86_encoder_sha256": "1261b667a185a0f46ff0ed3cbac2b9d0d3d74ef602318bd60ccca7f6e584ad42",
+    "arm_encoder_sha256": "e8049b9fb79e0a5e11fd28fe21d80aa29c4c5437e90af563193d3f508214126e",
+    "x86_c_compiler_version": "15.2.0",
+    "interpretation": "Floating-point lossy re-encoding is not a canonical-input distribution mechanism. Do not replace frozen inputs with native re-encodings."
+  }
+}

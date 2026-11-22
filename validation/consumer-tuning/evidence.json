@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "issue": "https://github.com/microsoft/jpeg2000_rs/issues/449",
+  "pull_request": "https://github.com/microsoft/jpeg2000_rs/pull/450",
+  "measurement_commit": "c96b7d1cc99b92136d97fdbe7d5d3ff50a3dcc7b",
+  "run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44825727854",
+  "rust": "1.93.1",
+  "consumer_lockfile_sha256": "22549864aa9d022ca94e0d2b20cf7c68d90e27a4e8b01b90ff10d6a3affa5101",
+  "canonical_manifest": "cohort-v1.json",
+  "canonical_manifest_sha256": "5c33c9699031796f293e4cb5357c56748367793cbd21c59e7ddaba219069c954",
+  "controls": {
+    "current": "97d5162b3f43fb14942c46bbea73752d26fb24b4",
+    "published_version": "0.2.2",
+    "published_source_anchor": "4989f9c680beeb7bad4fbfd441a93aa373d2ba4f",
+    "published_archive_sha256": "9174c2cd54f8ba9401d48f3a71bc162dd999eacf7409662bc3339ddbe7d8cbcc",
+    "unchanged_runtime_spec_proof_files": 380,
+    "canonical_sorted_source_map_sha256": "f630d7d612d3e8b97e5371757cd95d3fd06c4c503fed2a131f42b32de3d71834"
+  },
+  "observations": {
+    "native_hosts": 2,
+    "cold_builds": 60,
+    "process_samples": 4608,
+    "paired_blocks": 4,
+    "reversed_build_rounds": 2
+  },
+  "hosted_artifacts": [
+    {
+      "host": "AMD EPYC 9V74, native x86-64",
+      "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44825727854/artifacts/14674548585",
+      "sha256": "c4c136d1978e612f0c9f8fa3616e7f83427ea93fb75a7705e01bcdda3942e604",
+      "expires_at": "2026-12-20T22:21:03Z"
+    },
+    {
+      "host": "Neoverse-N2, native ARM64",
+      "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44825727854/artifacts/14674977659",
+      "sha256": "d41413d8eabaff6766d34c5244e2e328f672eb4e0c9c94eb5bfbf3e4339c7c44",
+      "expires_at": "2026-12-20T22:23:24Z"
+    }
+  ],
+  "local_preservation": {
+    "root": "/home/sergiog/.copilot/session-state/a689d42c-16cd-4089-bbc6-f20300bb6cc3/files/consumer-tuning-449-evidence",
+    "inventory": "preservation-manifest.json",
+    "checksums": "SHA256SUMS",
+    "checksums_sha256": "805cb329d99624af3ea0023073eff0d6763a396f147135ff2abc0008a4bd9ba5",
+    "files_verified_against_originals": 50146,
+    "bytes": 1014976603,
+    "generated_reports": "generated-results/",
+    "full_artifacts_inputs_logs_and_binaries": "target-evidence/",
+    "retention": "Currently available on this host; no indefinite host/session retention guarantee. Copy to an owner-managed evidence store."
+  },
+  "preserved_archives": [
+    {
+      "path": "generated-results/run-44825727854-x86.tar.gz",
+      "sha256": "9e1655880a75bf2c3093f9a31f9fabdcebe5b0549b23cb011d95b5408c7e53ad"
+    },
+    {
+      "path": "generated-results/run-44825727854-arm.tar.gz",
+      "sha256": "5099ac3877328e06a17b7cd114be645d73a54895a2c04461b7097f5a26a0a5a2"
+    },
+    {
+      "path": "generated-results/attempt-44823353147-x86.partial.tar.gz",
+      "sha256": "95c5309b4ba782c8681b24deee93986e61091171c2866c87fbc5d2f9ac9e031c"
+    },
+    {
+      "path": "generated-results/run-44823353147-arm.initial.tar.gz",
+      "sha256": "c761f97e38eb97079ea5f100ceca330ddde21e2a91d32aab91781edc1a5e3c7e"
+    }
+  ],
+  "retention_policy": "Hosted artifacts have 30-day retention; run links alone do not retain downloads. Generated reports are not tracked source. Ordinary deletion does not erase prior Git history.",
+  "actual_consumer_followup": "actual-evidence.json",
+  "remaining_acceptance": "Actual zune and separate GN configuration/output audits completed in actual-evidence.json; strict-invalid and lossy numerical parity failures remain explicit, not universal acceptance. This index preserves the historical standalone cohort.",
+  "issue_must_remain_open": false
+}
