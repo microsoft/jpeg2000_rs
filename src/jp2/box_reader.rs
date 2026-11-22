@@ -54,6 +54,7 @@ verus! {
 impl BoxType {
     pub const SIGNATURE: Self = Self(0x6a50_2020);
     pub const FILE_TYPE: Self = Self(0x6674_7970);
+    pub const READER_REQUIREMENTS: Self = Self(0x7272_6571);
     pub const JP2_HEADER: Self = Self(0x6a70_3268);
     pub const CODESTREAM_HEADER: Self = Self(0x6a70_6368);
     pub const COMPOSITING_LAYER_HEADER: Self = Self(0x6a70_6c68);
@@ -570,7 +571,7 @@ pub(super) fn read_u16(bytes: [u8; 2]) -> u16 {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == crate::specs::part2_box_u64(bytes),))]
-fn read_u64(bytes: [u8; 8]) -> u64 {
+pub(super) fn read_u64(bytes: [u8; 8]) -> u64 {
     (u64::from(bytes[0]) << 56)
         | (u64::from(bytes[1]) << 48)
         | (u64::from(bytes[2]) << 40)

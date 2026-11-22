@@ -122,6 +122,24 @@ output, inspected metadata and count-repair callers keep exact first refusals
 and ordinary results without supplied successful-image or allocator premises.
 The five Rust-only adapters and default verifier budget are unchanged.
 
+## Single-image JPX PDF embedding
+
+The input producer admits JPX/JPX-baseline only after the bounded profile
+validator checks one codestream, no composition, at most one empty layer,
+supported coding flags and reader requirements. `specs/pdf_jpx.rs` models
+actual mask-word reads, standard/vendor record traversal, required-aspect
+coverage, exact work/error priority and the complete top-level RREQ scan.
+Checked word, record and box cutpoints keep those executing loops within the
+unchanged verifier budget; they are not assumptions or excluded functions.
+
+The ordinary prepared-input mode bypasses legacy damaged-input recovery.
+The JPX associated-header lookup and strict header/codestream validation are
+the existing shared boundaries, and output storage uses the selected associated
+header rather than silently reverting to the main header. Typed, selected,
+centered and inspection callers retain complete Result/storage bindings.
+This is the stated embedding profile, not arbitrary JPX composition support
+or an independent selected-edition conformance certification.
+
 ## Fallible-storage foundation and remaining boundary
 
 ### Allocation-aware reversible vertical traversal

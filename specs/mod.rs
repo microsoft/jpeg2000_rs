@@ -277,6 +277,8 @@ mod pdf_trailers;
 pub use pdf_trailers::*;
 mod pdf_compat;
 pub use pdf_compat::*;
+mod pdf_jpx;
+pub(crate) use pdf_jpx::*;
 mod pdf_eol;
 pub use pdf_eol::*;
 mod pdf_tile_count;

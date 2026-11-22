@@ -49,6 +49,10 @@ Well-formed HT input in raw, JP2 or JPH form uses ordinary format-appropriate
 decoding in that mode, including indexed component export. Legacy damaged-input
 repair is not enabled for HT; malformed framing, metadata and resource failures
 remain errors.
+That mode also admits the common PDF profile's single-image JPX/JPX-baseline
+embedding through validated reader requirements and existing JPX header
+interpretation. Composited/multiple-image or unsupported required capabilities
+are not silently treated as stream zero. Strict JP2 behavior is unchanged.
 
 `probe.c` is a small standalone consumer that exercises the header, stream,
 decode, and destruction sequence. Build it once against the OpenJPEG header

@@ -232,7 +232,14 @@ raw or in JP2/JPH, uses ordinary decoding instead of legacy recovery. Its
 header dimensions and complete tile/packet framing remain strict, with no
 missing-EOC, tile-count, trailer, absent-tile or initial-MQ repair. A validated
 terminal PDF EOL remains the separately reported embedding policy below.
-Non-JP2-primary JPX remains outside this facade; use its explicit API.
+Non-JP2-primary JPX/JPX-baseline input is also supported when it contains one
+codestream, no composition and at most one empty compositing-layer header.
+The existing JPX associated-header resolver and selected decoder retain
+palette/channel interpretation. Reader-requirement masks must be satisfied
+by supported Part 1 feature flags (1, 4, 5); required vendor/other capabilities,
+ambiguous multiple codestreams and semantic layer overrides remain unsupported.
+Strict JP2 APIs are unchanged. Use explicit JPX APIs for broader layer/frame
+selection, rather than silently selecting codestream zero here.
 
 The result carries `PdfRecovery` flags, exact trailer bytes, original/effective
 **codestream** byte counts, preflight/copy accounting and any full intended-canvas
