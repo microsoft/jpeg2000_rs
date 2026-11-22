@@ -9068,7 +9068,7 @@ class FrameworkTests(WorkingFiles):
 
     def test_inventory_binds_actual_progression_shape_bitmap_failure_frames_and_complete_admission(self):
         self._assert_complete_packet_contract_bindings(
-            {"part1-complete-native-progression-admission"},
+            {"part1-complete-native-progression-admission", "part1-complete-native-tile-progression-coverage"},
             framework._PROGRESSION_ADMISSION_CONTRACTS, 7,
         )
 
