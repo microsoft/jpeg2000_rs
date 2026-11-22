@@ -186,6 +186,7 @@ specs/packet_tile.rs
 specs/pdf_compat.rs
 specs/pdf_dimensions.rs
 specs/pdf_eol.rs
+specs/pdf_jpx.rs
 specs/pdf_present_tile.rs
 specs/pdf_tile_count.rs
 specs/pdf_trailers.rs
@@ -301,6 +302,7 @@ src/jp2/composition.rs
 src/jp2/container.rs
 src/jp2/headers.rs
 src/jp2/metadata.rs
+src/jp2/pdf_jpx.rs
 src/jp2/proof_support.rs
 src/jp2/tests.rs
 src/jp2.rs
