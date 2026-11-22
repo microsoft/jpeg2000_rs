@@ -248,9 +248,19 @@ def run(options):
     os.chdir(pdfium)
     env = environment(root)
     env["TZ"] = "America/Los_Angeles"
+    compilers = {}
+    for name, path, arguments in (
+        ("rustc", pdfium / "third_party/rust-toolchain/bin/rustc", ["--version", "--verbose"]),
+        ("clang", pdfium / "third_party/llvm-build/Release+Asserts/bin/clang++", ["--version"]),
+    ):
+        version = capture([str(path), *arguments])
+        if version["returncode"]:
+            raise ValueError(f"actual GN {name} compiler identity unavailable")
+        compilers[name] = {"version": version, "binary_sha256": sha(path)}
     metadata = {
         "pdfium_pin": PDFIUM_PIN, "depot_tools_pin": DEPOT_PIN, "decoder_pin": DECODER_PIN,
         "configuration": COMMON_ARGS, "profile_environment_is_not_gn": True,
+        "compilers": compilers,
         "platform": capture(["uname", "-a"]), "cpu": capture(["lscpu", "--json"]),
         "source_diff": capture(["git", "-C", str(pdfium), "diff", "--binary"]),
         "coverage": {"actual_pdfium_direct_backend": True, "cargo_substitute": False,

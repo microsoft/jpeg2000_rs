@@ -288,8 +288,9 @@ At the time of the historical inspection, `/workspace/pdfium-dev` was absent.
 The public handoff now supplies an independently pinned PDFium GN checkout;
 its acceptance/parity results are separate from the actual zune study.
 Hosted observations do not cover every supported CPU. Build tuning alone
-is not an explanation for the large decoder gap. Keep #449 open until its
-remaining direct-consumer criteria are resolved.
+is not an explanation for the large decoder gap. Its completed direct-consumer
+audits preserve explicit numerical/strict rejection dispositions; they do not
+claim every PDF golden case is interchangeable with OpenJPEG.
 
 See [RESULTS.md](RESULTS.md) for observed native results, all raw data and
 explicitly unmet actual-consumer acceptance. Derived analysis can be written

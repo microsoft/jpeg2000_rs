@@ -109,8 +109,9 @@ references; supplied adapter controls pass against published 0.2.2. This is
 smoke evidence, not a profile-speed claim. The completed optional native
 integration matrix and expanded acceptance are documented in
 [ZUNE_RESULTS.md](ZUNE_RESULTS.md); the standalone measurements above are not
-substituted for them. The separate PDFium GN study still requires its own
-pixel/error qualification.
+substituted for them. The separate [PDFium GN study](PDFIUM.md) now records its
+completed per-case audit: strict invalid-input rejection, accepted valid
+numerical differences without timings, and exact lossless bounded recovery.
 
 ## Raw-data access and retention
 
