@@ -9632,9 +9632,36 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "selected tile storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_complete_tile_progression_binds_actual_parts_limits_and_full_result(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-tile-progression-coverage")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/codestream/progression_coverage.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("super::tile_parts_payload_view(parts@)", "super::tile_parts_payload_view(Seq::empty())"),
+            ("super::tile_parts_payload_view(parts@), self.limits",
+             "super::tile_parts_payload_view(parts@), &crate::ResourceLimits::default()"),
+            ("ensures result == crate::specs::part1_complete_poc_coverage",
+             "ensures result.is_ok() ==> result == crate::specs::part1_complete_poc_coverage"),
+        ):
+            changed = original.replace(before, after)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_quantization_cold_order_rejects_relabelled_requests_and_lost_partial_owners(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYOUT_ENTRY)
+        self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
         read_text = Path.read_text
         for relative, symbol, before, after in (
             ("src/codestream/layout.rs", "Parser::parse_layout",
@@ -9656,6 +9683,8 @@ class FrameworkTests(WorkingFiles):
              "cost > crate::limits::resource_work_limit(limits)", "cost > u64::MAX"),
             ("src/codestream/coding_markers.rs", "Parser::validate_progression_changes",
              "filled_values(\n            false,", "filled_values(\n            true,"),
+            ("src/codestream/coding_markers.rs", "Parser::validate_progression_changes",
+             "if !contributed", "if contributed"),
             ("specs/cold_payload_owners.rs", "part1_main_resolved_run",
              "Some((Err(error), rest)) => Some((Err(error), rest))", "Some((Err(error), rest)) => Some((Err(error), events))"),
             ("specs/cold_payload_owners.rs", "part1_tile_after_configuration_run",

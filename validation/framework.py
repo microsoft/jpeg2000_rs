@@ -1231,13 +1231,14 @@ _PROGRESSION_ADMISSION_CONTRACTS = {
         r"offset\s*,\s*record\s*,\s*layers\s*,\s*component_styles\s*,\s*"
         + _coverage_call("old", "owners") + r"\s*@",
     ),
-    ("src/codestream/coding_markers.rs", "progression_owners_complete"): (
-        "part1_progression_owners_complete", r"\1", None, r"owners\s*@",
-    ),
     ("src/codestream/coding_markers.rs", "Parser::validate_progression_changes"): (
         "part1_validate_progression_changes", r"\1", None,
         r"offset\s*,\s*" + _coverage_call("progression_changes_view", "changes")
         + r"\s*,\s*layers\s*,\s*component_styles\s*,\s*self\.limits",
+    ),
+    ("src/codestream/progression_coverage.rs", "Parser::validate_tile_progression_coverage"): (
+        "part1_complete_poc_coverage", r"\1", None,
+        _coverage_call("super::tile_parts_payload_view", r"parts\s*@") + r"\s*,\s*self\.limits",
     ),
 }
 
@@ -1477,7 +1478,7 @@ for _tile_symbol, _tile_model, _tile_arguments in (
      + _coverage_call("packed_packet_headers_view", r"&\s*main_headers")),
     ("apply_tile_header_segment", "part1_tile_header_payload",
      _coverage_call("segment_view", "segment")
-     + r"\s*,\s*components\s*,\s*tile_part_index\s*,\s*"
+     + r"\s*,\s*components\s*,\s*_tile_part_index\s*,\s*"
      + _coverage_call("packet_lengths_view", r"&\s*main_lengths") + r"\s*,\s*"
      + _coverage_call("packed_packet_headers_view", r"&\s*main_headers")),
     ("apply_tile_header_extension_segment", "part1_tile_header_extension_payload",
@@ -11322,6 +11323,8 @@ _QUANTIZATION_COLD_GUARDS = {
         "site: 82, elements: 1, succeeded: false,",
         "part1_cold_layout_sot_commit_error(cold_sot, read_calls, commit_calls + refused, error)",
         "tile_part_payloads.push(payload)",
+        "parser.validate_tile_progression_coverage(&tile_part_payloads)?",
+        "let codestream_profile = classify_codestream_profile(",
     ),
     ("specs/cold_layout.rs", "part1_cold_commit_payload"): (
         "part1_cold_commit_state(state, commit, events)",
@@ -11363,7 +11366,8 @@ _QUANTIZATION_COLD_GUARDS = {
         "filled_values(false, active_coordinates,",
         "ProgressionBitmap(offset, layers, components, changes.records.len(),)",
         "let mut owners = copied?", "while record_index < changes.records.len()",
-        "self.mark_progression_record(", "progression_owners_complete(&owners)",
+        "let contributed = self.mark_progression_record(", "if !contributed",
+        "MalformedKind::InvalidProgressionOrderChange",
     ),
     ("src/codestream/mct_copy.rs", "filled_values"): (
         "reserve_values(count, _path)?", "let mut index = 0_usize",
@@ -11702,15 +11706,12 @@ _QUANTIZATION_COLD_GUARDS = {
         "part1_poc_cold_run(13, segment, components, events)",
         "Some((Err(error), rest)) => Some(((Err(error), reader, changed), rest))",
     ),
-    ("src/codestream/layout.rs", "Parser::parse_layout"): (
-        "parser.validate_tile_progression_coverage(&tile_part_payloads)?",
-        "let codestream_profile = classify_codestream_profile(",
-    ),
     ("specs/raw_layout.rs", "part1_layout_after_tiles"): (
         "match part1_complete_poc_coverage(state.3, reader.limits)",
         "Err(error)=>Err(error),Ok(())=>match part1_classify_codestream_profile(",
     ),
     ("src/codestream/tiles.rs", "Parser::read_tile_part"): (
+        "has_progression_marker: poc_seen",
         "has_progression_marker: poc_seen",
     ),
     ("specs/cold_layout.rs", "part1_cold_layout_after_inherited_copy"): (
