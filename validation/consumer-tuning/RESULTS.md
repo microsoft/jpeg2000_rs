@@ -95,6 +95,16 @@ Shared dirty changes were not edited/copied/published; no zune build was run.
 final-link/output/performance/memory and supported-CPU qualification.
 No decoder/default/release-policy change or merge is proposed.
 
+The [subsequent consumer handoff](https://github.com/microsoft/jpeg2000_rs/issues/449#issuecomment-7071726628)
+now unblocks a clean, pinned zune integration without that shared workspace.
+Its exact sixteen historical input/reference hashes were reproduced with
+Python 3.12, Pillow 12.0.0 and OpenJPEG 2.5.4. Both locked generic consumers
+accept all eight inputs on native x86-64 and reproduce all four lossless source
+references; supplied adapter controls pass against published 0.2.2. This is
+smoke evidence, not a profile-speed claim. The new optional native integration
+matrix and the separate PDFium GN roll remain additional qualification work;
+the standalone measurements above are not substituted for them.
+
 ## Raw-data access and retention
 
 Generated reports are **outside tracked source**, following

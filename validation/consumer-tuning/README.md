@@ -225,7 +225,19 @@ Audit final rustc/link arguments, native ELF, adapter output and supported-CPU
 execution; changing a library Cargo.toml is not evidence that these settings
 reached the final executable.
 
-### Actual zune workspace: inspected, not J2K-integrated
+### Supplied clean J2K integration follow-up
+
+[Issue #449's reproducible handoff](https://github.com/microsoft/jpeg2000_rs/issues/449#issuecomment-7071726628)
+now supplies an independently pinned zune adapter, harness, lock and historical
+fixture recipe. See [the imported handoff](zune-handoff/README.md) and
+[`zune_integration.py`](zune_integration.py). The optional workflow dispatch
+scope `zune` builds the five isolated profile cells on native x86-64 and ARM64,
+using one verified input cohort. This is separate from the earlier standalone
+study and does not edit the shared workspace described below. Results are not
+claimed until the actual-consumer matrix completes. PDFium uses GN and needs
+its own direct-backend qualification.
+
+### Historical shared zune workspace inspection
 
 The actual git workspace **does exist** at
 `/workspace/zune-image/zune-image` (the outer directory is only a wrapper),

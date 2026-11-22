@@ -22,6 +22,14 @@ on:
           - '2'
           - '4'
           - '6'
+      consumer_benchmark_scope:
+        description: Standalone study or supplied actual zune consumer
+        required: false
+        type: choice
+        default: standalone
+        options:
+          - standalone
+          - zune
 
 permissions:
   contents: read
@@ -29,7 +37,7 @@ permissions:
 jobs:
   consumer-benchmark:
     name: Optional consumer tuning (${{ matrix.os }})
-    if: github.event_name == 'workflow_dispatch' && inputs.consumer_benchmark
+    if: github.event_name == 'workflow_dispatch' && inputs.consumer_benchmark && inputs.consumer_benchmark_scope == 'standalone'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 100
     strategy:
@@ -56,6 +64,79 @@ jobs:
         with:
           name: consumer-tuning-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/consumer-tuning
+          retention-days: 30
+          if-no-files-found: error
+
+  zune-consumer-fixtures:
+    name: Verify supplied historical zune inputs
+    if: github.event_name == 'workflow_dispatch' && inputs.consumer_benchmark && inputs.consumer_benchmark_scope == 'zune'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Reproduce the exact historical Pillow/OpenJPEG cohort once
+        shell: bash
+        run: |
+          HANDOFF="$GITHUB_WORKSPACE/validation/consumer-tuning/zune-handoff"
+          python3 -m venv "$RUNNER_TEMP/zune-generator-tools"
+          "$RUNNER_TEMP/zune-generator-tools/bin/python" -m pip install -r "$HANDOFF/tooling-requirements.txt"
+          export UV_PYTHON_INSTALL_DIR="$RUNNER_TEMP/zune-python"
+          UV="$RUNNER_TEMP/zune-generator-tools/bin/uv"
+          "$UV" python install 3.12.16
+          "$UV" venv --python 3.12.16 "$RUNNER_TEMP/zune-generator"
+          "$UV" pip install --python "$RUNNER_TEMP/zune-generator/bin/python" -r "$HANDOFF/requirements.txt"
+          "$RUNNER_TEMP/zune-generator/bin/python" -c 'import sys; from PIL import __version__, features; assert sys.version_info[:3] == (3,12,16) and __version__ == "12.0.0" and features.version("jpg_2000") == "2.5.4"'
+          mkdir -p target/consumer-integration/fixture-work/target target/consumer-integration/fixtures
+          cd target/consumer-integration/fixture-work
+          "$RUNNER_TEMP/zune-generator/bin/python" "$HANDOFF/generate.py"
+          cp target/generated/1024-*.jp2 target/generated/1024-*.ref ../fixtures/
+          cd ../fixtures
+          sha256sum -c "$HANDOFF/SHA256SUMS"
+      - name: Check actual-consumer protocol guards
+        run: python3 -m unittest discover -s validation/consumer-tuning -p 'test_zune_integration.py' -v
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: consumer-zune-fixtures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/consumer-integration/fixtures
+          retention-days: 30
+          if-no-files-found: error
+
+  zune-consumer-benchmark:
+    name: Actual zune consumer (${{ matrix.os }})
+    needs: zune-consumer-fixtures
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: consumer-zune-fixtures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/consumer-integration/fixtures
+      - name: Pin native final-consumer compiler
+        run: rustup toolchain install 1.93.1 --profile minimal
+      - name: Prepare only the supplied clean integration
+        run: |
+          python3 validation/consumer-tuning/zune_integration.py prepare \
+            --work-root target/consumer-integration/work
+      - name: Qualify actual final consuming builds
+        env:
+          PAIRS: ${{ inputs.consumer_benchmark_pairs }}
+        run: |
+          python3 validation/consumer-tuning/zune_integration.py run \
+            --work-root target/consumer-integration/work \
+            --fixtures target/consumer-integration/fixtures \
+            --output target/consumer-integration/results --pairs "$PAIRS"
+      - name: Preserve actual-consumer build, pixel and timing evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: actual-zune-consumer-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/consumer-integration/results
+            target/consumer-integration/fixtures
           retention-days: 30
           if-no-files-found: error
 
