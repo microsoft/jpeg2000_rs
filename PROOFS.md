@@ -107,6 +107,24 @@ source-function coverage are unchanged.
 
 ## Fallible-storage foundation and remaining boundary
 
+### Multipart POC declarations and final coverage
+
+POC header parsing now retains actual marker presence separately from inherited
+records in the complete raw and owned payload projections. Per-header range,
+distinct-contribution and bitmap-allocation contracts remain; completeness is
+deferred to the final per-tile union. `specs/progression_coverage.rs` models
+first-header scope, zero-start layer frontiers, new-declaration contribution,
+complete active component/resolution coverage and exact checked work errors.
+The executing traversal allocates no new bitmap and uses one cumulative work
+counter, with native deadline checkpoints rather than renewed per-part limits.
+
+The packet producer consumes physical tile-part boundaries before requesting
+the next coordinate from a possibly exhausted partial POC window. Its checked
+plain/cold tile-run programs retain unique-coordinate suppression, packet/body
+and packed-header accounting, first errors and exact storage tails. Completion
+still requires the existing whole-tile seen/accounting checks; no partial byte
+or entropy result is promoted to a complete image.
+
 ### Allocation-aware reversible vertical traversal
 
 The default standard vertical dispatcher uses `transform/rowwise.rs` only for exact

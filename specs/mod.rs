@@ -277,6 +277,8 @@ mod pdf_trailers;
 pub use pdf_trailers::*;
 mod pdf_compat;
 pub use pdf_compat::*;
+mod progression_coverage;
+pub(crate) use progression_coverage::*;
 mod pdf_eol;
 pub use pdf_eol::*;
 mod pdf_tile_count;
@@ -10088,6 +10090,7 @@ pub struct Part2OwnedTilePart {
     pub part2_extensions: Part2OwnedExtensions,
     pub packet_lengths: Part1PacketLengths,
     pub packed_packet_headers: Part1PackedHeaders,
+    pub has_progression_marker: bool,
     pub has_functional_header_marker: bool,
     pub has_roi_marker: bool,
     pub data: Seq<u8>,
@@ -16033,8 +16036,7 @@ pub open spec fn part1_poc_admit_records(
     decreases records.len() - index,
 {
     if index >= records.len() {
-        if part1_progression_owners_complete(owners) { Ok(()) }
-        else { Err(part1_codestream_malformed(offset, crate::MalformedKind::InvalidProgressionOrderChange)) }
+        Ok(())
     } else {
         let record = records[index as int];
         if !valid_poc_record(record.resolution_start as nat, record.resolution_end as nat,

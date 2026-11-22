@@ -45,6 +45,16 @@ purchase-controlled. Its public summary is not sufficient for a clause-level
 reconciliation of the acquired 2021 source with the selected 2023 edition.
 That comparison requires an authorized full text.
 
+The acquired T.800 (06/2019), A.6.6, permits POC declarations across tile-part
+headers, requires a tile-specific POC in that tile's first header, and assigns
+each progression a zero layer start with already included packets suppressed.
+Accordingly, individual header records retain range/contribution validation,
+while full tile coverage is checked after all headers arrive. Per-component
+resolution layer frontiers establish the complete union and declaration
+novelty; physical packet traversal advances headers before exhausting an
+earlier partial progression window. This is Part 1 behavior, not a claim to
+implement the additional selected-2023 Part 2 progression extensions.
+
 ### JP2 primary brand and additional compatibility codes
 
 T.800 (06/2019), I.5.2, Table I.3 and the CLi definition distinguish the

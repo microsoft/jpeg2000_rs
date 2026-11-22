@@ -4899,6 +4899,7 @@ fn raw_owned_tile_part_fixture(variant: usize) -> TilePartPayload<'static> {
             length: usize::MAX,
             fragments: u16::MAX,
         },
+        has_progression_marker: false,
         has_functional_header_marker: true,
         has_roi_marker: false,
         data: &[0, 0xff, 0x81, 0x7f],
@@ -10353,6 +10354,91 @@ fn parses_retains_and_persists_progression_changes() {
     assert_eq!(records[0].progression_order, ProgressionOrder::Rlcp);
     assert_eq!(records[1].layer_end, 2);
     assert_eq!(records[1].progression_order, ProgressionOrder::Lrcp);
+}
+
+#[test]
+fn multipart_poc_defers_complete_coverage_and_retains_actual_header_declarations() {
+    let first = poc(&[[0, 0, 0, 1, 1, 1, 1]]);
+    let second = poc(&[[0, 0, 0, 2, 1, 1, 3]]);
+    let mut input = two_part_codestream(&[first], &[second]);
+    for position in [8, 12, 24, 28] {
+        input[position..position + 4].copy_from_slice(&1_u32.to_be_bytes());
+    }
+    let qcd = input
+        .windows(2)
+        .position(|bytes| bytes == [0xff, 0x5c])
+        .unwrap();
+    input[qcd + 5] = 0x40;
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&input, &limits).unwrap();
+    assert!(
+        layout
+            .tile_parts
+            .iter()
+            .all(|part| part.has_progression_marker)
+    );
+    let options = crate::DecodeOptions::default();
+    let selection = crate::DecodeSelection::full_image();
+    let expected = crate::decode_codestream_selected(&input, &options, &selection).unwrap();
+    assert_eq!(
+        expected.component(0).unwrap().samples(),
+        &crate::TypedSamples::Unsigned(vec![128])
+    );
+    assert_eq!(
+        crate::decode_pdf_compatible(&input, &options, &selection)
+            .unwrap()
+            .image,
+        expected
+    );
+    let parser = new_parser(&input, &limits).unwrap();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || parser
+            .validate_tile_progression_coverage(&layout.tile_parts)),
+        Ok(())
+    );
+    let restricted = ResourceLimits::default()
+        .with_maximum_work_units(0)
+        .unwrap();
+    let parser = new_parser(&input, &restricted).unwrap();
+    assert!(matches!(
+        parser.validate_tile_progression_coverage(&layout.tile_parts),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn multipart_poc_retains_scope_redundancy_ranges_and_final_completeness_checks() {
+    let partial = poc(&[[0, 0, 0, 1, 1, 1, 1]]);
+    let full = poc(&[[0, 0, 0, 2, 1, 1, 3]]);
+    let mut late = two_part_codestream(&[], std::slice::from_ref(&full));
+    let sot = late
+        .windows(2)
+        .position(|bytes| bytes == [0xff, 0x90])
+        .unwrap();
+    late.splice(sot..sot, full.clone());
+    assert!(matches!(
+        parse_layout(&late, &ResourceLimits::default()),
+        Err(DecodeError::MalformedInput {
+            kind: MalformedKind::InvalidMarkerOrder,
+            ..
+        })
+    ));
+    for input in [
+        two_part_codestream(&[partial], &[]),
+        two_part_codestream(std::slice::from_ref(&full), std::slice::from_ref(&full)),
+        two_part_codestream(&[poc(&[[0, 0, 0, 3, 1, 1, 0]])], &[]),
+    ] {
+        assert!(matches!(
+            parse_layout(&input, &ResourceLimits::default()),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidProgressionOrderChange,
+                ..
+            })
+        ));
+    }
 }
 
 #[test]
@@ -16587,11 +16673,7 @@ fn reference_progression_admission(
         }
         owned.extend(selected);
     }
-    if owned.len() == active {
-        Ok(())
-    } else {
-        Err(malformed())
-    }
+    Ok(())
 }
 
 fn raw_progression_windows() -> [ProgressionChange; 4] {
@@ -16842,18 +16924,6 @@ fn actual_progression_marking_preserves_arbitrary_bitmaps_and_partial_failure_pr
             assert!(owners.is_empty());
         }
     }
-    let mut completions = 0;
-    for length in 0..=12 {
-        for mask in 0..1_usize << length {
-            let owners: Vec<bool> = (0..length).map(|index| mask & (1 << index) != 0).collect();
-            assert_eq!(
-                progression_owners_complete(&owners),
-                owners.iter().all(|value| *value)
-            );
-            completions += 1;
-        }
-    }
-    assert_eq!(completions, 8_191);
     assert_eq!(
         (
             parser.position,

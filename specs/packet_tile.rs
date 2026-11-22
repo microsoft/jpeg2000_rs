@@ -346,24 +346,15 @@ pub open spec fn part1_tile_iteration(
             (match omitted.0 {Err(error)=>Err(error),Ok(())=>Ok(true)},
                 Part1TilePacketExecution {progress:omitted.1,..s})
         }else{
-        let boundary=part1_tile_boundary(params,s.progress);
-        let s=Part1TilePacketExecution {progress:boundary.1,..s};
-        match boundary.0 {
-            Err(error)=>(Err(error),s),
-            Ok((changed,more))=>if changed {
-                if more {(Ok(true),s)}else{
-                    let omitted=part1_tile_omit_packet(params,s.progress,coordinate,s.precincts.len() as usize);
-                    (match omitted.0 {Err(error)=>Err(error),Ok(())=>Ok(true)},
-                        Part1TilePacketExecution {progress:omitted.1,..s})
-                }
-            }
-                else{
-                    let packet=part1_tile_packet(params,s,coordinate);
-                    (match packet.0 {Err(error)=>Err(error),Ok(())=>Ok(true)},packet.1)
-                },
-        }
+            let packet=part1_tile_packet(params,s,coordinate);
+            (match packet.0 {Err(error)=>Err(error),Ok(())=>Ok(true)},packet.1)
         }
     }
+}
+
+pub open spec fn part1_tile_physical_complete(params: Part1TilePacketParameters, p: Part1TilePacketProgress) -> bool {
+    p.current_tile_part == params.parts.len()
+        && p.packets == params.grid.packet_count && part1_tile_all_seen(p.seen)
 }
 
 #[verifier::opaque]
@@ -371,6 +362,11 @@ pub open spec fn part1_tile_run(params:Part1TilePacketParameters,s:Part1TilePack
     -> (Result<(),crate::DecodeError>,Part1TilePacketExecution)
     decreases s.progress.remaining_packets,
 {
+    let boundary=part1_tile_boundary(params,s.progress);
+    let s=Part1TilePacketExecution {progress:boundary.1,..s};
+    match boundary.0 {
+        Err(error)=>(Err(error),s),
+        Ok(_)=>if part1_tile_physical_complete(params,s.progress) { (Ok(()),s) } else {
     let next=super::part1_progression_iterator_next(s.progress.iterator);
     let s=Part1TilePacketExecution {progress:Part1TilePacketProgress {iterator:next.1,..s.progress},..s};
     match next.0 {
@@ -383,6 +379,8 @@ pub open spec fn part1_tile_run(params:Part1TilePacketParameters,s:Part1TilePack
                 Ok(false)=>(Ok(()),iteration.1),
                 Ok(true)=>part1_tile_run(params,iteration.1),
             }
+        },
+    }
         },
     }
 }

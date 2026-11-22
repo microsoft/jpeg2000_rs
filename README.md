@@ -219,6 +219,18 @@ profile and resource checks remain, including limits on declared metadata.
 These APIs have no global recovery toggle, copy, retry or automatic EOC repair.
 They do not supply the separate deadline, absent-tile, MQ or trailer policies.
 
+### Multipart progression headers
+
+Part 1 POC declarations may split tile layer coverage across successive
+tile-part headers. Individual records keep bounds and contribution checks;
+the parser verifies first-header scope and complete per-tile coverage after
+the final part. `TilePartPayload::has_progression_marker` distinguishes a
+marker in that header from inherited records. Packet traversal advances the
+physical header before requesting coordinates from the next progression,
+while preserving duplicate suppression, lengths and resource limits.
+Out-of-range, redundant and incomplete declarations remain errors in both
+ordinary and PDF-compatible APIs.
+
 ### Common PDF recovery and inspection
 
 `decode_pdf_compatible(input, options, selection)` and

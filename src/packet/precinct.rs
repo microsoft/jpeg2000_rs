@@ -229,6 +229,7 @@ pub(super) fn decode_jpip_precinct_packet_inner(
         part2_extensions: copied.part2_extensions,
         packet_lengths: crate::codestream::packet_lengths_none(),
         packed_packet_headers: crate::codestream::packed_packet_headers_none(),
+        has_progression_marker: template.has_progression_marker,
         has_functional_header_marker: template.has_functional_header_marker,
         has_roi_marker: template.has_roi_marker,
         data,

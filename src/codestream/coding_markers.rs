@@ -687,9 +687,6 @@ impl<'a> Parser<'a> {
         }
         #[cfg(verus_keep_ghost)]
         proof! { reveal_with_fuel(crate::specs::part1_poc_admit_records, 1); }
-        if !progression_owners_complete(&owners) {
-            return Err(self.malformed_at(offset, MalformedKind::InvalidProgressionOrderChange));
-        }
         Ok(())
     }
 
@@ -1349,22 +1346,4 @@ impl<'a> Parser<'a> {
         }
         Ok((component, segment.payload[shift_index]))
     }
-}
-#[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures result == crate::specs::part1_progression_owners_complete(owners@),
-))]
-pub(super) fn progression_owners_complete(owners: &[bool]) -> bool {
-    let mut position = 0_usize;
-    #[cfg_attr(verus_keep_ghost, verus_spec(
-        invariant position <= owners.len(),
-            forall|index: int| 0 <= index < position ==> owners@[index],
-        decreases owners.len() - position,
-    ))]
-    while position < owners.len() {
-        if !owners[position] {
-            return false;
-        }
-        position += 1;
-    }
-    true
 }

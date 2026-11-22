@@ -1655,6 +1655,7 @@ impl<'a> Parser<'a> {
             assert(optional_profile_number_view(&profile) == complete_main.raw.profile);
             assert(optional_profile_number_view(&corresponding_profile) == complete_main.raw.corresponding_profile);
         }
+        parser.validate_tile_progression_coverage(&tile_part_payloads)?;
         let codestream_profile = classify_codestream_profile(
             r_siz,
             extended_capabilities,
