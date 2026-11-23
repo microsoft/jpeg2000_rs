@@ -863,6 +863,7 @@ verus! {
             multiple_component_transform: match value.multiple_component_transform { None => None, Some(transform) => Some(multiple_component_transform_view(&transform)) },
             part2_extensions: owned_extensions_view(&value.part2_extensions), packet_lengths: packet_lengths_view(&value.packet_lengths),
             packed_packet_headers: packed_packet_headers_view(&value.packed_packet_headers),
+            has_progression_marker: value.has_progression_marker,
             has_functional_header_marker: value.has_functional_header_marker, has_roi_marker: value.has_roi_marker, data: value.data@,
         }
     }

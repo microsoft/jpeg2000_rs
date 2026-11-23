@@ -294,6 +294,15 @@ def _coverage_spec_function_body(text: str, symbol: str) -> str | None:
     return _coverage_function_body(text, headers[0]) if len(headers) == 1 else None
 
 
+def _coverage_proof_function_body(text: str, symbol: str) -> str | None:
+    """Read a unique formatted proof body without accepting a spec substitute."""
+    headers = list(re.finditer(
+        r"(?m)^([ \t]*)pub(?:\((?:crate|super)\))?[ \t]+proof[ \t]+fn[ \t]+"
+        + re.escape(symbol) + r"\b", text,
+    ))
+    return _coverage_function_body(text, headers[0]) if len(headers) == 1 else None
+
+
 def _coverage_same_file_call(
     text: str, caller: str, callee: str, *, distinct_file: bool = False, module_scope: bool = False,
 ) -> bool:
@@ -630,6 +639,7 @@ def _packet_progression_contracts() -> dict[tuple[str, str], tuple[str, str, str
             view("progression_packet_iterator_view", old("self"))),
         "progression_prior_contains": (
             "part1_progression_prior_contains", r"\1", None, args(changes, "end", "0", "coordinate")),
+        "bounded_window": ("part1_packet_window_bounds", r"\1", None, args(grid, "record")),
         "window_candidate_count": ("part1_packet_window_count", r"\1", None, args(grid, "record")),
         "decode_window_candidate": (
             "part1_packet_window_candidate", r"\1", None, args(grid, "record", "candidate")),
@@ -1222,13 +1232,14 @@ _PROGRESSION_ADMISSION_CONTRACTS = {
         r"offset\s*,\s*record\s*,\s*layers\s*,\s*component_styles\s*,\s*"
         + _coverage_call("old", "owners") + r"\s*@",
     ),
-    ("src/codestream/coding_markers.rs", "progression_owners_complete"): (
-        "part1_progression_owners_complete", r"\1", None, r"owners\s*@",
-    ),
     ("src/codestream/coding_markers.rs", "Parser::validate_progression_changes"): (
         "part1_validate_progression_changes", r"\1", None,
         r"offset\s*,\s*" + _coverage_call("progression_changes_view", "changes")
         + r"\s*,\s*layers\s*,\s*component_styles\s*,\s*self\.limits",
+    ),
+    ("src/codestream/progression_coverage.rs", "Parser::validate_tile_progression_coverage"): (
+        "part1_complete_poc_coverage", r"\1", None,
+        _coverage_call("super::tile_parts_payload_view", r"parts\s*@") + r"\s*,\s*self\.limits",
     ),
 }
 
@@ -1468,7 +1479,7 @@ for _tile_symbol, _tile_model, _tile_arguments in (
      + _coverage_call("packed_packet_headers_view", r"&\s*main_headers")),
     ("apply_tile_header_segment", "part1_tile_header_payload",
      _coverage_call("segment_view", "segment")
-     + r"\s*,\s*components\s*,\s*tile_part_index\s*,\s*"
+     + r"\s*,\s*components\s*,\s*_tile_part_index\s*,\s*"
      + _coverage_call("packet_lengths_view", r"&\s*main_lengths") + r"\s*,\s*"
      + _coverage_call("packed_packet_headers_view", r"&\s*main_headers")),
     ("apply_tile_header_extension_segment", "part1_tile_header_extension_payload",
@@ -6779,7 +6790,7 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
         expected = "exists|prefix: Seq<Part2JpipSnapshotEvent>| #[trigger] part2_packet_prefix(parts, grid, precincts, selection, limits, prefix, result)"
     elif model == "part1_tile_progression_payload_storage_result":
         expected = """
-            if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
+            if segment.marker == 0xff5f && !raw.poc_seen {
                 exists|reserved: bool| result == part1_tile_progression_payload_storage(
                     reader, raw, segment, components, tile_part_index, lengths, headers, reserved)
             } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
@@ -7183,7 +7194,7 @@ _LEGACY_SNAPSHOT_NATIVE_ORDER = {
         "if let Err(error)=segment.append(input,replay_passes)", "if had_segment", "self.legacy_segment=Some(segment)",
         "part2_legacy_replay_append_error(", "return Err(error)",
         "self.restore_legacy_segment(&segment)", "part2_legacy_replay_restored(", "restored?",
-        "self.decode_legacy_segment(&segment.input,segment.passes,limits)", "part2_legacy_replay_segment_observed(", "decoded?", "self.commit_legacy_replay(segment)",
+        "self.decode_legacy_segment_with_compact(&segment.input,segment.passes,limits,false)", "part2_legacy_replay_segment_observed(", "decoded?", "self.commit_legacy_replay(segment)",
     ),
     ("src/packet/body.rs", "decode_legacy_code_block_segment"): (
         "contribution.segment(*segment_index)?", "usize::try_from(segment.data_length)", "checked_add(segment_length)", "if end>body.len()",
@@ -7257,12 +7268,23 @@ _BITPLANE_INITIAL_NATIVE_ORDER = {
         "self.bitplane_state=Some(constructed?)", "part2_legacy_ensure_present(",
     ),
     ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_legacy_segment"): (
+        "self.decode_legacy_segment_with_compact(input,pass_count,limits,true)",
+    ),
+    ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_legacy_segment_with_compact"): (
         "self.validate_legacy_segment(input,pass_count,limits)", "admitted?", "self.style.pass_plan(self.next_pass).coding_mode",
         "crate::mq::mq_from_input(", "constructed?", "initialize_tier1_contexts(", "self.reset_contexts_before_mq=false",
-        "self.decode_mq_segment_passes(", "part2_legacy_segment_observed(", "part2_legacy_segment_finish_equation(",
+        "self.decode_selected_mq_segment_passes(&mut decoder,pass_count,limits,compact_allowed,)",
+        "compact_segment_observed(", "part2_legacy_segment_finish_equation(",
         "part2_legacy_segment_primary_consequence(", "statistics=decoded?", "decoder.validate_predictable_termination()?",
         "self.mq_context_state=Some(decoder.context_state())", "raw_reader_from_input(", "self.decode_raw_segment_passes(",
         "reader.validate_predictable_termination()?", "self.commit_legacy_segment(input.len(),pass_count,statistics)",
+    ),
+    ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_selected_mq_segment_passes"): (
+        "if compact_allowed", "self.try_compact_legacy(decoder,pass_count,limits)",
+        "Some(result)=>result",
+        "None=>self.decode_mq_segment_passes(decoder,pass_count)",
+        "else{self.decode_mq_segment_passes(decoder,pass_count)}",
+        "compact_selected_inner_observed(", "decoded",
     ),
 }
 _PREPARE_WORKING_MODELS = {("specs/cold_prepare_copies.rs", name) for name in (
@@ -8441,8 +8463,35 @@ _WAVELET_PLANE_GUARDS = {
         "part2_wavelet_horizontal_lines_run(low,high,first,irreversible,kernel,low.1 as nat,rest)",
     ),
     ("specs/cold_wavelet_planes.rs", "part2_wavelet_columns_run"): (
+        "!irreversible && kernel.is_none() && rowwise_eligible(low,high,height,first,length)",
+        "rowwise_run(low,high,height,first,length,calls)",
+        "irreversible && kernel.is_none() && height>1 && rowwise_eligible(low,high,height,first,length)",
+        "rowwise_fixed_run(low,high,height,first,length,calls)",
+        "part2_wavelet_scalar_columns_run(low,high,height,first,irreversible,kernel,length,calls)",
+    ),
+    ("specs/cold_wavelet_planes.rs", "part2_wavelet_scalar_columns_run"): (
         "Part2WaveletPlaneOwner::Columns,length as nat,calls",
         "part2_wavelet_vertical_lines_run(low,high,height,first,irreversible,kernel,length,low.0 as nat,rest)",
+    ),
+    ("specs/rowwise_wavelet.rs", "rowwise_run"): (
+        "Part2WaveletPlaneOwner::Columns,length as nat,calls",
+        "Some((Ok(rowwise_output(low,high,height,first)),rest))",
+    ),
+    ("specs/rowwise_fixed_wavelet.rs", "rowwise_fixed_run"): (
+        "Part2WaveletPlaneOwner::Columns,length as nat,calls",
+        "Some((Ok(rowwise_fixed_output(low,high,height,first)),rest))",
+    ),
+    ("specs/rowwise_fixed_wavelet.rs", "rowwise_fixed_output"): (
+        "rowwise_interleaved(low,high,height,first)",
+        "rowwise_scaled(samples,low.0 as nat,first,part1_nine_seven_scale(true))",
+        "rowwise_scaled(a,low.0 as nat,!first,part1_nine_seven_scale(false))",
+        "rowwise_fixed_lifts(b,low.0 as nat,height as nat,first,4)",
+    ),
+    ("specs/rowwise_wavelet.rs", "rowwise_eligible"): (
+        "low.0>=2 && height>0", "low.0==high.0", "low.1==part1_low_count(height,first)",
+        "high.1==height-low.1", "low.2.len()+high.2.len()==length",
+        "low.0 as int*height as int==length", "low.0 as int*low.1 as int==low.2.len()",
+        "rowwise_bounded(low.2) && rowwise_bounded(high.2)",
     ),
     ("specs/cold_wavelet_planes.rs", "part2_wavelet_level_rows_run"): (
         "part1_transform_area(level.4,level.0.1)", "part2_wavelet_rows_run(level.0,level.1,level.6,irreversible,kernel,capacity,calls)",
@@ -8471,8 +8520,29 @@ _WAVELET_PLANE_NATIVE_ORDER = {
         "inverse_row_pair(", "samples.extend_from_slice(&row)",
     ),
     ("src/transform/levels.rs", "inverse_columns"): (
+        "!irreversible", "kernel.is_none()", "super::rowwise::eligible(",
+        "super::rowwise::inverse(", "if irreversible", "output_height > 1",
+        "super::rowwise::inverse_fixed(", "inverse_columns_scalar(",
+    ),
+    ("src/transform/levels.rs", "inverse_columns_scalar"): (
         "crate::allocation::zero_i64_values(output_len)", "let mut samples = allocated?",
         "inverse_column_pair(", "store_column(&mut samples",
+    ),
+    ("src/transform/rowwise.rs", "assemble"): (
+        "crate::allocation::empty_with_capacity(length)", "let mut output = allocated?",
+        "append_row(&mut output", "Ok(output)",
+    ),
+    ("src/transform/rowwise.rs", "inverse"): (
+        "assemble(low, high, height, first, length)", "let mut output = rows?",
+        "if height == 1", "output[x] >>= 1",
+        "lift_rows(&mut output, width, height as usize, first, false)?",
+        "lift_rows(&mut output, width, height as usize, !first, true)?",
+    ),
+    ("src/transform/rowwise/fixed.rs", "inverse"): (
+        "assemble(low, high, height, first, length)", "let mut output = rows?",
+        "scale_rows(&mut output, width, height as usize, first, true)?",
+        "scale_rows(&mut output, width, height as usize, !first, false)?",
+        "while stage < 4", "lift_rows(&mut output, width, height as usize, target, stage)?",
     ),
     ("src/transform/levels.rs", "inverse_level"): (
         "validate_level(level)?", "validate_output_size(output_len, limits)?", "let low_capacity = checked_area(",
@@ -8481,6 +8551,9 @@ _WAVELET_PLANE_NATIVE_ORDER = {
     ),
 }
 _WAVELET_PLANE_TESTS = {
+    ("src/transform/tests.rs", "rowwise_vertical_five_three_exact_boundaries_origins_and_single_output_owner"),
+    ("src/transform/tests.rs", "rowwise_vertical_fallback_keeps_scalar_refusal_and_error_order"),
+    ("src/transform/tests.rs", "rowwise_vertical_nine_seven_preserves_q16_stages_bounds_and_singleton_fallback"),
     ("src/transform/tests.rs", "wavelet_plane_storage_standard_level_first_later_owners_exact_reference_and_restore"),
     ("src/transform/tests.rs", "wavelet_plane_storage_empty_no_request_geometry_budget_and_numerical_error_order"),
     ("src/transform/tests.rs", "wavelet_plane_storage_actual_custom_kernel_level_rows_columns_and_restore"),
@@ -8657,7 +8730,13 @@ _QUANTIZATION_OUTPUT_NATIVE_ORDER = {
     ),
     ("src/decode/code_blocks.rs", "copy_code_block_samples"): ("let source = plane.samples()", "crate::allocation::copy_values(source)"),
     ("src/decode/reconstruction.rs", "place_prepare_block"): (
-        "let coefficients = collected?", "let quantized_result = inverse_quantize_magnitudes(", "let quantized = quantized_result?",
+        "let decoder = precinct.decoder(placement.decoder_index)?", "let plane = decoder.plane()",
+        "let destination = working", "let result = fused::place(",
+    ),
+    ("src/decode/reconstruction/fused.rs", "place"): (
+        "x.checked_add(width)", "if let Some(quantizer) = preflight(", "return write(",
+        "let collected = collect_prepare_coefficients(plane)", "let coefficients = collected?",
+        "let quantized_result = inverse_quantize_magnitudes(", "let quantized = quantized_result?",
         "quantized.fraction_bits()", "write_quantized_block(",
     ),
 }
@@ -10995,8 +11074,17 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
     ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run"): (
         "Err(error)=>Some((Ok((Err(error),working)),calls))",
         "Ok(None)=>Some((Ok((Ok(()),working)),calls))",
+        "part2_fused_placement_enabled(working,geometry,placement,plane,reversible,maximum)",
+        "part2_fused_place_run(working,geometry,placement,plane,reversible,maximum,calls)",
         "part2_tier1_storage_resume(part2_extraction_run(plane,true,calls)",
         "part2_extraction_place_after_coefficients_run(working,geometry,placement,plane,reversible,maximum,result,rest)",
+    ),
+    ("specs/fused_reconstruction.rs", "part2_fused_place_run"): (
+        "Some((Ok(part1_prepare_place_plane(working,geometry,placement,plane,reversible,maximum)),calls))",
+    ),
+    ("specs/fused_reconstruction_storage.rs", "part2_fused_band_result"): (
+        "part2_extraction_place_result((seq![destination],0u64),seq![geometry],seq![seq![plane]],part2_fused_position(x,y),reversible,maximum,",
+        "(effect.0,(seq![effect.1],0u64))",
     ),
     ("specs/cold_extraction_reconstruction.rs", "part2_extraction_placements_next"): (
         "if effect.0.is_err(){Some((Ok(effect),calls))}",
@@ -11005,6 +11093,18 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
     ("specs/cold_decode_packets.rs", "part2_planned_decode_run"): (
         "part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
         "part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest)",
+    ),
+}
+_COEFFICIENT_EXTRACTION_PROOF_GUARDS = {
+    ("specs/fused_reconstruction_storage.rs", "part2_fused_run_lift"): (
+        "part2_extraction_run(plane,true,calls)",
+        "part2_quantization_plane_run(values,geometry.quantization_step.exponent,geometry.quantization_step.mantissa,",
+        "part2_fused_quantized_lift(working,geometry,placement,plane,reversible,quantized)",
+    ),
+    ("specs/fused_reconstruction_storage.rs", "part2_fused_allocation_lift"): (
+        "part2_tier1_storage_at(run,prefix,Ok(effect),tail)",
+        "part2_fused_run_lift(working,bands,precincts,placement,geometry,plane,reversible,maximum,prefix+tail)",
+        "prefix,Ok((Err(crate::DecodeError::AllocationFailed),working))",
     ),
 }
 _COEFFICIENT_EXTRACTION_NATIVE_ORDER = {
@@ -11224,6 +11324,8 @@ _QUANTIZATION_COLD_GUARDS = {
         "site: 82, elements: 1, succeeded: false,",
         "part1_cold_layout_sot_commit_error(cold_sot, read_calls, commit_calls + refused, error)",
         "tile_part_payloads.push(payload)",
+        "parser.validate_tile_progression_coverage(&tile_part_payloads)?",
+        "let codestream_profile = classify_codestream_profile(",
     ),
     ("specs/cold_layout.rs", "part1_cold_commit_payload"): (
         "part1_cold_commit_state(state, commit, events)",
@@ -11265,7 +11367,8 @@ _QUANTIZATION_COLD_GUARDS = {
         "filled_values(false, active_coordinates,",
         "ProgressionBitmap(offset, layers, components, changes.records.len(),)",
         "let mut owners = copied?", "while record_index < changes.records.len()",
-        "self.mark_progression_record(", "progression_owners_complete(&owners)",
+        "let contributed = self.mark_progression_record(", "if !contributed",
+        "MalformedKind::InvalidProgressionOrderChange",
     ),
     ("src/codestream/mct_copy.rs", "filled_values"): (
         "reserve_values(count, _path)?", "let mut index = 0_usize",
@@ -11599,10 +11702,18 @@ _QUANTIZATION_COLD_GUARDS = {
         "Some((Err(error), rest)) => Some(((Err(error), reader, changed), rest))",
     ),
     ("specs/cold_header_progression.rs", "part1_tile_progression_payload"): (
-        "segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0",
+        "segment.marker == 0xff5f && !raw.poc_seen",
         "Part1TileHeaderAccumulator { poc_seen: true, ..raw }",
         "part1_poc_cold_run(13, segment, components, events)",
         "Some((Err(error), rest)) => Some(((Err(error), reader, changed), rest))",
+    ),
+    ("specs/raw_layout.rs", "part1_layout_after_tiles"): (
+        "match part1_complete_poc_coverage(state.3, reader.limits)",
+        "Err(error)=>Err(error),Ok(())=>match part1_classify_codestream_profile(",
+    ),
+    ("src/codestream/tiles.rs", "Parser::read_tile_part"): (
+        "has_progression_marker: poc_seen",
+        "has_progression_marker: poc_seen",
     ),
     ("specs/cold_layout.rs", "part1_cold_layout_after_inherited_copy"): (
         "part1_inherited_tile_owner(tile.2 as usize, main.raw.progression, state.0.5)",
@@ -17161,6 +17272,7 @@ def validate_normative_coverage(
                 ("src/tier1/ht_refinement.rs", "copy_ht_refinement_bytes"): "ht_byte_vector_outcome",
                 ("src/tier1/state.rs", "code_block_plane_from_dimensions"): "code_block_plane_outcome",
                 ("src/tier1/state.rs", "coefficient_from_magnitude"): "coefficient_raw_outcome",
+                ("src/tier1/compact_legacy.rs", "unpack_word"): "super::coefficient_raw_view",
                 ("src/tier1/state.rs", "coefficient"): "coefficient_raw_outcome",
                 ("src/tier1/state.rs", "signed_magnitude"): "coefficient_signed_outcome",
                 ("src/tier1/state.rs", "coefficients"): "coefficient_slice_view",
@@ -17236,6 +17348,11 @@ def validate_normative_coverage(
                 ("src/tier1/legacy_passes.rs", "merge"): "tier1_statistics_merge",
                 ("src/tier1/state.rs", "code_block_plane_from_dimensions"): "tier1_empty_plane",
                 ("src/tier1/state.rs", "coefficient_from_magnitude"): "tier1_coefficient_new_outcome",
+                ("src/tier1/compact_legacy.rs", "unpack_word"): "compact_coefficient",
+                ("src/tier1/compact_legacy.rs", "mark_word"): "compact_mark_word",
+                ("src/tier1/compact_legacy.rs", "cache_word"): "compact_add_neighbor",
+                ("src/tier1/compact_legacy.rs", "refine_word"): "compact_refine_word",
+                ("src/tier1/compact_legacy.rs", "word_flag_summary"): "compact_flag_summary",
                 ("src/tier1/ht_cleanup.rs", "complete_ht_kappa"): "ht_complete_kappa",
                 ("src/tier1/state.rs", "ht_statistics_zero"): "tier1_statistics_zero",
                 ("src/tier1/state.rs", "width"): "tier1_raw_plane_width",
@@ -18178,6 +18295,125 @@ def validate_normative_coverage(
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact e-sRGB ordinary/storage projection")
                 scalar_result = normal
                 expected_result_model = model
+            compact_boundary = {
+                "new_compact_plane": (
+                    "compact_initial_result",
+                    r"width\s*,\s*height\s*,\s*" + _coverage_call("compact_plane_outcome", r"\1"),
+                    "requires 0<width<=4096,0<height<=4096,width*height<=4096,",
+                    None,
+                ),
+                "CompactPlane::initial_state": (
+                    "part2_bitplane_initial_result",
+                    _coverage_call("self.view") + r"\s*,\s*bp\s*,\s*"
+                    + _coverage_call("super::legacy_bitplane_outcome", r"\1"),
+                    "requires self.shape(),bp<31,",
+                    None,
+                ),
+                "CompactPlane::commit": (
+                    "compact_bulk_commit",
+                    _coverage_call("super::code_block_plane_view", _coverage_call("old", "wide")) + r"\s*,\s*self\.entries@",
+                    "requires self.shape(),wide.width==self.width,wide.height==self.height,wide.coefficients.len()==self.entries.len(),",
+                    _coverage_call("super::code_block_plane_view", _coverage_call("final", "wide")),
+                ),
+                "Tier1CodeBlockDecoder::compact_eligible": (
+                    "compact_eligible",
+                    _coverage_call("super::tier1_decoder_state", "self") + r"\s*,\s*passes\s*,\s*decoded\s*,\s*wide_bytes",
+                    "",
+                    "",
+                ),
+            }.get(reference["symbol"]) if reference["path"] == "src/tier1/compact_legacy.rs" else None
+            if compact_boundary is not None:
+                model, arguments, required_precondition, state_projection = compact_boundary
+                compact_prefix = re.search(r"\bverus_spec\(\s*\w+\s*=>\s*(.*?)\bensures\b", contract, re.S)
+                if state_projection is None:
+                    pattern = (named_prefix + r"crate::specs::(?P<model>" + re.escape(model)
+                               + r")\s*\(\s*" + arguments + r"\s*,?\s*\)")
+                elif state_projection:
+                    pattern = (named_prefix + r"(?P<state>\(\s*\(\s*\)\s*,\s*" + state_projection + r"\s*\))"
+                               + r"\s*==\s*crate::specs::(?P<model>" + re.escape(model)
+                               + r")\s*\(\s*" + arguments + r"\s*,?\s*\)")
+                else:
+                    pattern = (named_prefix + r"\1\s*==\s*crate::specs::(?P<model>" + re.escape(model)
+                               + r")\s*\(\s*" + arguments + r"\s*,?\s*\)")
+                relation = re.search(pattern, contract, re.S)
+                if (relation is None or compact_prefix is None
+                        or "".join(compact_prefix[1].split()) != "".join(required_precondition.split())):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact compact owner/input frame")
+                if state_projection:
+                    state_result = relation
+                else:
+                    scalar_result = relation
+                expected_result_model = model
+                if reference["symbol"] == "CompactPlane::initial_state" and not _coverage_extraction_normal_arguments(
+                        contract, "super::legacy_bitplane_outcome", "part1_legacy_bitplane_initial",
+                        _coverage_call("self.view") + r"\s*,\s*bp"):
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; missing ordinary bitplane construction")
+                native_order = {
+                    "new_compact_plane": (
+                        "let count = width * height;", "crate::allocation::empty_with_capacity(count)",
+                        "let mut entries = allocated?;", "entries.resize(count, EMPTY);",
+                    ),
+                    "CompactPlane::initial_state": (
+                        "crate::allocation::empty_with_capacity(self.entries.len())",
+                        "let mut significant_before = allocated?;",
+                        "significant_before.push(self.entries[index] & SIG != 0);",
+                        "crate::allocation::filled_values(false, self.entries.len())",
+                    ),
+                    "CompactPlane::commit": (
+                        "while index < self.entries.len()", "wide.coefficients[index] = unpack_word(self.entries[index]);",
+                    ),
+                }.get(reference["symbol"], ())
+                native_body = _coverage_function_body(text, function_header(path, reference["symbol"]))
+                compact_body = "".join(native_body.split()) if native_body is not None else ""
+                position = 0
+                for fragment in native_order:
+                    token = "".join(fragment.split())
+                    found = compact_body.find(token, position)
+                    if found < 0:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid compact producer/request/commit order")
+                    position = found + len(token)
+                if reference["symbol"] in ("new_compact_plane", "CompactPlane::initial_state"):
+                    if len(re.findall(r"\bempty_with_capacity\s*\(", native_body or "")) != 1:
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; compact owner requires one original reservation")
+                if reference["symbol"] == "CompactPlane::initial_state" and len(re.findall(
+                        r"\bfilled_values\s*\(", native_body or "")) != 1:
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; compact bitplane requires its separate visited owner")
+                if reference["symbol"] == "CompactPlane::commit" and "->" in text[signature:body_start]:
+                    raise ValueError(f"linked function lacks executable Verus contract: {short}; compact commit requires its actual unit return")
+                if reference["symbol"] in ("new_compact_plane", "CompactPlane::commit"):
+                    owner_models = {
+                        "compact_capacity_run": (
+                            "specs/cold_compact_legacy.rs",
+                            "let count=width as nat*height as nat;"
+                            "if count==0{Some((Ok(()),calls))}else if calls.len()==0{None}else{match calls[0]{"
+                            "Part2Tier1StorageEvent::CompactInitialCapacity {width:actual_width,height:actual_height,elements,succeeded}=>"
+                            "if actual_width!=width || actual_height!=height || elements!=count{None}"
+                            "else{Some((if succeeded{Ok(())}else{Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))},"
+                            "_=>None,}}",
+                        ),
+                        "compact_initial_run": (
+                            "specs/cold_compact_legacy.rs",
+                            "part2_tier1_storage_bind(compact_capacity_run(width,height,calls),"
+                            "|_:(),rest|Some((Ok((width,height,Seq::new(width as nat*height as nat,"
+                            "|_:int|0x3f_0000_0000u64))),rest)))",
+                        ),
+                        "compact_initial_result": (
+                            "specs/cold_compact_legacy.rs",
+                            "part2_tier1_storage_framed(|calls|compact_initial_run(width,height,calls),result)",
+                        ),
+                        "compact_bulk_commit": (
+                            "specs/compact_legacy.rs",
+                            "((),Tier1RawPlane {coefficients:words.map_values(|word:u64|compact_coefficient(word)),..before})",
+                        ),
+                    }
+                    for owner_model, (relative, expected_body) in owner_models.items():
+                        model_body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), owner_model)
+                        if model_body is None or "".join(model_body.split()) != "".join(expected_body.split()):
+                            raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid exact compact owner program")
+                    projection_body = _coverage_spec_function_body(text, "compact_plane_outcome")
+                    if projection_body is None or "".join(projection_body.split()) != (
+                            "match result{Err(error)=>Err(error),Ok(plane)=>Ok((plane.width,plane.height,plane.entries@)),}").replace(" ", ""):
+                        raise ValueError(f"linked function lacks executable Verus contract: {short}; incomplete physical compact-owner projection")
             recovery_relations = (
                 _RAW_RECOVERY_RELATIONS if entry["id"] == _RAW_RECOVERY_ENTRY
                 else _RECONSTRUCTED_RECOVERY_RELATIONS if entry["id"] == _RECONSTRUCTED_RECOVERY_ENTRY
@@ -18651,6 +18887,25 @@ def validate_normative_coverage(
                     + re.escape(statistic_arguments[1]),
                 )
             )
+            compact_word_contract = {
+                "unpack_word": ("compact_coefficient", r"value", ""),
+                "mark_word": ("compact_mark_word", r"value\s*,\s*bp\s*,\s*negative", "requires bp<31,"),
+                "cache_word": ("compact_add_neighbor", r"value\s*,\s*direction\s*,\s*negative", "requires direction<8,"),
+                "refine_word": (
+                    "compact_refine_word", r"value\s*,\s*bp\s*,\s*bit",
+                    "requires bp<31,value & MAG<1u64<<31,value & (((1u64<<((bp+1) as u16))-1) as u64)==0,",
+                ),
+                "word_flag_summary": ("compact_flag_summary", r"sig\s*,\s*neg", ""),
+            }.get(short) if reference["path"] == "src/tier1/compact_legacy.rs" else None
+            compact_word_arguments_bound = True
+            if compact_word_contract is not None:
+                compact_model, compact_inputs, compact_requires = compact_word_contract
+                compact_prefix = re.search(r"\bverus_spec\(\s*\w+\s*=>\s*(.*?)\bensures\b", contract, re.S)
+                compact_word_arguments_bound = (
+                    compact_prefix is not None
+                    and "".join(compact_prefix[1].split()) == "".join(compact_requires.split())
+                    and _coverage_result_arguments(contract, named_result, compact_model, compact_inputs)
+                )
             if ("verus_spec(" not in contract
                     or (mutating and (state_result is None or not complete_state))
                     or not metadata_arguments_bound
@@ -18664,6 +18919,7 @@ def validate_normative_coverage(
                     or not selection_arguments_bound
                     or not header_arguments_bound
                     or not statistic_arguments_bound
+                    or not compact_word_arguments_bound
                     or (expected_result_model is not None
                         and (named_result is None or named_result["model"] != expected_result_model))
                     or not ("ensures returns" in contract
@@ -18796,11 +19052,15 @@ def validate_normative_coverage(
         if not _COEFFICIENT_EXTRACTION_TESTS.issubset({
                 (ref["path"], ref["symbol"]) for ref in coefficient_entry["test_refs"]}):
             raise ValueError("coefficient extraction requires bounded real raw/empty/refusal/restore/public controls")
-        for (relative, symbol), fragments in _COEFFICIENT_EXTRACTION_GUARDS.items():
-            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
-            compact = "".join(body.split()) if body is not None else ""
-            if any("".join(fragment.split()) not in compact for fragment in fragments):
-                raise ValueError("coefficient extraction requires actual raw count/role, numerical child, owner/error/tail composition")
+        for guards, reader in (
+            (_COEFFICIENT_EXTRACTION_GUARDS, _coverage_spec_function_body),
+            (_COEFFICIENT_EXTRACTION_PROOF_GUARDS, _coverage_proof_function_body),
+        ):
+            for (relative, symbol), fragments in guards.items():
+                body = reader(source_text((ROOT / relative).resolve()), symbol)
+                compact = "".join(body.split()) if body is not None else ""
+                if any("".join(fragment.split()) not in compact for fragment in fragments):
+                    raise ValueError("coefficient extraction requires actual raw count/role, numerical child, owner/error/tail composition")
         for (relative, symbol), fragments in _COEFFICIENT_EXTRACTION_NATIVE_ORDER.items():
             path = (ROOT / relative).resolve()
             body = _coverage_function_body(source_text(path), function_header(path, symbol))

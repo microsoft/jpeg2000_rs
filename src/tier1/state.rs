@@ -39,6 +39,59 @@ fn coefficient_from_magnitude(
 }
 
 impl CoefficientState {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result==(coefficient_raw_view(*self).significant && coefficient_raw_view(*self).negative),
+    ))]
+    #[inline]
+    pub(crate) const fn reconstructed_negative(&self) -> bool {
+        self.significant && self.negative
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result==crate::specs::part2_narrow_magnitude(coefficient_raw_view(*self)),
+    ))]
+    #[inline]
+    pub(crate) fn narrow_reconstructed_magnitude(&self) -> Option<u64> {
+        if !self.significant {
+            return Some(0);
+        }
+        if self.magnitude_high != [0; 5] {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if forall|i:int|0<=i<5 ==> self.magnitude_high@[i]==0{
+                    assert(self.magnitude_high@ =~= seq![0u64,0,0,0,0]);
+                    assert(self.magnitude_high==[0u64,0,0,0,0]);
+                }
+                let i=choose|i:int|0<=i<5 && self.magnitude_high@[i]!=0;
+                assert(coefficient_raw_view(*self).limbs[i+1]!=0);
+                assert(exists|j:int|1<=j<6 && coefficient_raw_view(*self).limbs[j]!=0);
+            }
+            return None;
+        }
+        let midpoint = match self.legacy_bitplane {
+            Some(bitplane) if bitplane <= 64 => crate::refinement::tier1_midpoint_delta(bitplane),
+            Some(_) => return None,
+            None => 0,
+        };
+        self.magnitude.checked_add(midpoint)
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        requires crate::specs::part2_narrow_magnitude(coefficient_raw_view(*self)).is_some(),
+        ensures Some(result)==crate::specs::part2_narrow_magnitude(coefficient_raw_view(*self)),
+    ))]
+    #[inline]
+    pub(crate) fn reconstructed_magnitude_bounded(&self) -> u64 {
+        if !self.significant {
+            return 0;
+        }
+        let midpoint = match self.legacy_bitplane {
+            Some(bitplane) => crate::refinement::tier1_midpoint_delta(bitplane),
+            None => 0,
+        };
+        self.magnitude + midpoint
+    }
+
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(result =>
@@ -656,8 +709,15 @@ impl CodeBlockPlane {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures coefficient_slice_view(result) == crate::specs::tier1_raw_plane_coefficients(code_block_plane_view(self)),
             coefficient_raw_views(result@) == code_block_plane_view(self).coefficients,
+            forall|i:int|0<=i<result.len() ==> #[trigger] code_block_plane_view(self).coefficients[i].limbs.len()==6,
     ))]
     pub fn coefficients(&self) -> &[CoefficientState] {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert forall|i:int|0<=i<self.coefficients.len() implies #[trigger] code_block_plane_view(self).coefficients[i].limbs.len()==6 by{
+                super::coefficient_raw_shape(self.coefficients@[i]);
+            }
+        }
         &self.coefficients
     }
 

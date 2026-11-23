@@ -1,0 +1,20 @@
+[workspace]
+
+[package]
+name = "jpeg2000-final-consumer-bench"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[features]
+default = ["current"]
+current = ["dep:decoder-current"]
+release022 = ["dep:decoder-release"]
+hayro-scalar = ["dep:hayro-jpeg2000"]
+
+[dependencies]
+decoder-current = { package = "jpeg2000-decoder", git = "https://github.com/microsoft/jpeg2000_rs", rev = "97d5162b3f43fb14942c46bbea73752d26fb24b4", optional = true }
+decoder-release = { package = "jpeg2000-decoder", version = "=0.2.2", optional = true }
+hayro-jpeg2000 = { version = "=0.3.5", default-features = false, features = ["std"], optional = true }
+serde_json = "=1.0.145"
+sha2 = "=0.10.9"

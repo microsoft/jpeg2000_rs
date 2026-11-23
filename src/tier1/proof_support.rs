@@ -437,6 +437,13 @@ verus! {
         crate::specs::part2_legacy_caps(crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),
             crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits))
     }
+    pub(crate) open spec fn compact_legacy_storage_limits(limits:&ResourceLimits)->crate::specs::Part2CompactLegacyCaps {
+        crate::specs::Part2CompactLegacyCaps {
+            legacy:legacy_storage_limits(limits),
+            decoded:crate::limits::resource_decoded_bytes_limit(limits),
+            wide_bytes:core::mem::size_of::<CoefficientState>(),
+        }
+    }
     pub closed spec fn legacy_segment_view(legacy: &LegacySegmentState) -> crate::specs::Tier1LegacyFrame {
         crate::specs::Tier1LegacyFrame {
             plane: code_block_plane_view(&legacy.plane), next_pass: legacy.next_pass, bitplane: legacy.bitplane,

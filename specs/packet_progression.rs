@@ -495,8 +495,19 @@ pub open spec fn part1_packet_candidate(
     }
 }
 
+pub open spec fn part1_packet_window_bounds(grid: Part1PacketGrid, record: crate::codestream::ProgressionChange)
+    -> crate::codestream::ProgressionChange {
+    crate::codestream::ProgressionChange {
+        layer_end: if record.layer_end < grid.layers { record.layer_end } else { grid.layers },
+        resolution_end: if record.resolution_end < grid.resolutions { record.resolution_end } else { grid.resolutions },
+        component_end: if record.component_end < grid.components { record.component_end } else { grid.components },
+        ..record
+    }
+}
+
 pub open spec fn part1_packet_window_count(grid: Part1PacketGrid, record: crate::codestream::ProgressionChange)
     -> Result<u64, crate::DecodeError> {
+    let record = part1_packet_window_bounds(grid, record);
     if record.resolution_end < record.resolution_start {
         Err(ht_reader_error(crate::MalformedKind::InvalidProgressionOrderChange))
     } else {
@@ -514,6 +525,7 @@ pub open spec fn part1_packet_window_count(grid: Part1PacketGrid, record: crate:
 pub open spec fn part1_packet_window_candidate(
     grid: Part1PacketGrid, record: crate::codestream::ProgressionChange, candidate: u64,
 ) -> Result<crate::packet::PacketCoordinate, crate::DecodeError> {
+    let record = part1_packet_window_bounds(grid, record);
     if record.resolution_end < record.resolution_start || record.component_end < record.component_start {
         Err(ht_reader_error(crate::MalformedKind::InvalidProgressionOrderChange))
     } else {

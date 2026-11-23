@@ -25,6 +25,15 @@ impl FileType {
         self.brand.equals(BoxType::JP2_BRAND)
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == (super::file_type_view(self).0 == BoxType::JPH_BRAND),
+    ))]
+    pub(crate) fn is_jph_primary(&self) -> bool {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(super::file_type_view); }
+        self.brand.equals(BoxType::JPH_BRAND)
+    }
+
     #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result@ == super::file_type_view(self).2,))]
     pub fn compatible_brands(&self) -> &[BoxType] {
         &self.compatible_brands

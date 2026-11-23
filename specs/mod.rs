@@ -45,6 +45,22 @@ mod mq;
 pub use mq::*;
 mod legacy;
 pub use legacy::*;
+mod compact_legacy;
+pub(crate) use compact_legacy::*;
+mod compact_legacy_cache;
+pub(crate) use compact_legacy_cache::*;
+mod compact_legacy_context;
+pub(crate) use compact_legacy_context::*;
+mod compact_legacy_refinement;
+pub(crate) use compact_legacy_refinement::*;
+mod compact_legacy_pass;
+pub(crate) use compact_legacy_pass::*;
+mod compact_legacy_block;
+pub(crate) use compact_legacy_block::*;
+mod compact_legacy_frames;
+pub(crate) use compact_legacy_frames::*;
+mod cold_compact_legacy;
+pub(crate) use cold_compact_legacy::*;
 mod packet;
 pub use packet::*;
 mod packet_orchestration;
@@ -182,6 +198,10 @@ mod cold_quantization_outputs;
 pub use cold_quantization_outputs::*;
 mod cold_wavelet_planes;
 pub use cold_wavelet_planes::*;
+mod rowwise_wavelet;
+pub(crate) use rowwise_wavelet::*;
+mod rowwise_fixed_wavelet;
+pub(crate) use rowwise_fixed_wavelet::*;
 mod cold_wavelet_prepare;
 pub use cold_wavelet_prepare::*;
 mod cold_wavelet_lines;
@@ -202,6 +222,14 @@ mod cold_coefficient_extraction;
 pub use cold_coefficient_extraction::*;
 mod cold_extraction_reconstruction;
 pub use cold_extraction_reconstruction::*;
+mod fused_reconstruction;
+pub(crate) use fused_reconstruction::*;
+mod fused_reconstruction_placement;
+pub(crate) use fused_reconstruction_placement::*;
+mod fused_reconstruction_equivalence;
+pub(crate) use fused_reconstruction_equivalence::*;
+mod fused_reconstruction_storage;
+pub(crate) use fused_reconstruction_storage::*;
 mod cold_extraction_tile;
 pub use cold_extraction_tile::*;
 mod cold_legacy_bitplanes;
@@ -249,6 +277,10 @@ mod pdf_trailers;
 pub use pdf_trailers::*;
 mod pdf_compat;
 pub use pdf_compat::*;
+mod progression_coverage;
+pub(crate) use progression_coverage::*;
+mod pdf_jpx;
+pub(crate) use pdf_jpx::*;
 mod pdf_eol;
 pub use pdf_eol::*;
 mod pdf_tile_count;
@@ -10060,6 +10092,7 @@ pub struct Part2OwnedTilePart {
     pub part2_extensions: Part2OwnedExtensions,
     pub packet_lengths: Part1PacketLengths,
     pub packed_packet_headers: Part1PackedHeaders,
+    pub has_progression_marker: bool,
     pub has_functional_header_marker: bool,
     pub has_roi_marker: bool,
     pub data: Seq<u8>,
@@ -15859,7 +15892,7 @@ pub open spec fn part1_poc_record(segment: Part1CodestreamSegment, components: u
             component_start: part1_poc_component_value(segment.payload, position + 1, width),
             layer_end: part1_marker_value(segment.payload[position + 1 + width as int], segment.payload[position + 2 + width as int]),
             resolution_end: segment.payload[position + 3 + width as int],
-            component_end: if width == 1 && component_end == 0 && components == 256 { 256 } else { component_end },
+            component_end: if component_end == 0 { 256 } else { component_end },
             progression_order,
         }),
     }
@@ -16005,14 +16038,12 @@ pub open spec fn part1_poc_admit_records(
     decreases records.len() - index,
 {
     if index >= records.len() {
-        if part1_progression_owners_complete(owners) { Ok(()) }
-        else { Err(part1_codestream_malformed(offset, crate::MalformedKind::InvalidProgressionOrderChange)) }
+        Ok(())
     } else {
         let record = records[index as int];
-        if !valid_poc_record(record.resolution_start as nat, record.resolution_end as nat,
-            record.component_start as nat, record.component_end as nat, record.layer_end as nat,
-            crate::codestream::component_coding_style_count(styles) as nat, layers as nat, maximum as nat,
-            part1_cod_progression_byte(record.progression_order) as nat) {
+        if record.layer_end == 0
+            || record.component_start >= record.component_end || record.component_end > 16384
+            || record.resolution_start >= record.resolution_end || record.resolution_end > 33 {
             Err(part1_codestream_malformed(offset, crate::MalformedKind::InvalidProgressionOrderChange))
         } else {
             let marked = part1_poc_mark_record(offset, record, layers, styles, owners);

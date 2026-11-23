@@ -64,7 +64,7 @@ pub(crate) open spec fn part1_tile_progression_payload<'a>(
     segment: Part1CodestreamSegment, components: u16, tile_part_index: u8,
     lengths: Part1PacketLengths, headers: Part1PackedHeaders, events: Seq<Part1ColdStorageEvent>,
 ) -> Option<((Result<(), crate::DecodeError>, Part1CodestreamReader<'a>, Part1TileHeaderAccumulator), Seq<Part1ColdStorageEvent>)> {
-    if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
+    if segment.marker == 0xff5f && !raw.poc_seen {
         let changed = Part1TileHeaderAccumulator { poc_seen: true, ..raw };
         match part1_poc_cold_run(13, segment, components, events) {
             None => None,
@@ -218,7 +218,7 @@ pub(crate) proof fn part1_prepare_main_progression_normal(reader: Part1Codestrea
 pub(crate) open spec fn part1_tile_progression_payload_calls(
     reader: Part1CodestreamReader<'_>, raw: Part1TileHeaderAccumulator, segment: Part1CodestreamSegment, components: u16, tile_part_index: u8,
 ) -> Seq<Part1ColdStorageEvent> {
-    if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
+    if segment.marker == 0xff5f && !raw.poc_seen {
         part1_poc_normal_calls(13, segment, components)
     } else if part1_p2_marker(segment.marker) { part1_p2_tile_calls(reader, raw, segment, components) }
     else { part1_fresh_tile_calls(reader, raw, segment, components) }
@@ -234,7 +234,7 @@ pub(crate) proof fn part1_tile_progression_payload_normal<'a>(
             == Some((part1_tile_header_payload(reader, raw, segment, components, tile_part_index, lengths, headers), tail)),
 {
     reveal(part1_tile_header_payload);
-    if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
+    if segment.marker == 0xff5f && !raw.poc_seen {
         part1_poc_cold_normal(13, segment, components, tail);
     } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
         part1_fresh_tile_normal(reader, raw, segment, components, tail);
@@ -608,7 +608,7 @@ pub(crate) proof fn part1_tile_progression_payload_frame<'a>(
     ensures part1_tile_progression_payload(reader, raw, segment, components, tile_part_index, lengths, headers, events + tail)
         == Some((result, rest + tail)),
 {
-    if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
+    if segment.marker == 0xff5f && !raw.poc_seen {
         if let Some((parsed, after)) = part1_poc_cold_run(13, segment, components, events) {
             part1_poc_cold_frame(13, segment, components, events, parsed, after, tail);
         }
@@ -631,7 +631,7 @@ pub(crate) proof fn part1_tile_progression_payload_projection<'a>(
     ensures result == part1_tile_header_payload(reader, raw, segment, components, tile_part_index, lengths, headers),
 {
     reveal(part1_tile_header_payload);
-    if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
+    if segment.marker == 0xff5f && !raw.poc_seen {
         if let Some((parsed, after)) = part1_poc_cold_run(13, segment, components, events) {
             part1_poc_cold_projection(13, segment, components, events, parsed, after);
         }
@@ -1023,7 +1023,7 @@ pub(crate) open spec fn part1_tile_progression_payload_storage<'a>(
     segment: Part1CodestreamSegment, components: u16, tile_part_index: u8,
     lengths: Part1PacketLengths, headers: Part1PackedHeaders, reserved: bool,
 ) -> (Result<(), crate::DecodeError>, Part1CodestreamReader<'a>, Part1TileHeaderAccumulator) {
-    if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
+    if segment.marker == 0xff5f && !raw.poc_seen {
         let changed = Part1TileHeaderAccumulator { poc_seen: true, ..raw };
         match part1_parse_poc_storage(segment, components, reserved) {
             Err(error) => (Err(error), reader, changed),
@@ -1038,7 +1038,7 @@ pub(crate) open spec fn part1_tile_progression_payload_storage_result<'a>(
     lengths: Part1PacketLengths, headers: Part1PackedHeaders,
     result: (Result<(), crate::DecodeError>, Part1CodestreamReader<'a>, Part1TileHeaderAccumulator),
 ) -> bool {
-    if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
+    if segment.marker == 0xff5f && !raw.poc_seen {
         exists|reserved: bool| result == part1_tile_progression_payload_storage(
             reader, raw, segment, components, tile_part_index, lengths, headers, reserved)
     } else if segment.marker == 0xff74 || segment.marker == 0xff75 || segment.marker == 0xff77 {
@@ -1104,13 +1104,13 @@ pub(crate) proof fn part1_tile_progression_payload_storage_observed<'a>(
         assert(part1_tile_progression_payload(reader, raw, segment, components, tile_part_index, lengths, headers, calls) == Some((result, Seq::empty())));
         return;
     }
-    if !(segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0) {
+    if !(segment.marker == 0xff5f && !raw.poc_seen) {
         assert(result == part1_tile_progression_payload_storage(
             reader, raw, segment, components, tile_part_index, lengths, headers, true));
     }
     let reserved = choose|reserved: bool| result == part1_tile_progression_payload_storage(
         reader, raw, segment, components, tile_part_index, lengths, headers, reserved);
-    if segment.marker == 0xff5f && !raw.poc_seen && tile_part_index == 0 {
+    if segment.marker == 0xff5f && !raw.poc_seen {
         let parsed = part1_parse_poc_storage(segment, components, reserved);
         part1_parse_poc_storage_observed(segment, components, reserved, parsed);
         let calls = part1_poc_cold_observed(13, segment, components, parsed);
@@ -1126,13 +1126,13 @@ pub(crate) proof fn part1_tile_progression_payload_storage_observed<'a>(
 
 pub(crate) proof fn part1_tile_progression_payload_storage_leaf<'a>(
     reader: Part1CodestreamReader<'a>, raw: Part1TileHeaderAccumulator,
-    segment: Part1CodestreamSegment, components: u16,
+    segment: Part1CodestreamSegment, components: u16, tile_part_index: u8,
     lengths: Part1PacketLengths, headers: Part1PackedHeaders,
     parsed: Result<Seq<crate::codestream::ProgressionChange>, crate::DecodeError>,
 )
     requires segment.marker == 0xff5f, !raw.poc_seen,
         part1_parse_poc_storage_result(segment, components, parsed),
-    ensures part1_tile_progression_payload_storage_result(reader, raw, segment, components, 0, lengths, headers,
+    ensures part1_tile_progression_payload_storage_result(reader, raw, segment, components, tile_part_index, lengths, headers,
         match parsed {
             Err(error) => (Err(error), reader, Part1TileHeaderAccumulator { poc_seen: true, ..raw }),
             Ok(progression_changes) => (Ok(()), reader,
@@ -1145,7 +1145,7 @@ pub(crate) proof fn part1_tile_progression_payload_storage_leaf<'a>(
         Ok(progression_changes) => (Ok(()), reader,
             Part1TileHeaderAccumulator { progression_changes, poc_seen: true, ..raw }),
     };
-    assert(part1_tile_progression_payload_storage(reader, raw, segment, components, 0, lengths, headers, reserved) == result);
+    assert(part1_tile_progression_payload_storage(reader, raw, segment, components, tile_part_index, lengths, headers, reserved) == result);
 }
 
 }

@@ -3006,7 +3006,7 @@ fn full_progression_restarts_actual_tile_iterators_and_retains_real_output_on_la
 #[test]
 fn actual_progression_work_guard_follows_real_next_and_restart_duplicate_effects() {
     let limits = ResourceLimits::default()
-        .with_maximum_work_units(3)
+        .with_maximum_work_units(2)
         .unwrap();
     let grid = packet_grid_new_with_component_resolutions(2, 1, vec![1], vec![1], &limits).unwrap();
     let parts = [
@@ -3044,6 +3044,41 @@ fn actual_progression_work_guard_follows_real_next_and_restart_duplicate_effects
     assert_eq!(progress.iterator.emitted(), 2);
     assert_eq!(precincts[0].contexts[0].layer, 0);
     assert!(!precincts[0].states[0].included());
+}
+
+#[test]
+fn physical_tile_boundary_does_not_spend_a_discarded_coordinate_before_restart() {
+    let limits = ResourceLimits::default()
+        .with_maximum_work_units(3)
+        .unwrap();
+    let grid = packet_grid_new_with_component_resolutions(2, 1, vec![1], vec![1], &limits).unwrap();
+    let parts = [
+        literal_progression_tile(&[0], 2, 0, 0, 2),
+        literal_progression_tile(&[0], 2, 0, 1, 2),
+    ];
+    let mut precincts = [literal_ht_progression_precinct(0)];
+    let input = prepare_progression_tile_input(&parts, &grid, &precincts, None, &limits).unwrap();
+    let params = ProgressionTileParameters {
+        tile_parts: &parts,
+        grid: &grid,
+        input: &input,
+        selection: None,
+        limits: &limits,
+    };
+    let mut progress = progression_tile_progress_new(&params).unwrap();
+    assert_eq!(
+        run_progression_tile_packets(&params, &mut precincts, &mut progress),
+        Ok(())
+    );
+    assert_eq!(
+        (
+            progress.remaining_packets,
+            progress.packets,
+            progress.current_tile_part
+        ),
+        (0, 2, 2)
+    );
+    assert!(progress.seen.iter().all(|seen| *seen));
 }
 
 #[test]
@@ -3338,10 +3373,10 @@ fn preparation_storage_empty_geometry_and_iterator_errors_consume_no_later_reque
     };
     let tight = limits.with_maximum_work_units(1).unwrap();
     let mut costly = [literal_progression_tile(&[], 1, 0, 0, 1)];
-    costly[0].progression_changes = ProgressionChanges::from_records(vec![ProgressionChange {
-        layer_end: 2,
-        ..literal_progression_window()
-    }]);
+    costly[0].progression_changes = ProgressionChanges::from_records(vec![
+        literal_progression_window(),
+        literal_progression_window(),
+    ]);
     let admitted =
         prepare_progression_tile_input(&costly, &positive, &precincts, None, &tight).unwrap();
     let limited = ProgressionTileParameters {
@@ -6552,6 +6587,7 @@ fn executes_retained_multi_code_block_packet_and_advances_by_prefix() {
         part2_extensions: crate::codestream::Part2Extensions::default(),
         packet_lengths: crate::codestream::PacketLengths::none(),
         packed_packet_headers: crate::codestream::PackedPacketHeaders::none(),
+        has_progression_marker: false,
         has_functional_header_marker: false,
         has_roi_marker: false,
         data: &data,
@@ -6659,6 +6695,7 @@ fn empty_resolution_precinct_consumes_either_packet_present_flag() {
             part2_extensions: crate::codestream::Part2Extensions::default(),
             packet_lengths: crate::codestream::PacketLengths::none(),
             packed_packet_headers: crate::codestream::PackedPacketHeaders::none(),
+            has_progression_marker: false,
             has_functional_header_marker: false,
             has_roi_marker: false,
             data: &data,
@@ -6705,6 +6742,7 @@ fn validates_packet_markers_and_preflights_all_bodies() {
         part2_extensions: crate::codestream::Part2Extensions::default(),
         packet_lengths: crate::codestream::PacketLengths::none(),
         packed_packet_headers: crate::codestream::PackedPacketHeaders::none(),
+        has_progression_marker: false,
         has_functional_header_marker: false,
         has_roi_marker: false,
         data: &marker_data,
@@ -6761,6 +6799,7 @@ fn validates_packet_markers_and_preflights_all_bodies() {
         part2_extensions: crate::codestream::Part2Extensions::default(),
         packet_lengths: crate::codestream::PacketLengths::none(),
         packed_packet_headers: crate::codestream::PackedPacketHeaders::none(),
+        has_progression_marker: false,
         has_functional_header_marker: false,
         has_roi_marker: false,
         data: &truncated,
@@ -6871,6 +6910,7 @@ fn traverses_retained_tile_parts_and_preserves_precinct_state() {
             part2_extensions: crate::codestream::Part2Extensions::default(),
             packet_lengths: crate::codestream::PacketLengths::none(),
             packed_packet_headers: crate::codestream::PackedPacketHeaders::none(),
+            has_progression_marker: false,
             has_functional_header_marker: false,
             has_roi_marker: false,
             data: &first_data,
@@ -6889,6 +6929,7 @@ fn traverses_retained_tile_parts_and_preserves_precinct_state() {
             part2_extensions: crate::codestream::Part2Extensions::default(),
             packet_lengths: crate::codestream::PacketLengths::none(),
             packed_packet_headers: crate::codestream::PackedPacketHeaders::none(),
+            has_progression_marker: false,
             has_functional_header_marker: false,
             has_roi_marker: false,
             data: &second_data,
@@ -6986,6 +7027,7 @@ fn progression_traversal_distinguishes_complete_packet_prefixes_from_broken_payl
         part2_extensions: crate::codestream::Part2Extensions::default(),
         packet_lengths: crate::codestream::PacketLengths::none(),
         packed_packet_headers: crate::codestream::PackedPacketHeaders::none(),
+        has_progression_marker: false,
         has_functional_header_marker: false,
         has_roi_marker: false,
         data: &trailing_data,
@@ -7013,6 +7055,7 @@ fn progression_traversal_distinguishes_complete_packet_prefixes_from_broken_payl
         part2_extensions: crate::codestream::Part2Extensions::default(),
         packet_lengths: crate::codestream::PacketLengths::none(),
         packed_packet_headers: crate::codestream::PackedPacketHeaders::none(),
+        has_progression_marker: false,
         has_functional_header_marker: false,
         has_roi_marker: false,
         data: &truncated_data,
@@ -7051,6 +7094,7 @@ fn progression_traversal_distinguishes_complete_packet_prefixes_from_broken_payl
             part2_extensions: crate::codestream::Part2Extensions::default(),
             packet_lengths: crate::codestream::PacketLengths::none(),
             packed_packet_headers: crate::codestream::PackedPacketHeaders::none(),
+            has_progression_marker: false,
             has_functional_header_marker: false,
             has_roi_marker: false,
             data: &empty,
@@ -7069,6 +7113,7 @@ fn progression_traversal_distinguishes_complete_packet_prefixes_from_broken_payl
             part2_extensions: crate::codestream::Part2Extensions::default(),
             packet_lengths: crate::codestream::PacketLengths::none(),
             packed_packet_headers: crate::codestream::PackedPacketHeaders::none(),
+            has_progression_marker: false,
             has_functional_header_marker: false,
             has_roi_marker: false,
             data: &empty,

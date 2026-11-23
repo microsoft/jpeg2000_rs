@@ -3183,7 +3183,7 @@
     },
     {
       "id": "part2-complete-native-raw-jp2-header-result",
-      "topic": "Complete actual raw header assembler Result over bytes/limits/base/profile: strict JP2 wrapper delegates to the sole profile-aware producer withfalse; actual JPH file branding selects profile admission. Sarah DEV-174EC5FEE4: absent COLR is explicitly ColorMethod::Unspecified only when JPH context and actual IHDR unknown flag permit it; its checked constructor scan rejects colour-channel claims without specified colour. No invented enumerated colour/ICC profile; explicit conversion returns UnspecifiedColorSpace while typed full/selected planes remain independent. Every image/color/ICC/count/palette/mapping/definition/resolution field and original producer/error order retained. Sarah DEV-629A0A9C39: parse first selected color, retain it and ignore later interpretations after shared three-byte prefix validation; frame/count/charge every later box and reject short prefixes. Initial required versus later progress-before-error, second resolution parse-before-duplicate and actual mapping count at definitions preserved. No supplied successful parsed-header bank/validity premise/owner inversion/runtime proof clone. Independent selected-edition review/coverage/cfg/erasure/lifetimes/release remain separate.",
+      "topic": "Complete actual raw header assembler Result over bytes/limits/base/profile: strict JP2 wrapper delegates to the sole profile-aware producer withfalse; actual JPH file branding selects profile admission. Sarah DEV-174EC5FEE4: absent COLR is explicitly ColorMethod::Unspecified only when JPH context and actual IHDR unknown flag permit it; its checked constructor scan rejects colour-channel claims without specified colour. No invented enumerated colour/ICC profile; explicit conversion returns UnspecifiedColorSpace while typed full/selected planes remain independent. Every selected image/color/ICC/count/palette/mapping/definition/resolution field is retained. The leading IHDR remains authoritative; later bounded IHDR payloads are ignored without replacing metadata or skipping framing/count/work checks. Sarah DEV-629A0A9C39: parse first selected color, retain it and ignore later interpretations after shared three-byte prefix validation; frame/count/charge every later box and reject short prefixes. Initial required versus later progress-before-error, second resolution parse-before-duplicate and actual mapping count at definitions preserved. No supplied successful parsed-header bank/validity premise/owner inversion/runtime proof clone. Independent selected-edition review/coverage/cfg/erasure/lifetimes/release remain separate.",
       "implementation_refs": [
         {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header"},
         {"path": "src/jp2/headers.rs", "symbol": "parse_jp2_header_profile"},
@@ -7241,7 +7241,7 @@
     },
     {
       "id": "part1-complete-native-progression-admission",
-      "topic": "Complete actual semantic progression admission Result from raw records/layers/component-style owner and actual work cap. Empty bypass precedes all shape/style checks; actual style lookup/depth increment/active-coordinate arithmetic and calculated records-times-active work comparison precede record bounds. Actual parser work counter is not charged. Sole factored component/layer/resolution loops bind arbitrary scratch-owner bitmap updates and exact partial error frames, without valid bitmap/style/window/coverage premises. Each record must contribute at least one previously-unowned active coordinate, so partial overlaps are accepted and entirely redundant records rejected; final full active-domain coverage is required. Heterogeneous depths, zero layers/counts, raw style lookup errors and untouched unrelated fields retain original precedence. Actual owner completion scan and existing raw predicates/range semantics compose rather than supplying accepted-record or decoder outcome banks. No new trust/cap/pin/solver/termination bypass; remaining fragmented-transform/packet/layout/file/layer/F2/F4/final F8 joins remain separate.",
+      "topic": "Complete actual per-header progression-prefix admission Result from raw records/layers/component-style owner and actual work cap. Empty bypass precedes shape/style checks; actual style lookup/depth increment/active-coordinate arithmetic and calculated records-times-active work comparison precede record bounds. Actual parser work counter is not charged. Factored component/layer/resolution loops bind arbitrary scratch bitmap updates and exact partial error frames without valid bitmap/style/window premises. Each record contributes a previously-unowned active coordinate; partial overlaps are accepted and redundant records rejected. Completeness and first-header scope are deferred to the separate complete-tile coverage producer after all parts arrive, not removed. Heterogeneous depths, zero layers/counts, raw style lookup errors and unrelated fields retain their precedence. No new trust/cap/pin/solver/termination bypass or decoder outcome bank.",
       "implementation_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
@@ -7249,8 +7249,7 @@
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::progression_validation_shape"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::mark_progression_record"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::mark_progression_layers"},
-        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::mark_progression_resolutions"},
-        {"path": "src/codestream/coding_markers.rs", "symbol": "progression_owners_complete"}
+        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::mark_progression_resolutions"}
       ],
       "spec_refs": [
         {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_copy_result"},
@@ -7263,7 +7262,6 @@
         {"path": "specs/mod.rs", "symbol": "part1_poc_mark_components"},
         {"path": "specs/mod.rs", "symbol": "part1_poc_mark_layers"},
         {"path": "specs/mod.rs", "symbol": "part1_poc_mark_resolutions"},
-        {"path": "specs/mod.rs", "symbol": "part1_progression_owners_complete"},
         {"path": "specs/mod.rs", "symbol": "valid_poc_record"},
         {"path": "specs/mod.rs", "symbol": "part1_cod_progression_byte"},
         {"path": "src/limits.rs", "symbol": "resource_work_limit"}
@@ -7274,8 +7272,7 @@
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::progression_validation_shape"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::mark_progression_record"},
         {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::mark_progression_layers"},
-        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::mark_progression_resolutions"},
-        {"path": "src/codestream/coding_markers.rs", "symbol": "progression_owners_complete"}
+        {"path": "src/codestream/coding_markers.rs", "symbol": "Parser::mark_progression_resolutions"}
       ],
       "proof_refs": [
         {"path": "specs/cold_bitmap.rs", "symbol": "part1_bitmap_normal"},
@@ -7297,8 +7294,44 @@
       ]
     },
     {
+      "id": "part1-complete-native-tile-progression-coverage",
+      "topic": "Source-derived complete per-tile POC coverage, actual first-header marker scope and declaration novelty after all physical parts arrive. Actual marker presence is projected separately from inherited records. Component/resolution layer frontiers compose all declarations; record and part scans charge one checked cumulative counter and propagate exact first errors. The allocation-free checker precedes profile classification in the actual raw-layout producer and matching model. No bitmap, allocator-success premise, renewed work limit, supplied coverage result, new trust boundary or measured source-function/conformance claim.",
+      "implementation_refs": [
+        {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
+        {"path": "src/codestream/progression_coverage.rs", "symbol": "Parser::validate_tile_progression_coverage"}
+      ],
+      "spec_refs": [
+        {"path": "specs/progression_coverage.rs", "symbol": "part1_complete_poc_coverage"},
+        {"path": "specs/progression_coverage.rs", "symbol": "part1_poc_coverage_run"},
+        {"path": "specs/progression_coverage.rs", "symbol": "part1_poc_coverage_records"},
+        {"path": "specs/progression_coverage.rs", "symbol": "part1_poc_first_run"},
+        {"path": "specs/progression_coverage.rs", "symbol": "part1_poc_frontier_run"},
+        {"path": "specs/progression_coverage.rs", "symbol": "part1_poc_frontier_records"},
+        {"path": "specs/progression_coverage.rs", "symbol": "part1_poc_novel_record"},
+        {"path": "specs/progression_coverage.rs", "symbol": "part1_poc_novel_components"},
+        {"path": "specs/progression_coverage.rs", "symbol": "part1_poc_novel_resolutions"},
+        {"path": "specs/progression_coverage.rs", "symbol": "part1_poc_complete_components"},
+        {"path": "specs/progression_coverage.rs", "symbol": "part1_poc_complete_resolutions"},
+        {"path": "specs/progression_coverage.rs", "symbol": "part1_poc_charge"},
+        {"path": "specs/raw_layout.rs", "symbol": "part1_layout_after_tiles"},
+        {"path": "src/codestream/tile_part_proof_support.rs", "symbol": "tile_parts_payload_view"},
+        {"path": "src/codestream/tile_part_proof_support.rs", "symbol": "tile_part_payload_view"}
+      ],
+      "contract_refs": [
+        {"path": "src/codestream/progression_coverage.rs", "symbol": "Parser::validate_tile_progression_coverage"}
+      ],
+      "proof_refs": [
+        {"path": "src/codestream/progression_coverage.rs", "symbol": "Parser::validate_tile_progression_coverage"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "multipart_poc_defers_complete_coverage_and_retains_actual_header_declarations"},
+        {"path": "src/codestream/tests.rs", "symbol": "multipart_poc_retains_scope_redundancy_ranges_and_final_completeness_checks"},
+        {"path": "src/packet/tests.rs", "symbol": "actual_progression_work_guard_follows_real_next_and_restart_duplicate_effects"}
+      ]
+    },
+    {
       "id": "part1-complete-native-raw-progression-bytes",
-      "topic": "Complete actual raw POC syntax Result and every progression-record field in source order, from actual component-count/segment offset/bytes. Real byte/component helpers preserve width1 versus every-other-width two-byte behavior, checked overflow-before-range for two-byte reads and segment rather than cursor error offsets. Actual parser derives7/9byte records at threshold257; empty/alignment rejection precedes reads, actual source fields and progression0..4 discrimination precede append, and encoded component-end0 becomes256 only for Csiz256. All other raw layer/resolution/component values remain untouched, including otherwise-invalid ranges. Actual alignment/count geometry establishes every read/advance/decrease bound without admitted records, successful syntax/range/coverage premises or result banks. Semantic range/coverage/duplicate validation in the real downstream validate_progression_changes remains separate, as do other metadata/layout/file/layer/F2/F4/final F8 joins. No new trust/cap/pin/budget/termination bypass.",
+      "topic": "Complete actual raw POC syntax Result and every progression-record field in source order, from actual component-count/segment offset/bytes. Byte/component helpers preserve one-byte versus every-other-width two-byte reads, overflow-before-range and segment error offsets. Parser derives 7/9-byte records at threshold 257; empty/alignment rejection precedes reads, progression 0..4 discrimination precedes append, and encoded component-end zero denotes 256. Other raw endpoints remain unchanged, including legal endpoints beyond the tile grid. Per-header admission checks syntax and effective contribution; packet count/candidate decoding intersects the volume with the actual grid. Actual alignment/count geometry establishes bounds without admitted-record or successful syntax/coverage premises. Complete tile coverage and declaration scope remain separate checked producers. No new trust/cap/pin/budget/termination bypass or result bank.",
       "implementation_refs": [
         {"path": "src/codestream/layout.rs", "symbol": "Parser::parse_layout"},
         {"path": "src/codestream/tiles.rs", "symbol": "Parser::read_tile_part"},
@@ -12652,6 +12685,30 @@
       ]
     },
     {
+      "id": "part1-complete-native-bounded-progression-window",
+      "topic": "Actual allocation-free temporary progression volume intersects raw declared endpoints with the real packet grid. The same executing bounded-window helper precedes candidate-count work admission and coordinate decoding, retaining raw records, starts, order and the original grid. No fictitious grid, enlarged budget, owner normalization, allocation or successful-decoder premise. This is source/model correspondence for the supported volume interpretation, not independent normative certification.",
+      "implementation_refs": [
+        {"path": "src/packet/progression.rs", "symbol": "window_candidate_count"},
+        {"path": "src/packet/progression.rs", "symbol": "decode_window_candidate"},
+        {"path": "src/packet/progression.rs", "symbol": "bounded_window"}
+      ],
+      "contract_refs": [
+        {"path": "src/packet/progression.rs", "symbol": "bounded_window"}
+      ],
+      "spec_refs": [
+        {"path": "specs/packet_progression.rs", "symbol": "part1_packet_window_bounds"},
+        {"path": "specs/packet_progression.rs", "symbol": "part1_packet_window_count"},
+        {"path": "specs/packet_progression.rs", "symbol": "part1_packet_window_candidate"}
+      ],
+      "proof_refs": [
+        {"path": "src/packet/progression.rs", "symbol": "bounded_window"}
+      ],
+      "test_refs": [
+        {"path": "src/codestream/tests.rs", "symbol": "poc_declared_volumes_intersect_the_actual_grid_without_changing_raw_records"},
+        {"path": "src/packet/tests.rs", "symbol": "preparation_storage_empty_geometry_and_iterator_errors_consume_no_later_request"}
+      ]
+    },
+    {
       "id": "part1-complete-native-grid-progression-composition",
       "topic": "Complete actual raw nine-field grid factories/lookup, packet and POC/default nested iterators, selected/public multi-tile-part progression from actual native tile/source/grid/precinct inputs. Actual reassembly, raw lengths and coordinates derive real headers and retained legacy/HT coefficients; all offsets/seen/context layers/counters/trailing/partial errors and readonly owner frames retained. No coordinate/length/header/decoder outcome bank, normalized POC/grid/shape, success or budget premise. Separate codeblock/JPIP outer wrappers and whole F5 epics/conformance remain open. Public selected-count/API support remains whole-root-proved proof references, not an invented internal consumer. The public unselected delegation wrapper is likewise proved API support, not a fabricated internal call edge.",
       "contract_refs": [
@@ -14469,6 +14526,100 @@
       ]
     },
     {
+      "id": "part1-unqualified-compact-legacy-prototype",
+      "topic": "Issue-447 compact legacy candidate: actual word, cache/context, cell/pass, whole-block and selected outer-segment refinements use producer-established bitplane-frontier invariants. A real additional scratch-capacity reply precedes the original bitplane-owner program; the selected storage model retains actual decoded-byte eligibility and wide-entry size. The original storage-result relation is a separately proved conservative outcome consequence, not the new allocation trace. Checked preparation, statistics and dispatch helpers close executing composition under unchanged budgets. Replay remains wide-only. Full source proofs do not by themselves establish packaged-source qualification, final performance, RSS reduction, source-function coverage, normative-model completeness or adoption readiness.",
+      "contract_refs": [
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "unpack_word"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "mark_word"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "cache_word"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "refine_word"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "word_flag_summary"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "new_compact_plane"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "CompactPlane::commit"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "CompactPlane::initial_state"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_eligible"}
+      ],
+      "implementation_refs": [
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "CompactPlane::commit"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "CompactPlane::mark"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "CompactPlane::summary"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "CompactPlane::refine_cell"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::try_compact_legacy"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_passes"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_scheduled_pass"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_prepare_bitplane"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "compact_merge_statistics"},
+        {"path": "src/tier1/legacy_segments.rs", "symbol": "Tier1CodeBlockDecoder::decode_selected_mq_segment_passes"},
+        {"path": "src/tier1/legacy_segments.rs", "symbol": "Tier1CodeBlockDecoder::decode_legacy_segment_with_compact"}
+      ],
+      "spec_refs": [
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_coefficient"},
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_mark_word"},
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_refine_word"},
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_flag_summary"},
+        {"path": "specs/compact_legacy_cache.rs", "symbol": "compact_add_neighbor"},
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_plane"},
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_bulk_commit"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_initial_run"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_initial_result"},
+        {"path": "specs/cold_bitplane_initial.rs", "symbol": "part2_bitplane_initial_result"},
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_cache"},
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_eligible"},
+        {"path": "specs/compact_legacy_refinement.rs", "symbol": "compact_refinement_frontier"},
+        {"path": "specs/compact_legacy_pass.rs", "symbol": "compact_refinement_pending"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_block_phase"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_normal_suffix"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_cold_suffix"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_physical_frame"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_substitute_plane"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_loop_progress"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "Part2CompactLegacyCaps"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_capacity_run"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_inner_run"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_selected_inner_run"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_selected_inner_result"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_segment_run"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_segment_result"}
+      ],
+      "proof_refs": [
+        {"path": "specs/compact_legacy.rs", "symbol": "compact_mark_coefficient"},
+        {"path": "specs/compact_legacy_cache.rs", "symbol": "compact_cache_mark_step"},
+        {"path": "specs/compact_legacy_context.rs", "symbol": "compact_cached_summary"},
+        {"path": "specs/compact_legacy_refinement.rs", "symbol": "compact_refinement_plane"},
+        {"path": "specs/compact_legacy_pass.rs", "symbol": "compact_frontier_row_step"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_block_schedule"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_total_merge"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_pass_observed"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_normal_step"},
+        {"path": "specs/compact_legacy_block.rs", "symbol": "compact_cold_step"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_physical_updated"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_success_store_frame"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_allocation_error_exit"},
+        {"path": "specs/compact_legacy_frames.rs", "symbol": "compact_pass_error_exit"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "Tier1CodeBlockDecoder::compact_native_store"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_capacity_observed"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_initial_observed"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_initial_normal"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_inner_first_error"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_inner_observed"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_inner_normal"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_original_first_error"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_selected_inner_observed"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_segment_prepared_error"},
+        {"path": "specs/cold_compact_legacy.rs", "symbol": "compact_segment_observed"},
+        {"path": "src/tier1/proof_support.rs", "symbol": "compact_legacy_storage_limits"}
+      ],
+      "test_refs": [
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "incremental_flags_match_checked_neighbors_after_every_mark"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "bounded_complete_mq_block_reaches_compact_kernel"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "compact_matches_checked_result_and_every_visible_error_prefix"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "compact_preserves_actual_mq_register_context_and_work_error_state"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "scratch_is_one_real_owner_before_the_original_bitplane_owners"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "compact_admission_uses_coded_bitplanes_exact_capacity_and_pristine_state"},
+        {"path": "src/tier1/compact_legacy.rs", "symbol": "inherited_replay_keeps_checked_allocation_and_error_frontiers"}
+      ]
+    },
+    {
       "id": "part15-actual-selected-staged-ht-packet-group",
       "topic": "Actual selected HT decode_segment branch with faithful whole raw clone, complete placeholder-group loop, substantive decode, rollback/commit and native state/errors; legacy else/full mixed/packet composition remain open",
       "contract_refs": [
@@ -16089,6 +16240,9 @@
           "path": "src/tier1/legacy_segments.rs", "symbol": "decode_legacy_segment"
         },
         {
+          "path": "src/tier1/legacy_segments.rs", "symbol": "decode_legacy_segment_with_compact"
+        },
+        {
           "path": "src/tier1/legacy_passes.rs", "symbol": "decode_raw_significance_propagation_pass"
         },
         {
@@ -16533,6 +16687,8 @@
       ],
       "id": "part1-reversible-five-three",
       "implementation_refs": [
+        {"path": "src/transform/wavelets.rs", "symbol": "inverse_reversible_bounded"},
+        {"path": "src/transform/wavelets.rs", "symbol": "inverse_lifting_neighbors"},
         {"path": "src/transform/wavelets.rs", "symbol": "inverse_lifting_value"},
         {
           "path": "src/transform/wavelets.rs",
@@ -20948,6 +21104,7 @@
       ],
       "id": "part1-complete-supplied-coefficient-quantization",
       "implementation_refs": [
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place"},
         {"path": "src/decode/code_blocks.rs", "symbol": "decode_code_block"},
         {"path": "src/decode/code_blocks.rs", "symbol": "copy_code_block_samples"},
         {
@@ -21073,6 +21230,7 @@
       ],
       "id": "part1-complete-five-three-sequence",
       "implementation_refs": [
+        {"path": "src/transform/wavelets.rs", "symbol": "inverse_lifting_neighbors"},
         {
           "path": "src/transform/levels.rs",
           "symbol": "inverse_row_pair"
@@ -21281,6 +21439,16 @@
       ],
       "id": "part1-complete-standard-wavelet-planes",
       "implementation_refs": [
+        {"path": "src/transform/rowwise.rs", "symbol": "assemble"},
+        {"path": "src/transform/rowwise/fixed.rs", "symbol": "inverse"},
+        {"path": "src/transform/rowwise/fixed.rs", "symbol": "scale_rows"},
+        {"path": "src/transform/rowwise/fixed.rs", "symbol": "lift_rows"},
+        {"path": "src/transform/rowwise.rs", "symbol": "eligible"},
+        {"path": "src/transform/rowwise.rs", "symbol": "inverse"},
+        {"path": "src/transform/rowwise.rs", "symbol": "append_row"},
+        {"path": "src/transform/rowwise.rs", "symbol": "lift_rows"},
+        {"path": "src/transform/wavelets.rs", "symbol": "inverse_lifting_neighbors"},
+        {"path": "src/transform/levels.rs", "symbol": "inverse_columns_scalar"},
         {"path": "src/decode/reconstruction.rs", "symbol": "reconstruct_prepare_resolution"},
         {"path": "src/transform/levels.rs", "symbol": "inverse_empty_level"},
         {"path": "src/transform/geometry.rs", "symbol": "validate_level_bands"},
@@ -21342,7 +21510,21 @@
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_rows_normal"},
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_columns_normal"},
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_rows_refused"},
-        {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_columns_refused"},
+        {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_scalar_columns_refused"},
+        {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_columns_observed"},
+        {"path": "specs/rowwise_wavelet.rs", "symbol": "rowwise_observed"},
+        {"path": "specs/rowwise_wavelet.rs", "symbol": "rowwise_single_owner"},
+        {"path": "specs/rowwise_wavelet.rs", "symbol": "rowwise_neighbors_bounded"},
+        {"path": "specs/rowwise_wavelet.rs", "symbol": "rowwise_stage_column"},
+        {"path": "specs/rowwise_wavelet.rs", "symbol": "rowwise_inverse_column"},
+        {"path": "specs/rowwise_wavelet.rs", "symbol": "rowwise_equivalent"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_q16_shift_bound"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_product_bound"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_neighbors_bound"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_lifts_column"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_equivalent"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_observed"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_single_owner"},
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_rows_frames"},
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_columns_frames"},
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_horizontal_observed"},
@@ -21401,6 +21583,16 @@
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_rows_result"},
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_columns_run"},
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_columns_result"},
+        {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_scalar_columns_run"},
+        {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_scalar_columns_result"},
+        {"path": "specs/rowwise_wavelet.rs", "symbol": "rowwise_eligible"},
+        {"path": "specs/rowwise_wavelet.rs", "symbol": "rowwise_output"},
+        {"path": "specs/rowwise_wavelet.rs", "symbol": "rowwise_run"},
+        {"path": "specs/rowwise_wavelet.rs", "symbol": "rowwise_result"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_bound"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_output"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_run"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_result"},
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_horizontal_admit"},
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_vertical_admit"},
         {"path": "specs/cold_wavelet_planes.rs", "symbol": "part2_wavelet_level_admit"},
@@ -21484,6 +21676,9 @@
           "symbol": "complete_standard_planes_match_independent_reference_for_all_small_geometries"
         },
         {"path": "src/transform/tests.rs", "symbol": "internal_empty_levels_validate_every_band_without_allocating_or_scanning"},
+        {"path": "src/transform/tests.rs", "symbol": "rowwise_vertical_five_three_exact_boundaries_origins_and_single_output_owner"},
+        {"path": "src/transform/tests.rs", "symbol": "rowwise_vertical_fallback_keeps_scalar_refusal_and_error_order"},
+        {"path": "src/transform/tests.rs", "symbol": "rowwise_vertical_nine_seven_preserves_q16_stages_bounds_and_singleton_fallback"},
         {"path": "src/transform/tests.rs", "symbol": "wavelet_plane_storage_standard_level_first_later_owners_exact_reference_and_restore"},
         {"path": "src/transform/tests.rs", "symbol": "wavelet_plane_storage_empty_no_request_geometry_budget_and_numerical_error_order"},
         {"path": "src/transform/tests.rs", "symbol": "wavelet_plane_storage_actual_custom_kernel_level_rows_columns_and_restore"},
@@ -21642,6 +21837,7 @@
       ],
       "id": "part1-complete-quantized-block-placement",
       "implementation_refs": [
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place"},
         {"path": "src/decode/reconstruction.rs", "symbol": "prepare_tile_component_with_kernel"},
         {"path": "src/decode/reconstruction.rs", "symbol": "place_prepare_block"},
         {"path": "src/decode/reconstruction.rs", "symbol": "write_quantized_block"},
@@ -21682,6 +21878,9 @@
       ],
       "id": "part1-complete-standard-plan-coordinator",
       "implementation_refs": [
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place"},
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "preflight"},
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "write"},
         {"path": "src/decode/reconstruction.rs", "symbol": "decode_progression_prepared_image"},
         {"path": "src/decode/reconstruction.rs", "symbol": "prepared_tile_views"},
         {"path": "src/decode/reconstruction.rs", "symbol": "prepare_tile_component"},
@@ -21700,6 +21899,17 @@
         {"path": "src/decode/code_blocks.rs", "symbol": "collect_code_block_coefficients"}
       ],
       "proof_refs": [
+        {"path": "specs/fused_reconstruction.rs", "symbol": "part2_fused_original_coefficient"},
+        {"path": "specs/fused_reconstruction.rs", "symbol": "part2_fused_sample_equivalent"},
+        {"path": "specs/fused_reconstruction.rs", "symbol": "part2_fused_limit_bounds"},
+        {"path": "specs/fused_reconstruction_placement.rs", "symbol": "part2_fused_row_scalar"},
+        {"path": "specs/fused_reconstruction_placement.rs", "symbol": "part2_fused_rows_scalar"},
+        {"path": "specs/fused_reconstruction_equivalence.rs", "symbol": "part2_fused_collect_rows"},
+        {"path": "specs/fused_reconstruction_equivalence.rs", "symbol": "part2_fused_quantized_prefix"},
+        {"path": "specs/fused_reconstruction_equivalence.rs", "symbol": "part2_fused_band_equivalent"},
+        {"path": "specs/fused_reconstruction_storage.rs", "symbol": "part2_fused_band_normal"},
+        {"path": "specs/fused_reconstruction_storage.rs", "symbol": "part2_fused_run_lift"},
+        {"path": "specs/fused_reconstruction_storage.rs", "symbol": "part2_fused_allocation_lift"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_prepare_init_error"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_prepare_row_error"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_prepare_rows_error"},
@@ -21774,6 +21984,18 @@
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_admit"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_after"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_run"},
+        {"path": "specs/fused_reconstruction.rs", "symbol": "part2_narrow_magnitude"},
+        {"path": "specs/fused_reconstruction.rs", "symbol": "part2_fused_eligible"},
+        {"path": "specs/fused_reconstruction.rs", "symbol": "part2_fused_placement_enabled"},
+        {"path": "specs/fused_reconstruction.rs", "symbol": "part2_fused_place_run"},
+        {"path": "specs/fused_reconstruction_placement.rs", "symbol": "part2_fused_values"},
+        {"path": "specs/fused_reconstruction_placement.rs", "symbol": "part2_fused_write_admit"},
+        {"path": "specs/fused_reconstruction_placement.rs", "symbol": "part2_fused_row"},
+        {"path": "specs/fused_reconstruction_placement.rs", "symbol": "part2_fused_rows"},
+        {"path": "specs/fused_reconstruction_equivalence.rs", "symbol": "part2_fused_coefficients"},
+        {"path": "specs/fused_reconstruction_equivalence.rs", "symbol": "part2_fused_plane_valid"},
+        {"path": "specs/fused_reconstruction_storage.rs", "symbol": "part2_fused_band_result"},
+        {"path": "specs/fused_reconstruction_storage.rs", "symbol": "part2_fused_lift_effect"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_result"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_after_quantization"},
         {"path": "specs/cold_extraction_reconstruction.rs", "symbol": "part2_extraction_place_after_coefficients_run"},
@@ -21829,6 +22051,8 @@
         {"path": "src/decode/tests.rs", "symbol": "prepared_view_storage_preserves_borrows_raw_metadata_empty_and_retry"},
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_zero_raw_shape_and_ordinary_cell_error_order"},
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_first_later_prepared_placements_preserve_real_sources"},
+        {"path": "src/decode/reconstruction/fused_tests.rs", "symbol": "fused_direct_placement_matches_independent_midpoint_roi_and_quantization_reference_without_allocating"},
+        {"path": "src/decode/reconstruction/fused_tests.rs", "symbol": "fused_fallback_preserves_real_staging_refusals_numeric_priority_and_partial_placement"},
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_actual_legacy_ht_code_block_packet_and_quantization_order"},
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_real_ht_raw_selected_jph_reconstruction_and_automatic_restore"},
         {"path": "src/allocation.rs", "symbol": "bulk_i64_copy_preserves_raw_empty_prior_owner_first_later_and_restore"},

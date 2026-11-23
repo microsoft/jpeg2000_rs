@@ -15,6 +15,37 @@ contracts and models. Exact run counts and source/tool hashes belong in fresh
 CI artifacts, not committed result snapshots. Independent model-to-standard
 review and official conformance testing remain separate.
 
+## POC endpoint intersection and authoritative JP2 image header
+
+The #456 POC reader retains declared endpoints, including zero's specified
+256-component interpretation. Per-header bitmap admission still scans and
+charges the actual grid and checks marker syntax and effective contribution.
+The executing [`bounded_window`](src/packet/progression.rs) helper and
+[`packet progression model`](specs/packet_progression.rs) intersect endpoints
+with the actual grid before both candidate-count admission and coordinate
+decoding. There is no new allocation, enlarged grid or renewed work limit.
+The [`complete coverage traversal`](src/codestream/progression_coverage.rs)
+and [matching model](specs/progression_coverage.rs) compare actual layer coverage
+and reject declarations that add no effective layer even when their raw
+endpoints grow.
+
+The main [`JP2 header reader`](src/jp2/headers.rs) and
+[`raw header step`](specs/jp2_header.rs) preserve the leading `ihdr` metadata
+when another bounded instance appears. Existing box-reader framing, charged
+work and nested counts remain in the source/storage traversal; the ignored
+payload creates no new storage request. Associated JPX header overrides are
+unchanged.
+
+The [eleven retained refusals](SUPPORTED.md#openjpeg-tolerance-dispositions)
+use the existing executing box/header, tile-window/termination, quantization,
+zero-bitplane, component-transform and palette-output contracts. In particular,
+[`header_zero_loop`](specs/header.rs) retains the actual tag-tree/reader mutation
+and error, and [`cold output storage`](specs/cold_output_storage.rs) preserves
+palette reservation/error ordering. Documentation of those refusals adds no
+trusted premise, success fallback or recovery branch. These are implementation
+relations; independent correspondence to the normative text and official
+conformance remain separate.
+
 ## Native-only cooperative deadline profile
 
 The optional `cooperative-deadlines` feature is **outside** this pinned proof
@@ -37,7 +68,210 @@ Use the [supported build profiles](SUPPORTED.md#build-and-runtime-profiles) and
 when reporting this API. Native `--all-features` tests exercise it, but are not
 an all-feature Verus proof. Full source-function coverage remains `not-measured`.
 
+## Source-proved bounded compact legacy candidate
+
+The issue-447 candidate in [`compact_legacy.rs`](src/tier1/compact_legacy.rs)
+has complete executing-source proofs, but still requires final packaged,
+native, performance and CI qualification before adoption. Its word helpers
+have contracts for
+packing, extraction, sign/bitplane flags, magnitude addition without field
+carry, cache-bit insertion and masked neighbor-count arithmetic.
+[`compact_legacy.rs`](specs/compact_legacy.rs) projects physical words into the
+existing raw Tier-1 model and defines the cache and activation domain.
+The [directional update induction](specs/compact_legacy_cache.rs) and
+[causal summary bridge](specs/compact_legacy_context.rs) bind the actual cached
+mark/sign/context operations to the existing checked neighbor model.
+The [numeric frontier](specs/compact_legacy_refinement.rs) and
+[traversal predicates](specs/compact_legacy_pass.rs) support actual cell,
+row, column and pass contracts. The whole-block producer/consumer chain
+establishes their private bitplane invariants at the actual fresh owner.
+The geometric counter bound is a mathematical witness, not a new resource
+limit, allocation request or charged-work budget.
+[`compact_legacy_block.rs`](specs/compact_legacy_block.rs) adds checked schedule,
+metadata-phase, total-counter and ordinary-result suffix lemmas. Checked
+bitplane preparation and statistics accumulation isolate real operations
+from the scheduled-pass composition query, without changing their order
+or increasing verifier limits. The [store/error cutpoints](specs/compact_legacy_frames.rs) separate
+the constant physical-wide frame, packed-plane substitution, combined
+post-advance run equality and allocation/pass error continuations.
+Strict projected-result/input/bound/request-order bindings cover all
+nine listed word, fresh-owner, bitplane-owner, commit and activation functions.
+The fresh-owner outcome retains every physical field, and commit binds the
+actual implicit unit return and the complete wide-plane mutation. Negative
+controls reject phantom capacities, incomplete owner projections, changed
+tails and changed direct/replay dispatch policy.
+
+The fresh nonempty `Vec<u64>` reservation is a real additional owner before
+the original two bool owners per bitplane.
+[`cold_compact_legacy.rs`](specs/cold_compact_legacy.rs) prefixes that one
+actual normalized capacity reply to the existing ordered legacy inner
+program, with first-refusal, normal-result and arbitrary-tail lemmas. Its
+private limits record retains the actual decoded-byte cap and native wide
+entry size. The selected outer-segment model carries these limits through
+the actual MQ dispatch. Ineligible dispatch selects the original inner
+program unchanged.
+The original storage-result relation remains a separately checked,
+conservative outcome consequence: a scratch refusal has the same visible
+outcome as a first original bitplane-owner refusal. This logical witness
+does not claim that the old owner sequence is the actual compact trace,
+does not create a native request, and does not replace the exact selected
+storage model.
+Extraction writes the public wide plane once after whole-block success or
+failure; it does not allocate or materialize wide records on hot accesses.
+
+Inherited replay is explicitly wide-only: restoring its initial snapshot can
+otherwise make a final replay look fresh to the ordinary activation predicate.
+Native refusal controls cover this boundary and the extra scratch request
+separately from the unchanged checked allocation program.
+
+The small whole-block driver and executing `compact_scheduled_pass` both
+verify under unchanged default limits. Their producer-derived phase is
+established at the real fresh owner; no successful-owner or allocator
+availability premise is supplied. The actual selected MQ helper and outer
+segment carry both the exact new storage result and the existing ordinary
+outcome contract. Full unrestricted production verification passes, including
+the replay callers, without weakening failure-injection controls.
+Public storage remains wide; no process-RSS reduction or final performance
+qualification is implied by these source proofs.
+The five Rust-only adapters, disabled lifetime boundary and unmeasured
+source-function coverage are unchanged.
+
+## Format-appropriate HT PDF admission
+
+The common PDF input producer records ordinary mode for an HT SIZ announcement
+or an admitted single-codestream JPH container. Complete parsing still validates
+the actual Part 15 profile. Ordinary mode bypasses legacy framing/copy,
+sole-present-tile, trailer, count and native initial-MQ recovery; container
+dimension disagreement remains an error. It retains the existing separately
+reported terminal PDF EOL policy, not arbitrary HT repair.
+
+`specs/pdf_compat.rs` includes this mode in the complete prepared-input projection
+and its exact storage program. The checked ordinary-layout bridge composes the
+existing selected decoder Result with a zero-trailer report; the legacy bridge
+retains the original storage/outcome program unchanged. Parser, reconstruction,
+output, inspected metadata and count-repair callers keep exact first refusals
+and ordinary results without supplied successful-image or allocator premises.
+The five Rust-only adapters and default verifier budget are unchanged.
+
+## Single-image JPX PDF embedding
+
+The input producer admits JPX/JPX-baseline only after the bounded profile
+validator checks one codestream, no composition, at most one empty layer,
+supported coding flags and reader requirements. `specs/pdf_jpx.rs` models
+actual mask-word reads, standard/vendor record traversal, required-aspect
+coverage, exact work/error priority and the complete top-level RREQ scan.
+Checked word, record and box cutpoints keep those executing loops within the
+unchanged verifier budget; they are not assumptions or excluded functions.
+
+The ordinary prepared-input mode bypasses legacy damaged-input recovery.
+The JPX associated-header lookup and strict header/codestream validation are
+the existing shared boundaries, and output storage uses the selected associated
+header rather than silently reverting to the main header. Typed, selected,
+centered and inspection callers retain complete Result/storage bindings.
+This is the stated embedding profile, not arbitrary JPX composition support
+or an independent selected-edition conformance certification.
+
 ## Fallible-storage foundation and remaining boundary
+
+### Multipart POC declarations and final coverage
+
+POC header parsing now retains actual marker presence separately from inherited
+records in the complete raw and owned payload projections. Per-header range,
+distinct-contribution and bitmap-allocation contracts remain; completeness is
+deferred to the final per-tile union. `specs/progression_coverage.rs` models
+first-header scope, zero-start layer frontiers, new-declaration contribution,
+complete active component/resolution coverage and exact checked work errors.
+The executing traversal allocates no new bitmap and uses one cumulative work
+counter, with native deadline checkpoints rather than renewed per-part limits.
+
+The packet producer consumes physical tile-part boundaries before requesting
+the next coordinate from a possibly exhausted partial POC window. Its checked
+plain/cold tile-run programs retain unique-coordinate suppression, packet/body
+and packed-header accounting, first errors and exact storage tails. Completion
+still requires the existing whole-tile seen/accounting checks; no partial byte
+or entropy result is promoted to a complete image.
+The unchanged compact scheduled-pass proof uses the existing independent-query
+annotation to stay within the same verifier budget after the metadata theory
+expands. Its runtime, contracts and storage program are unchanged; this is not
+a budget increase, additional assumption or verification exclusion.
+
+### Allocation-aware reversible vertical traversal
+
+The default standard vertical dispatcher uses `transform/rowwise.rs` only for exact
+rectangular borrowed bands, width at least two, nonzero output height, and
+coefficients in the inclusive range `[-2^30, 2^30]`. Eligibility allocates
+nothing. The independent 9/7 child additionally requires height at least two;
+9/7 singletons retain the scalar path. Other geometry, surplus or missing
+samples, larger values, and arbitrary kernels retain the original checked column path.
+Public geometry, checked area and decoded-byte admission still precede dispatch.
+
+The eligible path reserves the full output once, interleaves borrowed rows
+directly into that owner, then updates contiguous rows across independent
+columns. It neither gathers columns nor owns line scratch. The shared scalar
+neighbor helpers preserve update-before-predict order, symmetric endpoints,
+signed shifts and the high-only singleton half. Conservative intermediate
+bounds are `2^31` after update and `2^32` after predict; scalar normal-result
+specifications are unchanged. The shared bounded reversible leaf performs raw
+`i64` additions and shifts after these bounds are proved, removing per-cell
+overflow error branches without removing the checked fallback.
+
+The 9/7 child shares the actual scalar Q16 multiplication and fixed-neighbor
+helpers. It scales low then high parity and performs all four fixed lifts in
+the original order, without floating point or reassociation. Its conservative
+uniform bounds are `2^32` after both scaling passes, then `2^35`, `2^38`,
+`2^41` and `2^44`. Products, the positive Q16 rounding bias, arithmetic shifts
+and every subtraction fit the original checked integer range on admitted input.
+
+`specs/rowwise_wavelet.rs` and `specs/rowwise_fixed_wavelet.rs` describe those
+independently bounded traversals and their single actual
+`Columns` capacity event. The existing cold plane/level composition selects it
+using the same eligibility predicate, rather than inventing the removed gather
+and interleave reservations. Refusal at the sole reservation returns
+`AllocationFailed`; after its success there are no further managed growth
+requests in this vertical operation. This intentionally changes refusal
+ordinals for eligible inputs only. Fallback retains the old allocation and
+numerical-error ordering. Focused refusal tests cover both contracts without
+relaxing existing scalar tests.
+
+In the separate native deadline profile, preflight checks every 1024 inspected
+coefficients, interleave copies at most 1024 coefficients between checks, and
+scaling/lifting checks each row and every 1024 samples. Singleton 5/3 shifts are also
+periodically checked. This is cooperative work granularity, not a hard latency
+guarantee. Focused evidence does not establish full source/archive qualification
+or a performance adoption decision.
+
+### Fused coefficient placement candidate: qualification pending
+
+The independent copy-elimination experiment preflights actual decoded coefficient
+storage, legacy truncation midpoints, per-coefficient ROI restoration, quantizer
+metadata, decoded-byte admission, exact destination shape and unvisited target
+cells. It does not infer a bound from nominal image/component precision.
+Maxshift is checked per coefficient because restoration is discontinuous at its
+threshold. Larger/wide magnitudes, carries beyond `u64`, malformed metadata,
+unsupported shape, visited cells and out-of-range products retain the checked
+collection/quantization/placement path and its original error/partial-write order.
+
+Admitted blocks are written directly into the already-owned working band.
+Neither the wide signed-magnitude staging vector (56 bytes per record on this
+target) nor the quantized staging vector exists on that branch; no fake
+reservations replace those removed calls.
+The source-derived cold model consumes no storage events on the fused branch.
+Refusal tests check zero requests for eligible placement, both real staging
+owners on checked fallback, original numeric/limit precedence, and late-placement
+partial buffers. Legacy midpoint and scalar quantization helpers are shared.
+The optional deadline profile checks preflight and write work periodically.
+
+Focused proofs cover the executing scalar extraction/quantization helpers, exact
+non-error preflight, optimized mutable-row writer, checked fallback and complete
+band-to-block storage lifting. The latter preserves the actual zero-event fused
+program and ordered checked staging events, including refusal and unused-tail
+frames. Scalar-normal specifications are unchanged. Mutable row borrows use the
+existing slice specifications via `as_mut_slice`, without a new trusted wrapper.
+
+These are focused actual-source/model proofs, **not** whole-production-root,
+actual-archive or release qualification. Fresh complete verification and the
+unchanged retention/normal-CI gates are still required before adoption; a
+model-only focus is not a substitute for executing-body verification.
 
 ### Selected opaque ICC metadata
 

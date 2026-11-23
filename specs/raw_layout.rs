@@ -21,7 +21,8 @@ pub(crate) open spec fn part1_layout_after_tiles<'a>(
     reader: Part1CodestreamReader<'a>, main: Part1MainHeader<'a>,
     tile_parts: u32, state: Part1PersistentTileState,
 ) -> Part1CompleteLayoutResult {
-    match part1_classify_codestream_profile(
+    match part1_complete_poc_coverage(state.3, reader.limits) {
+        Err(error)=>Err(error),Ok(())=>match part1_classify_codestream_profile(
         main.raw.r_siz, main.raw.capabilities, main.raw.profile, main.raw.corresponding_profile,
         main.styles, main.raw.roi, part1_layout_profile_tiles(state.3), main.raw.image_size.components,
         exists|index: int| 0 <= index < main.raw.roi_seen.len() && main.raw.roi_seen[index],
@@ -29,7 +30,7 @@ pub(crate) open spec fn part1_layout_after_tiles<'a>(
         Err(error) => Err(error),
         Ok(profile) => Ok((part1_main_header_fields(main), profile, tile_parts,
             part1_codestream_offset(reader.position), state.3)),
-    }
+    }}
 }
 
 #[verifier::opaque]

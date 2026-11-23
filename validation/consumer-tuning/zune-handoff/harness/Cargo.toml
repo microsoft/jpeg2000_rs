@@ -1,0 +1,12 @@
+[package]
+name = "zune-jp2-compare"
+version = "0.0.0"
+edition = "2021"
+
+[features]
+candidate = ["zune-image/jpeg_2000_rust"]
+
+[dependencies]
+zune-image = { path = "../zune-image/crates/zune-image", default-features = false, features = ["jpeg_2000"] }
+zune-core = { path = "../zune-image/crates/zune-core" }
+jpeg2000-decoder = "=0.2.2"

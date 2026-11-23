@@ -1,0 +1,139 @@
+{
+  "scope": "completed actual zune tuning and separate per-case PDFium GN configuration/output audit; unqualified numerical comparisons are explicit",
+  "issue": "https://github.com/microsoft/jpeg2000_rs/issues/449",
+  "pull_request": "https://github.com/microsoft/jpeg2000_rs/pull/450",
+  "handoff": "https://github.com/microsoft/jpeg2000_rs/issues/449#issuecomment-7071726628",
+  "measurement_commit": "6ccff3fd058569ff602519c3b064874bb903dea7",
+  "zune_pin": "fa80e24b17ff388ac850d6042bdca391f9913c4e",
+  "decoder_version": "0.2.2",
+  "decoder_source_anchor": "4989f9c680beeb7bad4fbfd441a93aa373d2ba4f",
+  "hayro_version": "0.3.5 scalar",
+  "rust": "1.93.1",
+  "native_matrix": {
+    "run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44970463577",
+    "cold_builds": 40,
+    "processes": 128,
+    "timed_decodes": 15360,
+    "historical_input_and_reference_hashes_reproduced": 16,
+    "rust_all_profiles_output_invariant": true,
+    "n2_combined_elapsed_reduction_percent": 6.7541,
+    "n2_combined_paired_block_bootstrap95_percent": [6.4603, 7.1601],
+    "x86_aggregate_speed_gain": false,
+    "hayro_x86_cpu_and_combined_qualified": false
+  },
+  "broader_acceptance": {
+    "run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44976887228",
+    "cases": 40,
+    "corpus_pin": "4989f9c680beeb7bad4fbfd441a93aa373d2ba4f",
+    "scope": "alternative immutable public decoder corpus, not unavailable handoff Hayro pin",
+    "n2_all_profiles_match_own_generic": true,
+    "x86_host": "AMD EPYC 7763 znver3",
+    "x86_supported_profiles_match_own_generic": ["generic", "thinlto", "cgu1"],
+    "x86_cpu_and_combined": "explicitly skipped: znver4-built CPU artifacts differ from acceptance host",
+    "rust_accepted_strict": 25,
+    "rust_accepted_lenient": 26,
+    "rust_panics_process_failures_timeouts": 0,
+    "hayro_accepted_strict": 29,
+    "hayro_accepted_lenient": 30,
+    "hayro_panics_per_mode": 2
+  },
+  "hosted_artifacts": [
+    {
+      "host": "AMD EPYC 9V74 znver4",
+      "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44970463577/artifacts/14734129739",
+      "github_reported_zip_sha256": "bba1a0925d4170cd1e4b48391ac4d87ec8c8ec83d53c49e7531c2b1b314c1490",
+      "expires_at": "2026-12-22T02:09:19Z"
+    },
+    {
+      "host": "Neoverse-N2",
+      "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44970463577/artifacts/14734313912",
+      "github_reported_zip_sha256": "5e2caa92b7caab1538b098e76ba9171e64a6304f7d13951dd5436b45edc2752d",
+      "expires_at": "2026-12-22T02:04:59Z"
+    },
+    {
+      "host": "AMD EPYC 7763 znver3 acceptance",
+      "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44976887228/artifacts/14735634247",
+      "github_reported_zip_sha256": "cfe145a8fc4997f5f293483709b23104bb8366454ebfec2083422e75a810cca9",
+      "expires_at": "2026-12-22T02:37:07Z"
+    },
+    {
+      "host": "Neoverse-N2 acceptance",
+      "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44976887228/artifacts/14735903731",
+      "github_reported_zip_sha256": "393a5c395bf592ec9da1253c27214cf25572086f17a6bcadf0107a5e873c3a43",
+      "expires_at": "2026-12-22T02:37:13Z"
+    },
+    {
+      "host": "AMD EPYC 9V45 actual PDFium strict/recovery",
+      "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44979836962/artifacts/14737293329",
+      "github_reported_zip_sha256": "33f3fb966ecbccca5aacebe89fe8f135ab25cb4ef85f2d6bccb04a522f69497f",
+      "expires_at": "2026-12-22T03:31:05Z"
+    }
+  ],
+  "local_preservation": {
+    "root": "/home/sergiog/.copilot/session-state/a689d42c-16cd-4089-bbc6-f20300bb6cc3/files/actual-consumer449-evidence",
+    "inventory": "preservation-manifest.json",
+    "checksums": "SHA256SUMS",
+    "checksums_sha256": "573c038249d0bea00fda34bb6a1116e77d673898a77583a6e2e59d48804c71d7",
+    "files": 13158,
+    "bytes": 3221302252,
+    "native_executable_hashes_and_sizes_verified_against_build_receipts": 46,
+    "scope": "full zune/corpus and strict/recovery GN artifacts, owned native GN effective flags/toolchains, failed C++ diagnostic attempt and debugger evidence; per-case qualifications explicit",
+    "retention": "host-local, not indefinite; copy to owner-managed evidence store"
+  },
+  "pdfium": {
+    "pin": "ec9185e7d6b973d453f2fe6bf1d9eb9a1eb9ebc3",
+    "strict_observational_run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44973999987",
+    "strict_pixel_parity": false,
+    "failed_diagnostic_run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44977828206",
+    "failed_diagnostic_disposition": "C++ release logger compilation rejected; original C++ logger restored and diagnostics moved to Rust error producers",
+    "diagnostic_strict_and_recovery_run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/44979836962",
+    "qualification": "complete configuration/output audit; no GN tuning speed gain or universal OpenJPEG pixel interchangeability claimed",
+    "hosted_native_cpu": "AMD EPYC 9V45",
+    "owned_native_cpu": "AMD EPYC 7763",
+    "owned_native_measurement_commit": "92113a4",
+    "cold_builds": 6,
+    "qualified_timing_processes": 32,
+    "golden_suite_exit_codes": {
+      "openjpeg_pixel_corpus": [0, 0],
+      "strict_rust_pixel_corpus": [1, 1],
+      "recovery_rust_pixel_corpus": [0, 1]
+    },
+    "strict_bug304": "correct trailing-EOL rejection; no timing",
+    "action123": {
+      "accepted_and_rendered_strict": true,
+      "max_absolute_page_channel_difference_from_openjpeg": 4,
+      "mean_absolute_page_channel_difference": 0.43828642039455495,
+      "timing_comparison": null,
+      "strict_and_recovery_unchanged_png_sha256": "1997f0e9c61e5519e2c7886174439702ba043a12676d6aa11388a5a0d7a88245"
+    },
+    "bug304_bounded_recovery": {
+      "exact_openjpeg_page_and_golden": true,
+      "hosted_rust_over_openjpeg_paired_ratio": 6.927626896205909,
+      "hosted_paired_bootstrap95": [6.844141542947973, 7.013361719414328],
+      "owned_rust_over_openjpeg_paired_ratio": 6.592785491962112,
+      "owned_paired_bootstrap95": [6.486075322695928, 6.705600170380312],
+      "scope": "whole PDFium process including PNG output and failed-strict-attempt diagnostic; not a tuning win"
+    },
+    "owned_effective_flags": {
+      "rustc_version": "1.101.0-nightly chromium 8a9dd7abdf013ec10cfeaaa3685feba18ef1c90c",
+      "rustc_binary_sha256": "86880d87731a5b574b2aae7eea1012a80bab0c8a8c87758a1025d13319857563",
+      "clang_version": "24.0.0git e063be79adf127cce301fe5948273102a33012b6",
+      "clang_binary_sha256": "39b2e8892e0dccc9618a2d5fc21d912a86917111078fb30cd024098896f670d8",
+      "build_repository_commit": "0c62137b8623a3fab2c6aa5d7c94f719b3aa31f6",
+      "rust_flag_dumps_per_variant": 48,
+      "decoder_opt_level": 3,
+      "decoder_lto": "no",
+      "explicit_cpu_override": false,
+      "explicit_codegen_units_override": false,
+      "rust_recovery_identical_decoder_response_sha256": "d36b5ef5c7fd0d4810b58a424f5bd3e4281f6e0c116783f60569fe5446fc8341",
+      "rust_recovery_identical_decoder_rlib_sha256": "8f1fafec935c75796d1d7e94bf8337ded88d1ec22e15ace51d9968bfb0eb4c5a"
+    },
+    "unchanged_hosted_and_owned_native_executables": {
+      "openjpeg": "54f152bd09658527e83c87dea548900044e7a883918256e8206005b1aa98753b",
+      "rust": "b0ae492d0942717d240bcb4f4424223579f08ee3eb1e5b6a37b370103722c5ee",
+      "rust_recovery": "754b25deef04f6d4de5f69ac6eea2f3393552256160e3def65d12d8dcd399f0b"
+    }
+  },
+  "portable_defaults_unchanged": true,
+  "issue_must_remain_open": false
+}
