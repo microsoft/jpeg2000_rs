@@ -189,6 +189,22 @@ class DriverControls(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("unqualified Verus compiler commit", result.stderr)
 
+    def test_cargo_capture_does_not_silently_choose_a_dependency(self):
+        env = {
+            **os.environ, "VERUS_ROOT": str(OPTIONS.verus_root),
+            "LD_LIBRARY_PATH": str(OPTIONS.sdk_lib),
+            "JPEG2000_NAMES_OUTPUT": str(self.output),
+            "__VERUS_DRIVER_VIA_CARGO__": "1",
+        }
+        env.pop("JPEG2000_NAMES_CRATE", None)
+        result = subprocess.run(
+            [str(OPTIONS.driver), "rustc", str(self.source)],
+            env=env, capture_output=True, text=True, timeout=120,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.output.exists())
+        self.assertIn("Cargo capture requires JPEG2000_NAMES_CRATE", result.stderr)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)

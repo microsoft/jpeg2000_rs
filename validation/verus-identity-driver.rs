@@ -14,7 +14,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if version["verus"]["commit"] != "426d8b01e7ffb910a36c15e1f870ff985bb61eef" {
         return Err("unqualified Verus compiler commit".into());
     }
-    let target_crate = std::env::var("JPEG2000_NAMES_CRATE").ok();
+    let target_crate = match std::env::var("JPEG2000_NAMES_CRATE") {
+        Ok(name) if !name.trim().is_empty() => Some(name),
+        Ok(_) => return Err("capture crate must not be empty".into()),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(error) => return Err(error.into()),
+    };
     let invocation_crate = arguments
         .windows(2)
         .find_map(|pair| (pair[0] == "--crate-name").then_some(pair[1].as_str()));
@@ -44,6 +49,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut dep_tracker = rust_verify::cargo_verus_dep_tracker::DepTracker::init();
     let via_cargo = dep_tracker.compare_env(rust_verify::cargo_verus::VERUS_DRIVER_VIA_CARGO, "1");
     if via_cargo {
+        if target_crate.is_none() {
+            return Err("Cargo capture requires JPEG2000_NAMES_CRATE".into());
+        }
         if !arguments.first().is_some_and(|arg| arg.contains("rustc")) {
             return Err("Cargo invocation is missing its compiler argument".into());
         }
