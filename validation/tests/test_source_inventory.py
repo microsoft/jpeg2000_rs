@@ -3,6 +3,7 @@ import hashlib
 import io
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -425,6 +426,143 @@ class SourceInventoryTests(unittest.TestCase):
             mutation(report, proof)
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 source_contract_audit.audit(report, proof)
+
+    def compiler_identity_fixture(self):
+        report, proof = self.audit_fixture()
+        canonical = {"path": {"krate": {"Id": [inventory.CRATE, 17]},
+                              "segments": ["fixture"]}}
+        details = {"obligation_proof_notes": [], "failed_proof_notes": []}
+        definition = {
+            "canonical": canonical, "compiler_result_label": "jpeg2000_decoder::fixture",
+            "mode": "Exec", "result_details": details,
+        }
+        capture = {
+            "format_version": 1, "cargo_mode": True, "entire_crate": True,
+            "errors": 0, "verified": 1,
+            "compiler_version": {"verus": {"commit": inventory.VERUS_COMMIT}},
+            "source_function_coverage": "not-measured", "functional_coverage": "not-measured",
+            "runtime_reachability": "not-measured", "functions": [definition],
+            "result_identities": [{
+                **copy.deepcopy(definition), "reported_label_canonical_count": 1,
+                "reported_label_disposition": "unique-reported-label",
+            }],
+        }
+        return report, proof, capture
+
+    def compiler_identity_binding(self, report, proof, capture):
+        return {
+            "before": copy.deepcopy(report["provenance"]),
+            "after": copy.deepcopy(report["provenance"]),
+            "workflow_flags": proof["verus"]["workflow_flags"],
+            "artifact_sha256": {
+                name: source_contract_audit._digest(value) for name, value in (
+                    ("inventory", report), ("proof", proof), ("compiler_identities", capture)
+                )
+            },
+        }
+
+    def test_compiler_crosswalk_uses_canonical_records_not_display_name_guesses(self):
+        report, proof, capture = self.compiler_identity_fixture()
+        report["vir_functions"][0]["symbol"] = "jpeg2000_decoder::impl&%0::fixture"
+        report["native_functions"][0]["vir_candidates"] = [report["vir_functions"][0]["symbol"]]
+        for row in [capture["functions"][0], capture["result_identities"][0]]:
+            row["canonical"]["path"]["segments"] = ["impl&%0", "fixture"]
+        binding = self.compiler_identity_binding(report, proof, capture)
+        result = source_contract_audit.audit(report, proof, capture, binding)
+        row = result["verus_exec_items"][0]
+        self.assertEqual(row["whole_crate_result_identity"], "result-key-crosswalk-unresolved")
+        self.assertEqual(row["compiler_result_identity"], "canonical-result-present")
+        self.assertEqual(row["compiler_result_label"], "jpeg2000_decoder::fixture")
+        self.assertEqual(result["source_function_coverage"], "not-measured")
+        self.assertEqual(result["report_kind"], "source-contract-triage-v2")
+
+    def test_compiler_crosswalk_keeps_shared_labels_and_unobserved_results_distinct(self):
+        report, proof, capture = self.compiler_identity_fixture()
+        second = copy.deepcopy(capture["functions"][0])
+        second["canonical"]["path"]["segments"] = ["impl&%1", "fixture"]
+        capture["functions"].append(second)
+        capture["result_identities"].append({
+            **copy.deepcopy(second), "reported_label_canonical_count": 2,
+            "reported_label_disposition": "shared-reported-label",
+        })
+        capture["result_identities"][0].update(
+            reported_label_canonical_count=2, reported_label_disposition="shared-reported-label"
+        )
+        result = source_contract_audit.audit(
+            report, proof, capture, self.compiler_identity_binding(report, proof, capture)
+        )
+        self.assertEqual(result["compiler_result_crosswalk"]["canonical_result_identities"], 2)
+        self.assertEqual(result["compiler_result_crosswalk"]["shared_reported_labels"],
+                         {"jpeg2000_decoder::fixture": 2})
+        self.assertEqual(result["verus_exec_items"][0]["compiler_result_identity"],
+                         "canonical-result-present-shared-label")
+        capture["functions"][0]["result_details"] = None
+        capture["result_identities"] = capture["result_identities"][1:]
+        capture["result_identities"][0].update(
+            reported_label_canonical_count=1, reported_label_disposition="unique-reported-label"
+        )
+        result = source_contract_audit.audit(
+            report, proof, capture, self.compiler_identity_binding(report, proof, capture)
+        )
+        self.assertEqual(result["verus_exec_items"][0]["compiler_result_identity"],
+                         "no-canonical-result-record")
+
+    def test_compiler_crosswalk_rejects_changed_artifacts_source_profile_and_identities(self):
+        for mutation in (
+            lambda c: c.update(entire_crate=False),
+            lambda c: c.update(cargo_mode=False),
+            lambda c: c.update(errors=1),
+            lambda c: c.update(verified=2),
+            lambda c: c.update(functional_coverage="complete"),
+            lambda c: c["compiler_version"]["verus"].update(commit="0" * 40),
+            lambda c: c["functions"].append(copy.deepcopy(c["functions"][0])),
+            lambda c: c["result_identities"].append(copy.deepcopy(c["result_identities"][0])),
+            lambda c: c["result_identities"][0].update(reported_label_canonical_count=2),
+            lambda c: c["result_identities"][0].update(reported_label_disposition="shared-reported-label"),
+            lambda c: c["result_identities"][0]["canonical"]["path"]["krate"].update(
+                Id=[inventory.CRATE, 18]),
+            lambda c: c["functions"][0]["canonical"]["path"].update(segments="fixture"),
+            lambda c: c["functions"][0].update(mode="Spec"),
+            lambda c: c["result_identities"][0].update(result_details={}),
+        ):
+            report, proof, capture = self.compiler_identity_fixture()
+            mutation(capture)
+            binding = self.compiler_identity_binding(report, proof, capture)
+            with self.subTest(mutation=mutation), self.assertRaises((ValueError, KeyError)):
+                source_contract_audit.audit(report, proof, capture, binding)
+        for field in ("before", "after", "workflow_flags", "artifact_sha256"):
+            report, proof, capture = self.compiler_identity_fixture()
+            binding = self.compiler_identity_binding(report, proof, capture)
+            binding[field] = {}
+            with self.subTest(binding=field), self.assertRaises(ValueError):
+                source_contract_audit.audit(report, proof, capture, binding)
+        report, proof, capture = self.compiler_identity_fixture()
+        with self.assertRaises(ValueError):
+            source_contract_audit.audit(report, proof, capture)
+
+    def test_compiler_crosswalk_cli_requires_binding_and_records_exact_input_hashes(self):
+        report, proof, capture = self.compiler_identity_fixture()
+        binding = self.compiler_identity_binding(report, proof, capture)
+        paths = {}
+        for name, value in (("inventory", report), ("proof", proof),
+                            ("compiler-identities", capture), ("identity-binding", binding)):
+            paths[name] = self.root / f"{name}.json"
+            paths[name].write_text(json.dumps(value))
+        output = self.root / "audit.json"
+        command = [sys.executable, str(VALIDATION / "source_contract_audit.py"),
+                   "--output", str(output)]
+        for name, path in paths.items():
+            command.extend([f"--{name}", str(path)])
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=30)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        observed = json.loads(output.read_text())
+        self.assertEqual(observed["artifact_sha256"]["compiler_identities"],
+                         hashlib.sha256(paths["compiler-identities"].read_bytes()).hexdigest())
+        output.unlink()
+        rejected = subprocess.run(command[:-2], capture_output=True, text=True, timeout=30)
+        self.assertEqual(rejected.returncode, 2)
+        self.assertFalse(output.exists())
+        self.assertIn("must be supplied together", rejected.stderr)
 
 
 if __name__ == "__main__":

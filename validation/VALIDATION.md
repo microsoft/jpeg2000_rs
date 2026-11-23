@@ -1898,6 +1898,33 @@ unresolved crosswalk is **not** a failed proof. Even an exact result key is
 only an observation, not an assurance that the function generated a query or
 has a complete contract.
 
+The optional `--compiler-identities CAPTURE --identity-binding BINDING` pair
+adds a schema-v2 **triage report** (the inventory and proof schemas do not
+change). CAPTURE is the actual pinned
+[compiler identity producer](native-inventory-driver/README.md#pinned-verus-identity-observations)
+output, not a hand-built display-name alias table. The crosswalk checks its
+successful whole-crate Cargo result, pinned compiler, obligation count,
+canonical crate identities, function modes and complete reported-label set.
+It preserves distinct canonical results sharing one display label, as well
+as definitions without any canonical result record.
+
+BINDING records `before` and `after` equal to the inventory/proof provenance,
+the exact proof `workflow_flags`, and `artifact_sha256` entries for
+`inventory`, `proof` and `compiler_identities`. Each entry is SHA256 of the
+decoded artifact serialized with sorted keys, compact separators and one
+terminal newline, matching the existing compiler capture binding convention.
+Retain source/SDK hashes and actual capture commands; never create a binding
+by relabeling historical or differently configured inputs. Binding consistency
+does not authenticate the producer.
+
+The supplemental `compiler_result_identity` and `compiler_result_label` fields
+on Verus Exec observations distinguish an actual canonical result record,
+a record with a shared reported label, no result record, and a definition not
+captured by that compiler run. The old exact-key observation is retained
+separately, rather than rewriting historical evidence or treating a shared
+key as a unique per-function proof. Omitting both options preserves the
+original triage-v1 behavior; supplying only one is rejected.
+
 Runtime reachability and both coverage fields remain `not-measured`. The
 Verus graph includes specification/proof/trait dependencies, not native runtime
 calls. Keep exact run counts, source/tool hashes and qualification snapshots
