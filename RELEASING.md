@@ -98,7 +98,7 @@ permissions before preparing any subsequent version.
 
 ## Experimental 0.2 release line
 
-The `release/0.2` decoder manifest is version 0.2.2 with
+The `release/0.2` decoder manifest is version 0.2.3 with
 `publish = ["crates-io"]`; `main` advances separately to unpublished 0.3
 development with publication disabled. This release includes
 the newer PDF recovery/centered-output APIs and default-off deadline,
@@ -117,6 +117,46 @@ Release preparation does not approve an immutable tag or upload. Qualify the
 reviewed candidate and actual integrated source/archive, then obtain the
 separate exact tag and publication approvals described above. No tag,
 workflow dispatch or upload follows merely from this manifest change.
+
+### Experimental 0.2.3 patch release
+
+This patch builds on the published experimental 0.2.2 baseline and includes
+the combined backport reviewed in #468:
+
+- Verified allocation-aware row-wise 5/3 and bounded Q16 9/7 reconstruction,
+  fused coefficient placement, and compact legacy Tier-1 hot processing.
+  Checked fallback, numerical results, resource admission and failure effects
+  remain modeled. Historical targeted benchmark gains are workload-specific,
+  not additive or a new universal 0.2.3 speedup guarantee.
+- Valid POC declarations can complete coverage across successive tile parts.
+  Actual header-marker presence, first-header scope, effective contribution,
+  packet ordering, duplicate suppression and complete-image accounting remain
+  checked. Legal progression endpoints intersect the actual grid rather than
+  creating imaginary packets.
+- The leading JP2 image header remains authoritative; later bounded `ihdr`
+  payloads are ignored without bypassing framing, counts or work admission.
+- Well-formed announced HT raw/JP2/JPH inputs use the ordinary decoder through
+  the PDF facade, without enabling legacy damaged-HT repair. Supported bounded
+  single-image JPX embeddings validate reader requirements and preserve the
+  selected associated header, palette and channel interpretation.
+- Eleven individually adjudicated inconsistent or undefined-output controls
+  retain their intentional refusals; no blanket truncation repair, palette
+  clamping, transform disablement or renewed retry limit is introduced.
+
+The same source contains the OpenJPEG-compatible C adapter's origin,
+color-metadata, palette-expansion and decoded-layout fixes, plus final-consumer
+qualification and canonical compiler-result audit tooling. The C/image
+adapters remain separate unpublished packages; decoder publication does not
+publish them or ship the repository-only tooling as a new runtime dependency.
+
+Strict defaults and existing bounded recovery distinctions remain. The patch
+does not change irreversible midpoint/9/7/MCT/rounding conventions, promise
+bit-exact OpenJPEG/PDFium rendering, resolve independent MQ/RAW legality,
+or claim official conformance, selected-edition reconciliation, lifetime
+verification or measured source-function coverage. The five documented
+Rust-only adapters and default-off native-only profile boundaries are unchanged.
+Canonical compiler result records are observations, not an independently
+qualified production denominator.
 
 ### Experimental 0.2.2 patch release
 
