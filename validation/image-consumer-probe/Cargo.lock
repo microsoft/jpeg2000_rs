@@ -34,7 +34,7 @@ dependencies = [
 
 [[package]]
 name = "jpeg2000-decoder"
-version = "0.2.2"
+version = "0.2.3"
 
 [[package]]
 name = "jpeg2000_image_consumer_probe"
