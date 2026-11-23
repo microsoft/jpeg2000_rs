@@ -58,3 +58,62 @@ source Git/dirty status before and after, source/tool/binary/SDK hashes, exact
 commands and feature/target configuration. These provenance guards do not
 independently authenticate a host or producer. Keep captures and failed runs
 outside tracked source; do not relabel an old capture as a fresh run.
+
+## Pinned Verus identity observations
+
+The separate [Verus identity driver](../verus-identity-driver.rs) uses the
+pinned compiler's public driver and actual erasure-hint function records.
+Each record retains its structured canonical `Fun` identity, the compiler's
+own diagnostic/result label, mode, span and optional actual result details.
+Distinct internal impl paths are not guessed to match display names.
+Imported functions and entries without result details remain visible; a
+details entry is not itself a verified-function count or functional contract.
+
+This is still **not** a qualified native production denominator, native/Verus
+erasure correspondence, effective reachability or functional classification.
+Coverage fields remain `not-measured`. The ordinary decoder/proof commands and
+their trust boundary are unchanged. This optional SDK client is not a
+replacement release/proof attestor.
+
+The client requires the complete libraries from the exact Verus
+`426d8b01e7ffb910a36c15e1f870ff985bb61eef` build and its Rust 1.98.1 SDK.
+Some binary-only distributions do not contain these development libraries.
+Choose the matching `serde_json` rlib from that same build explicitly; do not
+substitute libraries from another compiler build when multiple files exist.
+
+```sh
+export VERUS_ROOT=/path/to/pinned/full-verus-build
+export VERUS_SERDE_JSON_RLIB=/path/to/pinned/full-verus-build/deps/libserde_json-HASH.rlib
+SDK="$(rustc +1.98.1 --print sysroot)"
+mkdir -p target/verus-identities
+RUSTC_BOOTSTRAP=1 rustc +1.98.1 validation/verus-identity-driver.rs \
+  --edition=2021 -L "dependency=$VERUS_ROOT/deps" \
+  --extern "rust_verify=$VERUS_ROOT/librust_verify.rlib" \
+  --extern "vir=$VERUS_ROOT/libvir.rlib" \
+  --extern "serde_json=$VERUS_SERDE_JSON_RLIB" \
+  -o target/verus-identities/driver
+python3 validation/test_verus_identity_driver.py \
+  --driver "$PWD/target/verus-identities/driver" \
+  --verus-root "$VERUS_ROOT" --sdk-lib "$SDK/lib" -v
+```
+
+The bootstrap setting above enables the optional Rustc-private SDK client,
+as used by the pinned compiler itself; it does not change decoder compilation,
+verification options or solver budgets. The real controls compare exact
+result details with the unchanged pinned executable and reject failed proofs,
+overwritten captures and mismatching compiler pins.
+
+For a new direct compiler capture, supply the exact Rustc/feature/import
+arguments and retain source/SDK/library/binary hashes and before/after source
+status, just as for the native producer:
+
+```sh
+LD_LIBRARY_PATH="$SDK/lib" \
+JPEG2000_NAMES_OUTPUT="$PWD/target/verus-identities/new-run.json" \
+RUSTUP_TOOLCHAIN=1.98.1-x86_64-unknown-linux-gnu \
+target/verus-identities/driver input.rs --crate-name control --no-lifetime
+```
+
+Cargo wrapper mode is explicitly unsupported rather than silently interpreted
+as a direct invocation. Qualification across actual default/all-feature native
+and Verus builds remains separate.
