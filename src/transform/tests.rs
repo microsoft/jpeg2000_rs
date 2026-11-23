@@ -2501,6 +2501,142 @@ fn inverse_horizontal_stage_matches_row_synthesis() {
 }
 
 #[test]
+fn standard_horizontal_reuses_one_scratch_and_preserves_exact_rows() {
+    let limits = ResourceLimits::default();
+    let kernel = ArbitraryKernel::for_test(true, 0, false, false, false, None, vec![]);
+    let low: Vec<_> = (0..35).map(|i| (3 * i - 95) * (1 << 29) + 77).collect();
+    let high: Vec<_> = (0..35).map(|i| (77 - 7 * i) * (1 << 28) + 39).collect();
+    let height = 5;
+    for width in [0, 1, 2, 7, 8, 13] {
+        for first in [false, true] {
+            let lw = width / 2 + if first { width % 2 } else { 0 };
+            let hw = width - lw;
+            let low = WaveletBand {
+                width: lw,
+                height,
+                samples: &low[..(lw * height) as usize],
+            };
+            let high = WaveletBand {
+                width: hw,
+                height,
+                samples: &high[..(hw * height) as usize],
+            };
+            for irreversible in [false, true] {
+                let expected =
+                    reference_horizontal(low, high, width, first, irreversible, u64::MAX);
+                assert!(expected.is_ok(), "{expected:?}");
+                let run = || {
+                    if irreversible {
+                        inverse_horizontal_9_7(low, high, width, first, &limits)
+                    } else {
+                        inverse_horizontal_5_3(low, high, width, first, &limits)
+                    }
+                };
+                let owners = if width > 0 { 2 } else { 0 };
+                crate::allocation::with_refusal(owners, || {
+                    assert_eq!(observed_reconstruction(run()), expected);
+                    assert_eq!(
+                        crate::allocation::empty_with_capacity::<i64>(1),
+                        Err(DecodeError::AllocationFailed)
+                    );
+                });
+            }
+            if width > 0 {
+                assert_eq!(
+                    crate::allocation::with_refusal(5, || inverse_horizontal_arbitrary(
+                        low, high, width, first, &kernel, &limits
+                    )),
+                    Err(DecodeError::AllocationFailed)
+                );
+                crate::allocation::with_refusal(6, || {
+                    let plane =
+                        inverse_horizontal_arbitrary(low, high, width, first, &kernel, &limits)
+                            .unwrap();
+                    assert_eq!(plane.samples().len(), (width * height) as usize);
+                    assert_eq!(
+                        crate::allocation::empty_with_capacity::<i64>(1),
+                        Err(DecodeError::AllocationFailed)
+                    );
+                });
+            }
+        }
+    }
+}
+
+#[test]
+fn standard_horizontal_later_row_errors_do_not_request_an_owner() {
+    let limits = ResourceLimits::default();
+    let low = WaveletBand {
+        width: 1,
+        height: 3,
+        samples: &[17, i64::MAX, 42],
+    };
+    let high = WaveletBand {
+        width: 1,
+        height: 3,
+        samples: &[7, i64::MAX],
+    };
+    let truncated = WaveletBand {
+        samples: &high.samples[..1],
+        ..high
+    };
+    for irreversible in [false, true] {
+        for (high, expected) in [
+            (high, arithmetic_overflow()),
+            (truncated, invalid_transform()),
+        ] {
+            let run = || {
+                if irreversible {
+                    inverse_horizontal_9_7(low, high, 2, false, &limits)
+                } else {
+                    inverse_horizontal_5_3(low, high, 2, false, &limits)
+                }
+            };
+            assert_eq!(
+                crate::allocation::with_refusal(0, run),
+                Err(DecodeError::AllocationFailed)
+            );
+            assert_eq!(
+                crate::allocation::with_refusal(1, run),
+                Err(DecodeError::AllocationFailed)
+            );
+            crate::allocation::with_refusal(2, || {
+                assert_eq!(run(), Err(expected));
+                assert_eq!(
+                    crate::allocation::empty_with_capacity::<i64>(1),
+                    Err(DecodeError::AllocationFailed)
+                );
+            });
+        }
+    }
+}
+
+#[test]
+fn standard_horizontal_first_bad_band_does_not_reserve_scratch() {
+    let limits = ResourceLimits::default();
+    let low = WaveletBand {
+        width: 1,
+        height: 2,
+        samples: &[i64::MAX],
+    };
+    let high = WaveletBand {
+        width: 1,
+        height: 2,
+        samples: &[],
+    };
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            inverse_horizontal_9_7(low, high, 2, true, &limits),
+            Err(invalid_transform())
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<i64>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn inverse_vertical_stage_matches_column_synthesis() {
     let low = [2, 6, 4, 8];
     let high = [1, 5, 3, 7];

@@ -2,9 +2,11 @@
 use super::*;
 verus! {
 pub(crate) open spec fn part2_wavelet_row_run(low:Part1WaveletBand,high:Part1WaveletBand,y:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Seq<i64>> {
-    match part1_band_row(low,y){Err(error)=>Some((Err(error),calls)),Ok(a)=>match part1_band_row(high,y){
+    if kernel.is_none() && y != 0 {
+        Some((part1_horizontal_row(low,high,y,first,irreversible),calls))
+    } else { match part1_band_row(low,y){Err(error)=>Some((Err(error),calls)),Ok(a)=>match part1_band_row(high,y){
         Err(error)=>Some((Err(error),calls)),Ok(b)=>part2_wavelet_sequence_run(a,b,first,irreversible,kernel,calls),
-    }}
+    }} }
 }
 pub(crate) open spec fn part2_wavelet_row_value(low:Part1WaveletBand,high:Part1WaveletBand,y:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>)->Result<Seq<i64>,crate::DecodeError> {
     match kernel{None=>part1_horizontal_row(low,high,y,first,irreversible),Some(kernel)=>part2_atk_horizontal_row(low,high,y,first,kernel)}
@@ -61,12 +63,13 @@ pub(crate) proof fn part2_wavelet_row_normal(low:Part1WaveletBand,high:Part1Wave
     ensures part2_wavelet_row_result(low,high,y,first,irreversible,kernel,part2_wavelet_row_value(low,high,y,first,irreversible,kernel)),
 {
     let result=part2_wavelet_row_value(low,high,y,first,irreversible,kernel);
-    match part1_band_row(low,y){Err(_)=>{part2_tier1_storage_pure(result);},Ok(a)=>match part1_band_row(high,y){
+    if kernel.is_none() && y != 0 { part2_tier1_storage_pure(result); }
+    else { match part1_band_row(low,y){Err(_)=>{part2_tier1_storage_pure(result);},Ok(a)=>match part1_band_row(high,y){
         Err(_)=>{part2_tier1_storage_pure(result);},Ok(b)=>{
             part2_wavelet_sequence_normal(a,b,first,irreversible,kernel);
             part2_wavelet_sequence_frames(a,b,first,irreversible,kernel,result);
         },
-    }}
+    }} }
 }
 pub(crate) proof fn part2_wavelet_column_normal(low:Part1WaveletBand,high:Part1WaveletBand,x:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>)
     ensures part2_wavelet_column_result(low,high,x,first,irreversible,kernel,part2_wavelet_column_value(low,high,x,first,irreversible,kernel)),
@@ -85,7 +88,8 @@ pub(crate) proof fn part2_wavelet_column_normal(low:Part1WaveletBand,high:Part1W
         |a:Seq<i64>,rest|part2_wavelet_column_after_low(a,high,x,first,irreversible,kernel,rest),a,result);
 }
 pub(crate) proof fn part2_wavelet_row_child_observed(low:Part1WaveletBand,high:Part1WaveletBand,y:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,a:Seq<i64>,b:Seq<i64>,result:Result<Seq<i64>,crate::DecodeError>)
-    requires part1_band_row(low,y)==Ok(a),part1_band_row(high,y)==Ok(b),part2_wavelet_sequence_result(a,b,first,irreversible,kernel,result),
+    requires kernel.is_some() || y == 0,
+        part1_band_row(low,y)==Ok(a),part1_band_row(high,y)==Ok(b),part2_wavelet_sequence_result(a,b,first,irreversible,kernel,result),
     ensures part2_wavelet_row_result(low,high,y,first,irreversible,kernel,result),
 {part2_wavelet_sequence_frames(a,b,first,irreversible,kernel,result);}
 pub(crate) proof fn part2_wavelet_column_low_error(low:Part1WaveletBand,high:Part1WaveletBand,x:u32,first:bool,irreversible:bool,kernel:Option<Part2RawKernel>,error:crate::DecodeError)

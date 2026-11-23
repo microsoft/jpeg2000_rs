@@ -17261,6 +17261,7 @@
       "id": "part1-irreversible-numerical-model",
       "implementation_refs": [
         {"path": "src/transform/wavelets.rs", "symbol": "inverse_nine_seven_lifts"},
+        {"path": "src/transform/wavelets.rs", "symbol": "synthesize_9_7"},
         {"path": "src/transform/quantization.rs", "symbol": "quantize_magnitude_sample"},
         {
           "path": "src/transform/quantization.rs",
@@ -21230,6 +21231,8 @@
       ],
       "id": "part1-complete-five-three-sequence",
       "implementation_refs": [
+        {"path": "src/transform/wavelets.rs", "symbol": "synthesize_5_3"},
+        {"path": "src/transform/wavelets.rs", "symbol": "reuse_standard_row"},
         {"path": "src/transform/wavelets.rs", "symbol": "inverse_lifting_neighbors"},
         {
           "path": "src/transform/levels.rs",
@@ -21323,6 +21326,8 @@
       ],
       "id": "part1-complete-nine-seven-sequence",
       "implementation_refs": [
+        {"path": "src/transform/wavelets.rs", "symbol": "synthesize_9_7"},
+        {"path": "src/transform/wavelets.rs", "symbol": "reuse_standard_row"},
         {
           "path": "src/transform/levels.rs",
           "symbol": "inverse_row_pair"
@@ -21680,6 +21685,9 @@
         {"path": "src/transform/tests.rs", "symbol": "rowwise_vertical_fallback_keeps_scalar_refusal_and_error_order"},
         {"path": "src/transform/tests.rs", "symbol": "rowwise_vertical_nine_seven_preserves_q16_stages_bounds_and_singleton_fallback"},
         {"path": "src/transform/tests.rs", "symbol": "wavelet_plane_storage_standard_level_first_later_owners_exact_reference_and_restore"},
+        {"path": "src/transform/tests.rs", "symbol": "standard_horizontal_reuses_one_scratch_and_preserves_exact_rows"},
+        {"path": "src/transform/tests.rs", "symbol": "standard_horizontal_later_row_errors_do_not_request_an_owner"},
+        {"path": "src/transform/tests.rs", "symbol": "standard_horizontal_first_bad_band_does_not_reserve_scratch"},
         {"path": "src/transform/tests.rs", "symbol": "wavelet_plane_storage_empty_no_request_geometry_budget_and_numerical_error_order"},
         {"path": "src/transform/tests.rs", "symbol": "wavelet_plane_storage_actual_custom_kernel_level_rows_columns_and_restore"},
         {"path": "src/decode/tests.rs", "symbol": "wavelet_plane_storage_actual_standard_component_first_later_planes_and_restore"},

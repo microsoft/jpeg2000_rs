@@ -23,21 +23,25 @@ pub fn inverse_5_3(
     #[cfg(verus_keep_ghost)]
     proof! {if let Err(error)=interleaved{crate::specs::part2_wavelet_sequence_interleave_error(low@,high@,low_pass_first,false,None,error);}}
     let mut output = interleaved?;
+    synthesize_5_3(&mut output, low_pass_first)?;
+    Ok(output)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (match result { Ok(()) => Ok(final(output)@), Err(error) => Err(error) })
+        == crate::specs::part1_synthesize_five_three(old(output)@, low_pass_first),
+))]
+fn synthesize_5_3(output: &mut [i64], low_pass_first: bool) -> Result<(), DecodeError> {
     if output.len() == 1 && !low_pass_first {
         output[0] >>= 1;
-        return Ok(output);
+        return Ok(());
     }
+    inverse_lift(output, low_pass_first, InverseLiftingStep::ReversibleUpdate)?;
     inverse_lift(
-        &mut output,
-        low_pass_first,
-        InverseLiftingStep::ReversibleUpdate,
-    )?;
-    inverse_lift(
-        &mut output,
+        output,
         !low_pass_first,
         InverseLiftingStep::ReversiblePredict,
-    )?;
-    Ok(output)
+    )
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -57,25 +61,81 @@ pub fn inverse_9_7(
     #[cfg(verus_keep_ghost)]
     proof! {if let Err(error)=interleaved{crate::specs::part2_wavelet_sequence_interleave_error(low@,high@,low_pass_first,true,None,error);}}
     let mut output = interleaved?;
+    synthesize_9_7(&mut output, low_pass_first)?;
+    Ok(output)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (match result { Ok(()) => Ok(final(output)@), Err(error) => Err(error) })
+        == crate::specs::part1_synthesize_nine_seven(old(output)@, low_pass_first),
+))]
+fn synthesize_9_7(output: &mut [i64], low_pass_first: bool) -> Result<(), DecodeError> {
     if output.len() == 1 && !low_pass_first {
         output[0] >>= 1;
-        return Ok(output);
+        return Ok(());
     }
     if output.len() <= 1 {
-        return Ok(output);
+        return Ok(());
     }
     scale_parity(
-        &mut output,
+        output,
         low_pass_first,
         crate::refinement::nine_seven_scale(true),
     )?;
     scale_parity(
-        &mut output,
+        output,
         !low_pass_first,
         crate::refinement::nine_seven_scale(false),
     )?;
-    inverse_nine_seven_lifts(&mut output, low_pass_first)?;
-    Ok(output)
+    inverse_nine_seven_lifts(output, low_pass_first)
+}
+
+// Later standard rows overwrite the first row's initialized storage.
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires old(scratch)@.len() == low@.len() + high@.len(),
+    ensures (match result { Ok(()) => Ok(final(scratch)@), Err(error) => Err(error) })
+        == crate::specs::part1_inverse_sequence(low@, high@, low_pass_first, irreversible),
+))]
+pub(super) fn reuse_standard_row(
+    scratch: &mut [i64],
+    low: &[i64],
+    high: &[i64],
+    low_pass_first: bool,
+    irreversible: bool,
+) -> Result<(), DecodeError> {
+    #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+    crate::deadline::checkpoint()?;
+    let length = interleave_length(low, high, low_pass_first)?;
+    if scratch.len() != length {
+        return Err(invalid_transform());
+    }
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= length,
+        scratch@.len() == length,
+        length == low@.len() + high@.len(),
+        crate::specs::part2_wavelet_interleave_admit(low@.len(), high@.len(), low_pass_first) == Ok(()),
+        forall |i:int| 0 <= i < index ==>
+            scratch[i] == if (i % 2 == 0) == low_pass_first { low[i / 2] } else { high[i / 2] },
+        decreases length - index,
+    ))]
+    while index < length {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(index)?;
+        scratch[index] = interleaved_sample(low, high, low_pass_first, index)?;
+        index = index.checked_add(1).ok_or_else(arithmetic_overflow)?;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(scratch@ =~= Seq::new(length as nat, |i: int|
+            if (i % 2 == 0) == low_pass_first { low@[i / 2] } else { high@[i / 2] }));
+        assert(crate::specs::part1_interleaved(low@, high@, low_pass_first) == Ok(scratch@));
+    }
+    if irreversible {
+        synthesize_9_7(scratch, low_pass_first)
+    } else {
+        synthesize_5_3(scratch, low_pass_first)
+    }
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -129,18 +189,7 @@ pub(super) fn interleave(
 ) -> Result<Vec<i64>, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_wavelet_interleave_normal(low@,high@,low_pass_first);}
-    let length = low
-        .len()
-        .checked_add(high.len())
-        .ok_or_else(arithmetic_overflow)?;
-    let expected_low = if low_pass_first {
-        length / 2 + length % 2
-    } else {
-        length / 2
-    };
-    if low.len() != expected_low || high.len() != length - expected_low {
-        return Err(invalid_transform());
-    }
+    let length = interleave_length(low, high, low_pass_first)?;
     let allocated = if length == 0 {
         Ok(Vec::new())
     } else {
@@ -171,16 +220,7 @@ pub(super) fn interleave(
     while index < length {
         #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
         crate::deadline::checkpoint_periodic(index)?;
-        #[cfg(verus_keep_ghost)]
-        proof! { crate::proofs::production_impl::production_index_parity(index); }
-        let low_position = (index & 1 == 0) == low_pass_first;
-        let source_index = index / 2;
-        let value = if low_position {
-            *low.get(source_index).ok_or_else(invalid_transform)?
-        } else {
-            *high.get(source_index).ok_or_else(invalid_transform)?
-        };
-        output.push(value);
+        output.push(interleaved_sample(low, high, low_pass_first, index)?);
         index = index.checked_add(1).ok_or_else(arithmetic_overflow)?;
     }
     #[cfg(verus_keep_ghost)]
@@ -189,6 +229,55 @@ pub(super) fn interleave(
             if (i % 2 == 0) == low_pass_first { low@[i / 2] } else { high@[i / 2] }));
     }
     Ok(output)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures (match result { Ok(_) => Ok(()), Err(error) => Err(error) })
+            == crate::specs::part2_wavelet_interleave_admit(low@.len(), high@.len(), low_pass_first),
+        result matches Ok(length) ==> length as int == low@.len() + high@.len(),
+))]
+fn interleave_length(
+    low: &[i64],
+    high: &[i64],
+    low_pass_first: bool,
+) -> Result<usize, DecodeError> {
+    let length = low
+        .len()
+        .checked_add(high.len())
+        .ok_or_else(arithmetic_overflow)?;
+    let expected_low = if low_pass_first {
+        length / 2 + length % 2
+    } else {
+        length / 2
+    };
+    if low.len() != expected_low || high.len() != length - expected_low {
+        return Err(invalid_transform());
+    }
+    Ok(length)
+}
+
+#[inline]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires index < low@.len() + high@.len(),
+        crate::specs::part2_wavelet_interleave_admit(low@.len(), high@.len(), low_pass_first) == Ok(()),
+    ensures result == Ok(if (index as int % 2 == 0) == low_pass_first { low@[index as int / 2] } else { high@[index as int / 2] }),
+))]
+fn interleaved_sample(
+    low: &[i64],
+    high: &[i64],
+    low_pass_first: bool,
+    index: usize,
+) -> Result<i64, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::proofs::production_impl::production_index_parity(index); }
+    let low_position = (index & 1 == 0) == low_pass_first;
+    let source_index = index / 2;
+    let value = if low_position {
+        *low.get(source_index).ok_or_else(invalid_transform)?
+    } else {
+        *high.get(source_index).ok_or_else(invalid_transform)?
+    };
+    Ok(value)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

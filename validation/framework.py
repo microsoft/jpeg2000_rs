@@ -8462,6 +8462,10 @@ _WAVELET_PLANE_GUARDS = {
         "Part2WaveletPlaneOwner::Rows,capacity as nat,calls",
         "part2_wavelet_horizontal_lines_run(low,high,first,irreversible,kernel,low.1 as nat,rest)",
     ),
+    ("specs/cold_wavelet_line_planes.rs", "part2_wavelet_row_run"): (
+        "if kernel.is_none() && y != 0", "Some((part1_horizontal_row(low,high,y,first,irreversible),calls))",
+        "part1_band_row(low,y)", "part1_band_row(high,y)", "part2_wavelet_sequence_run(a,b,first,irreversible,kernel,calls)",
+    ),
     ("specs/cold_wavelet_planes.rs", "part2_wavelet_columns_run"): (
         "!irreversible && kernel.is_none() && rowwise_eligible(low,high,height,first,length)",
         "rowwise_run(low,high,height,first,length,calls)",
@@ -8517,7 +8521,13 @@ _WAVELET_PLANE_NATIVE_ORDER = {
     ),
     ("src/transform/levels.rs", "inverse_rows"): (
         "if capacity == 0", "crate::allocation::empty_with_capacity(capacity)", "let mut samples = allocated?",
-        "inverse_row_pair(", "samples.extend_from_slice(&row)",
+        "let mut scratch = Vec::new()", "inverse_row_pair(", "samples.extend_from_slice(&row)",
+        "scratch = if kernel.is_none() { row } else { Vec::new() }",
+    ),
+    ("src/transform/levels.rs", "inverse_row_pair"): (
+        "band_row(low,y)?", "band_row(high,y)?", "if kernel.is_none() && y != 0",
+        "reuse_standard_row(&mut scratch,low_row,high_row,low_first,irreversible)?",
+        "inverse_arbitrary(low_row,high_row,low_first,kernel)",
     ),
     ("src/transform/levels.rs", "inverse_columns"): (
         "!irreversible", "kernel.is_none()", "super::rowwise::eligible(",
@@ -8551,6 +8561,9 @@ _WAVELET_PLANE_NATIVE_ORDER = {
     ),
 }
 _WAVELET_PLANE_TESTS = {
+    ("src/transform/tests.rs", "standard_horizontal_reuses_one_scratch_and_preserves_exact_rows"),
+    ("src/transform/tests.rs", "standard_horizontal_later_row_errors_do_not_request_an_owner"),
+    ("src/transform/tests.rs", "standard_horizontal_first_bad_band_does_not_reserve_scratch"),
     ("src/transform/tests.rs", "rowwise_vertical_five_three_exact_boundaries_origins_and_single_output_owner"),
     ("src/transform/tests.rs", "rowwise_vertical_fallback_keeps_scalar_refusal_and_error_order"),
     ("src/transform/tests.rs", "rowwise_vertical_nine_seven_preserves_q16_stages_bounds_and_singleton_fallback"),
@@ -8605,8 +8618,18 @@ _WAVELET_LINE_NATIVE_ORDER = {
         "column_sample(", "column.push(",
     ),
     ("src/transform/wavelets.rs", "interleave"): (
-        "checked_add(high.len())", "low.len() != expected_low", "empty_with_capacity(length)", "let mut output = allocated?",
-        "while index < length",
+        "interleave_length(low,high,low_pass_first)?", "empty_with_capacity(length)", "let mut output = allocated?",
+        "while index < length", "crate::deadline::checkpoint_periodic(index)?",
+        "output.push(interleaved_sample(low,high,low_pass_first,index)?)",
+    ),
+    ("src/transform/wavelets.rs", "interleave_length"): (
+        "checked_add(high.len())", "low.len() != expected_low", "high.len() != length - expected_low",
+    ),
+    ("src/transform/wavelets.rs", "reuse_standard_row"): (
+        "crate::deadline::checkpoint()?", "interleave_length(low,high,low_pass_first)?",
+        "if scratch.len() != length", "while index < length", "crate::deadline::checkpoint_periodic(index)?",
+        "scratch[index] = interleaved_sample(low,high,low_pass_first,index)?",
+        "synthesize_9_7(scratch,low_pass_first)", "synthesize_5_3(scratch,low_pass_first)",
     ),
     ("src/image/mct_wavelet.rs", "reconstruct_mct_wavelet"): (
         "empty_with_capacity(low_length)", "WaveletReconstruction", "inspection_capacity_outcome(reserved)",

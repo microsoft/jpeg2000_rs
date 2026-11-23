@@ -6422,6 +6422,15 @@ storage specify complete mutable states on first failure, with untouched
 positions retained. Supporting model properties establish complete sequence
 lengths and plane sample-count/metadata consistency.
 
+For standard horizontal planes, the first admitted nonempty row acquires the
+fallible scratch owner after both band reads and split admission. Later rows
+overwrite that same initialized slice at zero-based indices, then use the
+same scaling and lifting functions and bulk-append the synthesized row to
+the plane. Each later row has the checked length established by the first
+row, and consumes no allocation response. On failure the private owners
+are discarded without publishing a partial row. Arbitrary kernels retain
+their per-row owners; the vertical path and level handoff are unchanged.
+
 The retained-assertion engineering profile uses arithmetic half for an
 odd-origin high-only singleton in both standard kernels. Even-phase singleton,
 empty input and split-admission behavior are unchanged. The sole 9/7 body,

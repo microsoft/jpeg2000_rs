@@ -10273,6 +10273,7 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","elements!=count","false"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","calls.drop_first()","calls"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_rows_run","Part2WaveletPlaneOwner::Rows","Part2WaveletPlaneOwner::Columns"),
+            ("specs/cold_wavelet_line_planes.rs","part2_wavelet_row_run","kernel.is_none() && y != 0","kernel.is_none() && y == 0"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_scalar_columns_run","Part2WaveletPlaneOwner::Columns","Part2WaveletPlaneOwner::Rows"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_columns_run","!irreversible && kernel.is_none()","irreversible && kernel.is_none()"),
             ("specs/rowwise_wavelet.rs","rowwise_run","length as nat,calls","1nat,calls"),
@@ -10286,6 +10287,8 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_wavelet_planes.rs","part2_wavelet_level_after_high","level.2.1,high","level.2.1,low"),
             ("specs/cold_extraction_reconstruction.rs","part2_extraction_component_finish_run","part2_wavelet_reconstruct_run(placed.1.0,plan","part2_wavelet_reconstruct_run(Seq::empty(),plan"),
             ("src/transform/levels.rs","inverse_rows","empty_with_capacity(capacity)","empty_with_capacity(1)"),
+            ("src/transform/levels.rs","inverse_rows","{ row } else { Vec::new() }","{ Vec::new() } else { row }"),
+            ("src/transform/levels.rs","inverse_row_pair","reuse_standard_row(&mut scratch, low_row","reuse_standard_row(&mut scratch, high_row"),
             ("src/allocation.rs","zero_i64_values","values.resize(count, 0_i64)","values.resize(count, 1_i64)"),
         ):
             source=framework.ROOT / relative;original=source.read_text()

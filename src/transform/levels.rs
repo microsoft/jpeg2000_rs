@@ -5,7 +5,7 @@ use super::arithmetic::{
 use super::geometry::{
     band_row, collect_column, low_count, store_column, validate_level, validate_level_bands,
 };
-use super::wavelets::{inverse_5_3, inverse_9_7};
+use super::wavelets::{inverse_5_3, inverse_9_7, reuse_standard_row};
 use super::{FIXED_BITS, ReconstructedPlane, WaveletBand, WaveletLevel};
 #[cfg(verus_keep_ghost)]
 use super::{
@@ -217,11 +217,13 @@ fn inverse_rows(
         if let Err(error)=allocated{crate::specs::part2_wavelet_rows_refused(wavelet_band_view(low),wavelet_band_view(high),low_pass_first,irreversible,arbitrary_kernel_option(kernel),capacity,error);}
     }
     let mut samples = allocated?;
+    let mut scratch = Vec::new();
     let mut y = 0_u32;
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant y <= low.height,
+            kernel.is_none() && y > 0 ==> scratch@.len() == low.width as int + high.width as int,
             crate::specs::part2_wavelet_rows_result(wavelet_band_view(low),wavelet_band_view(high),low_pass_first,irreversible,arbitrary_kernel_option(kernel),capacity,
                 crate::specs::part2_wavelet_rows_value(wavelet_band_view(low),wavelet_band_view(high),low_pass_first,irreversible,arbitrary_kernel_option(kernel))),
             kernel.is_none() ==> crate::specs::part1_horizontal_prefix(
@@ -234,7 +236,15 @@ fn inverse_rows(
         )
     )]
     while y < low.height {
-        let row = match inverse_row_pair(low, high, y, low_pass_first, irreversible, kernel) {
+        let row = match inverse_row_pair(
+            low,
+            high,
+            y,
+            low_pass_first,
+            irreversible,
+            kernel,
+            scratch,
+        ) {
             Ok(row) => row,
             Err(error) => {
                 #[cfg(verus_keep_ghost)]
@@ -273,6 +283,7 @@ fn inverse_rows(
             }
         }
         samples.extend_from_slice(&row);
+        scratch = if kernel.is_none() { row } else { Vec::new() };
         #[cfg(verus_keep_ghost)]
         proof! { assert(samples@ == appended); }
         y = y.checked_add(1).ok_or_else(arithmetic_overflow)?;
@@ -281,7 +292,9 @@ fn inverse_rows(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires kernel.is_none() && y > 0 ==> scratch@.len() == low.width as int + high.width as int,
     ensures crate::specs::part2_wavelet_row_result(wavelet_band_view(low),wavelet_band_view(high),y,low_first,irreversible,arbitrary_kernel_option(kernel),sequence_outcome(result)),
+        kernel.is_none() ==> (result matches Ok(row) ==> row@.len() == low.width as int + high.width as int),
         kernel.is_none() && sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part1_horizontal_row(
         wavelet_band_view(low), wavelet_band_view(high), y, low_first, irreversible,
     ),
@@ -296,11 +309,22 @@ fn inverse_row_pair(
     low_first: bool,
     irreversible: bool,
     kernel: Option<&ArbitraryKernel>,
+    mut scratch: Vec<i64>,
 ) -> Result<Vec<i64>, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_wavelet_row_normal(wavelet_band_view(low),wavelet_band_view(high),y,low_first,irreversible,arbitrary_kernel_option(kernel));}
     let low_row = band_row(low, y)?;
     let high_row = band_row(high, y)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(low_row@.len() == low.width);
+        assert(high_row@.len() == high.width);
+        crate::proofs::spec_properties::inverse_sequence_preserves_complete_length(low_row@, high_row@, low_first, irreversible);
+    }
+    if kernel.is_none() && y != 0 {
+        reuse_standard_row(&mut scratch, low_row, high_row, low_first, irreversible)?;
+        return Ok(scratch);
+    }
     let result = if let Some(kernel) = kernel {
         inverse_arbitrary(low_row, high_row, low_first, kernel)
     } else if irreversible {

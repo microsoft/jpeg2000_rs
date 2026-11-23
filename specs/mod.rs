@@ -17582,21 +17582,25 @@ pub open spec fn part1_inverse_five_three(
 ) -> Result<Seq<i64>, crate::DecodeError> {
     match part1_interleaved(low, high, low_first) {
         Err(error) => Err(error),
-        Ok(samples) => if samples.len() == 1 && !low_first {
-            Ok(samples.update(0, samples[0] >> 1))
-        } else {
-            let update = part1_lifting_prefix(samples, low_first, 0, 0, samples.len());
-            match update.0 {
-                Err(error) => Err(error),
-                Ok(()) => {
-                    let predict = part1_lifting_prefix(update.1, !low_first, 1, 0, update.1.len());
-                    match predict.0 {
-                        Err(error) => Err(error),
-                        Ok(()) => Ok(predict.1),
-                    }
-                },
-            }
-        },
+        Ok(samples) => part1_synthesize_five_three(samples, low_first),
+    }
+}
+
+pub open spec fn part1_synthesize_five_three(samples: Seq<i64>, low_first: bool) -> Result<Seq<i64>, crate::DecodeError> {
+    if samples.len() == 1 && !low_first {
+        Ok(samples.update(0, samples[0] >> 1))
+    } else {
+        let update = part1_lifting_prefix(samples, low_first, 0, 0, samples.len());
+        match update.0 {
+            Err(error) => Err(error),
+            Ok(()) => {
+                let predict = part1_lifting_prefix(update.1, !low_first, 1, 0, update.1.len());
+                match predict.0 {
+                    Err(error) => Err(error),
+                    Ok(()) => Ok(predict.1),
+                }
+            },
+        }
     }
 }
 
@@ -17650,31 +17654,35 @@ pub open spec fn part1_inverse_nine_seven(
 ) -> Result<Seq<i64>, crate::DecodeError> {
     match part1_interleaved(low, high, low_first) {
         Err(error) => Err(error),
-        Ok(samples) => if samples.len() == 1 && !low_first {
-            Ok(samples.update(0, samples[0] >> 1))
-        } else if samples.len() <= 1 {
-            Ok(samples)
-        } else {
-            let low_scaled = part1_scaling_prefix(samples, low_first, part1_nine_seven_scale(true), samples.len());
-            match low_scaled.0 {
-                Err(error) => Err(error),
-                Ok(()) => {
-                    let high_scaled = part1_scaling_prefix(
-                        low_scaled.1, !low_first, part1_nine_seven_scale(false), low_scaled.1.len(),
-                    );
-                    match high_scaled.0 {
-                        Err(error) => Err(error),
-                        Ok(()) => {
-                            let lifted = part1_nine_seven_lifting_prefix(high_scaled.1, low_first, 4);
-                            match lifted.0 {
-                                Err(error) => Err(error),
-                                Ok(()) => Ok(lifted.1),
-                            }
-                        },
-                    }
-                },
-            }
-        },
+        Ok(samples) => part1_synthesize_nine_seven(samples, low_first),
+    }
+}
+
+pub open spec fn part1_synthesize_nine_seven(samples: Seq<i64>, low_first: bool) -> Result<Seq<i64>, crate::DecodeError> {
+    if samples.len() == 1 && !low_first {
+        Ok(samples.update(0, samples[0] >> 1))
+    } else if samples.len() <= 1 {
+        Ok(samples)
+    } else {
+        let low_scaled = part1_scaling_prefix(samples, low_first, part1_nine_seven_scale(true), samples.len());
+        match low_scaled.0 {
+            Err(error) => Err(error),
+            Ok(()) => {
+                let high_scaled = part1_scaling_prefix(
+                    low_scaled.1, !low_first, part1_nine_seven_scale(false), low_scaled.1.len(),
+                );
+                match high_scaled.0 {
+                    Err(error) => Err(error),
+                    Ok(()) => {
+                        let lifted = part1_nine_seven_lifting_prefix(high_scaled.1, low_first, 4);
+                        match lifted.0 {
+                            Err(error) => Err(error),
+                            Ok(()) => Ok(lifted.1),
+                        }
+                    },
+                }
+            },
+        }
     }
 }
 
