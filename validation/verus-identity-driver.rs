@@ -97,6 +97,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "result_details": verifier.func_details.get(name).map(|details| details.to_json()),
         }));
     }
+    let mut labels = std::collections::BTreeMap::new();
+    for identity in verifier.func_details.keys() {
+        *labels
+            .entry(vir::ast_util::fun_as_friendly_rust_name(identity))
+            .or_insert(0_usize) += 1;
+    }
+    let mut result_identities = Vec::new();
+    for (identity, details) in &verifier.func_details {
+        let label = vir::ast_util::fun_as_friendly_rust_name(identity);
+        let count = labels[&label];
+        result_identities.push(serde_json::json!({
+            "canonical": serde_json::to_value(identity)?,
+            "compiler_result_label": label,
+            "reported_label_canonical_count": count,
+            "reported_label_disposition": if count == 1 {
+                "unique-reported-label"
+            } else {
+                "shared-reported-label"
+            },
+            "mode": verifier.get_function_mode(identity).map(|mode| format!("{mode:?}")),
+            "result_details": details.to_json(),
+        }));
+    }
     let report = serde_json::json!({
         "format_version": 1,
         "scope": "Pinned compiler identity observations; not a qualified production denominator or native/Verus erasure correspondence.",
@@ -110,6 +133,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "errors": verifier.count_errors,
         "entire_crate": rust_verify::driver::is_verifying_entire_crate(&verifier),
         "functions": functions,
+        "result_identities": result_identities,
         "resolved_erasure_calls": hints.resolved_calls.len(),
         "hir_vir_identity_pairs": hints.hir_vir_ids.len(),
     });

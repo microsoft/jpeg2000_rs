@@ -76,8 +76,11 @@ class DriverControls(unittest.TestCase):
         self.assertEqual(report["errors"], 0)
         self.assertEqual(report["source_function_coverage"], "not-measured")
         details = {row["compiler_result_label"]: row["result_details"]
-                   for row in report["functions"] if row["result_details"] is not None}
+                   for row in report["result_identities"]}
         self.assertEqual(details, proof["func-details"])
+        self.assertEqual(len(report["result_identities"]), len(details))
+        self.assertTrue(all(row["reported_label_disposition"] == "unique-reported-label"
+                            for row in report["result_identities"]))
         project = [row for row in report["functions"]
                    if row["canonical"]["path"]["krate"] not in ("Core", "Alloc", "Vstd", "Internal")
                    and row["canonical"]["path"]["krate"]["Id"][0] == "identity_control"]
@@ -95,6 +98,24 @@ class DriverControls(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(self.output.exists())
         self.assertIn("verification failed", result.stderr)
+
+    def test_trait_and_inherent_methods_keep_distinct_shared_label_identities(self):
+        self.source.write_text(CONTROL.replace(
+            "fn main() {",
+            "trait T { fn value(&self) -> (r: u8) ensures r == 13; }\n"
+            "impl T for A { fn value(&self) -> (r: u8) { 13 } }\n"
+            "fn main() {",
+        ))
+        captured = self.run_driver()
+        self.assertEqual(captured.returncode, 0, captured.stdout + captured.stderr)
+        report = json.loads(self.output.read_text())
+        shared = [row for row in report["result_identities"]
+                  if row["compiler_result_label"] == "identity_control::A::value"]
+        self.assertEqual(len(shared), 2)
+        self.assertNotEqual(shared[0]["canonical"], shared[1]["canonical"])
+        self.assertTrue(all(row["reported_label_canonical_count"] == 2
+                            and row["reported_label_disposition"] == "shared-reported-label"
+                            for row in shared))
 
     def test_actual_cargo_capture_matches_the_pinned_cargo_profile(self):
         manifest = self.root / "Cargo.toml"
@@ -137,7 +158,7 @@ class DriverControls(unittest.TestCase):
         self.assertEqual(report["verified"], proof["verification-results"]["verified"])
         self.assertEqual(
             {row["compiler_result_label"]: row["result_details"]
-             for row in report["functions"] if row["result_details"] is not None},
+             for row in report["result_identities"]},
             proof["func-details"],
         )
 

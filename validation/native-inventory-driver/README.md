@@ -68,6 +68,11 @@ own diagnostic/result label, mode, span and optional actual result details.
 Distinct internal impl paths are not guessed to match display names.
 Imported functions and entries without result details remain visible; a
 details entry is not itself a verified-function count or functional contract.
+Result records also enumerate the complete canonical `func_details` map, not
+only the initial erasure-hint definitions. Compiler display labels need not be
+injective: every result retains its canonical identity and the number of
+canonical results sharing that label. Shared labels are explicitly marked;
+never deduplicate them into a claimed per-source-function proof count.
 
 This is still **not** a qualified native production denominator, native/Verus
 erasure correspondence, effective reachability or functional classification.
