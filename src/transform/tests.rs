@@ -2162,6 +2162,50 @@ fn full_five_three_sequences_and_rejections_match_wide_reference() {
 }
 
 #[test]
+fn horizontal_five_three_chunks_match_wide_reference() {
+    let bound = 1_i64 << 30;
+    for len in [0, 1, 2, 16, 17, 18, 23, 24, 25, 26, 1023, 1024, 1025, 1033] {
+        for first in [false, true] {
+            let low_len = (len + usize::from(first)) / 2;
+            let high_len = len - low_len;
+            for &(lo, hi) in &[
+                (bound, -bound),
+                (-bound, bound),
+                (bound + 1, -bound),
+                (bound, -bound - 1),
+                (i64::MIN, i64::MAX),
+                (i64::MAX, 3),
+                (0, i64::MAX / 2),
+            ] {
+                let low: Vec<_> = (0..low_len)
+                    .map(|i| if i % 5 < 3 { lo } else { -3 + (i % 7) as i64 })
+                    .collect();
+                let high: Vec<_> = (0..high_len)
+                    .map(|i| if i % 9 < 4 { hi } else { 3 - (i % 7) as i64 })
+                    .collect();
+                assert_eq!(
+                    wavelets::inverse_reversible_line::<true>(&low, &high, first),
+                    reference_five_three(&low, &high, first),
+                    "len={len} first={first}, low={lo}, high={hi}",
+                );
+            }
+        }
+    }
+    let low = [0; 9];
+    let high = [i64::MAX; 8];
+    assert_eq!(
+        crate::allocation::with_refusal(0, || {
+            wavelets::inverse_reversible_line::<true>(&low, &high, true)
+        }),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        wavelets::inverse_reversible_line::<true>(&low, &high, true),
+        reference_five_three(&low, &high, true)
+    );
+}
+
+#[test]
 fn complete_lifting_buffers_preserve_first_error_state_and_opposite_parity() {
     for input in [
         vec![],

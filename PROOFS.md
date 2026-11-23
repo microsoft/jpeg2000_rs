@@ -215,6 +215,19 @@ specifications are unchanged. The shared bounded reversible leaf performs raw
 `i64` additions and shifts after these bounds are proved, removing per-cell
 overflow error branches without removing the checked fallback.
 
+Standard horizontal 5/3 rows reuse this bound check and arithmetic leaf.
+The check runs after the existing interleave allocation. On admitted rows
+the update is bounded by `2^31`, which admits the predict, bounded by `2^32`.
+An eight-position interior chunk changes only four independent same-parity
+lanes. All neighbor reads use the untouched parity; the edge chunks use
+the same reflected neighbors as the checked loop. The executing chunk loop
+is related to the complete original lifting-prefix state for each stage.
+Short or out-of-range rows keep the original checked lifts, as do public
+standalone 5/3 sequences and vertical column fallback. This adds no storage
+event and changes neither the row result contract nor the resource charges.
+With deadlines enabled the admission scan polls every 1024 positions, and
+each lift still polls at every original 1024-position boundary.
+
 The 9/7 child shares the actual scalar Q16 multiplication and fixed-neighbor
 helpers. It scales low then high parity and performs all four fixed lifts in
 the original order, without floating point or reassociation. Its conservative

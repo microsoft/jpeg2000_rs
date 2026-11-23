@@ -15,6 +15,18 @@ pub fn inverse_5_3(
     high: &[i64],
     low_pass_first: bool,
 ) -> Result<Vec<i64>, DecodeError> {
+    inverse_reversible_line::<false>(low, high, low_pass_first)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_wavelet_sequence_result(low@,high@,low_pass_first,false,None,sequence_outcome(result)),
+        sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part1_inverse_five_three(low@, high@, low_pass_first),
+))]
+pub(super) fn inverse_reversible_line<const HORIZONTAL: bool>(
+    low: &[i64],
+    high: &[i64],
+    low_pass_first: bool,
+) -> Result<Vec<i64>, DecodeError> {
     #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
     crate::deadline::checkpoint()?;
     #[cfg(verus_keep_ghost)]
@@ -25,6 +37,13 @@ pub fn inverse_5_3(
     let mut output = interleaved?;
     if output.len() == 1 && !low_pass_first {
         output[0] >>= 1;
+        return Ok(output);
+    }
+    // Short lines cannot reach a full interior chunk. Check the actual
+    // coefficients after geometry and allocation, before mutating the line.
+    if HORIZONTAL && output.len() >= 17 && super::rowwise::bounded(&output)? {
+        lift_reversible_line::<false>(&mut output, low_pass_first)?;
+        lift_reversible_line::<true>(&mut output, !low_pass_first)?;
         return Ok(output);
     }
     inverse_lift(
@@ -38,6 +57,247 @@ pub fn inverse_5_3(
         InverseLiftingStep::ReversiblePredict,
     )?;
     Ok(output)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires old(samples).len() > 1,
+        forall|i:int|0<=i<old(samples).len()==>
+            -(if PREDICT{2147483648int}else{1073741824int})<=#[trigger] old(samples)[i]<=if PREDICT{2147483648int}else{1073741824int},
+    ensures result == Ok(()),
+        final(samples).len() == old(samples).len(),
+        (result, final(samples)@) == crate::specs::part1_lifting_prefix(
+            old(samples)@, target_even, if PREDICT {1} else {0}, 0, old(samples).len() as nat),
+        forall|i:int|0<=i<final(samples).len()==>
+            -(if PREDICT{4294967296int}else{2147483648int})<=#[trigger] final(samples)[i]<=if PREDICT{4294967296int}else{2147483648int},
+))]
+fn lift_reversible_line<const PREDICT: bool>(
+    samples: &mut [i64],
+    target_even: bool,
+) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost original = samples@;
+        let ghost kind = if PREDICT {1u8} else {0u8};
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::proofs::production_impl::production_bounded_reversible_line(original, target_even, PREDICT, kind);}
+    let len = samples.len();
+    let offset = if target_even { 0 } else { 1 };
+    let mut start = 0;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant start <= len, len == samples.len(), len == original.len(), len > 1,
+            start < len ==> start % 8 == 0,
+            offset == if target_even {0int} else {1int},
+            original == old(samples)@,
+            kind == if PREDICT {1u8} else {0u8},
+            forall|i:int|0<=i<len==>
+                -(if PREDICT{2147483648int}else{1073741824int})<=#[trigger] original[i]<=if PREDICT{2147483648int}else{1073741824int},
+            forall|i:int|0<=i<len==>#[trigger] samples[i] == if i<start {
+                crate::specs::part1_lifting_sample(original,i as nat,target_even,kind,0).get_Ok_0()
+            } else {original[i]},
+        decreases len - start,
+    ))]
+    while start < len {
+        // Eight positions divide the original 1024-position polling interval.
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(start)?;
+        if start > 0 && len - start > 8 {
+            let i = start + offset;
+            apply_reversible_window::<PREDICT>(
+                samples,
+                i,
+                #[cfg(verus_keep_ghost)]
+                start,
+                #[cfg(verus_keep_ghost)]
+                target_even,
+                #[cfg(verus_keep_ghost)]
+                verus_exec_expr!(Ghost(original)),
+                #[cfg(verus_keep_ghost)]
+                verus_exec_expr!(Ghost(kind)),
+            );
+            start += 8;
+        } else {
+            let end = if len - start < 8 { len } else { start + 8 };
+            lift_reversible_edge::<PREDICT>(
+                samples,
+                start,
+                end,
+                target_even,
+                #[cfg(verus_keep_ghost)]
+                verus_exec_expr!(Ghost(original)),
+                #[cfg(verus_keep_ghost)]
+                verus_exec_expr!(Ghost(kind)),
+            );
+            start = end;
+        }
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(samples@ =~= crate::specs::part1_lifting_prefix(original,target_even,kind,0,original.len()).1);
+    }
+    Ok(())
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(
+    requires original@.len() == old(samples).len(),
+        kind@ == if PREDICT {1u8} else {0u8},
+        start%8==0, start>0, start+8<old(samples).len(), i==start+if target_even{0int}else{1int},
+        forall|j:int|0<=j<original@.len()==>
+            -(if PREDICT{2147483648int}else{1073741824int})<=#[trigger] original@[j]<=if PREDICT{2147483648int}else{1073741824int},
+        forall|j:int|0<=j<original@.len()==>#[trigger] old(samples)[j] == if j<start {
+            crate::specs::part1_lifting_sample(original@,j as nat,target_even,kind@,0)->Ok_0
+        } else {original@[j]},
+    ensures final(samples).len()==original@.len(),
+        forall|j:int|0<=j<original@.len()==>#[trigger] final(samples)[j] == if j<start+8 {
+            crate::specs::part1_lifting_sample(original@,j as nat,target_even,kind@,0)->Ok_0
+        } else {original@[j]},
+))]
+#[inline]
+fn apply_reversible_window<const PREDICT: bool>(
+    samples: &mut [i64],
+    i: usize,
+    #[cfg(verus_keep_ghost)] start: usize,
+    #[cfg(verus_keep_ghost)] target_even: bool,
+    #[cfg(verus_keep_ghost)] original: Ghost<Seq<i64>>,
+    #[cfg(verus_keep_ghost)] kind: Ghost<u8>,
+) {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost before = samples@;}
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(before[i-1]==original@[i-1]);
+        assert forall|j:int| i-1<=j<i+8 implies
+            -(if PREDICT{2147483648int}else{1073741824int})<=#[trigger] before[j]<=if PREDICT{2147483648int}else{1073741824int} by {}
+    }
+    lift_reversible_window::<PREDICT>(&mut samples[i - 1..i + 8]);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert forall|j:int|0<=j<before.len() implies #[trigger] samples[j] ==
+            if i<=j<=i+6 && (j%2==0)==target_even {
+                crate::specs::rowwise_neighbors(before[j],before[j-1],before[j+1],PREDICT)->Ok_0
+            } else {before[j]} by {
+            if i-1<=j<i+8 {
+                let k=j-(i-1);
+                assert((k%2==1) == (i<=j<=i+6 && (j%2==0)==target_even));
+                assert(samples@[j]==samples@.subrange(i-1,i+8)[k]);
+                assert(before[j]==before.subrange(i-1,i+8)[k]);
+            }
+        }
+        crate::proofs::production_impl::production_reversible_window_frame(
+            original@,before,samples@,start as int,i as int,target_even,PREDICT,kind@);
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(
+    requires start <= end <= old(samples).len(),
+        original@.len() == old(samples).len() && old(samples).len()>1,
+        kind@ == if PREDICT {1u8} else {0u8},
+        forall|j:int|0<=j<original@.len()==>
+            -(if PREDICT{2147483648int}else{1073741824int})<=#[trigger] original@[j]<=if PREDICT{2147483648int}else{1073741824int},
+        forall|j:int|0<=j<original@.len()==>#[trigger] old(samples)[j] == if j<start {
+            crate::specs::part1_lifting_sample(original@,j as nat,target_even,kind@,0)->Ok_0
+        } else {original@[j]},
+    ensures final(samples).len()==original@.len(),
+        forall|j:int|0<=j<original@.len()==>#[trigger] final(samples)[j] == if j<end {
+            crate::specs::part1_lifting_sample(original@,j as nat,target_even,kind@,0)->Ok_0
+        } else {original@[j]},
+))]
+#[inline]
+fn lift_reversible_edge<const PREDICT: bool>(
+    samples: &mut [i64],
+    start: usize,
+    end: usize,
+    target_even: bool,
+    #[cfg(verus_keep_ghost)] original: Ghost<Seq<i64>>,
+    #[cfg(verus_keep_ghost)] kind: Ghost<u8>,
+) {
+    let len = samples.len();
+    let mut i = start;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant start<=i<=end<=len, len==samples.len(), len==original@.len(), len>1,
+            kind@ == if PREDICT {1u8} else {0u8},
+            forall|j:int|0<=j<len==>
+                -(if PREDICT{2147483648int}else{1073741824int})<=#[trigger] original@[j]<=if PREDICT{2147483648int}else{1073741824int},
+            forall|j:int|0<=j<len==>#[trigger] samples[j] == if j<i {
+                crate::specs::part1_lifting_sample(original@,j as nat,target_even,kind@,0)->Ok_0
+            } else {original@[j]},
+        decreases end-i,
+    ))]
+    while i < end {
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::proofs::production_impl::production_index_parity(i);}
+        if (i & 1 == 0) == target_even {
+            let left = if i == 0 { 1 } else { i - 1 };
+            let right = if i + 1 < len { i + 1 } else { i - 1 };
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert((left%2==0)!=target_even && (right%2==0)!=target_even);
+                assert(samples[left as int]==original@[left as int] && samples[right as int]==original@[right as int]);
+            }
+            samples[i] =
+                inverse_reversible_bounded(samples[i], samples[left], samples[right], PREDICT);
+        }
+        i += 1;
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(
+    requires old(window).len() == 9,
+        forall|i:int| 0<=i<9 ==>
+            -(if PREDICT{2147483648int}else{1073741824int})<=#[trigger] old(window)[i]<=if PREDICT{2147483648int}else{1073741824int},
+    ensures final(window).len() == 9,
+        forall|i:int| 0<=i<9 ==> #[trigger] final(window)[i] ==
+            if i%2==1 {crate::specs::rowwise_neighbors(old(window)[i],old(window)[i-1],old(window)[i+1],PREDICT)->Ok_0}
+            else {old(window)[i]},
+))]
+#[inline]
+fn lift_reversible_window<const PREDICT: bool>(window: &mut [i64]) {
+    let mut lanes = [window[1], window[3], window[5], window[7]];
+    let left = [window[0], window[2], window[4], window[6]];
+    let right = [window[2], window[4], window[6], window[8]];
+    lift_reversible_lanes::<PREDICT>(&mut lanes, &left, &right);
+    window[1] = lanes[0];
+    window[3] = lanes[1];
+    window[5] = lanes[2];
+    window[7] = lanes[3];
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(
+    requires forall|i:int| 0<=i<4 ==>
+        -(if PREDICT{2147483648int}else{1073741824int})<=#[trigger] old(lanes)[i]<=if PREDICT{2147483648int}else{1073741824int},
+        forall|i:int| 0<=i<4 ==>
+            -(if PREDICT{2147483648int}else{1073741824int})<=#[trigger] left[i]<=if PREDICT{2147483648int}else{1073741824int},
+        forall|i:int| 0<=i<4 ==>
+            -(if PREDICT{2147483648int}else{1073741824int})<=#[trigger] right[i]<=if PREDICT{2147483648int}else{1073741824int},
+    ensures forall|i:int| 0<=i<4 ==> #[trigger] final(lanes)[i] ==
+        (crate::specs::rowwise_neighbors(old(lanes)[i],left[i],right[i],PREDICT)->Ok_0),
+))]
+#[inline(never)]
+fn lift_reversible_lanes<const PREDICT: bool>(
+    lanes: &mut [i64; 4],
+    left: &[i64; 4],
+    right: &[i64; 4],
+) {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost original = lanes@;}
+    let mut i = 0;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant i <= 4, original == old(lanes)@,
+            forall|j:int| 0<=j<4 ==>
+                -(if PREDICT{2147483648int}else{1073741824int})<=#[trigger] original[j]<=if PREDICT{2147483648int}else{1073741824int},
+            forall|j:int| 0<=j<4 ==>
+                -(if PREDICT{2147483648int}else{1073741824int})<=#[trigger] left[j]<=if PREDICT{2147483648int}else{1073741824int},
+            forall|j:int| 0<=j<4 ==>
+                -(if PREDICT{2147483648int}else{1073741824int})<=#[trigger] right[j]<=if PREDICT{2147483648int}else{1073741824int},
+            forall|j:int| 0<=j<4 ==> #[trigger] lanes[j] == if j<i {
+                crate::specs::rowwise_neighbors(original[j],left[j],right[j],PREDICT)->Ok_0
+            } else {original[j]},
+        decreases 4 - i,
+    ))]
+    while i < 4 {
+        lanes[i] = inverse_reversible_bounded(lanes[i], left[i], right[i], PREDICT);
+        i += 1;
+    }
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

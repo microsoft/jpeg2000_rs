@@ -5,7 +5,7 @@ use super::arithmetic::{
 use super::geometry::{
     band_row, collect_column, low_count, store_column, validate_level, validate_level_bands,
 };
-use super::wavelets::{inverse_5_3, inverse_9_7};
+use super::wavelets::{inverse_5_3, inverse_9_7, inverse_reversible_line};
 use super::{FIXED_BITS, ReconstructedPlane, WaveletBand, WaveletLevel};
 #[cfg(verus_keep_ghost)]
 use super::{
@@ -306,7 +306,7 @@ fn inverse_row_pair(
     } else if irreversible {
         inverse_9_7(low_row, high_row, low_first)
     } else {
-        inverse_5_3(low_row, high_row, low_first)
+        inverse_reversible_line::<true>(low_row, high_row, low_first)
     };
     #[cfg(verus_keep_ghost)]
     proof! {

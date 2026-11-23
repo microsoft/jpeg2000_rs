@@ -5199,6 +5199,62 @@ pub proof fn production_lifting_sample_frame(
     }
 }
 
+pub(crate) proof fn production_bounded_reversible_line(samples: Seq<i64>, target_even: bool, predict: bool, kind: u8)
+    requires samples.len()>1, kind == if predict {1u8} else {0u8},
+        forall|i:int|0<=i<samples.len()==>
+            -(if predict{2147483648int}else{1073741824int})<=#[trigger] samples[i]<=if predict{2147483648int}else{1073741824int},
+    ensures
+        crate::specs::part1_lifting_prefix(samples,target_even,kind,0,samples.len()).0==Ok(()),
+        crate::specs::part1_lifting_prefix(samples,target_even,kind,0,samples.len()).1
+            ==Seq::new(samples.len(), |i:int| crate::specs::part1_lifting_sample(samples,i as nat,target_even,kind,0)->Ok_0),
+        forall|i:int|0<=i<samples.len()==>
+            -(if predict{4294967296int}else{2147483648int})<=
+                #[trigger] (crate::specs::part1_lifting_sample(samples,i as nat,target_even,kind,0)->Ok_0)
+                <=if predict{4294967296int}else{2147483648int},
+{
+    assert forall|i:nat| i<samples.len() implies
+        (#[trigger] crate::specs::part1_lifting_sample(samples,i,target_even,kind,0)).is_ok()
+        && -(if predict{4294967296int}else{2147483648int})<=
+            (crate::specs::part1_lifting_sample(samples,i,target_even,kind,0)->Ok_0)
+            <=if predict{4294967296int}else{2147483648int} by {
+        if (i%2==0)==target_even {
+            let left=if i==0{1int}else{i-1};
+            let right=if i+1<samples.len(){i as int+1}else{i-1};
+            crate::specs::rowwise_neighbors_bounded(samples[i as int],samples[left],samples[right],predict);
+        }
+    }
+    crate::specs::rowwise_lift_prefix(samples,target_even,kind,samples.len());
+    let values=Seq::new(samples.len(), |i:int| crate::specs::part1_lifting_sample(samples,i as nat,target_even,kind,0)->Ok_0);
+    assert(crate::specs::part1_lifting_prefix(samples,target_even,kind,0,samples.len()).1 =~= values);
+}
+
+pub(crate) proof fn production_reversible_window_frame(
+    original: Seq<i64>, before: Seq<i64>, after: Seq<i64>,
+    start: int, i: int, target_even: bool, predict: bool, kind: u8,
+)
+    requires original.len()==before.len()==after.len(),
+        kind == if predict {1u8} else {0u8},
+        start%8==0, start>0, start+8<original.len(), i==start+if target_even{0int}else{1int},
+        forall|j:int|0<=j<original.len() ==> #[trigger] before[j] == if j<start {
+            crate::specs::part1_lifting_sample(original,j as nat,target_even,kind,0)->Ok_0
+        } else {original[j]},
+        forall|j:int|0<=j<original.len() ==> #[trigger] after[j] ==
+            if i<=j<=i+6 && (j%2==0)==target_even {
+                crate::specs::rowwise_neighbors(before[j],before[j-1],before[j+1],predict)->Ok_0
+            } else {before[j]},
+    ensures forall|j:int|0<=j<original.len() ==> #[trigger] after[j] == if j<start+8 {
+        crate::specs::part1_lifting_sample(original,j as nat,target_even,kind,0)->Ok_0
+    } else {original[j]},
+{
+    assert forall|j:int|0<=j<original.len() implies #[trigger] after[j] == if j<start+8 {
+        crate::specs::part1_lifting_sample(original,j as nat,target_even,kind,0)->Ok_0
+    } else {original[j]} by {
+        if i<=j<=i+6 && (j%2==0)==target_even {
+            assert(before[j-1]==original[j-1]);
+        }
+    }
+}
+
 pub proof fn production_index_parity(index: usize)
     ensures (index & 1 == 0) == (index % 2 == 0),
 {
