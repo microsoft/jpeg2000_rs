@@ -45,6 +45,14 @@ Strict decoding is the default. Calling `opj_decoder_set_strict_mode(codec,
 OPJ_FALSE)` before reading the header opts into the crate's bounded PDF recovery
 for inspection and decoding. This supports the crate's documented recoveries,
 not every permissive behavior of OpenJPEG.
+Well-formed HT input in raw, JP2 or JPH form uses ordinary format-appropriate
+decoding in that mode, including indexed component export. Legacy damaged-input
+repair is not enabled for HT; malformed framing, metadata and resource failures
+remain errors.
+That mode also admits the common PDF profile's single-image JPX/JPX-baseline
+embedding through validated reader requirements and existing JPX header
+interpretation. Composited/multiple-image or unsupported required capabilities
+are not silently treated as stream zero. Strict JP2 behavior is unchanged.
 
 `probe.c` is a small standalone consumer that exercises the header, stream,
 decode, and destruction sequence. Build it once against the OpenJPEG header
@@ -56,7 +64,8 @@ The C regression suite generates small original codestreams and containers in
 memory. It checks offset/subsampled/reduced images, palette expansion with
 signed/native-precision samples and opacity, indexed input, lenient JP2 EOL
 recovery, unhandled color metadata, and failure cleanup without replacing the
-caller's header. On Linux with an OpenJPEG development header and `pkg-config`:
+caller's header, plus non-strict raw/JP2/JPH HT through the public decoder
+sequence. On Linux with an OpenJPEG development header and `pkg-config`:
 
 ```sh
 cargo build -p jpeg2000-openjpeg-compat --release --locked

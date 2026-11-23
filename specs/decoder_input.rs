@@ -36,6 +36,7 @@ pub(crate) open spec fn part2_decoder_tile_from_raw(raw: Part1TilePartPayload) -
         progression_changes: raw.progression_changes, multiple_component_transform: raw.multiple_component_transform,
         part2_extensions: raw.part2_extensions, packet_lengths: raw.packet_lengths,
         packed_packet_headers: raw.packed_packet_headers,
+        has_progression_marker: raw.has_progression_marker,
         has_functional_header_marker: raw.has_functional_header_marker, has_roi_marker: raw.has_roi_marker,
         data: raw.data,
     }

@@ -783,7 +783,8 @@ class FrameworkTests(WorkingFiles):
         recipes = {key: value for key, value in framework._PACKET_PROGRESSION_CONTRACTS.items() if key not in support}
         self._assert_complete_packet_contract_bindings({
             "part1-complete-native-packed-header-length-inputs", "part1-complete-native-grid-progression-composition",
-        }, recipes, 43)
+            "part1-complete-native-bounded-progression-window",
+        }, recipes, 44)
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]
                      if item["id"] == "part1-complete-native-grid-progression-composition")
@@ -9068,7 +9069,7 @@ class FrameworkTests(WorkingFiles):
 
     def test_inventory_binds_actual_progression_shape_bitmap_failure_frames_and_complete_admission(self):
         self._assert_complete_packet_contract_bindings(
-            {"part1-complete-native-progression-admission"},
+            {"part1-complete-native-progression-admission", "part1-complete-native-tile-progression-coverage"},
             framework._PROGRESSION_ADMISSION_CONTRACTS, 7,
         )
 
@@ -9632,9 +9633,61 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "selected tile storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_bounded_progression_window_keeps_actual_grid_and_raw_record(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-bounded-progression-window")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/packet/progression.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("part1_packet_window_bounds(packet_grid_view(grid), record)",
+             "part1_packet_window_bounds(packet_grid_view(grid), bounded_window(grid, record))"),
+            ("part1_packet_window_bounds(packet_grid_view(grid), record)",
+             "part1_packet_window_bounds(arbitrary_grid(), record)"),
+        ):
+            changed = original.replace(before, after)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=after), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_complete_tile_progression_binds_actual_parts_limits_and_full_result(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-tile-progression-coverage")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/codestream/progression_coverage.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("super::tile_parts_payload_view(parts@)", "super::tile_parts_payload_view(Seq::empty())"),
+            ("super::tile_parts_payload_view(parts@), self.limits",
+             "super::tile_parts_payload_view(parts@), &crate::ResourceLimits::default()"),
+            ("ensures result == crate::specs::part1_complete_poc_coverage",
+             "ensures result.is_ok() ==> result == crate::specs::part1_complete_poc_coverage"),
+        ):
+            changed = original.replace(before, after)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_quantization_cold_order_rejects_relabelled_requests_and_lost_partial_owners(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYOUT_ENTRY)
+        self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
         read_text = Path.read_text
         for relative, symbol, before, after in (
             ("src/codestream/layout.rs", "Parser::parse_layout",
@@ -9656,6 +9709,8 @@ class FrameworkTests(WorkingFiles):
              "cost > crate::limits::resource_work_limit(limits)", "cost > u64::MAX"),
             ("src/codestream/coding_markers.rs", "Parser::validate_progression_changes",
              "filled_values(\n            false,", "filled_values(\n            true,"),
+            ("src/codestream/coding_markers.rs", "Parser::validate_progression_changes",
+             "if !contributed", "if contributed"),
             ("specs/cold_payload_owners.rs", "part1_main_resolved_run",
              "Some((Err(error), rest)) => Some((Err(error), rest))", "Some((Err(error), rest)) => Some((Err(error), events))"),
             ("specs/cold_payload_owners.rs", "part1_tile_after_configuration_run",
@@ -9724,7 +9779,15 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_header_progression.rs", "part1_tile_progression_payload",
              "part1_poc_cold_run(13,", "part1_poc_cold_run(9,"),
             ("specs/cold_header_progression.rs", "part1_tile_progression_payload",
-             "&& tile_part_index == 0", "&& tile_part_index == 1"),
+             "segment.marker == 0xff5f && !raw.poc_seen", "segment.marker == 0xff5f && raw.poc_seen"),
+            ("src/codestream/layout.rs", "Parser::parse_layout",
+             "parser.validate_tile_progression_coverage(&tile_part_payloads)?",
+             "let _ = &tile_part_payloads;"),
+            ("specs/raw_layout.rs", "part1_layout_after_tiles",
+             "match part1_complete_poc_coverage(state.3, reader.limits)",
+             "match Ok::<(),crate::DecodeError>(())"),
+            ("src/codestream/tiles.rs", "Parser::read_tile_part",
+             "has_progression_marker: poc_seen", "has_progression_marker: false"),
             ("specs/cold_layout.rs", "part1_cold_layout_after_inherited_copy",
              "part1_quantization_storage_request(14,", "part1_quantization_storage_request(10,"),
             ("specs/persistent_tile_configuration.rs", "part1_commit_progression_cold_run",

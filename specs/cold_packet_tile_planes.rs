@@ -121,6 +121,11 @@ pub enum Part2PlaneTileStep {
     Packet(crate::packet::PacketCoordinate,Part1TilePacketExecution),
 }
 pub(crate) open spec fn part2_plane_tile_run_admit(params:Part1TilePacketParameters,s:Part1TilePacketExecution)->Part2PlaneTileStep {
+    let boundary=part1_tile_boundary(params,s.progress);
+    let s=Part1TilePacketExecution {progress:boundary.1,..s};
+    match boundary.0 {
+        Err(error)=>Part2PlaneTileStep::Return((Err(error),s)),
+        Ok(_)=>if part1_tile_physical_complete(params,s.progress) { Part2PlaneTileStep::Return((Ok(()),s)) } else {
     let next=part1_progression_iterator_next(s.progress.iterator);
     let s=Part1TilePacketExecution {progress:Part1TilePacketProgress {iterator:next.1,..s.progress},..s};
     match next.0{
@@ -133,19 +138,10 @@ pub(crate) open spec fn part2_plane_tile_run_admit(params:Part1TilePacketParamet
                     let omitted=part1_tile_omit_packet(params,s.progress,coordinate,s.precincts.len() as usize);
                     let after=Part1TilePacketExecution {progress:omitted.1,..s};
                     match omitted.0{Err(error)=>Part2PlaneTileStep::Return((Err(error),after)),Ok(())=>Part2PlaneTileStep::Continue(after)}
-                }else{
-                    let boundary=part1_tile_boundary(params,s.progress);let after=Part1TilePacketExecution {progress:boundary.1,..s};
-                    match boundary.0{
-                        Err(error)=>Part2PlaneTileStep::Return((Err(error),after)),
-                        Ok((changed,more))=>if !changed{Part2PlaneTileStep::Packet(coordinate,after)}
-                        else if more{Part2PlaneTileStep::Continue(after)}else{
-                            let omitted=part1_tile_omit_packet(params,after.progress,coordinate,after.precincts.len() as usize);
-                            let final_state=Part1TilePacketExecution {progress:omitted.1,..after};
-                            match omitted.0{Err(error)=>Part2PlaneTileStep::Return((Err(error),final_state)),Ok(())=>Part2PlaneTileStep::Continue(final_state)}
-                        },
-                    }
-                }
+                }else{Part2PlaneTileStep::Packet(coordinate,s)}
             }
+        },
+    }
         },
     }
 }

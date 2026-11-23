@@ -186,10 +186,12 @@ specs/packet_tile.rs
 specs/pdf_compat.rs
 specs/pdf_dimensions.rs
 specs/pdf_eol.rs
+specs/pdf_jpx.rs
 specs/pdf_present_tile.rs
 specs/pdf_tile_count.rs
 specs/pdf_trailers.rs
 specs/persistent_tile_configuration.rs
+specs/progression_coverage.rs
 specs/raw_decode.rs
 specs/raw_layout.rs
 specs/raw_recovery.rs
@@ -226,6 +228,7 @@ src/codestream/persistent_tile_configuration_proof_support.rs
 src/codestream/persistent_tile_configuration_tests.rs
 src/codestream/profile.rs
 src/codestream/profile_result_tests.rs
+src/codestream/progression_coverage.rs
 src/codestream/proof_support.rs
 src/codestream/quantization.rs
 src/codestream/raw_layout_result_tests.rs
@@ -301,6 +304,7 @@ src/jp2/composition.rs
 src/jp2/container.rs
 src/jp2/headers.rs
 src/jp2/metadata.rs
+src/jp2/pdf_jpx.rs
 src/jp2/proof_support.rs
 src/jp2/tests.rs
 src/jp2.rs
