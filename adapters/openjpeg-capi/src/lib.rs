@@ -65,7 +65,9 @@ fn inspect(data: &[u8], boxed: bool, strict: bool) -> Option<(codestream::ImageS
     };
     let (stream, color) = if boxed {
         let file = parse_container(data, limits, recovered.is_some())?;
-        if file.file_type().brand != jp2::BoxType::JP2_BRAND || file.codestream_count() != 1 {
+        if (strict && file.file_type().brand != jp2::BoxType::JP2_BRAND)
+            || file.codestream_count() != 1
+        {
             return None;
         }
         let color = match file.header.color.method {

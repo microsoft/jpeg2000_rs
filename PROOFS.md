@@ -105,6 +105,23 @@ qualification is implied by these source proofs.
 The five Rust-only adapters, disabled lifetime boundary and unmeasured
 source-function coverage are unchanged.
 
+## Format-appropriate HT PDF admission
+
+The common PDF input producer records ordinary mode for an HT SIZ announcement
+or an admitted single-codestream JPH container. Complete parsing still validates
+the actual Part 15 profile. Ordinary mode bypasses legacy framing/copy,
+sole-present-tile, trailer, count and native initial-MQ recovery; container
+dimension disagreement remains an error. It retains the existing separately
+reported terminal PDF EOL policy, not arbitrary HT repair.
+
+`specs/pdf_compat.rs` includes this mode in the complete prepared-input projection
+and its exact storage program. The checked ordinary-layout bridge composes the
+existing selected decoder Result with a zero-trailer report; the legacy bridge
+retains the original storage/outcome program unchanged. Parser, reconstruction,
+output, inspected metadata and count-repair callers keep exact first refusals
+and ordinary results without supplied successful-image or allocator premises.
+The five Rust-only adapters and default verifier budget are unchanged.
+
 ## Fallible-storage foundation and remaining boundary
 
 ### Allocation-aware reversible vertical traversal

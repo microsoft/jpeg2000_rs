@@ -227,8 +227,12 @@ policies in one explicit call for raw input or a single-codestream Part1 JP2:
 bounded missing-EOC repair, SIZ dimension authority, genuine sole-present-tile
 selection, cumulative terminal-trailer admission and complete off-by-one
 tile-part-count correction. JP2-primary fallback files
-may advertise additional JPX compatibility. Non-JP2-primary JPX/JPH containers
-and Part15 codestreams remain outside this facade; use their explicit APIs.
+may advertise additional JPX compatibility. Well-formed announced HT input,
+raw or in JP2/JPH, uses ordinary decoding instead of legacy recovery. Its
+header dimensions and complete tile/packet framing remain strict, with no
+missing-EOC, tile-count, trailer, absent-tile or initial-MQ repair. A validated
+terminal PDF EOL remains the separately reported embedding policy below.
+Non-JP2-primary JPX remains outside this facade; use its explicit API.
 
 The result carries `PdfRecovery` flags, exact trailer bytes, original/effective
 **codestream** byte counts, preflight/copy accounting and any full intended-canvas
@@ -238,6 +242,8 @@ preflight. The only boundary retries are the explicit PDF cases below; there
 is no general failed-decode retry, prefix search or container rewrite.
 Component/precision/sign/BPCC checks and centered-output metadata guards remain.
 Missing canvas pixels are never synthesized.
+Ordinary HT success reports zero repair/preflight counters; resource and
+allocation failures do not fall back to legacy decoding or renew limits.
 
 If the original call rejects exactly where one terminal LF, CR or CRLF follows
 EOC, these PDF-only entry points may decode the complete prefix once. Strict
