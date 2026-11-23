@@ -9280,7 +9280,9 @@ _PALETTE_OUTPUT_STORAGE_NATIVE = {
         "part2_palette_component_storage_refused(", "let mut signed_samples = signed_capacity?",
         "descriptor.signed || sample_count == 0", "crate::allocation::empty_with_capacity(sample_count)",
         "crate::allocation::inspection_capacity_outcome(unsigned_capacity)", "part2_palette_component_storage_refused(",
-        "let mut unsigned_samples = unsigned_capacity?", "while sample_index < sample_count", "let index_status =",
+        "let mut unsigned_samples = unsigned_capacity?",
+        "let modulus = if sample_count == 0 { 0 } else { palette_modulus(precision)? };",
+        "while sample_index < sample_count", "let index_status =",
         "palette_index >= palette.entries()", "palette.value(palette_index, column)",
     ),
 }
