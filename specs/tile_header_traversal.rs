@@ -114,7 +114,7 @@ pub(crate) open spec fn part1_tile_header_payload<'a>(
             },
             0xff74 | 0xff75 | 0xff77 => part1_tile_header_mct_payload(reader, raw, segment, components),
             0xff58 | 0xff61 => part1_tile_header_packet_payload(reader, raw, segment, main_lengths, main_headers),
-            0xff5f => if raw.poc_seen || tile_part_index != 0 { (Err(order_error), reader, raw) } else {
+            0xff5f => if raw.poc_seen { (Err(order_error), reader, raw) } else {
                 let changed = Part1TileHeaderAccumulator { poc_seen: true, ..raw };
                 match part1_parse_poc(segment, components) {
                     Err(error) => (Err(error), reader, changed),

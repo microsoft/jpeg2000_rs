@@ -2573,13 +2573,17 @@ pub proof fn late_packed_offset_overflow_reports_new_tile_offset_without_later_c
 pub proof fn actual_tile_work_guard_follows_the_real_iterator_transition(
     params:crate::specs::Part1TilePacketParameters,state:crate::specs::Part1TilePacketExecution,
 )
-    ensures match crate::specs::part1_progression_iterator_next(state.progress.iterator).0 {
-        Ok(Some(_))=>state.progress.remaining_packets==0 ==>
+    ensures match crate::specs::part1_tile_boundary(params,state.progress) {
+        (Ok(_), progress)=>!crate::specs::part1_tile_physical_complete(params,progress) ==>
+            match crate::specs::part1_progression_iterator_next(progress.iterator).0 {
+        Ok(Some(_))=>progress.remaining_packets==0 ==>
             crate::specs::part1_tile_run(params,state).0
                 ==Err(crate::specs::ht_reader_error(crate::MalformedKind::InvalidProgressionOrderChange))
             && crate::specs::part1_tile_run(params,state).1.precincts==state.precincts
             && crate::specs::part1_tile_run(params,state).1.progress.iterator
-                ==crate::specs::part1_progression_iterator_next(state.progress.iterator).1,
+                ==crate::specs::part1_progression_iterator_next(progress.iterator).1,
+        _=>true,
+            },
         _=>true,
     },
 {

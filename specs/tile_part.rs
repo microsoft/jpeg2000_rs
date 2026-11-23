@@ -18,6 +18,7 @@ pub(crate) struct Part1TilePartPayload {
     pub part2_extensions: Part2OwnedExtensions,
     pub packet_lengths: Part1PacketLengths,
     pub packed_packet_headers: Part1PackedHeaders,
+    pub has_progression_marker: bool,
     pub has_functional_header_marker: bool,
     pub has_roi_marker: bool,
     pub data: Seq<u8>,
@@ -54,6 +55,7 @@ pub(crate) open spec fn part1_tile_part_after_window<'a>(
                     roi_shifts: raw.tile_roi_shifts, progression_changes: raw.progression_changes,
                     multiple_component_transform: transform, part2_extensions: raw.part2_extensions,
                     packet_lengths: lengths, packed_packet_headers: headers,
+                    has_progression_marker: raw.poc_seen,
                     has_functional_header_marker: raw.has_functional_header_marker,
                     has_roi_marker: raw.tile_rgn_seen, data,
                 }, raw.mct_parameters, raw.part2_extensions)), committed)

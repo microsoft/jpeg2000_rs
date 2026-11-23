@@ -672,6 +672,8 @@ pub struct TilePartPayload<'a> {
     pub part2_extensions: Part2Extensions,
     pub packet_lengths: PacketLengths<'a>,
     pub packed_packet_headers: PackedPacketHeaders<'a>,
+    /// A POC marker was declared in this header, rather than merely inherited.
+    pub has_progression_marker: bool,
     pub has_functional_header_marker: bool,
     pub has_roi_marker: bool,
     pub data: &'a [u8],
@@ -699,8 +701,6 @@ include!("codestream/decoder_input_proof_support.rs");
 
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod coding_markers;
-#[cfg(test)]
-use coding_markers::progression_owners_complete;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod coding_style;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
@@ -723,6 +723,8 @@ mod mct;
 mod mct_copy;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod mct_markers;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod progression_coverage;
 #[cfg(test)]
 use mct_markers::{
     find_mcc_fragment, find_mct_fragment, fixed_from_binary, float32_to_fixed, float64_to_fixed,

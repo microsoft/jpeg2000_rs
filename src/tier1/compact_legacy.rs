@@ -1446,6 +1446,7 @@ impl Tier1CodeBlockDecoder {
             }
         },
     ))]
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     fn compact_scheduled_pass(
         &mut self,
         packed: &mut CompactPlane,

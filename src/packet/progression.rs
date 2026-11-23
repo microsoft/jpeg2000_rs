@@ -1093,12 +1093,25 @@ fn progression_prior_contains(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part1_packet_window_bounds(packet_grid_view(grid), record),
+))]
+fn bounded_window(grid: &PacketGrid, record: ProgressionChange) -> ProgressionChange {
+    ProgressionChange {
+        layer_end: record.layer_end.min(grid.layers),
+        resolution_end: record.resolution_end.min(grid.resolutions),
+        component_end: record.component_end.min(grid.components),
+        ..record
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part1_packet_window_count(packet_grid_view(grid), record),
 ))]
 pub(super) fn window_candidate_count(
     grid: &PacketGrid,
     record: ProgressionChange,
 ) -> Result<u64, DecodeError> {
+    let record = bounded_window(grid, record);
     let resolutions = match record.resolution_end.checked_sub(record.resolution_start) {
         Some(count) => count,
         None => {
@@ -1132,6 +1145,7 @@ pub(super) fn decode_window_candidate(
     record: ProgressionChange,
     candidate: u64,
 ) -> Result<PacketCoordinate, DecodeError> {
+    let record = bounded_window(grid, record);
     let layers = u64::from(record.layer_end);
     let resolutions = u64::from(
         match record.resolution_end.checked_sub(record.resolution_start) {

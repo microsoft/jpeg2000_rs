@@ -53,9 +53,15 @@ verus! {
             part2_extensions: owned_extensions_view(&value.part2_extensions),
             packet_lengths: packet_lengths_view(&value.packet_lengths),
             packed_packet_headers: packed_packet_headers_view(&value.packed_packet_headers),
+            has_progression_marker: value.has_progression_marker,
             has_functional_header_marker: value.has_functional_header_marker,
             has_roi_marker: value.has_roi_marker, data: value.data@,
         }
+    }
+
+    pub(crate) open spec fn tile_parts_payload_view(parts: Seq<TilePartPayload<'_>>)
+        -> Seq<crate::specs::Part1TilePartPayload> {
+        parts.map_values(|part: TilePartPayload<'_>| tile_part_payload_view(&part))
     }
 
     closed spec fn tile_part_read_outcome(

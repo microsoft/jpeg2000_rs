@@ -219,6 +219,23 @@ profile and resource checks remain, including limits on declared metadata.
 These APIs have no global recovery toggle, copy, retry or automatic EOC repair.
 They do not supply the separate deadline, absent-tile, MQ or trailer policies.
 
+### Multipart progression headers
+
+Part 1 POC declarations may split tile layer coverage across successive
+tile-part headers. Individual records keep bounds and contribution checks;
+the parser verifies first-header scope and complete per-tile coverage after
+the final part. `TilePartPayload::has_progression_marker` distinguishes a
+marker in that header from inherited records. Packet traversal advances the
+physical header before requesting coordinates from the next progression,
+while preserving duplicate suppression, lengths and resource limits.
+POC volumes intersect the actual component/resolution/layer grid. Declared
+endpoints may exceed that grid within the marker's syntax ranges; a zero
+component endpoint denotes 256. Raw parsed records remain unchanged, while
+packet enumeration and its work admission use the effective volume.
+Invalid syntax, redundant effective declarations and incomplete full-tile
+coverage remain errors in both ordinary and PDF-compatible APIs.
+See the [individual tolerance dispositions](SUPPORTED.md#openjpeg-tolerance-dispositions).
+
 ### Common PDF recovery and inspection
 
 `decode_pdf_compatible(input, options, selection)` and
@@ -227,8 +244,19 @@ policies in one explicit call for raw input or a single-codestream Part1 JP2:
 bounded missing-EOC repair, SIZ dimension authority, genuine sole-present-tile
 selection, cumulative terminal-trailer admission and complete off-by-one
 tile-part-count correction. JP2-primary fallback files
-may advertise additional JPX compatibility. Non-JP2-primary JPX/JPH containers
-and Part15 codestreams remain outside this facade; use their explicit APIs.
+may advertise additional JPX compatibility. Well-formed announced HT input,
+raw or in JP2/JPH, uses ordinary decoding instead of legacy recovery. Its
+header dimensions and complete tile/packet framing remain strict, with no
+missing-EOC, tile-count, trailer, absent-tile or initial-MQ repair. A validated
+terminal PDF EOL remains the separately reported embedding policy below.
+Non-JP2-primary JPX/JPX-baseline input is also supported when it contains one
+codestream, no composition and at most one empty compositing-layer header.
+The existing JPX associated-header resolver and selected decoder retain
+palette/channel interpretation. Reader-requirement masks must be satisfied
+by supported Part 1 feature flags (1, 4, 5); required vendor/other capabilities,
+ambiguous multiple codestreams and semantic layer overrides remain unsupported.
+Strict JP2 APIs are unchanged. Use explicit JPX APIs for broader layer/frame
+selection, rather than silently selecting codestream zero here.
 
 The result carries `PdfRecovery` flags, exact trailer bytes, original/effective
 **codestream** byte counts, preflight/copy accounting and any full intended-canvas
@@ -238,6 +266,8 @@ preflight. The only boundary retries are the explicit PDF cases below; there
 is no general failed-decode retry, prefix search or container rewrite.
 Component/precision/sign/BPCC checks and centered-output metadata guards remain.
 Missing canvas pixels are never synthesized.
+Ordinary HT success reports zero repair/preflight counters; resource and
+allocation failures do not fall back to legacy decoding or renew limits.
 
 If the original call rejects exactly where one terminal LF, CR or CRLF follows
 EOC, these PDF-only entry points may decode the complete prefix once. Strict

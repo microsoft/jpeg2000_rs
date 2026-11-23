@@ -378,6 +378,64 @@ These are intentional engineering behavior changes. Retained assertions,
 contrary public-reference observations and independent selected-edition
 correspondence remain separate; this profile does not assert standards closure.
 
+## OpenJPEG tolerance dispositions
+
+Issue [#456](https://github.com/microsoft/jpeg2000_rs/issues/456) tracks thirteen
+specific public inputs, not an instruction to accept every damaged stream.
+Controls are the immutable
+[Hayro stream corpus](https://github.com/LaurenzV/hayro/tree/e7ada1354dff4041cdeed3d8ba56fe01b6186132/hayro-jpeg2000/tests/streams)
+at `e7ada1354dff4041cdeed3d8ba56fe01b6186132`. The individual dispositions below
+apply to ordinary decoding and the common PDF facade under the same limits.
+They do not redefine all OpenJPEG-only outcomes as decoder defects.
+
+Two controls are admitted ordinarily, without a recovery flag:
+
+- `packets_poc_clamped_values.j2k`: COD defines four layers, three components
+  and six resolutions. POC declares layer end 200, resolution end 33 and encoded
+  component end zero (256). Those endpoints are within the marker syntax.
+  The progression volume intersects the actual grid; it does not add imaginary
+  packets. Both ordinary and PDF output match the complete independent
+  `main_rgb.png` raster, 128x96 RGB. Invalid syntax, ineffective/redundant
+  declarations and incomplete full-image accounting remain rejected.
+- `jp2_duplicate_ihdr.jp2`: the leading `ihdr` remains authoritative. Later
+  bounded instances are ignored, including their payload interpretation;
+  their framing, box counts and work are still validated. The supplied duplicate
+  does not change the complete 128x96 RGB output. A malformed leading header,
+  missing colour metadata or truncated later box remains an error. This is
+  not a JPX associated-header override change.
+
+The other eleven controls retain intentional refusals:
+
+| Input | Individual basis / policy | Ordinary and PDF result |
+|---|---|---|
+| `jp2_box_longer_than_file.jp2` | `jp2c` at 77 declares 22,870 bytes but only 22,767 remain. T.800 I.4 box framing is retained; no guessed codestream-box length. | `InvalidBoxLength` at 77 during inspection |
+| `jp2_trailing_box_longer_than_file.jp2` | The trailing box at 22,844 declares 218,785,134 bytes with only 12 available. Unknown contents can be ignored, not their framing or limits. | `InvalidBoxLength` at 22,844 during inspection |
+| `palette_cmap_outside_jp2h.jp2` | The palette is inside `jp2h`, but its `cmap` is outside at 859. I.5.3.4/5 require the corresponding mapping inside the header; no relocation or inferred mapping. | `MissingRequiredStructure` at 40 during inspection |
+| `tile_parts_bytes_after_eoc.j2k` | One zero byte follows EOC at 7,587. It is neither codestream data nor the separately bounded PDF CR/LF embedding suffix. No arbitrary trailing-byte discard. | `TrailingData` at 7,589 during inspection |
+| `tile_parts_truncated_end.j2k` | SOT at 119 declares an end at 7,687, beyond actual EOF 7,587. This is not only a missing EOC at a validated final boundary. No arbitrary `Psot` rewrite. | `InvalidTilePart` at 119 during inspection |
+| `tile_parts_truncated_in_packet_body.j2k` | The fourth tile at 6,736 declares end 8,279; EOF is 8,179 inside its declared data. No invented entropy bytes or complete-image result. | `InvalidTilePart` at 6,736 during inspection |
+| `tile_parts_truncated_layers.j2k` | Four layers are declared; SOT at 119 ends at 7,803 but EOF is 1,236. No arbitrary shortened-layer interpretation or complete-image result. | `InvalidTilePart` at 119 during inspection |
+| `errors_too_few_exponents.j2k` | COD declares 31 decomposition levels but no-quantization QCD supplies 16 entries instead of 94. A.6.4's shape remains checked; its excess-entry/truncated-subband note does not supply missing exponents. | `InvalidMarkerLength` at 59 during inspection |
+| `code_blocks_missing_bitplanes_exceed.j2k` | The second tile QCD changes the available magnitude planes, while packet tag-tree information exceeds that allowance. B.10.5 and E.2 relate missing planes to available planes. No invented negative-plane schedule or reused empty-MQ policy. | Header inspection succeeds; decode returns `InvalidPacketHeader`, relative offset 1 |
+| `mct_one_component_ignored.j2k` | MCT flag 1 selects components 0, 1 and 2 (Table A.17 / G.2), but SIZ declares one component. No silent transform disablement. | Header inspection succeeds; decode returns `InvalidTransform` at 0 |
+| `palette_out_of_range_indices.jp2` | The palette has 200 rows. The unchanged index codestream decodes values up to 238, including 729 values outside the table. No table-entry guessing or clamp to row 199. | Header inspection succeeds; decode returns `ContainerCodestreamMismatch` at 0 |
+
+The palette disposition is an explicit bounded output-interpretation policy,
+not a claim that I.5.3.4/5 specifies out-of-range index clamping or that its
+box syntax alone is malformed. No applicable clamping requirement was located
+in the acquired text. Likewise, complete packet-prefix recovery and correctly
+framed missing-EOC recovery remain separate supported operations; these three
+truncations do not reopen their completed scope.
+
+None of the eleven dispositions returns pixels or pretends to reproduce a full
+original image. Any future partial-quality recovery needs a defined input/
+effect/report boundary, independent partial-quality controls and unchanged
+resource/refusal behavior before admission. The existing input, work, storage
+and error-order checks remain; no limit is renewed on an arbitrary retry.
+See the [proof boundaries](PROOFS.md#poc-endpoint-intersection-and-authoritative-jp2-image-header)
+and [acquired-edition disclosure](REFERENCES.md). This is not certification
+against the newer selected normative editions.
+
 ## Selection
 
 Selected APIs accept a tile index or a unique rectangular tile set, an absolute
