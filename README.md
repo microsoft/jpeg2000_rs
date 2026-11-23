@@ -13,20 +13,19 @@ part of that bounded maintenance release. The decoder manifest permits only
 crates.io publication; an upload still requires exact source/archive
 qualification and separately approved tag and publication requests.
 
-Version 0.2.2 adds verified performance improvements, valid empty-axis and
-mixed-resolution spatial-packet fixes, reserved header-marker handling,
-PIMA e-sRGB conversion, and narrow reported compatibility recovery.
+Version 0.2.3 adds verified wavelet and legacy Tier-1 optimizations, valid
+multipart POC and JP2 header handling, and supported HT/single-image JPX
+routing through the PDF-compatible APIs. It retains the earlier empty-axis,
+spatial-packet, reserved-marker, PIMA e-sRGB and bounded recovery fixes.
 Irreversible numerical conventions are unchanged: known sample-intensity
 differences from OpenJPEG remain, and exact PDFium full-page rendering parity
-is not claimed. See the [0.2.2 notes](RELEASING.md#experimental-022-patch-release)
+is not claimed. See the [0.2.3 notes](RELEASING.md#experimental-023-patch-release)
 for the integration and validation boundaries.
 
-This branch additionally carries an **unpublished combined backport** of the
-subsequent wavelet/Tier-1 optimizations, OpenJPEG/PDF compatibility fixes, and
-consumer/compiler-audit tooling from main, including the canonical-result
-auditor follow-up. These changes are not in the published 0.2.2 archive.
-The package version and publication policy are unchanged; a future release
-still requires separate exact-candidate qualification and authorization.
+The release source also carries the OpenJPEG-compatible adapter fixes and
+consumer/compiler-audit tooling, including the canonical-result auditor.
+The adapters remain separate unpublished workspace packages. Historical
+consumer measurements are not new or additive 0.2.3 performance claims.
 
 The library decodes raw codestreams and JP2/JPH containers, provides explicit
 JPX codestream and frame selection, and supports bounded JPIP databin
