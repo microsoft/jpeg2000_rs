@@ -177,6 +177,18 @@ class DriverControls(unittest.TestCase):
         self.assertFalse(self.output.exists())
         self.assertIn("unqualified Verus compiler commit", result.stderr)
 
+    def test_version_delegation_also_requires_the_pinned_compiler(self):
+        root = self.root / "different-version"
+        root.mkdir()
+        (root / "version.json").write_text(json.dumps({"verus": {"commit": "wrong"}}))
+        result = subprocess.run(
+            [str(OPTIONS.driver), "--version"],
+            env={**os.environ, "VERUS_ROOT": str(root), "LD_LIBRARY_PATH": str(OPTIONS.sdk_lib)},
+            capture_output=True, text=True, timeout=120,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unqualified Verus compiler commit", result.stderr)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)

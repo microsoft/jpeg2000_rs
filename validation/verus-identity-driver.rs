@@ -9,6 +9,11 @@ use std::io::Write;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut arguments: Vec<String> = std::env::args().collect();
     let verus_root = rust_verify::driver::find_verusroot().ok_or("missing pinned Verus root")?;
+    let version: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(verus_root.path.join("version.json"))?)?;
+    if version["verus"]["commit"] != "426d8b01e7ffb910a36c15e1f870ff985bb61eef" {
+        return Err("unqualified Verus compiler commit".into());
+    }
     let target_crate = std::env::var("JPEG2000_NAMES_CRATE").ok();
     let invocation_crate = arguments
         .windows(2)
@@ -35,11 +40,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output = std::env::var("JPEG2000_NAMES_OUTPUT")?;
     let program = arguments.remove(0);
     let root = &verus_root.path;
-    let version: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(root.join("version.json"))?)?;
-    if version["verus"]["commit"] != "426d8b01e7ffb910a36c15e1f870ff985bb61eef" {
-        return Err("unqualified Verus compiler commit".into());
-    }
     let captured_arguments = arguments.clone();
     let mut dep_tracker = rust_verify::cargo_verus_dep_tracker::DepTracker::init();
     let via_cargo = dep_tracker.compare_env(rust_verify::cargo_verus::VERUS_DRIVER_VIA_CARGO, "1");
