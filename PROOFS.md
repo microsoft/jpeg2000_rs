@@ -6372,6 +6372,15 @@ accumulation while retaining the exact original payload fold and partial reader
 state on errors. The inlined MagSgn bit reader still performs its original
 byte-stuffing, physical/fill accounting and checked work-limit transitions.
 
+The resident physical-byte experiment batches three or more bits in that
+word payload loop. It proves the masked digit, sign, exponent and complete
+reader state equivalent to repeatedly applying the original numeric fold.
+Admission uses only the current byte's established stuffing limit and checks
+both physical-count overflow and work before any mutation. Refills, virtual
+fill, short spans, insufficient budget and wider payloads still use the
+checked bit path. MagSgn operates on a separate substream; the MEL/VLC
+claims and their ordering are unchanged.
+
 ### Guarded native neighbor aggregation
 
 Tier 1 neighbor summaries can aggregate significant/sign flags from three
