@@ -325,6 +325,21 @@ static void test_lenient_ht(int boxed, int indexed) {
     close_decoder(&d);
 }
 
+static void test_lenient_jpx(int baseline, int indexed) {
+    struct Bytes stream = codestream(0, 0, 1, 1, 1, 1, 0);
+    struct Bytes input = jp2(&stream, 1, 17, 0);
+    const char *brand = baseline ? "jpxb" : "jpx ";
+    memcpy(input.data + 20, brand, 4);
+    memcpy(input.data + 28, brand, 4);
+    struct Decoder d;
+    open_decoder(&d, &input, 1, indexed, 1, 0);
+    assert(opj_decode(d.codec, d.stream, d.image));
+    assert(d.image->numcomps == 1 && d.image->comps[0].data[0] == 128);
+    assert(opj_end_decompress(d.codec, d.stream));
+    assert(d.errors == 0);
+    close_decoder(&d);
+}
+
 int main(void) {
     test_origin(1, 0);
     test_origin(2, 0);
@@ -338,6 +353,9 @@ int main(void) {
     for (int boxed = 0; boxed <= 2; ++boxed)
         for (int indexed = 0; indexed <= 1; ++indexed)
             test_lenient_ht(boxed, indexed);
-    puts("16 OpenJPEG adapter regression cases passed");
+    for (int baseline = 0; baseline <= 1; ++baseline)
+        for (int indexed = 0; indexed <= 1; ++indexed)
+            test_lenient_jpx(baseline, indexed);
+    puts("20 OpenJPEG adapter regression cases passed");
     return 0;
 }

@@ -24,8 +24,15 @@ pub(crate) open spec fn part2_pdf_ht_announcement(input: Seq<u8>) -> bool {
 
 pub(crate) open spec fn part2_pdf_ordinary_input(original: Seq<u8>, file: Option<Part2RawJp2File>) -> bool {
     part2_pdf_ht_announcement(original) || match file {
-        None => false, Some(value) => part2_file_type_compatible(value.file_type, crate::jp2::BoxType::JPH_BRAND),
+        None => false, Some(value) => part2_file_type_compatible(value.file_type, crate::jp2::BoxType::JPH_BRAND)
+            || part2_pdf_file_is_jpx(value),
     }
+}
+
+pub(crate) open spec fn part2_pdf_file_is_jpx(file: Part2RawJp2File) -> bool {
+    part2_file_type_jpx(file.file_type)
+        && file.file_type.0 != crate::jp2::BoxType::JP2_BRAND
+        && !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JPH_BRAND)
 }
 
 pub(crate) open spec fn part2_pdf_file_profile(file: Part2RawJp2File) -> bool {
@@ -37,8 +44,19 @@ pub(crate) open spec fn part2_pdf_file_profile(file: Part2RawJp2File) -> bool {
         || (file.file_type.0 == crate::jp2::BoxType::JPH_BRAND
             && part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JPH_BRAND)
             && !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JPX_BRAND)
-            && !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JPX_BASELINE_BRAND)))
+            && !part2_file_type_compatible(file.file_type, crate::jp2::BoxType::JPX_BASELINE_BRAND))
+        || part2_pdf_file_is_jpx(file))
         && file.streams.len() == 1
+}
+
+pub(crate) open spec fn part2_pdf_admit_file(input: Seq<u8>, file: Part2RawJp2File, limits: &crate::ResourceLimits)
+    -> Result<Option<Part2RawJp2File>, crate::DecodeError> {
+    if !part2_pdf_file_profile(file) { Err(part2_pdf_invalid_profile()) }
+    else if part2_pdf_file_is_jpx(file) {
+        match part2_pdf_jpx_admission(input, file, *limits) {
+            Err(error) => Err(error), Ok(()) => Ok(Some(file)),
+        }
+    } else { Ok(Some(file)) }
 }
 
 pub(crate) open spec fn part2_pdf_file_value(
@@ -47,7 +65,7 @@ pub(crate) open spec fn part2_pdf_file_value(
     if part2_pdf_raw_input(input) { Ok(None) }
     else { match part2_parse_container(input, *limits) {
         Err(error) => Err(error),
-        Ok(file) => if part2_pdf_file_profile(file) { Ok(Some(file)) } else { Err(part2_pdf_invalid_profile()) },
+        Ok(file) => part2_pdf_admit_file(input, file, limits),
     }}
 }
 
@@ -56,8 +74,7 @@ pub(crate) open spec fn part2_pdf_file_cold_run(
 ) -> Part2ColdRun<Option<Part2RawJp2File>> {
     if part2_pdf_raw_input(input) { Some((Ok(None), events)) }
     else { part2_jpip_snapshot_bind(part2_parse_container_cold_run(input, *limits, events),
-        |file, rest| Some((if part2_pdf_file_profile(file) { Ok(Some(file)) }
-            else { Err(part2_pdf_invalid_profile()) }, rest))) }
+        |file, rest| Some((part2_pdf_admit_file(input, file, limits), rest))) }
 }
 
 pub(crate) proof fn part2_pdf_file_cold_normal(input: Seq<u8>, limits: &crate::ResourceLimits)
@@ -70,13 +87,11 @@ pub(crate) proof fn part2_pdf_file_cold_normal(input: Seq<u8>, limits: &crate::R
         part2_parse_container_cold_normal(input, *limits, Seq::empty());
         part2_parse_container_cold_frames(input, *limits, part2_parse_container(input, *limits));
         if let Ok(file) = part2_parse_container(input, *limits) {
-            part2_cold_pure(if part2_pdf_file_profile(file) { Ok(Some(file)) }
-                else { Err(part2_pdf_invalid_profile()) });
+            part2_cold_pure(part2_pdf_admit_file(input, file, limits));
         }
         part2_cold_bind(
             |events| part2_parse_container_cold_run(input, *limits, events),
-            |file, rest| Some((if part2_pdf_file_profile(file) { Ok(Some(file)) }
-                else { Err(part2_pdf_invalid_profile()) }, rest)),
+            |file, rest| Some((part2_pdf_admit_file(input, file, limits), rest)),
             part2_parse_container(input, *limits), part2_pdf_file_value(input, limits));
     }
 }
@@ -238,8 +253,7 @@ pub(crate) proof fn part2_pdf_prepare_container_error(
     part2_parse_container_cold_frames(input, *limits, Err(error));
     part2_cold_bind(
         |events| part2_parse_container_cold_run(input, *limits, events),
-        |file, rest| Some((if part2_pdf_file_profile(file) { Ok(Some(file)) }
-            else { Err(part2_pdf_invalid_profile()) }, rest)), Err(error), Err(error));
+        |file, rest| Some((part2_pdf_admit_file(input, file, limits), rest)), Err(error), Err(error));
     part2_cold_bind(
         |events| part2_pdf_file_cold_run(input, limits, events),
         |file, rest| part2_pdf_prepare_after_file_run(input, file, limits, rest),
@@ -282,18 +296,43 @@ pub(crate) open spec fn part2_pdf_validate_layout(
     input: Seq<u8>, prepared: Part2PdfPrepared, info: Part2RawCodestreamInfo,
     limits: &crate::ResourceLimits,
 ) -> Result<bool, crate::DecodeError> {
-    if part1_profile_optional_advertises_ht(info.1.2) != prepared.ordinary {
+    let jpx = match prepared.file { None => false, Some(file) => part2_pdf_file_is_jpx(file) };
+    if part1_profile_optional_advertises_ht(info.1.2) != (prepared.ordinary && !jpx) {
         Err(part2_pdf_invalid_profile())
     } else { match prepared.file {
         None => Ok(false),
-        Some(file) => match part2_dimension_validate_header(input, file, info, limits) {
+        Some(file) => if jpx {
+            match part2_jpx_cold_header(part2_raw_jpx_decode_input(file), 0) {
+                Err(error) => Err(error), Ok(value) => match part2_jpx_cold_validate(value.0, value.1, info) {
+                    Err(error) => Err(error), Ok(()) => Ok(false),
+                },
+            }
+        } else { match part2_dimension_validate_header(input, file, info, limits) {
             Err(error) => Err(error), Ok(report) =>
                 if prepared.ordinary && report.ignored_container_dimensions {
                     Err(crate::DecodeError::MalformedInput { offset: 0, kind: crate::MalformedKind::ContainerCodestreamMismatch })
                 } else { Ok(report.ignored_container_dimensions) },
-        },
+        }},
     }}
 }
+
+pub(crate) open spec fn part2_pdf_output_header(prepared: Part2PdfPrepared)
+    -> Result<Option<Part2AssociatedHeader>, crate::DecodeError> {
+    match prepared.file {
+        None => Ok(None), Some(file) => if part2_pdf_file_is_jpx(file) {
+            match part2_jpx_cold_header(part2_raw_jpx_decode_input(file), 0) {
+                Err(error) => Err(error), Ok(value) => Ok(Some(value.1)),
+            }
+        } else { Ok(Some(part2_raw_associated_header(file.header))) },
+    }
+}
+
+pub(crate) proof fn part2_pdf_output_header_admitted(
+    input: Seq<u8>, prepared: Part2PdfPrepared, info: Part2RawCodestreamInfo, limits: &crate::ResourceLimits,
+)
+    requires part2_pdf_validate_layout(input, prepared, info, limits).is_ok(),
+    ensures part2_pdf_output_header(prepared).is_ok(),
+{}
 
 pub(crate) open spec fn part2_pdf_tile_index(
     source: Part2DecoderLayoutInput, requested: Part2DecodeSelection, ordinary: bool,
@@ -432,8 +471,8 @@ pub(crate) open spec fn part2_pdf_typed_finish(
 }
 pub(crate) open spec fn part2_pdf_typed_output(prepared:Part2PdfPrepared,parsed:Part1CompleteLayout,requested:Part2DecodeSelection,
     ignored:bool,chosen:Option<u16>,limits:&crate::ResourceLimits,decoded:Part2TrailerReconstructed,image:Part1DecodedTypedImage)->Result<Part2PdfTyped,crate::DecodeError> {
-    let mapped=match prepared.file {
-        None=>Ok(image),Some(file)=>part2_apply_output_header(image,part2_raw_associated_header(file.header).0,
+    let mapped=match part2_pdf_output_header(prepared) {
+        Err(error)=>Err(error),Ok(None)=>Ok(image),Ok(Some(header))=>part2_apply_output_header(image,header.0,
             crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits)),
     };
     match mapped {
@@ -451,11 +490,13 @@ pub(crate) open spec fn part2_pdf_typed_mapped(prepared:Part2PdfPrepared,parsed:
 pub(crate) open spec fn part2_pdf_typed_output_run(prepared:Part2PdfPrepared,parsed:Part1CompleteLayout,requested:Part2DecodeSelection,
     ignored:bool,chosen:Option<u16>,limits:&crate::ResourceLimits,decoded:Part2TrailerReconstructed,image:Part1DecodedTypedImage,
     events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PdfTyped> {
-    part2_jpip_snapshot_bind(match prepared.file {
-        None=>Some((Ok(image),events)),
-        Some(file)=>part2_apply_output_run(image,part2_raw_associated_header(file.header).0,
+    match part2_pdf_output_header(prepared) {
+        Err(error)=>Some((Err(error),events)),
+        Ok(None)=>Some((part2_pdf_typed_mapped(prepared,parsed,requested,ignored,chosen,limits,decoded,image),events)),
+        Ok(Some(header))=>part2_jpip_snapshot_bind(part2_apply_output_run(image,header.0,
             crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),events),
-    },|mapped:Part1DecodedTypedImage,rest|Some((part2_pdf_typed_mapped(prepared,parsed,requested,ignored,chosen,limits,decoded,mapped),rest)))
+            |mapped:Part1DecodedTypedImage,rest|Some((part2_pdf_typed_mapped(prepared,parsed,requested,ignored,chosen,limits,decoded,mapped),rest))),
+    }
 }
 pub(crate) proof fn part2_pdf_typed_output_normal(prepared:Part2PdfPrepared,parsed:Part1CompleteLayout,requested:Part2DecodeSelection,
     ignored:bool,chosen:Option<u16>,limits:&crate::ResourceLimits,decoded:Part2TrailerReconstructed,image:Part1DecodedTypedImage)
@@ -463,10 +504,11 @@ pub(crate) proof fn part2_pdf_typed_output_normal(prepared:Part2PdfPrepared,pars
         forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PdfTyped>|
             (forall|events| #[trigger] other(events)==part2_pdf_typed_output_run(prepared,parsed,requested,ignored,chosen,limits,decoded,image,events)) ==> #[trigger] part2_cold_framed(other,part2_pdf_typed_output(prepared,parsed,requested,ignored,chosen,limits,decoded,image)),
 {
-    match prepared.file {
-        None=>{part2_cold_pure(part2_pdf_typed_output(prepared,parsed,requested,ignored,chosen,limits,decoded,image));},
-        Some(file)=>{
-            let header=part2_raw_associated_header(file.header).0;
+    match part2_pdf_output_header(prepared) {
+        Err(error)=>{part2_cold_pure::<Part2PdfTyped>(Err(error));},
+        Ok(None)=>{part2_cold_pure(part2_pdf_typed_output(prepared,parsed,requested,ignored,chosen,limits,decoded,image));},
+        Ok(Some(selected_header))=>{
+            let header=selected_header.0;
             let mapped=part2_apply_output_header(image,header,crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));
             part2_apply_output_normal(image,header,crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits));
             if let Ok(value)=mapped{part2_cold_pure(part2_pdf_typed_mapped(prepared,parsed,requested,ignored,chosen,limits,decoded,value));}
@@ -971,18 +1013,18 @@ pub(crate) proof fn part2_pdf_output_error(input:Seq<u8>,prepared:Part2PdfPrepar
         part2_pdf_layout_result(part2_decoder_input_from_raw(parsed),part2_present_tile_requested(chosen,requested),limits,prepared.ordinary,Ok(decoded)),
         part2_typed_layout_result(part2_decoder_input_from_raw(parsed),decoded.0,requested.2,limits,Ok(image)),
         part2_typed_decode_output(part2_pdf_effective_input(prepared).len() as usize,part2_decoder_input_from_raw(parsed),image)==Ok(image),
-        match prepared.file {
-            None=>false,
-            Some(file)=>part2_output_storage_result(Part2OutputStorageContext {image,header:part2_raw_associated_header(file.header).0,
+        match part2_pdf_output_header(prepared) {
+            Ok(Some(header))=>part2_output_storage_result(Part2OutputStorageContext {image,header:header.0,
                 components:crate::limits::resource_component_limit(limits),maximum:crate::limits::resource_decoded_bytes_limit(limits)},Err(error)),
+            _=>false,
         },
     ensures part2_pdf_typed_result(input,requested,limits,Err(error)),
 {
     reveal(part2_pdf_typed_result);
     let bytes=part2_pdf_effective_input(prepared).len() as usize;let source=part2_decoder_input_from_raw(parsed);let selected=part2_present_tile_requested(chosen,requested);
     part2_typed_decode_finish_image(bytes,source,Some(selected),limits,decoded.0,image);
-    if let Some(file)=prepared.file {
-        let header=part2_raw_associated_header(file.header).0;
+    if let Ok(Some(selected_header))=part2_pdf_output_header(prepared) {
+        let header=selected_header.0;
         part2_apply_output_observed(image,header,crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),Err(error));
         part2_cold_bind(|events|part2_apply_output_run(image,header,crate::limits::resource_component_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),events),
             |mapped:Part1DecodedTypedImage,rest|Some((part2_pdf_typed_mapped(prepared,parsed,requested,ignored,chosen,limits,decoded,mapped),rest)),Err(error),Err(error));

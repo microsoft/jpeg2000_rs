@@ -123,6 +123,56 @@ fn ht_announcement(input: &[u8]) -> bool {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_pdf_file_is_jpx(jp2::raw_jp2_file_view(file)),
+))]
+fn jpx_file(file: &jp2::Jp2File<'_>) -> bool {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        jp2::raw_render_file_known(file);
+        reveal(crate::specs::part2_pdf_file_is_jpx);
+    }
+    file.file_type().is_jpx_compatible()
+        && !file.file_type().is_jp2_primary()
+        && !file.file_type().is_jph_compatible()
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures match result {
+        Err(error) => crate::specs::part2_pdf_output_header(prepared_pdf_input_view(prepared)) == Err(error),
+        Ok(header) => crate::specs::part2_pdf_output_header(prepared_pdf_input_view(prepared))
+            == Ok(jp2::associated_header_option(header)),
+    },
+))]
+fn output_header<'p>(
+    prepared: &'p PreparedPdfInput<'_>,
+) -> Result<Option<&'p jp2::Jp2Header>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(prepared_pdf_input_view);
+        reveal(crate::specs::part2_pdf_output_header);
+        reveal(crate::specs::part2_jpx_cold_header);
+    }
+    match &prepared.file {
+        None => Ok(None),
+        Some(file) => {
+            #[cfg(verus_keep_ghost)]
+            proof! { jp2::raw_render_file_known(file); }
+            if jpx_file(file) {
+                let source = file.codestream(0)?;
+                #[cfg(verus_keep_ghost)]
+                proof! { jp2::codestream_source_known_fields(source); }
+                Ok(Some(jp2::associated_header_for_codestream(
+                    source,
+                    file.header(),
+                )?))
+            } else {
+                Ok(Some(file.header()))
+            }
+        }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part2_pdf_prepare_result(input@, crate::options::decode_options_limits(options), prepared_pdf_input_outcome(result)),
         prepared_pdf_input_outcome(result) != Err(DecodeError::AllocationFailed) ==>
             prepared_pdf_input_outcome(result) == crate::specs::part2_pdf_prepare_value(input@, crate::options::decode_options_limits(options)),
@@ -154,8 +204,12 @@ fn prepare_pdf_input<'a>(
             && (!kind.is_jpx_compatible() || kind.is_jp2_primary())
             && !kind.is_jph_compatible();
         let jph = kind.is_jph_primary() && kind.is_jph_compatible() && !kind.is_jpx_compatible();
-        if (!legacy && !jph) || file.codestream_count() != 1 {
+        let jpx = jpx_file(&file);
+        if (!legacy && !jph && !jpx) || file.codestream_count() != 1 {
             return Err(invalid_profile());
+        }
+        if jpx {
+            jp2::validate_pdf_jpx(input, &file, options.limits())?;
         }
         Some(file)
     };
@@ -174,7 +228,7 @@ fn prepare_pdf_input<'a>(
     let ordinary = ht_announcement(original)
         || match &file {
             None => false,
-            Some(file) => file.file_type().is_jph_compatible(),
+            Some(file) => file.file_type().is_jph_compatible() || jpx_file(file),
         };
     if ordinary {
         #[cfg(verus_keep_ghost)]
@@ -235,12 +289,29 @@ fn validate_pdf_layout(
         reveal(prepared_pdf_input_view);
         codestream::complete_codestream_info_known_fields(&layout.info);
     }
-    if layout.info.profile.is_part15() != prepared.ordinary {
+    let jpx = match &prepared.file {
+        None => false,
+        Some(file) => jpx_file(file),
+    };
+    if layout.info.profile.is_part15() != (prepared.ordinary && !jpx) {
         return Err(invalid_profile());
     }
     match &prepared.file {
         None => Ok(false),
         Some(file) => {
+            if jpx {
+                let source = file.codestream(0)?;
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    jp2::raw_render_file_known(file);
+                    jp2::codestream_source_known_fields(source);
+                    reveal(crate::specs::part2_jpx_cold_header);
+                    reveal(crate::specs::part2_jpx_cold_validate);
+                }
+                let header = jp2::associated_header_for_codestream(source, file.header())?;
+                jp2::validate_selected_header(header, &layout.info, source.box_header().offset())?;
+                return Ok(false);
+            }
             let ignored = super::pdf_dimensions::validate_header(
                 input,
                 file,
@@ -451,12 +522,20 @@ fn decode_pdf_compatible_untrimmed(
     }
     let mut image = converted?;
     super::api::validate_part1_output_shape(encoded.len(), &layout, &image)?;
-    if let Some(file) = &prepared.file {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_pdf_output_header_admitted(
+            input@, prepared_pdf_input_view(&prepared),
+            codestream::complete_codestream_info_view(&layout.info),
+            crate::options::decode_options_limits(options));
+    }
+    let selected_header = output_header(&prepared)?;
+    if let Some(header) = selected_header {
         #[cfg(verus_keep_ghost)]
-        proof! { jp2::raw_render_file_known(file); }
+        proof! { jp2::raw_render_header_known(header); }
         #[cfg(verus_keep_ghost)]
         proof_decl! {let ghost output_source=crate::image::typed_image_value_view(image);}
-        let output = apply_jp2_output(image, file.header(), options.limits());
+        let output = apply_jp2_output(image, header, options.limits());
         #[cfg(verus_keep_ghost)]
         proof! {
             if let Err(error)=output {

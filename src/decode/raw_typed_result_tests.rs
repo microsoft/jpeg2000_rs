@@ -581,13 +581,12 @@ fn pdf_common_keeps_headroom_output_metadata_profiles_and_reduced_grids() {
     let mut jpx = jp2_for_codestream(&original, 1, 1);
     jpx.splice(12..32, box32(*b"ftyp", b"jpx \0\0\0\0jp2 jpx "));
     assert!(decode_jp2(&jpx, &options).is_ok());
-    assert!(matches!(
-        crate::decode_pdf_compatible(&jpx, &options, &selection),
-        Err(DecodeError::MalformedInput {
-            kind: MalformedKind::InvalidProfile,
-            ..
-        })
-    ));
+    assert_eq!(
+        crate::decode_pdf_compatible(&jpx, &options, &selection)
+            .unwrap()
+            .image,
+        decode_jpx_codestream_selected(&jpx, 0, &options, &selection).unwrap()
+    );
     let reduced = prepared_codestream(
         8,
         8,
