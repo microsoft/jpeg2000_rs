@@ -53,6 +53,7 @@ struct PreparedPdfInput<'a> {
     original: &'a [u8],
     repaired: Option<Vec<u8>>,
     preflight_work: u64,
+    ordinary: bool,
 }
 
 #[cfg(verus_keep_ghost)]
@@ -67,6 +68,7 @@ verus! {
             original: value.original@,
             repaired: match value.repaired { None => None, Some(bytes) => Some(bytes@) },
             preflight_work: value.preflight_work,
+            ordinary: value.ordinary,
         }
     }
 
@@ -109,6 +111,68 @@ fn invalid_profile() -> DecodeError {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_pdf_ht_announcement(input@),
+))]
+fn ht_announcement(input: &[u8]) -> bool {
+    input.len() >= 8
+        && input[0] == 0xff
+        && input[1] == 0x4f
+        && input[2] == 0xff
+        && input[3] == 0x51
+        && input[6] & 0x40 != 0
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_pdf_file_is_jpx(jp2::raw_jp2_file_view(file)),
+))]
+fn jpx_file(file: &jp2::Jp2File<'_>) -> bool {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        jp2::raw_render_file_known(file);
+        reveal(crate::specs::part2_pdf_file_is_jpx);
+    }
+    file.file_type().is_jpx_compatible()
+        && !file.file_type().is_jp2_primary()
+        && !file.file_type().is_jph_compatible()
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures match result {
+        Err(error) => crate::specs::part2_pdf_output_header(prepared_pdf_input_view(prepared)) == Err(error),
+        Ok(header) => crate::specs::part2_pdf_output_header(prepared_pdf_input_view(prepared))
+            == Ok(jp2::associated_header_option(header)),
+    },
+))]
+fn output_header<'p>(
+    prepared: &'p PreparedPdfInput<'_>,
+) -> Result<Option<&'p jp2::Jp2Header>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(prepared_pdf_input_view);
+        reveal(crate::specs::part2_pdf_output_header);
+        reveal(crate::specs::part2_jpx_cold_header);
+    }
+    match &prepared.file {
+        None => Ok(None),
+        Some(file) => {
+            #[cfg(verus_keep_ghost)]
+            proof! { jp2::raw_render_file_known(file); }
+            if jpx_file(file) {
+                let source = file.codestream(0)?;
+                #[cfg(verus_keep_ghost)]
+                proof! { jp2::codestream_source_known_fields(source); }
+                Ok(Some(jp2::associated_header_for_codestream(
+                    source,
+                    file.header(),
+                )?))
+            } else {
+                Ok(Some(file.header()))
+            }
+        }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part2_pdf_prepare_result(input@, crate::options::decode_options_limits(options), prepared_pdf_input_outcome(result)),
         prepared_pdf_input_outcome(result) != Err(DecodeError::AllocationFailed) ==>
             prepared_pdf_input_outcome(result) == crate::specs::part2_pdf_prepare_value(input@, crate::options::decode_options_limits(options)),
@@ -136,12 +200,16 @@ fn prepare_pdf_input<'a>(
         #[cfg(verus_keep_ghost)]
         proof! { jp2::raw_render_file_known(&file); }
         let kind = file.file_type();
-        if !kind.is_compatible_with(jp2::BoxType::JP2_BRAND)
-            || (kind.is_jpx_compatible() && !kind.is_jp2_primary())
-            || kind.is_jph_compatible()
-            || file.codestream_count() != 1
-        {
+        let legacy = kind.is_compatible_with(jp2::BoxType::JP2_BRAND)
+            && (!kind.is_jpx_compatible() || kind.is_jp2_primary())
+            && !kind.is_jph_compatible();
+        let jph = kind.is_jph_primary() && kind.is_jph_compatible() && !kind.is_jpx_compatible();
+        let jpx = jpx_file(&file);
+        if (!legacy && !jph && !jpx) || file.codestream_count() != 1 {
             return Err(invalid_profile());
+        }
+        if jpx {
+            jp2::validate_pdf_jpx(input, &file, options.limits())?;
         }
         Some(file)
     };
@@ -157,6 +225,26 @@ fn prepare_pdf_input<'a>(
         None => input,
         Some(file) => file.codestream(0)?.data(),
     };
+    let ordinary = ht_announcement(original)
+        || match &file {
+            None => false,
+            Some(file) => file.file_type().is_jph_compatible() || jpx_file(file),
+        };
+    if ordinary {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_pdf_prepare_ordinary_actual(
+                input@, crate::options::decode_options_limits(options), file_value);
+            reveal(prepared_pdf_input_view);
+        }
+        return Ok(PreparedPdfInput {
+            file,
+            original,
+            repaired: None,
+            preflight_work: 0,
+            ordinary,
+        });
+    }
     let frame = codestream::recovery_framing(original, options.limits())?;
     let repaired = if frame.append_eoc {
         crate::recovery::admit_repair(original.len(), frame.work_units, options.limits())?;
@@ -182,6 +270,7 @@ fn prepare_pdf_input<'a>(
         original,
         repaired,
         preflight_work: frame.work_units,
+        ordinary,
     })
 }
 
@@ -200,18 +289,95 @@ fn validate_pdf_layout(
         reveal(prepared_pdf_input_view);
         codestream::complete_codestream_info_known_fields(&layout.info);
     }
-    if layout.info.profile.is_part15() {
+    let jpx = match &prepared.file {
+        None => false,
+        Some(file) => jpx_file(file),
+    };
+    if layout.info.profile.is_part15() != (prepared.ordinary && !jpx) {
         return Err(invalid_profile());
     }
     match &prepared.file {
         None => Ok(false),
-        Some(file) => Ok(super::pdf_dimensions::validate_header(
-            input,
-            file,
-            &layout.info,
-            options.limits(),
-        )?
-        .ignored_container_dimensions),
+        Some(file) => {
+            if jpx {
+                let source = file.codestream(0)?;
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    jp2::raw_render_file_known(file);
+                    jp2::codestream_source_known_fields(source);
+                    reveal(crate::specs::part2_jpx_cold_header);
+                    reveal(crate::specs::part2_jpx_cold_validate);
+                }
+                let header = jp2::associated_header_for_codestream(source, file.header())?;
+                jp2::validate_selected_header(header, &layout.info, source.box_header().offset())?;
+                return Ok(false);
+            }
+            let ignored = super::pdf_dimensions::validate_header(
+                input,
+                file,
+                &layout.info,
+                options.limits(),
+            )?
+            .ignored_container_dimensions;
+            if prepared.ordinary && ignored {
+                return Err(DecodeError::malformed(
+                    0,
+                    MalformedKind::ContainerCodestreamMismatch,
+                ));
+            }
+            Ok(ignored)
+        }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_pdf_layout_result(
+        codestream::decoder_layout_input_view(layout), crate::options::decode_selection_view(selected),
+        limits, ordinary, super::pdf_trailers::trailer_layout_outcome(result)),
+        super::pdf_trailers::trailer_layout_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            super::pdf_trailers::trailer_layout_outcome(result) == crate::specs::part2_pdf_layout_value(
+                codestream::decoder_layout_input_view(layout), crate::options::decode_selection_view(selected),
+                limits, ordinary),
+))]
+fn decode_pdf_layout(
+    layout: &CodestreamLayout<'_>,
+    selected: &DecodeSelection,
+    limits: &ResourceLimits,
+    ordinary: bool,
+) -> Result<(DecodedImage, super::pdf_trailers::TileTrailerRecoveryReport), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::decoder_layout_input_fields(layout);
+        reveal(crate::specs::part2_pdf_layout_result);
+        reveal(crate::specs::part2_pdf_layout_value);
+        reveal(crate::specs::part2_decode_layout_selected);
+    }
+    if ordinary {
+        let decoded = super::execution::decode_layout_selected(layout, selected, limits);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_pdf_layout_ordinary_actual(
+                codestream::decoder_layout_input_view(layout),
+                crate::options::decode_selection_view(selected), limits,
+                crate::image::decoded_image_outcome(decoded));
+        }
+        let image = decoded?;
+        Ok((
+            image,
+            super::pdf_trailers::TileTrailerRecoveryReport {
+                discarded_tile_trailer_bytes: 0,
+            },
+        ))
+    } else {
+        let decoded = super::pdf_trailers::decode_trailer_layout(layout, selected, limits);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_pdf_layout_trailer_actual(
+                codestream::decoder_layout_input_view(layout),
+                crate::options::decode_selection_view(selected), limits,
+                super::pdf_trailers::trailer_layout_outcome(decoded));
+        }
+        decoded
     }
 }
 
@@ -302,19 +468,29 @@ fn decode_pdf_compatible_untrimmed(
         codestream::decoder_layout_complete_info_matches_raw(&layout);
     }
     let ignored = validate_pdf_layout(input, &prepared, &layout, options)?;
-    let chosen = automatic_tile(&layout, requested)?;
+    let chosen = if prepared.ordinary {
+        None
+    } else {
+        automatic_tile(&layout, requested)?
+    };
     let adjusted = effective_selection(chosen, requested);
     let selected = match &adjusted {
         None => requested,
         Some(value) => value,
     };
     #[cfg(any(not(feature = "pdf-mq-recovery"), verus_keep_ghost))]
-    let decoded_result =
-        super::pdf_trailers::decode_trailer_layout(&layout, selected, options.limits());
+    let decoded_result = decode_pdf_layout(&layout, selected, options.limits(), prepared.ordinary);
     #[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
-    let ((decoded, trailer), empty_mq_prefixes) = crate::pdf_mq::with_policy(|| {
-        super::pdf_trailers::decode_trailer_layout(&layout, selected, options.limits())
-    })?;
+    let ((decoded, trailer), empty_mq_prefixes) = if prepared.ordinary {
+        (
+            decode_pdf_layout(&layout, selected, options.limits(), true)?,
+            0,
+        )
+    } else {
+        crate::pdf_mq::with_policy(|| {
+            decode_pdf_layout(&layout, selected, options.limits(), false)
+        })?
+    };
     #[cfg(verus_keep_ghost)]
     proof! {
         if let Ok(raw) = crate::specs::part1_parse_layout(encoded@, crate::options::decode_options_limits(options)) {
@@ -346,12 +522,20 @@ fn decode_pdf_compatible_untrimmed(
     }
     let mut image = converted?;
     super::api::validate_part1_output_shape(encoded.len(), &layout, &image)?;
-    if let Some(file) = &prepared.file {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_pdf_output_header_admitted(
+            input@, prepared_pdf_input_view(&prepared),
+            codestream::complete_codestream_info_view(&layout.info),
+            crate::options::decode_options_limits(options));
+    }
+    let selected_header = output_header(&prepared)?;
+    if let Some(header) = selected_header {
         #[cfg(verus_keep_ghost)]
-        proof! { jp2::raw_render_file_known(file); }
+        proof! { jp2::raw_render_header_known(header); }
         #[cfg(verus_keep_ghost)]
         proof_decl! {let ghost output_source=crate::image::typed_image_value_view(image);}
-        let output = apply_jp2_output(image, file.header(), options.limits());
+        let output = apply_jp2_output(image, header, options.limits());
         #[cfg(verus_keep_ghost)]
         proof! {
             if let Err(error)=output {
@@ -432,19 +616,29 @@ fn decode_pdf_reconstructed_untrimmed(
         codestream::decoder_layout_complete_info_matches_raw(&layout);
     }
     let ignored = validate_pdf_layout(input, &prepared, &layout, options)?;
-    let chosen = automatic_tile(&layout, requested)?;
+    let chosen = if prepared.ordinary {
+        None
+    } else {
+        automatic_tile(&layout, requested)?
+    };
     let adjusted = effective_selection(chosen, requested);
     let selected = match &adjusted {
         None => requested,
         Some(value) => value,
     };
     #[cfg(any(not(feature = "pdf-mq-recovery"), verus_keep_ghost))]
-    let decoded_result =
-        super::pdf_trailers::decode_trailer_layout(&layout, selected, options.limits());
+    let decoded_result = decode_pdf_layout(&layout, selected, options.limits(), prepared.ordinary);
     #[cfg(all(feature = "pdf-mq-recovery", not(verus_keep_ghost)))]
-    let ((image, trailer), empty_mq_prefixes) = crate::pdf_mq::with_policy(|| {
-        super::pdf_trailers::decode_trailer_layout(&layout, selected, options.limits())
-    })?;
+    let ((image, trailer), empty_mq_prefixes) = if prepared.ordinary {
+        (
+            decode_pdf_layout(&layout, selected, options.limits(), true)?,
+            0,
+        )
+    } else {
+        crate::pdf_mq::with_policy(|| {
+            decode_pdf_layout(&layout, selected, options.limits(), false)
+        })?
+    };
     #[cfg(verus_keep_ghost)]
     proof! {
         if let Ok(raw) = crate::specs::part1_parse_layout(encoded@, crate::options::decode_options_limits(options)) {
@@ -804,7 +998,7 @@ fn count_repair_base(
 ) -> Result<usize, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { reveal(prepared_pdf_input_view); }
-    if prepared.repaired.is_some() {
+    if prepared.repaired.is_some() || prepared.ordinary {
         return Err(error);
     }
     match &prepared.file {

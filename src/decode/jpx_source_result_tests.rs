@@ -43,6 +43,183 @@ fn single_image_jpx_routing_control() -> (Vec<u8>, Vec<u8>, Vec<u8>) {
     (codestream, jp2, jpx)
 }
 
+fn replace_jpx_fixture_box(input: &[u8], kind: jp2::BoxType, payload: &[u8]) -> Vec<u8> {
+    let mut reader = jp2::BoxReader::new(input, &ResourceLimits::default()).unwrap();
+    let mut output = Vec::new();
+    while let Some(item) = reader.next_box_ref() {
+        let item = item.unwrap();
+        if item.header.box_type().equals(kind) {
+            output.extend(box32(kind.bytes(), payload));
+        } else {
+            let start = item.header.offset() as usize;
+            output.extend_from_slice(&input[start..start + item.header.total_length() as usize]);
+        }
+    }
+    output
+}
+
+#[test]
+fn pdf_jpx_routes_selected_samples_and_associated_palette_without_changing_jp2() {
+    let (raw, jp2, jpx) = single_image_jpx_routing_control();
+    let options = DecodeOptions::default();
+    for selection in [
+        DecodeSelection::full_image(),
+        DecodeSelection::full_image().with_region(crate::ImageRegion::new(1, 0, 2, 2)),
+    ] {
+        let expected = decode_jpx_codestream_selected(&jpx, 0, &options, &selection).unwrap();
+        let actual = crate::decode_pdf_compatible(&jpx, &options, &selection).unwrap();
+        assert_eq!(actual.image, expected);
+        assert_eq!(actual.recovery.preflight_work_units, 0);
+        assert!(!actual.recovery.appended_eoc);
+        assert_eq!(
+            crate::decode_pdf_reconstructed(&jpx, &options, &selection)
+                .unwrap()
+                .image,
+            decode_codestream_reconstructed_selected(&raw, &options, &selection).unwrap()
+        );
+    }
+    assert!(decode_jp2_selected(&jpx, &options, &DecodeSelection::full_image()).is_err());
+    let inspected = crate::inspect_pdf_compatible(&jpx, &options).unwrap();
+    assert_eq!(
+        (inspected.image_size.width, inspected.image_size.height),
+        (3, 2)
+    );
+
+    let mut reader = jp2::BoxReader::new(&jp2, options.limits()).unwrap();
+    let mut associated = Vec::new();
+    while let Some(item) = reader.next_box_ref() {
+        let item = item.unwrap();
+        if item.header.box_type().equals(jp2::BoxType::JP2_HEADER) {
+            associated.extend_from_slice(item.payload);
+        }
+    }
+    let mut palette = vec![1, 0, 3, 7, 7, 7];
+    for value in 0..=u8::MAX {
+        palette.extend_from_slice(&[255 - value, value, value ^ 0x55]);
+    }
+    associated.extend(box32(*b"pclr", &palette));
+    associated.extend(box32(*b"cmap", &[0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 2]));
+    let mapped = replace_jpx_fixture_box(&jpx, jp2::BoxType::CODESTREAM_HEADER, &associated);
+    let expected =
+        decode_jpx_codestream_selected(&mapped, 0, &options, &DecodeSelection::full_image())
+            .unwrap();
+    let actual =
+        crate::decode_pdf_compatible(&mapped, &options, &DecodeSelection::full_image()).unwrap();
+    assert_eq!(actual.image, expected);
+    assert_eq!(
+        actual.image.component(0).unwrap().samples(),
+        &TypedSamples::Unsigned(vec![255, 127, 0, 248, 213, 61])
+    );
+}
+
+#[test]
+fn pdf_jpx_honors_reader_masks_widths_and_required_features() {
+    let (_, _, jpx) = single_image_jpx_routing_control();
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let expected = decode_jpx_codestream_selected(&jpx, 0, &options, &selection).unwrap();
+    for width in [1_u8, 2, 4, 8] {
+        let mut mask = vec![0; usize::from(width)];
+        mask[0] = 0x80;
+        let mut required = vec![width];
+        required.extend_from_slice(&mask);
+        required.extend_from_slice(&mask);
+        required.extend_from_slice(&[0, 1, 0, 5]);
+        required.extend_from_slice(&mask);
+        required.extend_from_slice(&[0, 0]);
+        let input = replace_jpx_fixture_box(&jpx, jp2::BoxType::READER_REQUIREMENTS, &required);
+        assert_eq!(
+            crate::decode_pdf_compatible(&input, &options, &selection)
+                .unwrap()
+                .image,
+            expected
+        );
+        let feature = 1 + usize::from(width) * 2 + 2;
+        required[feature..feature + 2].copy_from_slice(&7_u16.to_be_bytes());
+        let unsupported =
+            replace_jpx_fixture_box(&jpx, jp2::BoxType::READER_REQUIREMENTS, &required);
+        assert!(matches!(
+            crate::inspect_pdf_compatible(&unsupported, &options),
+            Err(DecodeError::UnsupportedFeature { .. })
+        ));
+        assert!(matches!(
+            crate::decode_pdf_compatible(&unsupported, &options, &selection),
+            Err(DecodeError::UnsupportedFeature { .. })
+        ));
+        required.pop();
+        let truncated = replace_jpx_fixture_box(&jpx, jp2::BoxType::READER_REQUIREMENTS, &required);
+        assert!(matches!(
+            crate::inspect_pdf_compatible(&truncated, &options),
+            Err(DecodeError::MalformedInput {
+                kind: MalformedKind::InvalidBoxContents,
+                ..
+            })
+        ));
+    }
+    let budget = replace_jpx_fixture_box(
+        &jpx,
+        jp2::BoxType::READER_REQUIREMENTS,
+        &[1, 128, 128, 16, 0],
+    );
+    let limited = DecodeOptions::new(
+        ResourceLimits::default()
+            .with_maximum_work_units(1024)
+            .unwrap(),
+    );
+    assert!(matches!(
+        crate::inspect_pdf_compatible(&budget, &limited),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn pdf_jpx_refuses_ambiguous_composition_and_preserves_allocation_errors() {
+    let (stream, jp2, jpx) = single_image_jpx_routing_control();
+    let options = DecodeOptions::default();
+    let selection = DecodeSelection::full_image();
+    let mut multiple = replace_jpx_fixture_box(&jp2, jp2::BoxType::FILE_TYPE, b"jpx \0\0\0\0jpx ");
+    multiple.extend(box32(*b"jp2c", &stream));
+    assert_eq!(
+        jp2::parse(&multiple, options.limits())
+            .unwrap()
+            .codestream_count(),
+        2
+    );
+    assert!(crate::inspect_pdf_compatible(&multiple, &options).is_err());
+    let mut dimensions = 2_u32.to_be_bytes().to_vec();
+    dimensions.extend_from_slice(&3_u32.to_be_bytes());
+    dimensions.push(0);
+    let mut composition = box32(*b"copt", &dimensions);
+    composition.extend(box32(
+        *b"inst",
+        &[0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    ));
+    let mut composed = jpx.clone();
+    let position = jpx
+        .windows(8)
+        .position(|box_header| &box_header[4..8] == b"jp2c")
+        .unwrap();
+    composed.splice(position..position, box32(*b"comp", &composition));
+    assert!(
+        jp2::parse(&composed, options.limits())
+            .unwrap()
+            .has_composition()
+    );
+    assert!(matches!(
+        crate::inspect_pdf_compatible(&composed, &options),
+        Err(DecodeError::UnsupportedFeature { .. })
+    ));
+    assert_eq!(
+        crate::allocation::with_refusal(0, || crate::decode_pdf_compatible(
+            &jpx, &options, &selection
+        )),
+        Err(DecodeError::AllocationFailed)
+    );
+}
+
 #[test]
 fn single_image_jpx_routes_explicit_typed_selected_color_and_layer_output() {
     let (codestream, jp2, jpx) = single_image_jpx_routing_control();

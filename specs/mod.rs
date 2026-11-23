@@ -279,6 +279,8 @@ mod pdf_compat;
 pub use pdf_compat::*;
 mod progression_coverage;
 pub(crate) use progression_coverage::*;
+mod pdf_jpx;
+pub(crate) use pdf_jpx::*;
 mod pdf_eol;
 pub use pdf_eol::*;
 mod pdf_tile_count;
