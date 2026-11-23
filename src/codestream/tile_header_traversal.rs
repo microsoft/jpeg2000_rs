@@ -185,7 +185,7 @@ impl<'a> Parser<'a> {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures crate::specs::part1_tile_progression_payload_storage_result(
                 parser_view(old(self)), tile_header_accumulator_view(old(raw)),
-                segment_view(segment), components, tile_part_index,
+                segment_view(segment), components, _tile_part_index,
                 packet_lengths_view(&main_lengths), packed_packet_headers_view(&main_headers),
                 (result, parser_view(final(self)), tile_header_accumulator_view(final(raw)))),
     ))]
@@ -194,7 +194,7 @@ impl<'a> Parser<'a> {
         raw: &mut TileHeaderAccumulator<'a>,
         segment: Segment<'a>,
         components: u16,
-        tile_part_index: u8,
+        _tile_part_index: u8,
         main_lengths: PacketLengths<'a>,
         main_headers: PackedPacketHeaders<'a>,
     ) -> Result<(), DecodeError> {
@@ -272,7 +272,7 @@ impl<'a> Parser<'a> {
                 self.apply_tile_header_packet_segment(raw, segment, main_lengths, main_headers)?
             }
             POC => {
-                if raw.poc_seen || tile_part_index != 0 {
+                if raw.poc_seen {
                     return Err(DecodeError::malformed(
                         self.offset(segment.offset),
                         MalformedKind::InvalidMarkerOrder,
@@ -283,7 +283,7 @@ impl<'a> Parser<'a> {
                 #[cfg(verus_keep_ghost)]
                 proof! {
                     crate::specs::part1_tile_progression_payload_storage_leaf(
-                        cold_reader, cold_raw, segment_view(segment), components,
+                        cold_reader, cold_raw, segment_view(segment), components, _tile_part_index,
                         packet_lengths_view(&main_lengths), packed_packet_headers_view(&main_headers),
                         parsed_progression_outcome(parsed));
                 }

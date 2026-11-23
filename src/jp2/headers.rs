@@ -577,12 +577,6 @@ pub(super) fn parse_jp2_header_profile(
             || DecodeError::malformed(base_offset, MalformedKind::ArithmeticOverflow),
         )?;
         let box_type = box_ref.header.box_type();
-        if box_type.equals(BoxType::IMAGE_HEADER) {
-            return Err(DecodeError::malformed(
-                add_offset(base_offset, box_ref.header.offset())?,
-                MalformedKind::InvalidBoxOrder,
-            ));
-        }
         if box_type.equals(BoxType::BITS_PER_COMPONENT) {
             if saw_bpcc {
                 return Err(DecodeError::malformed(

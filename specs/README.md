@@ -47,6 +47,17 @@ model-to-standard review remains outstanding.
   Normal projections and exact unconsumed tails are separate from physical
   allocator availability.
 
+The bounded [compact legacy prototype](compact_legacy.rs) has a physical
+word-to-raw-plane projection and an
+[additional scratch-capacity program](cold_compact_legacy.rs). Its actual
+cache/context and pass refinements use private bitplane-frontier invariants.
+Checked [store and error frames](compact_legacy_frames.rs) separate physical-wide
+preservation, packed-plane substitution and ordinary/cold error continuations;
+the executing scheduled-pass helper still exceeds the unchanged default verifier
+resource limit. Its small driver verifies only against that pending contract.
+Whole-block establishment/composition and outer cold-caller proofs are pending;
+helper contracts and native parity tests do not qualify adoption.
+
 Here is the current document basis; none of these rows means "conformance
 certified."
 

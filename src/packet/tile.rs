@@ -1270,6 +1270,13 @@ pub(super) fn run_progression_tile_packets<'a, 'data>(
         proof_decl! {let ghost prior=progression_tile_execution_view(precincts,p);}
         #[cfg(verus_keep_ghost)]
         proof! {reveal(crate::specs::part1_tile_run);}
+        advance_progression_tile_part(params, p)?;
+        if p.current_tile_part == params.tile_parts.len()
+            && p.packets == params.grid.packet_count
+            && all_progression_packets_seen(&p.seen)
+        {
+            return Ok(());
+        }
         let coordinate = match p.iterator.next_packet()? {
             Some(coordinate) => coordinate,
             None => return Ok(()),
@@ -1286,19 +1293,6 @@ pub(super) fn run_progression_tile_packets<'a, 'data>(
             #[cfg(verus_keep_ghost)]
             proof! {crate::specs::part2_plane_tile_run_continue(progression_tile_parameters_view(params),prior,progression_tile_execution_view(precincts,p));}
             continue;
-        }
-        let (changed, more) = advance_progression_tile_part(params, p)?;
-        if changed {
-            if more {
-                #[cfg(verus_keep_ghost)]
-                proof! {crate::specs::part2_plane_tile_run_continue(progression_tile_parameters_view(params),prior,progression_tile_execution_view(precincts,p));}
-                continue;
-            } else {
-                omit_progression_packet(params, p, coordinate, precincts.len())?;
-                #[cfg(verus_keep_ghost)]
-                proof! {crate::specs::part2_plane_tile_run_continue(progression_tile_parameters_view(params),prior,progression_tile_execution_view(precincts,p));}
-                continue;
-            }
         }
         #[cfg(verus_keep_ghost)]
         proof_decl! {let ghost before_packet=progression_tile_execution_view(precincts,p);}

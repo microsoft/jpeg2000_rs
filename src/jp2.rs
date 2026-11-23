@@ -310,7 +310,10 @@ pub(crate) use container::{
 pub use container::{inspect_jph, parse, parse_and_inspect};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod headers;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod pdf_jpx;
 use headers::{parse_bit_depth, parse_codestream_header, parse_jp2_header_profile};
+pub(crate) use pdf_jpx::validate as validate_pdf_jpx;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod metadata;
 use metadata::{copy_bytes, inspect_metadata_box, parse_resolution_superbox};

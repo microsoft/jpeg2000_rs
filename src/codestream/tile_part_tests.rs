@@ -570,6 +570,7 @@ fn actual_tile_part_raw_counts_full_physical_tails_metadata_and_returned_tuple()
                 part2_extensions: extensions.clone(),
                 packet_lengths: lengths,
                 packed_packet_headers: headers,
+                has_progression_marker: false,
                 has_functional_header_marker: false,
                 has_roi_marker: false,
                 data: &input[2..4],

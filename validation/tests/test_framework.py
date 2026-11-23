@@ -318,6 +318,121 @@ class FrameworkTests(WorkingFiles):
             ("== crate::specs::part2_owned_layer_input(", "== crate::specs::unlisted_model("),
         ))
 
+    def test_inventory_binds_compact_word_result_projection_and_actual_input(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part1-unqualified-compact-legacy-prototype"
+        ]
+        coverage["requirements"][0]["contract_refs"] = [{
+            "path": "src/tier1/compact_legacy.rs", "symbol": "unpack_word",
+        }]
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        self._assert_contract_text_mutations(coverage, (
+            ("super::coefficient_raw_view(result)", "super::coefficient_raw_view(unrelated)"),
+            ("crate::specs::compact_coefficient(value)", "crate::specs::compact_coefficient(0)"),
+            ("crate::specs::compact_coefficient(value)", "crate::specs::compact_flag_summary(value)"),
+            ("ensures super::coefficient_raw_view", "requires false, ensures super::coefficient_raw_view"),
+        ))
+
+    def test_inventory_binds_compact_word_bounds_and_all_coded_arguments(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part1-unqualified-compact-legacy-prototype"
+        ]
+        words = {"unpack_word", "mark_word", "cache_word", "refine_word", "word_flag_summary"}
+        coverage["requirements"][0]["contract_refs"] = [
+            ref for ref in coverage["requirements"][0]["contract_refs"] if ref["symbol"] in words
+        ]
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        self._assert_contract_text_mutations(coverage, (
+            ("compact_mark_word(value,bp,negative)", "compact_mark_word(value,0,negative)"),
+            ("requires bp<31,", "requires false,"),
+            ("compact_add_neighbor(value,direction,negative)", "compact_add_neighbor(value,direction,false)"),
+            ("requires direction<8,", "requires direction<9,"),
+            ("compact_refine_word(value,bp,bit)", "compact_refine_word(value,bp,!bit)"),
+            ("value & MAG<1u64<<31", "value & MAG<1u64<<32"),
+            ("compact_flag_summary(sig,neg)", "compact_flag_summary(neg,sig)"),
+        ))
+
+    def test_inventory_binds_all_compact_owner_and_function_results(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part1-unqualified-compact-legacy-prototype"
+        ]
+        result = framework.validate_normative_coverage(coverage)
+        self.assertEqual(result["referenced_contract_functions"], 9)
+        self._assert_contract_text_mutations(coverage, (
+            ("compact_plane_outcome(result)", "compact_plane_outcome(unrelated)"),
+            ("compact_initial_result(width,height", "compact_initial_result(height,width"),
+            ("requires 0<width<=4096,", "requires 0<width<=8192,"),
+            ("super::code_block_plane_view(final(wide))", "super::code_block_plane_view(old(wide))"),
+            ("super::code_block_plane_view(old(wide)),self.entries@", "super::code_block_plane_view(old(wide)),seq![]"),
+            ("self.view(),bp,super::legacy_bitplane_outcome(result)", "self.view(),0,super::legacy_bitplane_outcome(result)"),
+            ("super::legacy_bitplane_outcome(result)!=Err(DecodeError::AllocationFailed)",
+             "super::legacy_bitplane_outcome(result)==Err(DecodeError::AllocationFailed)"),
+            ("super::tier1_decoder_state(self),passes,decoded,wide_bytes",
+             "super::tier1_decoder_state(self),passes,0,wide_bytes"),
+        ))
+
+    def test_inventory_rejects_compact_phantom_capacity_and_incomplete_owners(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"]
+            if item["id"] == "part1-unqualified-compact-legacy-prototype"
+        ]
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        read_text = Path.read_text
+        mutations = (
+            ("src/tier1/compact_legacy.rs", "crate::allocation::empty_with_capacity(count)",
+             "crate::allocation::empty_with_capacity(count+1)"),
+            ("src/tier1/compact_legacy.rs", "crate::allocation::filled_values(false, self.entries.len())",
+             "crate::allocation::filled_values(false, self.entries.len()+1)"),
+            ("src/tier1/compact_legacy.rs", "Ok((plane.width,plane.height,plane.entries@))",
+             "Ok((plane.width,plane.height,Seq::empty()))"),
+            ("specs/cold_compact_legacy.rs", "let count=width as nat*height as nat;",
+             "let count=width as nat*height as nat+1;"),
+            ("specs/cold_compact_legacy.rs", "calls.drop_first()", "Seq::empty()"),
+        )
+        for relative, before, after in mutations:
+            source = (framework.ROOT / relative).resolve()
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, after=after), mock.patch.object(
+                    Path, "read_text", altered), self.assertRaisesRegex(ValueError, "lacks executable Verus contract"):
+                framework.validate_normative_coverage(coverage)
+
+    def test_inventory_rejects_changed_selected_compact_dispatch(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        self.assertEqual(framework.validate_normative_coverage(coverage)["status"], "passed")
+        source = (framework.ROOT / "src/tier1/legacy_segments.rs").resolve()
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("                compact_allowed,\n", "                false,\n"),
+            ("self.try_compact_legacy(decoder, pass_count, limits)",
+             "self.try_compact_legacy(decoder, 1, limits)"),
+            ("Some(result) => result,",
+             "Some(_) => self.decode_mq_segment_passes(decoder, pass_count),"),
+        ):
+            self.assertIn(before, original)
+            changed = original.replace(before, after)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(after=after), mock.patch.object(
+                    Path, "read_text", altered), self.assertRaisesRegex(
+                        ValueError, "initial bitplane storage"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_checks_each_complete_frame_stage_result_projection(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [
@@ -668,7 +783,8 @@ class FrameworkTests(WorkingFiles):
         recipes = {key: value for key, value in framework._PACKET_PROGRESSION_CONTRACTS.items() if key not in support}
         self._assert_complete_packet_contract_bindings({
             "part1-complete-native-packed-header-length-inputs", "part1-complete-native-grid-progression-composition",
-        }, recipes, 43)
+            "part1-complete-native-bounded-progression-window",
+        }, recipes, 44)
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]
                      if item["id"] == "part1-complete-native-grid-progression-composition")
@@ -8953,7 +9069,7 @@ class FrameworkTests(WorkingFiles):
 
     def test_inventory_binds_actual_progression_shape_bitmap_failure_frames_and_complete_admission(self):
         self._assert_complete_packet_contract_bindings(
-            {"part1-complete-native-progression-admission"},
+            {"part1-complete-native-progression-admission", "part1-complete-native-tile-progression-coverage"},
             framework._PROGRESSION_ADMISSION_CONTRACTS, 7,
         )
 
@@ -9517,9 +9633,61 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "selected tile storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_bounded_progression_window_keeps_actual_grid_and_raw_record(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-bounded-progression-window")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/packet/progression.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("part1_packet_window_bounds(packet_grid_view(grid), record)",
+             "part1_packet_window_bounds(packet_grid_view(grid), bounded_window(grid, record))"),
+            ("part1_packet_window_bounds(packet_grid_view(grid), record)",
+             "part1_packet_window_bounds(arbitrary_grid(), record)"),
+        ):
+            changed = original.replace(before, after)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=after), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
+    def test_inventory_complete_tile_progression_binds_actual_parts_limits_and_full_result(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-tile-progression-coverage")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        source = framework.ROOT / "src/codestream/progression_coverage.rs"
+        original = source.read_text()
+        read_text = Path.read_text
+        for before, after in (
+            ("super::tile_parts_payload_view(parts@)", "super::tile_parts_payload_view(Seq::empty())"),
+            ("super::tile_parts_payload_view(parts@), self.limits",
+             "super::tile_parts_payload_view(parts@), &crate::ResourceLimits::default()"),
+            ("ensures result == crate::specs::part1_complete_poc_coverage",
+             "ensures result.is_ok() ==> result == crate::specs::part1_complete_poc_coverage"),
+        ):
+            changed = original.replace(before, after)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "executable Verus contract"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_quantization_cold_order_rejects_relabelled_requests_and_lost_partial_owners(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"] if item["id"] == framework._RAW_LAYOUT_ENTRY)
+        self.assertEqual(framework.validate_normative_coverage(dict(coverage, requirements=[entry]))["status"], "passed")
         read_text = Path.read_text
         for relative, symbol, before, after in (
             ("src/codestream/layout.rs", "Parser::parse_layout",
@@ -9541,6 +9709,8 @@ class FrameworkTests(WorkingFiles):
              "cost > crate::limits::resource_work_limit(limits)", "cost > u64::MAX"),
             ("src/codestream/coding_markers.rs", "Parser::validate_progression_changes",
              "filled_values(\n            false,", "filled_values(\n            true,"),
+            ("src/codestream/coding_markers.rs", "Parser::validate_progression_changes",
+             "if !contributed", "if contributed"),
             ("specs/cold_payload_owners.rs", "part1_main_resolved_run",
              "Some((Err(error), rest)) => Some((Err(error), rest))", "Some((Err(error), rest)) => Some((Err(error), events))"),
             ("specs/cold_payload_owners.rs", "part1_tile_after_configuration_run",
@@ -9609,7 +9779,15 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_header_progression.rs", "part1_tile_progression_payload",
              "part1_poc_cold_run(13,", "part1_poc_cold_run(9,"),
             ("specs/cold_header_progression.rs", "part1_tile_progression_payload",
-             "&& tile_part_index == 0", "&& tile_part_index == 1"),
+             "segment.marker == 0xff5f && !raw.poc_seen", "segment.marker == 0xff5f && raw.poc_seen"),
+            ("src/codestream/layout.rs", "Parser::parse_layout",
+             "parser.validate_tile_progression_coverage(&tile_part_payloads)?",
+             "let _ = &tile_part_payloads;"),
+            ("specs/raw_layout.rs", "part1_layout_after_tiles",
+             "match part1_complete_poc_coverage(state.3, reader.limits)",
+             "match Ok::<(),crate::DecodeError>(())"),
+            ("src/codestream/tiles.rs", "Parser::read_tile_part",
+             "has_progression_marker: poc_seen", "has_progression_marker: false"),
             ("specs/cold_layout.rs", "part1_cold_layout_after_inherited_copy",
              "part1_quantization_storage_request(14,", "part1_quantization_storage_request(10,"),
             ("specs/persistent_tile_configuration.rs", "part1_commit_progression_cold_run",
@@ -9887,6 +10065,9 @@ class FrameworkTests(WorkingFiles):
             ("src/tier1/contributions.rs", "LegacySegmentState::append", "extended?", "let ignored = extended"),
             ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay", "self.legacy_segment = Some(segment)", "self.legacy_segment = None"),
             ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay", "restored?", "let ignored = restored"),
+            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay",
+             "self.decode_legacy_segment_with_compact(&segment.input, segment.passes, limits, false)",
+             "self.decode_legacy_segment_with_compact(&segment.input, segment.passes, limits, true)"),
             ("src/packet/body.rs", "decode_legacy_code_block_segment", "decoded?", "let ignored = decoded"),
         )
         for relative, symbol, before, after in cases:
@@ -9938,6 +10119,11 @@ class FrameworkTests(WorkingFiles):
             ("src/tier1/legacy_passes.rs", "legacy_bitplane_from_plane", "filled_values(false, significant_before.len())", "filled_values(true, significant_before.len())"),
             ("src/tier1/legacy_passes.rs", "legacy_bitplane_from_plane", "Some(significant_before@)", "Some(Seq::empty())"),
             ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::ensure_bitplane_state", "self.bitplane_state = Some(constructed?)", "self.bitplane_state = None"),
+            ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_legacy_segment",
+             "self.decode_legacy_segment_with_compact(input, pass_count, limits, true)",
+             "self.decode_legacy_segment_with_compact(input, pass_count, limits, false)"),
+            ("src/tier1/legacy_segments.rs", "Tier1CodeBlockDecoder::decode_selected_mq_segment_passes",
+             "if compact_allowed", "if false"),
         )
         for relative, symbol, before, after in cases:
             source = framework.ROOT / relative
@@ -9962,6 +10148,13 @@ class FrameworkTests(WorkingFiles):
         with self.assertRaisesRegex(ValueError, "initial bitplane storage requires bounded"):
             framework.validate_normative_coverage(missing)
 
+    def test_inventory_proof_body_reader_requires_unique_proof_declaration(self):
+        source = "pub(crate) proof fn lift()\n{\n    real_child();\n}\n"
+        self.assertIn("real_child()", framework._coverage_proof_function_body(source, "lift"))
+        self.assertIsNone(framework._coverage_proof_function_body(source + source, "lift"))
+        self.assertIsNone(framework._coverage_proof_function_body(
+            source.replace("proof fn", "open spec fn"), "lift"))
+
     def test_inventory_coefficient_extraction_requires_actual_raw_role_error_tail_and_first_normal(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         data = dict(coverage, requirements=[
@@ -9979,6 +10172,11 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_coefficient_extraction.rs", "part2_extraction_capacity_run", "calls.drop_first()", "calls"),
             ("specs/cold_coefficient_extraction.rs", "part2_linear_coefficients_prefix", "value.0,value.2", "value.0,false"),
             ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run", "part2_extraction_run(plane,true,calls)", "part2_extraction_run(plane,false,calls)"),
+            ("specs/cold_extraction_reconstruction.rs", "part2_extraction_place_run", "part2_fused_placement_enabled(working,geometry", "part2_fused_placement_enabled(working,other_geometry"),
+            ("specs/fused_reconstruction.rs", "part2_fused_place_run", "maximum)),calls", "maximum)),calls.drop_first()"),
+            ("specs/fused_reconstruction_storage.rs", "part2_fused_run_lift", "part2_extraction_run(plane,true,calls)", "part2_extraction_run(plane,false,calls)"),
+            ("specs/fused_reconstruction_storage.rs", "part2_fused_band_result", "seq![effect.1]", "seq![destination]"),
+            ("specs/fused_reconstruction_storage.rs", "part2_fused_allocation_lift", "part2_fused_run_lift(working,bands,precincts,placement,geometry,plane,reversible,maximum,prefix+tail)", "part2_fused_run_lift(working,bands,precincts,placement,geometry,plane,reversible,maximum,prefix)"),
             ("specs/cold_extraction_reconstruction.rs", "part2_extraction_placements_next", "Some((Ok(effect),calls))", "Some((Ok(effect),Seq::empty()))"),
             ("specs/cold_decode_packets.rs", "part2_planned_decode_run", "work,decoded.1,rest", "work,plan.precincts,rest"),
             ("src/decode/code_blocks.rs", "collect_code_block_coefficients", "empty_with_capacity(count)", "empty_with_capacity(1)"),
@@ -9989,6 +10187,8 @@ class FrameworkTests(WorkingFiles):
             original = source.read_text()
             body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
                     if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            if body is None and (relative, symbol) in framework._COEFFICIENT_EXTRACTION_PROOF_GUARDS:
+                body = framework._coverage_proof_function_body(original, symbol)
             changed_body, count = re.subn(re.escape(before).replace(r"\ ", r"\s*"), lambda _: after, body, count=1)
             self.assertEqual(count, 1, (symbol, before))
             changed = original.replace(body, changed_body, 1)
@@ -10073,7 +10273,15 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","elements!=count","false"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_capacity_run","calls.drop_first()","calls"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_rows_run","Part2WaveletPlaneOwner::Rows","Part2WaveletPlaneOwner::Columns"),
-            ("specs/cold_wavelet_planes.rs","part2_wavelet_columns_run","Part2WaveletPlaneOwner::Columns","Part2WaveletPlaneOwner::Rows"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_scalar_columns_run","Part2WaveletPlaneOwner::Columns","Part2WaveletPlaneOwner::Rows"),
+            ("specs/cold_wavelet_planes.rs","part2_wavelet_columns_run","!irreversible && kernel.is_none()","irreversible && kernel.is_none()"),
+            ("specs/rowwise_wavelet.rs","rowwise_run","length as nat,calls","1nat,calls"),
+            ("specs/rowwise_wavelet.rs","rowwise_run","height,first)),rest","height,first)),calls"),
+            ("specs/rowwise_wavelet.rs","rowwise_eligible","rowwise_bounded(high.2)","true"),
+            ("src/transform/rowwise.rs","assemble","empty_with_capacity(length)","empty_with_capacity(1)"),
+            ("specs/rowwise_fixed_wavelet.rs","rowwise_fixed_run","length as nat,calls","1nat,calls"),
+            ("specs/rowwise_fixed_wavelet.rs","rowwise_fixed_output","first,part1_nine_seven_scale(true)","first,part1_nine_seven_scale(false)"),
+            ("src/transform/rowwise/fixed.rs","inverse","first, true)?","first, false)?"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_level_after_low","length,low,high,rest","length,Seq::empty(),high,rest"),
             ("specs/cold_wavelet_planes.rs","part2_wavelet_level_after_high","level.2.1,high","level.2.1,low"),
             ("specs/cold_extraction_reconstruction.rs","part2_extraction_component_finish_run","part2_wavelet_reconstruct_run(placed.1.0,plan","part2_wavelet_reconstruct_run(Seq::empty(),plan"),
@@ -10201,7 +10409,7 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_extraction_tile.rs", "part2_extraction_tile_finish_run", "initial+finished.1", "finished.1"),
             ("src/transform/geometry.rs", "collect_column", "empty_with_capacity(count)", "empty_with_capacity(1)"),
             ("src/transform/wavelets.rs", "interleave", "empty_with_capacity(length)", "empty_with_capacity(1)"),
-            ("src/transform/levels.rs", "inverse_columns", "zero_i64_values(output_len)", "zero_i64_values(1)"),
+            ("src/transform/levels.rs", "inverse_columns_scalar", "zero_i64_values(output_len)", "zero_i64_values(1)"),
             ("src/allocation.rs", "zero_i64_values", "empty_with_capacity(count)?", "empty_with_capacity(1)?"),
         ):
             source = framework.ROOT / relative

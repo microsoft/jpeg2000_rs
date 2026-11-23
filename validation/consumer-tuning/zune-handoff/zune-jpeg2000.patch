@@ -1,0 +1,608 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 1c3c7bab..77d03d83 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -883,6 +883,12 @@ version = "0.7.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "0b0b36cbb4e6704f12f5b5d7b01dac593982c6550859ebd5a66fb15c9ea27fd5"
+ 
++[[package]]
++name = "jpeg2000-decoder"
++version = "0.2.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d3d0761bfe8a9b78c4669c4b53546d782025151de29c1cea73c94df27a7835e4"
++
+ [[package]]
+ name = "js-sys"
+ version = "0.3.83"
+@@ -2581,6 +2587,7 @@ dependencies = [
+  "hayro-jpeg2000",
+  "image-webp",
+  "jpeg-encoder",
++ "jpeg2000-decoder",
+  "jxl-oxide",
+  "kamadak-exif",
+  "log",
+diff --git a/crates/zune-image/Cargo.toml b/crates/zune-image/Cargo.toml
+index eeca3863..a904a4e7 100644
+--- a/crates/zune-image/Cargo.toml
++++ b/crates/zune-image/Cargo.toml
+@@ -25,6 +25,7 @@ bmp = ["zune-bmp"]
+ heic = ["zune-heic"]
+ webp = ["image-webp"]
+ jpeg_2000 = ["hayro-jpeg2000"]
++jpeg_2000_rust = ["jpeg_2000", "dep:jpeg2000-decoder"]
+ uhdr = ["gainforge","moxcms"]
+ # Serde serialization support
+ serde-support = ["zune-core/serde", "serde"]
+@@ -75,6 +76,7 @@ serde = { version = "^1.0", optional = true }
+ jpeg-encoder = { version = "0.7.0", optional = true, features = ["simd", "std"] }
+ jxl-oxide = { version = "0.12.5", optional = true }
+ hayro-jpeg2000 = { version = "0.3.5", optional = true }
++jpeg2000-decoder = { version = "0.2.1", optional = true }
+ image-webp = { version = "0.2.4", optional = true }
+ 
+ # metadata
+diff --git a/crates/zune-image/README.md b/crates/zune-image/README.md
+index 84a087c6..1e5b6018 100644
+--- a/crates/zune-image/README.md
++++ b/crates/zune-image/README.md
+@@ -54,6 +54,18 @@ zune-image = { version = "0.5", default-features = false, features = ["jpeg"] }
+ 
+ ### Other features
+ 
++- `jpeg_2000_rust` selects the experimental `jpeg2000-decoder` backend
++  for JPEG 2000 decoding instead of `hayro-jpeg2000`. It is not enabled by
++  default and requires Rust 1.88 or later. It supports grayscale and RGB
++  output, including straight alpha, and preserves explicitly declared,
++  full-resolution unsigned 8-bit CMYK. When strict mode is disabled, Part 1
++  inputs use bounded recovery and clean JPX inputs use the normal JPX-capable
++  decoder. The backend does not apply ICC profiles. In lenient mode only, it
++  warns and interprets plain three- or four-channel 8-bit JP2 samples as RGB or
++  CMYK when the color box uses method 3 or its method-2 ICC header is truncated.
++  The lossless test fixtures come from the
++  [`jpeg2000_rs` synthetic image tests](https://github.com/microsoft/jpeg2000_rs/tree/01f7687/adapters/image/tests/fixtures).
++
+ - `serde`: Enable serde support for serializing image metadata, adds `serde` as a dependency
+ - `log`: Enable printing information via `log` crate
+ - `simd`: Enable SIMD support for certain image operations,
+diff --git a/crates/zune-image/src/codecs/jpeg_2000.rs b/crates/zune-image/src/codecs/jpeg_2000.rs
+index db09cdcc..9cd5ee9a 100644
+--- a/crates/zune-image/src/codecs/jpeg_2000.rs
++++ b/crates/zune-image/src/codecs/jpeg_2000.rs
+@@ -3,9 +3,10 @@
+ use crate::errors::ImageErrors;
+ use crate::image::Image;
+ use crate::traits::DecoderTrait;
+-use hayro_jpeg2000;
++#[cfg(not(feature = "jpeg_2000_rust"))]
+ use hayro_jpeg2000::DecodeSettings;
+-use std::num::{NonZero, NonZeroU32};
++#[cfg(not(feature = "jpeg_2000_rust"))]
++use std::num::NonZeroU32;
+ use zune_core::bytestream::{ZByteReaderTrait, ZReader};
+ use zune_core::colorspace::ColorSpace;
+ use zune_core::options::DecoderOptions;
+@@ -33,65 +34,79 @@ impl<T: ZByteReaderTrait> Jpeg2000Decoder<T> {
+ }
+ impl<T: ZByteReaderTrait> DecoderTrait for Jpeg2000Decoder<T> {
+     fn decode(&mut self) -> Result<Image, ImageErrors> {
+-        const MB: usize = 1 << 20;
+-        let mut raw_bytes = Vec::with_capacity(10 * MB);
+-        let data = self.decoder.read_all(&mut raw_bytes)?;
++        #[cfg(feature = "jpeg_2000_rust")]
++        {
++            let (image, width, height, color) =
++                rust_backend::decode(&mut self.decoder, self.options)?;
++            self.width = width;
++            self.height = height;
++            self.colorspace = color;
++            Ok(image)
++        }
++        #[cfg(not(feature = "jpeg_2000_rust"))]
++        {
++            const MB: usize = 1 << 20;
++            let mut raw_bytes = Vec::with_capacity(10 * MB);
++            self.decoder.read_all(&mut raw_bytes)?;
+ 
+-        let mut settings = DecodeSettings::default();
+-        settings.strict = self.options.strict_mode();
++            let mut settings = DecodeSettings::default();
++            settings.strict = self.options.strict_mode();
+ 
+-        let actual_decoder = hayro_jpeg2000::Image::new(raw_bytes.as_ref(), &settings)?;
++            let actual_decoder = hayro_jpeg2000::Image::new(raw_bytes.as_ref(), &settings)?;
+ 
+-        let bytes = actual_decoder.decode()?;
+-        let mut icc_bytes = None;
++            let bytes = actual_decoder.decode()?;
++            let mut icc_bytes = None;
+ 
+-        let color = match actual_decoder.color_space() {
+-            hayro_jpeg2000::ColorSpace::Gray => ColorSpace::Luma,
+-            hayro_jpeg2000::ColorSpace::RGB => ColorSpace::RGB,
+-            hayro_jpeg2000::ColorSpace::CMYK => ColorSpace::CMYK,
+-            hayro_jpeg2000::ColorSpace::Unknown { num_channels } => {
+-                ColorSpace::MultiBand(NonZeroU32::new(u32::from(*num_channels)).unwrap())
+-            }
+-            hayro_jpeg2000::ColorSpace::Icc {
+-                profile,
+-                num_channels,
+-            } => {
+-                // todo, #[cae] (this is best effort),  we propagate ICC to the top to be used
+-                // by any caller/subsequent operations that may make this into something that
+-                // makes sense
+-                let colorspace = match num_channels {
+-                    1 => ColorSpace::Luma,
+-                    2 => ColorSpace::LumaA,
+-                    3 => ColorSpace::RGB,
+-                    4 => ColorSpace::RGBA,
+-                    _ => ColorSpace::MultiBand(NonZeroU32::new(u32::from(*num_channels)).unwrap()),
+-                };
+-                #[allow(unused_assignments)]
+-                {
+-                    icc_bytes = Some(profile);
++            let color = match actual_decoder.color_space() {
++                hayro_jpeg2000::ColorSpace::Gray => ColorSpace::Luma,
++                hayro_jpeg2000::ColorSpace::RGB => ColorSpace::RGB,
++                hayro_jpeg2000::ColorSpace::CMYK => ColorSpace::CMYK,
++                hayro_jpeg2000::ColorSpace::Unknown { num_channels } => {
++                    ColorSpace::MultiBand(NonZeroU32::new(u32::from(*num_channels)).unwrap())
+                 }
++                hayro_jpeg2000::ColorSpace::Icc {
++                    profile,
++                    num_channels,
++                } => {
++                    // todo, #[cae] (this is best effort),  we propagate ICC to the top to be used
++                    // by any caller/subsequent operations that may make this into something that
++                    // makes sense
++                    let colorspace = match num_channels {
++                        1 => ColorSpace::Luma,
++                        2 => ColorSpace::LumaA,
++                        3 => ColorSpace::RGB,
++                        4 => ColorSpace::RGBA,
++                        _ => ColorSpace::MultiBand(
++                            NonZeroU32::new(u32::from(*num_channels)).unwrap(),
++                        ),
++                    };
++                    #[allow(unused_assignments)]
++                    {
++                        icc_bytes = Some(profile);
++                    }
+ 
+-                self.colorspace = colorspace;
+-                return Err(ImageErrors::ImageDecodeErrors(
+-                    "Unsupported ICC color type".to_string(),
+-                ));
+-            }
+-        };
+-        self.colorspace = color;
+-        self.width = actual_decoder.width() as usize;
+-        self.height = actual_decoder.height() as usize;
++                    self.colorspace = colorspace;
++                    return Err(ImageErrors::ImageDecodeErrors(
++                        "Unsupported ICC color type".to_string(),
++                    ));
++                }
++            };
++            self.colorspace = color;
++            self.width = actual_decoder.width() as usize;
++            self.height = actual_decoder.height() as usize;
+ 
+-        let mut img = Image::from_u8(&bytes, self.width, self.height, color);
++            let mut img = Image::from_u8(&bytes, self.width, self.height, color);
+ 
+-        #[cfg(feature = "metadata")]
+-        {
+-            // add icc if present
+-            if let Some(icc_ref) = icc_bytes {
+-                img.metadata_mut().set_icc_chunk(icc_ref.to_vec());
++            #[cfg(feature = "metadata")]
++            {
++                // add icc if present
++                if let Some(icc_ref) = icc_bytes {
++                    img.metadata_mut().set_icc_chunk(icc_ref.to_vec());
++                }
+             }
+-        }
+ 
+-        Ok(img)
++            Ok(img)
++        }
+     }
+ 
+     fn dimensions(&self) -> Option<(usize, usize)> {
+@@ -103,12 +118,361 @@ impl<T: ZByteReaderTrait> DecoderTrait for Jpeg2000Decoder<T> {
+     }
+ 
+     fn name(&self) -> &'static str {
+-        "jpeg_2000 decoder (hayro-jpeg2000)"
++        if cfg!(feature = "jpeg_2000_rust") {
++            "jpeg_2000 decoder (jpeg2000-decoder)"
++        } else {
++            "jpeg_2000 decoder (hayro-jpeg2000)"
++        }
+     }
+ }
+ 
++#[cfg(feature = "jpeg_2000_rust")]
++mod rust_backend {
++    use super::*;
++    use jpeg2000_decoder::{
++        codestream, convert_jp2_color, decode_codestream, decode_jp2, decode_jp2_color,
++        decode_pdf_compatible, jp2, ChannelAssociation, ConvertedChannelType, ConvertedColorSpace,
++        DecodeOptions, DecodeSelection, ResourceLimits, TypedImage, TypedSamples,
++    };
++    use zune_core::log::warn;
++
++    type Decoded = (Image, usize, usize, ColorSpace);
++
++    fn error(error: impl std::fmt::Display) -> ImageErrors {
++        ImageErrors::ImageDecodeErrors(error.to_string())
++    }
++
++    pub(super) fn decode<T: ZByteReaderTrait>(
++        reader: &mut ZReader<T>, options: DecoderOptions,
++    ) -> Result<Decoded, ImageErrors> {
++        let limits = ResourceLimits::default();
++        let mut bytes = Vec::new();
++        let mut chunk = [0; 8192];
++        loop {
++            let read = reader.read_bytes(&mut chunk)?;
++            if read == 0 {
++                break;
++            }
++            if bytes.len() as u64 + read as u64 > limits.maximum_input_bytes() {
++                return Err(error("JPEG 2000 input exceeds the byte limit"));
++            }
++            bytes.try_reserve(read).map_err(error)?;
++            bytes.extend_from_slice(&chunk[..read]);
++        }
++        let raw = bytes.starts_with(&[0xff, 0x4f]);
++        let decode_options = DecodeOptions::new(limits);
++        let strict = options.strict_mode();
++        let container = if raw {
++            None
++        } else {
++            match jp2::parse(&bytes, &limits) {
++                Ok(file) => Some(file),
++                Err(err) if strict => return Err(error(err)),
++                // The PDF path validates the container again with bounded recovery.
++                Err(_) => None,
++            }
++        };
++        let clean_jpx = container.as_ref().is_some_and(|file| {
++            let kind = file.file_type();
++            kind.brand != jp2::BoxType::JP2_BRAND && kind.is_jpx_compatible()
++        });
++        let info = if strict || clean_jpx {
++            match &container {
++                Some(file) => codestream::parse(file.codestream(0).map_err(error)?.data(), &limits),
++                None => codestream::parse(&bytes, &limits),
++            }
++        } else {
++            jpeg2000_decoder::inspect_pdf_compatible(&bytes, &decode_options)
++        }
++        .map_err(error)?;
++        if info.image_size.width as usize > options.max_width()
++            || info.image_size.height as usize > options.max_height()
++        {
++            return Err(error("JPEG 2000 dimensions exceed decoder limits"));
++        }
++        let converted = if !raw && (strict || clean_jpx) {
++            let file = container
++                .as_ref()
++                .ok_or_else(|| error("Missing JPEG 2000 container"))?;
++            if let Some(color) = native_color(file, strict) {
++                let image = decode_jp2(&bytes, &decode_options).map_err(error)?;
++                return native_output(&image, color, options);
++            }
++            decode_jp2_color(&bytes, &decode_options).map_err(error)?
++        } else {
++            let (image, discarded_eol) = if options.strict_mode() {
++                (
++                    decode_codestream(&bytes, &decode_options).map_err(error)?,
++                    0,
++                )
++            } else {
++                let result =
++                    decode_pdf_compatible(&bytes, &decode_options, &DecodeSelection::default())
++                        .map_err(error)?;
++                (
++                    result.image,
++                    usize::from(result.recovery.discarded_pdf_eol_bytes),
++                )
++            };
++            let color = if raw {
++                match image.components().len() {
++                    1 => jp2::ColorSpecification::enumerated(17),
++                    3 => jp2::ColorSpecification::enumerated(16),
++                    _ => return Err(error("Unsupported raw JPEG 2000 color space")),
++                }
++            } else {
++                let end = bytes
++                    .len()
++                    .checked_sub(discarded_eol)
++                    .ok_or_else(|| error("Invalid recovery length"))?;
++                let recovered_container;
++                let file = match &container {
++                    Some(file) if discarded_eol == 0 => file,
++                    _ => {
++                        recovered_container = jp2::parse(&bytes[..end], &limits).map_err(error)?;
++                        &recovered_container
++                    }
++                };
++                if let Some(color) = native_color(file, strict) {
++                    if !matches!(
++                        file.header().color.method(),
++                        jp2::ColorMethod::Enumerated { .. }
++                    ) {
++                        warn!("JPEG 2000: ignoring unsupported or truncated ICC metadata in lenient mode; interpreting native samples as {:?}", color);
++                    }
++                    return native_output(&image, color, options);
++                }
++                file.header().color.clone()
++            };
++            convert_jp2_color(&image, &color, &limits).map_err(error)?
++        };
++        let width = converted.width() as usize;
++        let height = converted.height() as usize;
++        let base: &[ConvertedChannelType] = match converted.color_space() {
++            ConvertedColorSpace::Grayscale => &[ConvertedChannelType::Gray],
++            ConvertedColorSpace::Srgb => &[
++                ConvertedChannelType::Red,
++                ConvertedChannelType::Green,
++                ConvertedChannelType::Blue,
++            ],
++        };
++        let channels = converted.channels();
++        let alpha = channels.len() == base.len() + 1
++            && channels.last().map(|channel| channel.channel_type())
++                == Some(ConvertedChannelType::Alpha {
++                    premultiplied: false,
++                    association: ChannelAssociation::WholeImage,
++                });
++        if channels.len() != base.len() + usize::from(alpha)
++            || channels
++                .iter()
++                .zip(base)
++                .any(|(channel, kind)| channel.channel_type() != *kind)
++        {
++            return Err(error("Unsupported JPEG 2000 channel layout"));
++        }
++        let color = match (base.len(), alpha) {
++            (1, false) => ColorSpace::Luma,
++            (1, true) => ColorSpace::LumaA,
++            (_, false) => ColorSpace::RGB,
++            (_, true) => ColorSpace::RGBA,
++        };
++        let area = width
++            .checked_mul(height)
++            .ok_or_else(|| error("JPEG 2000 area overflow"))?;
++        if width == 0
++            || height == 0
++            || width > options.max_width()
++            || height > options.max_height()
++            || channels
++                .iter()
++                .any(|channel| channel.samples().len() != area)
++        {
++            return Err(error("Invalid JPEG 2000 output dimensions"));
++        }
++        let count = area
++            .checked_mul(channels.len())
++            .ok_or_else(|| error("JPEG 2000 sample count overflow"))?;
++        let mut pixels = Vec::new();
++        pixels.try_reserve_exact(count).map_err(error)?;
++        for i in 0..area {
++            pixels.extend(
++                channels
++                    .iter()
++                    .map(|channel| ((u32::from(channel.samples()[i]) + 128) / 257) as u8),
++            );
++        }
++        Ok((
++            Image::from_u8(&pixels, width, height, color),
++            width,
++            height,
++            color,
++        ))
++    }
++
++    fn native_color(file: &jp2::Jp2File<'_>, strict: bool) -> Option<ColorSpace> {
++        let header = file.header();
++        if file.file_type().brand != jp2::BoxType::JP2_BRAND
++            || header.channel_definitions != 0
++            || header.palette.is_some()
++            || !header.component_mappings.is_empty()
++        {
++            return None;
++        }
++        match (header.color.method(), header.image.components) {
++            (jp2::ColorMethod::Enumerated { color_space: 12 }, 4) => Some(ColorSpace::CMYK),
++            // Part 1 readers can ignore method 3. For method 2, only fall back
++            // when the payload is too short to contain the ICC header.
++            (jp2::ColorMethod::AnyIcc { .. }, 3 | 4)
++            | (
++                jp2::ColorMethod::RestrictedIcc {
++                    profile_bytes: 0..=127,
++                },
++                3 | 4,
++            ) if !strict => {
++                Some(if header.image.components == 3 { ColorSpace::RGB } else { ColorSpace::CMYK })
++            }
++            _ => None,
++        }
++    }
++
++    fn native_output(
++        image: &TypedImage, color: ColorSpace, options: DecoderOptions,
++    ) -> Result<Decoded, ImageErrors> {
++        let (width, height) = (image.width() as usize, image.height() as usize);
++        let area = width
++            .checked_mul(height)
++            .ok_or_else(|| error("JPEG 2000 area overflow"))?;
++        if width == 0
++            || height == 0
++            || width > options.max_width()
++            || height > options.max_height()
++            || image.components().len() != color.num_components()
++        {
++            return Err(error("Invalid JPEG 2000 native output dimensions"));
++        }
++        let mut planes: [&[u64]; 4] = [&[]; 4];
++        for (plane, component) in planes.iter_mut().zip(image.components()) {
++            let info = component.info();
++            let TypedSamples::Unsigned(samples) = component.samples() else {
++                return Err(error("Unsupported JPEG 2000 native color samples"));
++            };
++            if info.signed
++                || info.precision != 8
++                || info.x_subsampling != 1
++                || info.y_subsampling != 1
++                || info.x_registration != 0
++                || info.y_registration != 0
++                || component.width() != image.width()
++                || component.height() != image.height()
++                || !component.channel_definitions().is_empty()
++                || samples.len() != area
++            {
++                return Err(error("Unsupported JPEG 2000 native color layout"));
++            }
++            *plane = samples;
++        }
++        let count = area
++            .checked_mul(color.num_components())
++            .ok_or_else(|| error("JPEG 2000 sample count overflow"))?;
++        let mut pixels = Vec::new();
++        pixels.try_reserve_exact(count).map_err(error)?;
++        for i in 0..area {
++            for plane in &planes[..color.num_components()] {
++                pixels.push(u8::try_from(plane[i]).map_err(error)?);
++            }
++        }
++        Ok((
++            Image::from_u8(&pixels, width, height, color),
++            width,
++            height,
++            color,
++        ))
++    }
++}
+ impl From<hayro_jpeg2000::error::DecodeError> for ImageErrors {
+     fn from(error: hayro_jpeg2000::error::DecodeError) -> Self {
+         return ImageErrors::ImageDecodeErrors(format!("{}", error));
+     }
+ }
++
++#[cfg(all(test, feature = "jpeg_2000_rust"))]
++mod tests {
++    use super::*;
++    use zune_core::bytestream::ZCursor;
++
++    const RGB: &[u8] = include_bytes!("../../tests/fixtures/jpeg2000-rgb8.jp2");
++
++    fn decode(input: &[u8], strict: bool) -> Result<Image, ImageErrors> {
++        Jpeg2000Decoder::new_with_options(
++            ZCursor::new(input),
++            DecoderOptions::default().set_strict_mode(strict),
++        )
++        .decode()
++    }
++
++    #[test]
++    fn clean_jpx_decodes_in_lenient_mode_without_pdf_recovery() {
++        let mut jpx = RGB[..12].to_vec();
++        jpx.extend_from_slice(b"\0\0\0\x1cftypjpx \0\0\0\0jpx jp2 jpxb");
++        jpx.extend_from_slice(b"\0\0\0\x12rreq\x01\x80\x80\0\x01\0\x05\x80\0\0");
++        jpx.extend_from_slice(&RGB[32..]);
++        let expected = decode(RGB, true).unwrap();
++        let actual = decode(&jpx, false).unwrap();
++        assert_eq!(actual.colorspace(), ColorSpace::RGB);
++        assert_eq!(actual.dimensions(), expected.dimensions());
++        assert_eq!(actual.flatten_to_u8(), expected.flatten_to_u8());
++    }
++
++    #[test]
++    fn only_lenient_mode_ignores_out_of_scope_or_truncated_icc_metadata() {
++        let expected = decode(RGB, true).unwrap().flatten_to_u8();
++        for (method, profile_len, allow_lenient) in [(2, 1, true), (3, 128, true), (2, 128, false)]
++        {
++            let mut input = RGB[..62].to_vec();
++            input[32..36].copy_from_slice(&(41u32 + profile_len).to_be_bytes());
++            input.extend_from_slice(&(11u32 + profile_len).to_be_bytes());
++            input.extend_from_slice(&[b'c', b'o', b'l', b'r', method, 0, 0]);
++            input.resize(input.len() + profile_len as usize, 0);
++            input.extend_from_slice(&RGB[77..]);
++
++            assert!(decode(&input, true).is_err());
++            if allow_lenient {
++                let image = decode(&input, false).unwrap();
++                assert_eq!(image.colorspace(), ColorSpace::RGB);
++                assert_eq!(image.flatten_to_u8(), expected);
++            } else {
++                assert!(decode(&input, false).is_err());
++            }
++        }
++    }
++
++    #[test]
++    fn alternate_backend_decodes_grayscale_and_honors_strict_mode() {
++        let input = include_bytes!("../../tests/fixtures/jpeg2000-gray8.jp2");
++        let strict = DecoderOptions::default().set_strict_mode(true);
++        let expected: Vec<u8> = (0..7)
++            .flat_map(|y| (0..9).map(move |x| (x * 29 + y * 47) as u8))
++            .collect();
++        let image = Jpeg2000Decoder::new_with_options(ZCursor::new(input), strict)
++            .decode()
++            .unwrap();
++        assert_eq!(image.dimensions(), (9, 7));
++        assert_eq!(image.flatten_to_u8(), vec![expected.clone()]);
++
++        let mut with_eol = input.to_vec();
++        with_eol.push(b'\n');
++        assert!(
++            Jpeg2000Decoder::new_with_options(ZCursor::new(&with_eol), strict)
++                .decode()
++                .is_err()
++        );
++        let recovered = Jpeg2000Decoder::new_with_options(
++            ZCursor::new(&with_eol),
++            strict.set_strict_mode(false),
++        )
++        .decode()
++        .unwrap();
++        assert_eq!(recovered.flatten_to_u8(), vec![expected]);
++    }
++}
+diff --git a/crates/zune-image/tests/fixtures/jpeg2000-gray8.jp2 b/crates/zune-image/tests/fixtures/jpeg2000-gray8.jp2
+new file mode 100644
+index 0000000000000000000000000000000000000000..80e5c5fa9031e555eda4f2e38ef3bda2b51d1b9b
+GIT binary patch
+literal 271
+zcmZQzVBpCLP*C9IYUg5LU=T?wsVvAUFj4@r8KAT-kj?;d#WFKeihwjb5OXpxvV&*_
+z2L9yyoFYarQxHfV0xC}a@BcrLK@%*-2_zv3!Cat5WIiK1Bjf)d1|FawBLgD~3j^c-
+z7zTC+2M>>c|0xWr42;f2sfi`2DGEuI3jPJDd0qjo?h0k8Ma7x<c?w2)rg|p-Coq8A
+z&A{Lb)I0fp!wSK-Z238H>1S>FyAPBIDY*PJt6m*`{FbOa!;L?T2bdCqbvwm^?Q7<X
+bEcqDA?XR`%y}thcdfqdR8|}XJ|Gx<U#>PUA
+
+literal 0
+HcmV?d00001
+
+diff --git a/crates/zune-image/tests/fixtures/jpeg2000-rgb8.jp2 b/crates/zune-image/tests/fixtures/jpeg2000-rgb8.jp2
+new file mode 100644
+index 0000000000000000000000000000000000000000..d1e42d64590c20f4b6c27bb1befe9e6618dd6c27
+GIT binary patch
+literal 409
+zcmZQzVBpCLP*C9IYUg5LU=T?wsVvAUFj4@r8KAT-kj?;d#WFKeihwjb5OXpxvx8^`
+z2L9yyoFYarQ-Fbi(FdqF`M>}FKn8uV7$=Z~C<JqX8j<<T?2L>M^goD!2PnnJz{tYF
+z!1zCgf!)Eu!z18-3WF*GqjOPeVo7R>LQ<uIe?e-VSAeU#LRo52ab|v=f{~u7p2`0S
+z3?SDtFkA%coqWGxh2UGZ{G7P-vo`(R2TFt#Tz;BWuMWT8ut9D9;i>vd9r_Mfn=JbD
+z@67h>)`#LL`|mgG5dVFC)q_s|h?`|QcRECxv+F9T{jgiwfBcrHJ;RMZj0cz!f^|E^
+zg6(VOi!AvV%k8hV?Y+MK|9ajtjvMX10hNi{Go1Lt#2~iqTMUQF@{KQk)^peXbD5()
+z;U42Ed3Nq>Yke*&FISj42cAjotB*~R5YfA3uekI!^YXim!ds+g&J?KPmhxBR5?=oQ
+FCIGP9escf-
+
+literal 0
+HcmV?d00001
+

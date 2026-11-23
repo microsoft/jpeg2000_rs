@@ -2,6 +2,7 @@
 use super::*;
 verus! {
 pub enum Part2Tier1StorageEvent {
+    CompactInitialCapacity {width:usize,height:usize,elements:nat,succeeded:bool},
     MultiContributions {context:Part2MultiContributionsContext,elements:nat,succeeded:bool},
     PayloadMetadataCopy {source:Part2OwnedTilePart,calls:Seq<Part1ColdStorageEvent>},
     MctRuntimeCapacity {context:Part2MctRuntimeCapacity,elements:nat,succeeded:bool},

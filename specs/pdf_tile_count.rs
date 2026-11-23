@@ -502,7 +502,7 @@ pub(crate) open spec fn part2_count_repair_value(input: Seq<u8>, stream: Seq<u8>
 
 pub(crate) open spec fn part2_count_prepared_base(prepared: Part2PdfPrepared, error: crate::DecodeError)
     -> Result<usize, crate::DecodeError> {
-    if prepared.repaired.is_some() { Err(error) } else { match prepared.file {
+    if prepared.repaired.is_some() || prepared.ordinary { Err(error) } else { match prepared.file {
         None => Ok(0),
         Some(file) => if file.file_type.0 != crate::jp2::BoxType::JP2_BRAND || file.streams.len() != 1 { Err(error) }
         else { match part2_box_payload_offset(file.streams[0].0) {

@@ -28,6 +28,7 @@ specs/cold_codeblock_plan.rs
 specs/cold_coefficient_extraction.rs
 specs/cold_color_conversion.rs
 specs/cold_color_storage.rs
+specs/cold_compact_legacy.rs
 specs/cold_component_plan.rs
 specs/cold_component_storage.rs
 specs/cold_composition_storage.rs
@@ -108,6 +109,13 @@ specs/cold_wavelet_lines.rs
 specs/cold_wavelet_planes.rs
 specs/cold_wavelet_prepare.rs
 specs/color_compatible.rs
+specs/compact_legacy.rs
+specs/compact_legacy_block.rs
+specs/compact_legacy_cache.rs
+specs/compact_legacy_context.rs
+specs/compact_legacy_frames.rs
+specs/compact_legacy_pass.rs
+specs/compact_legacy_refinement.rs
 specs/container_color_compatible.rs
 specs/container_colors.rs
 specs/container_images.rs
@@ -115,6 +123,10 @@ specs/container_reconstruction.rs
 specs/decoder_input.rs
 specs/esrgb.rs
 specs/esrgb_image.rs
+specs/fused_reconstruction.rs
+specs/fused_reconstruction_equivalence.rs
+specs/fused_reconstruction_placement.rs
+specs/fused_reconstruction_storage.rs
 specs/header.rs
 specs/jp2_associated_header.rs
 specs/jp2_box_reader.rs
@@ -174,14 +186,18 @@ specs/packet_tile.rs
 specs/pdf_compat.rs
 specs/pdf_dimensions.rs
 specs/pdf_eol.rs
+specs/pdf_jpx.rs
 specs/pdf_present_tile.rs
 specs/pdf_tile_count.rs
 specs/pdf_trailers.rs
 specs/persistent_tile_configuration.rs
+specs/progression_coverage.rs
 specs/raw_decode.rs
 specs/raw_layout.rs
 specs/raw_recovery.rs
 specs/replay_finish.rs
+specs/rowwise_fixed_wavelet.rs
+specs/rowwise_wavelet.rs
 specs/selected_reconstruction.rs
 specs/spatial_geometry.rs
 specs/spatial_grid_composition.rs
@@ -212,6 +228,7 @@ src/codestream/persistent_tile_configuration_proof_support.rs
 src/codestream/persistent_tile_configuration_tests.rs
 src/codestream/profile.rs
 src/codestream/profile_result_tests.rs
+src/codestream/progression_coverage.rs
 src/codestream/proof_support.rs
 src/codestream/quantization.rs
 src/codestream/raw_layout_result_tests.rs
@@ -255,6 +272,8 @@ src/decode/pdf_trailers.rs
 src/decode/planning.rs
 src/decode/proof_support.rs
 src/decode/raw_typed_result_tests.rs
+src/decode/reconstruction/fused.rs
+src/decode/reconstruction/fused_tests.rs
 src/decode/reconstruction.rs
 src/decode/selection.rs
 src/decode/spatial.rs
@@ -285,6 +304,7 @@ src/jp2/composition.rs
 src/jp2/container.rs
 src/jp2/headers.rs
 src/jp2/metadata.rs
+src/jp2/pdf_jpx.rs
 src/jp2/proof_support.rs
 src/jp2/tests.rs
 src/jp2.rs
@@ -365,6 +385,7 @@ src/refinement/reconstruction.rs
 src/refinement/tier1.rs
 src/refinement.rs
 src/tier1/coding.rs
+src/tier1/compact_legacy.rs
 src/tier1/contributions.rs
 src/tier1/ht_cleanup.rs
 src/tier1/ht_cleanup_readers.rs
@@ -389,6 +410,8 @@ src/transform/levels.rs
 src/transform/output.rs
 src/transform/proof_support.rs
 src/transform/quantization.rs
+src/transform/rowwise/fixed.rs
+src/transform/rowwise.rs
 src/transform/tests.rs
 src/transform/wavelets.rs
 src/transform.rs
