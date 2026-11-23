@@ -191,6 +191,7 @@ specs/pdf_present_tile.rs
 specs/pdf_tile_count.rs
 specs/pdf_trailers.rs
 specs/persistent_tile_configuration.rs
+specs/progression_coverage.rs
 specs/raw_decode.rs
 specs/raw_layout.rs
 specs/raw_recovery.rs
@@ -227,6 +228,7 @@ src/codestream/persistent_tile_configuration_proof_support.rs
 src/codestream/persistent_tile_configuration_tests.rs
 src/codestream/profile.rs
 src/codestream/profile_result_tests.rs
+src/codestream/progression_coverage.rs
 src/codestream/proof_support.rs
 src/codestream/quantization.rs
 src/codestream/raw_layout_result_tests.rs

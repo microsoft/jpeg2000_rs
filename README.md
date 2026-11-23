@@ -219,6 +219,23 @@ profile and resource checks remain, including limits on declared metadata.
 These APIs have no global recovery toggle, copy, retry or automatic EOC repair.
 They do not supply the separate deadline, absent-tile, MQ or trailer policies.
 
+### Multipart progression headers
+
+Part 1 POC declarations may split tile layer coverage across successive
+tile-part headers. Individual records keep bounds and contribution checks;
+the parser verifies first-header scope and complete per-tile coverage after
+the final part. `TilePartPayload::has_progression_marker` distinguishes a
+marker in that header from inherited records. Packet traversal advances the
+physical header before requesting coordinates from the next progression,
+while preserving duplicate suppression, lengths and resource limits.
+POC volumes intersect the actual component/resolution/layer grid. Declared
+endpoints may exceed that grid within the marker's syntax ranges; a zero
+component endpoint denotes 256. Raw parsed records remain unchanged, while
+packet enumeration and its work admission use the effective volume.
+Invalid syntax, redundant effective declarations and incomplete full-tile
+coverage remain errors in both ordinary and PDF-compatible APIs.
+See the [individual tolerance dispositions](SUPPORTED.md#openjpeg-tolerance-dispositions).
+
 ### Common PDF recovery and inspection
 
 `decode_pdf_compatible(input, options, selection)` and

@@ -554,9 +554,9 @@ fn raw_tile_header_duplicate_parse_and_flag_order_is_not_transactional() {
             PacketLengths::none(),
             PackedPacketHeaders::none()
         ),
-        Err(input_error_literal(37, MalformedKind::InvalidMarkerOrder))
+        Err(input_error_literal(37, MalformedKind::InvalidMarkerLength))
     );
-    assert!(!raw.poc_seen);
+    assert!(raw.poc_seen);
     for marker in [COC, QCC] {
         let mut raw = initial(0);
         raw.coc_segments[63] = Some(segment(COC, &[99]));

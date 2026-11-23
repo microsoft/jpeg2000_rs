@@ -15,6 +15,37 @@ contracts and models. Exact run counts and source/tool hashes belong in fresh
 CI artifacts, not committed result snapshots. Independent model-to-standard
 review and official conformance testing remain separate.
 
+## POC endpoint intersection and authoritative JP2 image header
+
+The #456 POC reader retains declared endpoints, including zero's specified
+256-component interpretation. Per-header bitmap admission still scans and
+charges the actual grid and checks marker syntax and effective contribution.
+The executing [`bounded_window`](src/packet/progression.rs) helper and
+[`packet progression model`](specs/packet_progression.rs) intersect endpoints
+with the actual grid before both candidate-count admission and coordinate
+decoding. There is no new allocation, enlarged grid or renewed work limit.
+The [`complete coverage traversal`](src/codestream/progression_coverage.rs)
+and [matching model](specs/progression_coverage.rs) compare actual layer coverage
+and reject declarations that add no effective layer even when their raw
+endpoints grow.
+
+The main [`JP2 header reader`](src/jp2/headers.rs) and
+[`raw header step`](specs/jp2_header.rs) preserve the leading `ihdr` metadata
+when another bounded instance appears. Existing box-reader framing, charged
+work and nested counts remain in the source/storage traversal; the ignored
+payload creates no new storage request. Associated JPX header overrides are
+unchanged.
+
+The [eleven retained refusals](SUPPORTED.md#openjpeg-tolerance-dispositions)
+use the existing executing box/header, tile-window/termination, quantization,
+zero-bitplane, component-transform and palette-output contracts. In particular,
+[`header_zero_loop`](specs/header.rs) retains the actual tag-tree/reader mutation
+and error, and [`cold output storage`](specs/cold_output_storage.rs) preserves
+palette reservation/error ordering. Documentation of those refusals adds no
+trusted premise, success fallback or recovery branch. These are implementation
+relations; independent correspondence to the normative text and official
+conformance remain separate.
+
 ## Native-only cooperative deadline profile
 
 The optional `cooperative-deadlines` feature is **outside** this pinned proof
@@ -141,6 +172,28 @@ This is the stated embedding profile, not arbitrary JPX composition support
 or an independent selected-edition conformance certification.
 
 ## Fallible-storage foundation and remaining boundary
+
+### Multipart POC declarations and final coverage
+
+POC header parsing now retains actual marker presence separately from inherited
+records in the complete raw and owned payload projections. Per-header range,
+distinct-contribution and bitmap-allocation contracts remain; completeness is
+deferred to the final per-tile union. `specs/progression_coverage.rs` models
+first-header scope, zero-start layer frontiers, new-declaration contribution,
+complete active component/resolution coverage and exact checked work errors.
+The executing traversal allocates no new bitmap and uses one cumulative work
+counter, with native deadline checkpoints rather than renewed per-part limits.
+
+The packet producer consumes physical tile-part boundaries before requesting
+the next coordinate from a possibly exhausted partial POC window. Its checked
+plain/cold tile-run programs retain unique-coordinate suppression, packet/body
+and packed-header accounting, first errors and exact storage tails. Completion
+still requires the existing whole-tile seen/accounting checks; no partial byte
+or entropy result is promoted to a complete image.
+The unchanged compact scheduled-pass proof uses the existing independent-query
+annotation to stay within the same verifier budget after the metadata theory
+expands. Its runtime, contracts and storage program are unchanged; this is not
+a budget increase, additional assumption or verification exclusion.
 
 ### Allocation-aware reversible vertical traversal
 
