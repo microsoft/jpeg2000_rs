@@ -9,14 +9,28 @@ use std::io::Write;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut arguments: Vec<String> = std::env::args().collect();
     let verus_root = rust_verify::driver::find_verusroot().ok_or("missing pinned Verus root")?;
-    if arguments.get(1).map(String::as_str) == Some(rust_verify::trait_check::TC_DRIVER_ARG) {
-        let status = std::process::Command::new(verus_root.path.join("rust_verify"))
+    let target_crate = std::env::var("JPEG2000_NAMES_CRATE").ok();
+    let invocation_crate = arguments
+        .windows(2)
+        .find_map(|pair| (pair[0] == "--crate-name").then_some(pair[1].as_str()));
+    if arguments.get(1).map(String::as_str) == Some(rust_verify::trait_check::TC_DRIVER_ARG)
+        || arguments.iter().any(|arg| arg == "--version")
+        || target_crate
+            .as_deref()
+            .zip(invocation_crate)
+            .is_some_and(|(target, actual)| target != actual)
+    {
+        let executable = if arguments.get(1).map(String::as_str)
+            == Some(rust_verify::trait_check::TC_DRIVER_ARG)
+        {
+            "rust_verify"
+        } else {
+            "verus"
+        };
+        let status = std::process::Command::new(verus_root.path.join(executable))
             .args(&arguments[1..])
             .status()?;
         std::process::exit(status.code().unwrap_or(2));
-    }
-    if std::env::var_os(rust_verify::cargo_verus::VERUS_DRIVER_VIA_CARGO).is_some() {
-        return Err("direct compiler capture does not support Cargo wrapper mode".into());
     }
     let output = std::env::var("JPEG2000_NAMES_OUTPUT")?;
     let program = arguments.remove(0);
@@ -27,21 +41,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("unqualified Verus compiler commit".into());
     }
     let captured_arguments = arguments.clone();
-    let vstd = Some((
-        "vstd".to_owned(),
-        root.join("vstd.vir").display().to_string(),
-    ));
+    let mut dep_tracker = rust_verify::cargo_verus_dep_tracker::DepTracker::init();
+    let via_cargo = dep_tracker.compare_env(rust_verify::cargo_verus::VERUS_DRIVER_VIA_CARGO, "1");
+    if via_cargo {
+        if !arguments.first().is_some_and(|arg| arg.contains("rustc")) {
+            return Err("Cargo invocation is missing its compiler argument".into());
+        }
+        arguments.remove(0);
+        if rust_verify::cargo_verus::extend_args_and_check_is_direct_rustc_call(
+            &mut arguments,
+            &mut dep_tracker,
+        ) {
+            arguments.insert(0, program);
+            rust_verify::driver::run_rustc_compiler_directly(&arguments);
+            return Ok(());
+        }
+    }
+    let cargo_args =
+        via_cargo.then(|| rust_verify::config::parse_cargo_args(&program, &mut arguments));
+    let vstd = (!via_cargo).then(|| {
+        (
+            "vstd".to_owned(),
+            root.join("vstd.vir").display().to_string(),
+        )
+    });
     let (args, rustc_args) =
         rust_verify::config::parse_args_with_imports(&program, arguments.into_iter(), vstd);
+    let cargo_compile = cargo_args
+        .as_ref()
+        .is_some_and(|args| rust_verify::cargo_verus::is_compile(args, &mut dep_tracker));
     std::env::set_var("RUSTC_BOOTSTRAP", "1");
-    let verifier = rust_verify::verifier::Verifier::new(
-        args,
-        None,
-        false,
-        rust_verify::cargo_verus_dep_tracker::DepTracker::init(),
+    let verifier =
+        rust_verify::verifier::Verifier::new(args, cargo_args, cargo_compile, dep_tracker);
+    let (verifier, _, status) = rust_verify::driver::run(
+        verifier,
+        rustc_args,
+        (!via_cargo).then_some(verus_root),
+        via_cargo,
     );
-    let (verifier, _, status) =
-        rust_verify::driver::run(verifier, rustc_args, Some(verus_root), false);
     if status.is_err() || verifier.encountered_vir_error || verifier.count_errors != 0 {
         return Err("pinned driver verification failed".into());
     }
@@ -65,6 +102,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "scope": "Pinned compiler identity observations; not a qualified production denominator or native/Verus erasure correspondence.",
         "compiler_version": version,
         "arguments": captured_arguments,
+        "cargo_mode": via_cargo,
         "source_function_coverage": "not-measured",
         "functional_coverage": "not-measured",
         "runtime_reachability": "not-measured",

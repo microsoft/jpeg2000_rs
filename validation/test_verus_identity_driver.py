@@ -52,7 +52,7 @@ class DriverControls(unittest.TestCase):
             "LD_LIBRARY_PATH": str(OPTIONS.sdk_lib),
             "RUSTUP_TOOLCHAIN": "1.98.1-x86_64-unknown-linux-gnu",
         }
-        env.pop("VERUS_DRIVER_VIA_CARGO", None)
+        env.pop("__VERUS_DRIVER_VIA_CARGO__", None)
         return subprocess.run(
             [str(OPTIONS.driver), str(self.source), "--crate-name", "identity_control",
              "--no-lifetime"],
@@ -96,6 +96,51 @@ class DriverControls(unittest.TestCase):
         self.assertFalse(self.output.exists())
         self.assertIn("verification failed", result.stderr)
 
+    def test_actual_cargo_capture_matches_the_pinned_cargo_profile(self):
+        manifest = self.root / "Cargo.toml"
+        manifest.write_text(
+            '[package]\nname="identity-control"\nversion="0.0.0"\nedition="2021"\n'
+            'publish=false\n[workspace]\n[lib]\npath="control.rs"\n'
+            '[dependencies]\nvstd="=0.0.0-2026-10-04-0306"\n'
+            '[package.metadata.verus]\nverify=true\n'
+        )
+        env = {
+            **os.environ,
+            "VERUS_ROOT": str(OPTIONS.verus_root),
+            "JPEG2000_NAMES_OUTPUT": str(self.output),
+            "JPEG2000_NAMES_CRATE": "identity_control",
+            "LD_LIBRARY_PATH": str(OPTIONS.sdk_lib),
+            "RUSTUP_TOOLCHAIN": "1.98.1-x86_64-unknown-linux-gnu",
+        }
+        common = [
+            "verus", "verify", "--manifest-path", str(manifest),
+            "--fwd-verus-args-to", "roots",
+        ]
+        captured = subprocess.run(
+            [str(OPTIONS.cargo_sdk / "cargo-verus"), *common,
+             "--target-dir", str(self.root / "capture-build"),
+             "--lib", "--", "--no-lifetime", "--output-json"],
+            env=env, capture_output=True, text=True, timeout=180,
+        )
+        self.assertEqual(captured.returncode, 0, captured.stdout + captured.stderr)
+        report = json.loads(self.output.read_text())
+        ordinary = subprocess.run(
+            [str(OPTIONS.verus_root / "cargo-verus"), *common,
+             "--target-dir", str(self.root / "pinned-build"),
+             "--lib", "--", "--no-lifetime", "--output-json"],
+            env=env, capture_output=True, text=True, timeout=180,
+        )
+        self.assertEqual(ordinary.returncode, 0, ordinary.stdout + ordinary.stderr)
+        proof = compiler_json(ordinary.stdout)
+        self.assertTrue(report["cargo_mode"])
+        self.assertTrue(report["entire_crate"])
+        self.assertEqual(report["verified"], proof["verification-results"]["verified"])
+        self.assertEqual(
+            {row["compiler_result_label"]: row["result_details"]
+             for row in report["functions"] if row["result_details"] is not None},
+            proof["func-details"],
+        )
+
     def test_existing_capture_is_not_overwritten(self):
         self.output.write_bytes(b"retained old capture")
         digest = hashlib.sha256(self.output.read_bytes()).hexdigest()
@@ -117,5 +162,6 @@ if __name__ == "__main__":
     parser.add_argument("--driver", type=Path, required=True)
     parser.add_argument("--verus-root", type=Path, required=True)
     parser.add_argument("--sdk-lib", type=Path, required=True)
+    parser.add_argument("--cargo-sdk", type=Path, required=True)
     OPTIONS, arguments = parser.parse_known_args()
     unittest.main(argv=[__file__, *arguments])

@@ -92,9 +92,13 @@ RUSTC_BOOTSTRAP=1 rustc +1.98.1 validation/verus-identity-driver.rs \
   --extern "vir=$VERUS_ROOT/libvir.rlib" \
   --extern "serde_json=$VERUS_SERDE_JSON_RLIB" \
   -o target/verus-identities/driver
+mkdir -p target/verus-identities/sdk
+cp "$VERUS_ROOT/cargo-verus" target/verus-identities/sdk/cargo-verus
+cp target/verus-identities/driver target/verus-identities/sdk/verus
 python3 validation/test_verus_identity_driver.py \
   --driver "$PWD/target/verus-identities/driver" \
-  --verus-root "$VERUS_ROOT" --sdk-lib "$SDK/lib" -v
+  --verus-root "$VERUS_ROOT" --sdk-lib "$SDK/lib" \
+  --cargo-sdk "$PWD/target/verus-identities/sdk" -v
 ```
 
 The bootstrap setting above enables the optional Rustc-private SDK client,
@@ -114,6 +118,25 @@ RUSTUP_TOOLCHAIN=1.98.1-x86_64-unknown-linux-gnu \
 target/verus-identities/driver input.rs --crate-name control --no-lifetime
 ```
 
-Cargo wrapper mode is explicitly unsupported rather than silently interpreted
-as a direct invocation. Qualification across actual default/all-feature native
-and Verus builds remains separate.
+For Cargo captures, the unchanged pinned `cargo-verus` executable selects its
+sibling `verus` SDK client. Retain and compare the copied Cargo executable's
+hash; installed tools are not replaced. The client uses the same public
+Cargo argument/dependency routing, delegates ordinary dependencies and compiler
+version/trait-check subprocesses to the original pinned tools, and captures
+only the explicitly selected crate:
+
+```sh
+PATH="$PWD/target/verus-identities/sdk:$PATH" \
+LD_LIBRARY_PATH="$SDK/lib" JPEG2000_NAMES_CRATE=jpeg2000_decoder \
+JPEG2000_NAMES_OUTPUT="$PWD/target/verus-identities/cargo-new-run.json" \
+RUSTUP_TOOLCHAIN=1.98.1-x86_64-unknown-linux-gnu \
+cargo verus verify --features verus --locked --fwd-verus-args-to roots \
+  --target-dir target/verus-identities/cargo-new-build --lib -- \
+  --no-lifetime --output-json
+```
+
+Direct and Cargo invocations are different profiles: dependencies, imports and
+compiler cfg must not be inferred to match. The real Cargo control separately
+compares exact result details with the original pinned Cargo workflow.
+Qualification of a production denominator, native/Verus erasure equivalence,
+all feature branches and full functional contracts remains separate.
