@@ -118,7 +118,7 @@ jobs:
         os: [ubuntu-latest, ubuntu-24.04-arm]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: consumer-zune-fixtures-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/consumer-integration/fixtures
@@ -191,7 +191,7 @@ jobs:
         os: [ubuntu-latest, ubuntu-24.04-arm]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: actual-zune-consumer-${{ matrix.os }}-${{ inputs.consumer_evidence_run }}-1
           run-id: ${{ inputs.consumer_evidence_run }}
