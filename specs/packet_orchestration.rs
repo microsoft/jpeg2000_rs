@@ -375,6 +375,37 @@ pub open spec fn part1_packet_styles_equal(
         && left.segmentation_symbols == right.segmentation_symbols
 }
 
+pub open spec fn part1_precinct_header_slot_finish(
+    state: Part1PrecinctHeaderState,
+    index: usize,
+    result: Result<Option<Part1CodeBlockContribution>, crate::DecodeError>,
+) -> Part1PrecinctHeaderResult {
+    match result {
+        Err(error) => (Err(error), state),
+        Ok(contribution) => if contribution.is_some() && state.contribution_count == u32::MAX {
+            (Err(ht_reader_error(crate::MalformedKind::ArithmeticOverflow)), state)
+        } else {
+            let state = Part1PrecinctHeaderState {
+                contribution_count: if contribution.is_some() {
+                    (state.contribution_count + 1) as u32
+                } else { state.contribution_count }, ..state
+            };
+            if index >= state.contributions.len() {
+                (Err(ht_reader_error(crate::MalformedKind::InvalidPacketHeader)), state)
+            } else {
+                let state = Part1PrecinctHeaderState {
+                    contributions: state.contributions.update(index as int, contribution), ..state
+                };
+                if state.local_index == usize::MAX {
+                    (Err(ht_reader_error(crate::MalformedKind::ArithmeticOverflow)), state)
+                } else {
+                    (Ok(()), Part1PrecinctHeaderState { local_index: (state.local_index + 1) as usize, ..state })
+                }
+            }
+        },
+    }
+}
+
 #[verifier::opaque]
 pub open spec fn part1_precinct_header_slot(
     state: Part1PrecinctHeaderState, contexts: Seq<crate::packet::CodeBlockPacketContext>,
@@ -410,30 +441,7 @@ pub open spec fn part1_precinct_header_slot(
                     subbands: state.subbands.update(state.subband_index as int, subband),
                     reader: result.4, ..state
                 };
-                match result.0 {
-                    Err(error) => (Err(error), state),
-                    Ok(contribution) => if contribution.is_some() && state.contribution_count == u32::MAX {
-                        (Err(ht_reader_error(crate::MalformedKind::ArithmeticOverflow)), state)
-                    } else {
-                        let state = Part1PrecinctHeaderState {
-                            contribution_count: if contribution.is_some() {
-                                (state.contribution_count + 1) as u32
-                            } else { state.contribution_count }, ..state
-                        };
-                        if index >= state.contributions.len() {
-                            (Err(ht_reader_error(crate::MalformedKind::InvalidPacketHeader)), state)
-                        } else {
-                            let state = Part1PrecinctHeaderState {
-                                contributions: state.contributions.update(index as int, contribution), ..state
-                            };
-                            if state.local_index == usize::MAX {
-                                (Err(ht_reader_error(crate::MalformedKind::ArithmeticOverflow)), state)
-                            } else {
-                                (Ok(()), Part1PrecinctHeaderState { local_index: (state.local_index + 1) as usize, ..state })
-                            }
-                        }
-                    },
-                }
+                part1_precinct_header_slot_finish(state,index,result.0)
             }
             }
         }

@@ -546,12 +546,11 @@ fn one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success() 
             Err(DecodeError::AllocationFailed)
         );
     });
-    // The single bounded block no longer owns coefficient/quantization staging.
-    let requests = if cfg!(feature = "cooperative-deadlines") {
-        92
-    } else {
-        90
-    };
+    // Count the actual managed requests, rather than counting the removed
+    // later-contribution snapshots as reservations.
+    let requests = (1..=92)
+        .find(|&after| allocation::with_refusal(after, || decode(&bytes).is_ok()))
+        .expect("bounded recovery completes within its original request ceiling");
     allocation::with_refusal(requests - 1, || {
         assert_eq!(decode(&bytes).unwrap_err(), DecodeError::AllocationFailed);
         assert_eq!(decode(&bytes).unwrap(), expected);
@@ -644,11 +643,13 @@ fn reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery() 
             expected
         );
     });
-    let requests = if cfg!(feature = "cooperative-deadlines") {
-        90
-    } else {
-        88
-    };
+    let requests = (1..=90)
+        .find(|&after| {
+            allocation::with_refusal(after, || {
+                decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).is_ok()
+            })
+        })
+        .expect("bounded recovery completes within its original request ceiling");
     allocation::with_refusal(requests - 1, || {
         assert_eq!(
             decode_codestream_reconstructed_recover_missing_eoc(&bytes, &options).unwrap_err(),

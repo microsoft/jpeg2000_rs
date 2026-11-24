@@ -1312,43 +1312,25 @@ pub(crate) fn decode_planned_tile_components(
         );
     }
     let mut active = plan;
-    let _decoded_packets;
     #[cfg(verus_keep_ghost)]
     proof! { reveal(progression_plan_view); }
-    {
-        let precincts = active.precincts.as_mut_slice();
-        #[cfg(verus_keep_ghost)]
-        proof! { crate::packet::packet_precinct_vector_known_fields(precincts); }
-        let packets = match maximum_resolution_counts {
-            None => crate::packet::decode_progression_tile_packets(
-                tile_parts,
-                &active.grid,
-                precincts,
-                limits,
-            ),
-            Some(counts) => crate::packet::decode_progression_tile_packets_selected(
-                tile_parts,
-                &active.grid,
-                precincts,
-                Some(counts),
-                limits,
-            ),
-        };
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            if maximum_resolution_counts.is_none() {
-                crate::specs::part2_packet_public_result_equivalent(tile_parts@,before.grid,before.precincts,None,limits);
-            }
-            if let Err(error)=packets {
-                crate::specs::part2_planned_decode_packet_error(before,codestream::tile_parts_owned_view(tile_parts@),
-                    codestream::tile_part_owned_view(first),size,standard,crate::packet::packet_selection_view(maximum_resolution_counts),
-                    limits,prepared_components_view(prepared@),mct_work,error,crate::packet::packet_precinct_vector_view(precincts));
-            }
+    let packets = crate::packet::decode_progression_tile_packets_owned(
+        tile_parts,
+        &active.grid,
+        active.precincts,
+        maximum_resolution_counts,
+        limits,
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=packets {
+            crate::specs::part2_planned_decode_packet_error(before,codestream::tile_parts_owned_view(tile_parts@),
+                codestream::tile_part_owned_view(first),size,standard,crate::packet::packet_selection_view(maximum_resolution_counts),
+                limits,initial_prepared,mct_work,error);
         }
-        _decoded_packets = packets?;
-        #[cfg(verus_keep_ghost)]
-        proof! { crate::packet::packet_precinct_vector_known_fields(precincts); }
     }
+    let (_decoded_packets, precincts) = packets?;
+    active.precincts = precincts;
     #[cfg(verus_keep_ghost)]
     proof! {
         planning_precinct_planes_known_fields(active.precincts@);

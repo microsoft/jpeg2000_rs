@@ -309,68 +309,68 @@ pub(crate) proof fn part2_packet_input_payload_error(parts: Seq<Part2OwnedTilePa
     part2_cold_bind(|events| part2_prepare_payloads_run(parts, parts[0].tile_index, crate::limits::resource_packet_header_byte_limit(limits), events),
         |_: Part1TilePacketPreparation, rest| Some((part1_progression_tile_input_owned(parts, grid, precincts, selection, limits), rest)), Err(error), Err(error));
 }
-pub(crate) open spec fn part2_packet_run(parts: Seq<Part2OwnedTilePart>, grid: Part1PacketGrid,
+pub(crate) open spec fn part2_packet_run(owned:bool,parts: Seq<Part2OwnedTilePart>, grid: Part1PacketGrid,
     precincts: Seq<Part1PacketPrecinctState>, selection: Option<Seq<u8>>, limits: &crate::ResourceLimits,
     events: Seq<Part2JpipSnapshotEvent>) -> Option<((Result<crate::packet::TilePacketDecode, crate::DecodeError>, Seq<Part1PacketPrecinctState>), Seq<Part2JpipSnapshotEvent>)> {
     match part2_packet_input_run(parts, grid, precincts, selection, limits, events) {
         None => None, Some((Err(error), rest)) => Some(((Err(error), precincts), rest)),
         Some((Ok(input), rest)) => match part2_progress_initial_run(part2_packet_parameters(parts,grid,input,selection,limits),rest) {
             None=>None,Some((Err(error),tail))=>Some(((Err(error),precincts),tail)),
-            Some((Ok(progress),tail))=>match part2_packet_after_progress_run(parts,grid,precincts,selection,limits,input,progress,tail) {
+            Some((Ok(progress),tail))=>match part2_packet_after_progress_run(owned,parts,grid,precincts,selection,limits,input,progress,tail) {
                 None=>None,Some((Err(error),rest))=>Some(((Err(error),precincts),rest)),Some((Ok(result),rest))=>Some((result,rest)),
             },
         },
     }
 }
-pub(crate) open spec fn part2_packet_prefix(parts: Seq<Part2OwnedTilePart>, grid: Part1PacketGrid,
+pub(crate) open spec fn part2_packet_prefix(owned:bool,parts: Seq<Part2OwnedTilePart>, grid: Part1PacketGrid,
     precincts: Seq<Part1PacketPrecinctState>, selection: Option<Seq<u8>>, limits: &crate::ResourceLimits,
     prefix: Seq<Part2JpipSnapshotEvent>, result: (Result<crate::packet::TilePacketDecode, crate::DecodeError>, Seq<Part1PacketPrecinctState>)) -> bool {
     forall|tail: Seq<Part2JpipSnapshotEvent>| #[trigger]
-        part2_packet_run(parts, grid, precincts, selection, limits, prefix + tail) == Some((result, tail))
+        part2_packet_run(owned,parts, grid, precincts, selection, limits, prefix + tail) == Some((result, tail))
 }
 #[verifier::opaque]
-pub(crate) open spec fn part2_packet_result(parts: Seq<Part2OwnedTilePart>, grid: Part1PacketGrid,
+pub(crate) open spec fn part2_packet_result(owned:bool,parts: Seq<Part2OwnedTilePart>, grid: Part1PacketGrid,
     precincts: Seq<Part1PacketPrecinctState>, selection: Option<Seq<u8>>, limits: &crate::ResourceLimits,
     result: (Result<crate::packet::TilePacketDecode, crate::DecodeError>, Seq<Part1PacketPrecinctState>)) -> bool {
-    exists|prefix: Seq<Part2JpipSnapshotEvent>| #[trigger] part2_packet_prefix(parts, grid, precincts, selection, limits, prefix, result)
+    exists|prefix: Seq<Part2JpipSnapshotEvent>| #[trigger] part2_packet_prefix(owned,parts, grid, precincts, selection, limits, prefix, result)
 }
 pub closed spec fn part1_progression_tile_cold_result(parts: Seq<crate::codestream::TilePartPayload<'_>>, grid: Part1PacketGrid,
     precincts: Seq<Part1PacketPrecinctState>, selection: Option<Seq<u8>>, limits: &crate::ResourceLimits,
     result: (Result<crate::packet::TilePacketDecode, crate::DecodeError>, Seq<Part1PacketPrecinctState>)) -> bool {
-    part2_packet_result(crate::codestream::tile_parts_owned_view(parts), grid, precincts, selection, limits, result)
+    part2_packet_result(false,crate::codestream::tile_parts_owned_view(parts), grid, precincts, selection, limits, result)
 }
 pub(crate) proof fn part2_packet_public_result_equivalent(parts: Seq<crate::codestream::TilePartPayload<'_>>, grid: Part1PacketGrid,
     precincts: Seq<Part1PacketPrecinctState>, selection: Option<Seq<u8>>, limits: &crate::ResourceLimits)
     ensures forall|result: (Result<crate::packet::TilePacketDecode, crate::DecodeError>, Seq<Part1PacketPrecinctState>)|
         part1_progression_tile_cold_result(parts, grid, precincts, selection, limits, result)
-            == part2_packet_result(crate::codestream::tile_parts_owned_view(parts), grid, precincts, selection, limits, result),
+            == part2_packet_result(false,crate::codestream::tile_parts_owned_view(parts), grid, precincts, selection, limits, result),
 {}
-pub(crate) proof fn part2_packet_normal(parts: Seq<Part2OwnedTilePart>, grid: Part1PacketGrid,
+pub(crate) proof fn part2_packet_normal(owned:bool,parts: Seq<Part2OwnedTilePart>, grid: Part1PacketGrid,
     precincts: Seq<Part1PacketPrecinctState>, selection: Option<Seq<u8>>, limits: &crate::ResourceLimits)
-    ensures part2_packet_result(parts, grid, precincts, selection, limits, part1_progression_tile_decode_owned(parts, grid, precincts, selection, limits)),
+    ensures part2_packet_result(owned,parts, grid, precincts, selection, limits, part1_progression_tile_decode_owned(parts, grid, precincts, selection, limits)),
 {
     part2_packet_input_normal(parts, grid, precincts, selection, limits);
     let prepared = part1_progression_tile_input_owned(parts, grid, precincts, selection, limits);
     match prepared {
-        Err(error)=>{part2_packet_input_error(parts,grid,precincts,selection,limits,error);},
+        Err(error)=>{part2_packet_input_error(owned,parts,grid,precincts,selection,limits,error);},
         Ok(input)=>{
             let params=part2_packet_parameters(parts,grid,input,selection,limits);
             part2_progress_initial_normal(params);
-            part2_packet_stages_actual(parts,grid,precincts,selection,limits,input,part1_tile_progress_initial(params));
+            part2_packet_stages_actual(owned,parts,grid,precincts,selection,limits,input,part1_tile_progress_initial(params));
         },
     }
 }
-pub(crate) proof fn part2_packet_input_error(parts: Seq<Part2OwnedTilePart>, grid: Part1PacketGrid,
+pub(crate) proof fn part2_packet_input_error(owned:bool,parts: Seq<Part2OwnedTilePart>, grid: Part1PacketGrid,
     precincts: Seq<Part1PacketPrecinctState>, selection: Option<Seq<u8>>, limits: &crate::ResourceLimits, error: crate::DecodeError)
     requires part2_packet_input_result(parts, grid, precincts, selection, limits, Err(error)),
-    ensures part2_packet_result(parts, grid, precincts, selection, limits, (Err(error), precincts)),
+    ensures part2_packet_result(owned,parts, grid, precincts, selection, limits, (Err(error), precincts)),
 {
     reveal(part2_packet_result); reveal(part2_packet_input_result);
     let run = |events| part2_packet_input_run(parts, grid, precincts, selection, limits, events);
     let calls = part2_cold_witness(run, Err(error));
-    assert forall|tail: Seq<Part2JpipSnapshotEvent>| part2_packet_run(parts, grid, precincts, selection, limits, calls + tail)
+    assert forall|tail: Seq<Part2JpipSnapshotEvent>| part2_packet_run(owned,parts, grid, precincts, selection, limits, calls + tail)
         == Some(((Err(error), precincts), tail)) by { part2_cold_prefix_at(run, calls, Err(error), tail); }
-    assert(part2_packet_prefix(parts, grid, precincts, selection, limits, calls, (Err(error), precincts)));
+    assert(part2_packet_prefix(owned,parts, grid, precincts, selection, limits, calls, (Err(error), precincts)));
 }
 
 }

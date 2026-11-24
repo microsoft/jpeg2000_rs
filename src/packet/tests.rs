@@ -2745,7 +2745,8 @@ fn real_shared_body_policy_retains_nonzero_local_errors_without_remapping_child_
             &mut execution,
             (71, 29),
             true,
-            &ResourceLimits::default()
+            &ResourceLimits::default(),
+            false
         ),
         Err(packet_reader_error(29, MalformedKind::InvalidPacketHeader))
     );
@@ -2759,7 +2760,8 @@ fn real_shared_body_policy_retains_nonzero_local_errors_without_remapping_child_
             &mut execution,
             (71, 29),
             true,
-            &ResourceLimits::default()
+            &ResourceLimits::default(),
+            false
         ),
         Err(packet_invalid_code_block())
     );
@@ -2903,6 +2905,108 @@ fn literal_progression_tile(
 }
 
 #[test]
+fn private_owned_tile_only_publishes_finalized_precincts() {
+    let limits = ResourceLimits::default();
+    for layers in [1, 2, 4, 8] {
+        let grid = packet_grid_new_with_component_resolutions(layers, 1, vec![1], vec![1], &limits)
+            .unwrap();
+        let mut data = vec![0xe3, 0, 0x63, 0];
+        data.resize(usize::from(layers) + 3, 0);
+        let fresh = || vec![literal_ht_progression_precinct(0)];
+        let parts = [literal_progression_tile(&data, layers, 0, 0, 1)];
+        let mut borrowed = fresh();
+        let expected =
+            decode_progression_tile_packets(&parts, &grid, &mut borrowed, &limits).unwrap();
+        let (actual, after) =
+            decode_progression_tile_packets_owned(&parts, &grid, fresh(), None, &limits).unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(
+            exact_packet_precinct_snapshot(&after[0]),
+            exact_packet_precinct_snapshot(&borrowed[0])
+        );
+        let mut trailing = data.clone();
+        trailing.push(0);
+        let malformed = [literal_progression_tile(&trailing, layers, 0, 0, 1)];
+        let mut borrowed = fresh();
+        let error =
+            decode_progression_tile_packets(&malformed, &grid, &mut borrowed, &limits).unwrap_err();
+        assert_eq!(
+            error,
+            packet_reader_error(data.len(), MalformedKind::TrailingData)
+        );
+        assert_eq!(borrowed[0].decoders[0].next_pass(), 1);
+        assert_eq!(
+            decode_progression_tile_packets_owned(&malformed, &grid, fresh(), None, &limits).err(),
+            Some(error)
+        );
+        assert_eq!(
+            decode_progression_tile_packets_owned(&parts, &grid, fresh(), None, &limits)
+                .unwrap()
+                .0,
+            expected
+        );
+    }
+}
+
+#[test]
+fn private_owned_body_keeps_fresh_staging_and_elides_only_advanced_staging() {
+    let limits = ResourceLimits::default();
+    let first = one_ff_legacy_contribution();
+    let run = |decoder: &mut Tier1CodeBlockDecoder, contribution, owned| {
+        let mut progress = PacketBodyExecutionProgress {
+            index: 0,
+            offset: 0,
+            segments: 0,
+            passes: 0,
+        };
+        execute_packet_body_contributions(
+            std::slice::from_mut(decoder),
+            &[Some(contribution)],
+            &[0],
+            &mut progress,
+            (0, 0),
+            true,
+            &limits,
+            owned,
+        )
+    };
+    let fresh = || one_bit_legacy_decoder(false);
+    for owned in [false, true] {
+        let mut decoder = fresh();
+        let before = format!("{decoder:?}");
+        assert_eq!(
+            crate::allocation::with_refusal(0, || run(&mut decoder, first, owned)),
+            Err(DecodeError::AllocationFailed)
+        );
+        assert_eq!(format!("{decoder:?}"), before);
+    }
+    let mut advanced = fresh();
+    run(&mut advanced, first, false).unwrap();
+    assert_eq!(advanced.next_pass(), 1);
+    // Fail during body admission, before any retained replay allocation.
+    let mismatched = CodeBlockContribution {
+        first_inclusion: false,
+        zero_bitplanes: 1,
+        ..first
+    };
+    let before = format!("{advanced:?}");
+    assert_eq!(
+        crate::allocation::with_refusal(0, || run(&mut advanced, mismatched, false)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(format!("{advanced:?}"), before);
+    let normal_error = run(&mut advanced, mismatched, false).unwrap_err();
+    assert_eq!(format!("{advanced:?}"), before);
+    crate::allocation::with_refusal(0, || {
+        assert_eq!(run(&mut advanced, mismatched, true), Err(normal_error));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn full_selected_progression_derives_literal_headers_and_skips_only_higher_resolution_coefficients()
 {
     let limits = ResourceLimits::default();
@@ -3016,6 +3120,7 @@ fn actual_progression_work_guard_follows_real_next_and_restart_duplicate_effects
     let mut precincts = [literal_ht_progression_precinct(0)];
     let input = prepare_progression_tile_input(&parts, &grid, &precincts, None, &limits).unwrap();
     let params = ProgressionTileParameters {
+        owned_body: false,
         tile_parts: &parts,
         grid: &grid,
         input: &input,
@@ -3059,6 +3164,7 @@ fn physical_tile_boundary_does_not_spend_a_discarded_coordinate_before_restart()
     let mut precincts = [literal_ht_progression_precinct(0)];
     let input = prepare_progression_tile_input(&parts, &grid, &precincts, None, &limits).unwrap();
     let params = ProgressionTileParameters {
+        owned_body: false,
         tile_parts: &parts,
         grid: &grid,
         input: &input,
@@ -3089,6 +3195,7 @@ fn actual_progression_accounting_keeps_every_ordered_overflow_and_new_offset_err
     let precincts = [literal_ht_progression_precinct(0)];
     let input = prepare_progression_tile_input(&parts, &grid, &precincts, None, &limits).unwrap();
     let params = ProgressionTileParameters {
+        owned_body: false,
         tile_parts: &parts,
         grid: &grid,
         input: &input,
@@ -3348,6 +3455,7 @@ fn preparation_storage_empty_geometry_and_iterator_errors_consume_no_later_reque
     let parts = [literal_progression_tile(&[], 1, 0, 0, 1)];
     let input = prepare_progression_tile_input(&parts, &grid, &[], None, &limits).unwrap();
     let params = ProgressionTileParameters {
+        owned_body: false,
         tile_parts: &parts,
         grid: &grid,
         input: &input,
@@ -3365,6 +3473,7 @@ fn preparation_storage_empty_geometry_and_iterator_errors_consume_no_later_reque
     let prepared =
         prepare_progression_tile_input(&invalid, &positive, &precincts, None, &limits).unwrap();
     let bad = ProgressionTileParameters {
+        owned_body: false,
         tile_parts: &invalid,
         grid: &positive,
         input: &prepared,
@@ -3380,6 +3489,7 @@ fn preparation_storage_empty_geometry_and_iterator_errors_consume_no_later_reque
     let admitted =
         prepare_progression_tile_input(&costly, &positive, &precincts, None, &tight).unwrap();
     let limited = ProgressionTileParameters {
+        owned_body: false,
         tile_parts: &costly,
         grid: &positive,
         input: &admitted,
@@ -4086,6 +4196,7 @@ fn actual_progression_constructor_charges_duplicate_windows_and_next_suppresses_
 
 fn literal_payload_parameters() -> PrecinctPayloadParameters {
     PrecinctPayloadParameters {
+        owned_body: false,
         error_offset: 21,
         packed_offset: 0,
         expected_packet_length: None,
@@ -4559,6 +4670,7 @@ fn actual_precinct_wrapper_commits_literal_ht_cleanup_before_late_length_mismatc
             &mut precinct,
             true,
             &limits,
+            false,
         );
         assert_eq!(
             result,
@@ -4614,7 +4726,18 @@ fn actual_precinct_wrapper_preserves_shape_cap_offset_and_component_error_priori
     precinct.component = 1;
     precinct.contexts.clear();
     assert_eq!(
-        decode_precinct_packet(&tile, 7, &[], 0, None, 0, &mut precinct, true, &limits),
+        decode_precinct_packet(
+            &tile,
+            7,
+            &[],
+            0,
+            None,
+            0,
+            &mut precinct,
+            true,
+            &limits,
+            false
+        ),
         Err(DecodeError::MalformedInput {
             offset: 0,
             kind: MalformedKind::InvalidPacketHeader
@@ -4627,7 +4750,18 @@ fn actual_precinct_wrapper_preserves_shape_cap_offset_and_component_error_priori
     precinct.decoders.append(&mut second.decoders);
     let limited = limits.with_maximum_code_blocks(1).unwrap();
     assert_eq!(
-        decode_precinct_packet(&tile, 7, &[], 0, None, 0, &mut precinct, true, &limited),
+        decode_precinct_packet(
+            &tile,
+            7,
+            &[],
+            0,
+            None,
+            0,
+            &mut precinct,
+            true,
+            &limited,
+            false
+        ),
         Err(DecodeError::LimitExceeded {
             resource: Resource::CodeBlocks,
             limit: 1,
@@ -4638,14 +4772,36 @@ fn actual_precinct_wrapper_preserves_shape_cap_offset_and_component_error_priori
     precinct.contexts.pop();
     precinct.decoders.pop();
     assert_eq!(
-        decode_precinct_packet(&tile, 7, &[], 0, None, 0, &mut precinct, true, &limits),
+        decode_precinct_packet(
+            &tile,
+            7,
+            &[],
+            0,
+            None,
+            0,
+            &mut precinct,
+            true,
+            &limits,
+            false
+        ),
         Err(DecodeError::MalformedInput {
             offset: 7,
             kind: MalformedKind::InvalidPacketLength
         })
     );
     assert_eq!(
-        decode_precinct_packet(&tile, 0, &[], 0, None, 0, &mut precinct, true, &limits),
+        decode_precinct_packet(
+            &tile,
+            0,
+            &[],
+            0,
+            None,
+            0,
+            &mut precinct,
+            true,
+            &limits,
+            false
+        ),
         Err(DecodeError::MalformedInput {
             offset: 0,
             kind: MalformedKind::InvalidCodingStyle
@@ -4899,6 +5055,7 @@ fn precinct_skipped_execution_consumes_ranges_without_decoder_shape_or_counter_c
                 (71, 0),
                 false,
                 &ResourceLimits::default(),
+                false
             ),
             expected_result
         );
@@ -4936,6 +5093,7 @@ fn precinct_execution_retains_real_prior_coefficients_and_late_partial_counters(
             (71, 0),
             true,
             &ResourceLimits::default(),
+            false
         ),
         Err(invalid_packet_header())
     );
@@ -4970,6 +5128,7 @@ fn precinct_execution_retains_real_prior_coefficients_and_late_partial_counters(
                 (71, 0),
                 true,
                 &ResourceLimits::default(),
+                false
             ),
             Err(packet_arithmetic_overflow())
         );
@@ -6709,17 +6868,38 @@ fn empty_resolution_precinct_consumes_either_packet_present_flag() {
             &limits,
         )
         .unwrap();
-        let (decoded, consumed, packed) =
-            decode_precinct_packet(&tile, 0, &[], 0, Some(1), 0, &mut precinct, true, &limits)
-                .unwrap();
+        let (decoded, consumed, packed) = decode_precinct_packet(
+            &tile,
+            0,
+            &[],
+            0,
+            Some(1),
+            0,
+            &mut precinct,
+            true,
+            &limits,
+            false,
+        )
+        .unwrap();
         assert_eq!(decoded.present, header != 0);
         assert_eq!(decoded.code_blocks, 0);
         assert_eq!(decoded.passes, 0);
         assert_eq!(consumed, 1);
         assert_eq!(packed, 0);
         assert!(
-            decode_precinct_packet(&tile, 0, &[], 0, Some(2), 0, &mut precinct, true, &limits,)
-                .is_err()
+            decode_precinct_packet(
+                &tile,
+                0,
+                &[],
+                0,
+                Some(2),
+                0,
+                &mut precinct,
+                true,
+                &limits,
+                false
+            )
+            .is_err()
         );
     }
 }

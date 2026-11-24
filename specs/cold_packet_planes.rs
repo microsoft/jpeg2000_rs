@@ -268,6 +268,75 @@ pub(crate) proof fn part2_packet_ht_body_normal(state:Tier1DecoderState,header:P
                 Ok(_)=>part2_plane_body_after_duplicate(before,header,body,pass_limit,byte_limit,input_limit,work,rest),
             })
     }
+
+    pub(crate) open spec fn part2_plane_body_in_place(owned: bool, before: Tier1DecoderState) -> bool {
+        owned && before.next_pass != 0
+    }
+
+    pub(crate) open spec fn part2_plane_body_effect(
+        in_place: bool, before: Tier1DecoderState, actual: HtCodeBlockBodyResult,
+    ) -> HtCodeBlockBodyResult {
+        // A failed private slot stops the tape. Its projected state is only
+        // for composing the old logical program, not a restored Rust owner.
+        if in_place && actual.0.is_err() { (actual.0, before) } else { actual }
+    }
+
+    pub(crate) open spec fn part2_plane_body_mode_run(owned: bool, before: Tier1DecoderState,
+        header: Part1CodeBlockContribution, body: Seq<u8>, pass_limit: u32, byte_limit: u64,
+        input_limit: u64, work: u64, calls: Seq<Part2Tier1StorageEvent>) -> Part2Tier1Run<HtCodeBlockBodyResult> {
+        if part2_plane_body_in_place(owned, before) {
+            part2_tier1_storage_bind(part2_plane_body_staged_run(before,header,body,pass_limit,byte_limit,input_limit,work,calls),
+                |actual: HtCodeBlockBodyResult, rest| Some((Ok(part2_plane_body_effect(true,before,actual)),rest)))
+        } else {
+            part2_plane_body_transaction_run(before,header,body,pass_limit,byte_limit,input_limit,work,calls)
+        }
+    }
+
+    pub(crate) proof fn part2_plane_body_mode_observed(owned: bool, before: Tier1DecoderState,
+        header: Part1CodeBlockContribution, body: Seq<u8>, pass_limit: u32, byte_limit: u64,
+        input_limit: u64, work: u64, actual: HtCodeBlockBodyResult)
+        requires
+            if part2_plane_body_in_place(owned,before) {
+                part2_plane_body_staged_result(before,header,body,pass_limit,byte_limit,input_limit,work,actual)
+            } else {
+                part2_plane_body_transaction_result(before,header,body,pass_limit,byte_limit,input_limit,work,actual)
+            },
+        ensures part2_tier1_storage_framed(
+            |calls| part2_plane_body_mode_run(owned,before,header,body,pass_limit,byte_limit,input_limit,work,calls),
+            Ok(part2_plane_body_effect(part2_plane_body_in_place(owned,before),before,actual))),
+    {
+        let run=|calls| part2_plane_body_mode_run(owned,before,header,body,pass_limit,byte_limit,input_limit,work,calls);
+        if part2_plane_body_in_place(owned,before) {
+            let effect=part2_plane_body_effect(true,before,actual);
+            let child=|calls|part2_plane_body_staged_run(before,header,body,pass_limit,byte_limit,input_limit,work,calls);
+            let next=|value: HtCodeBlockBodyResult, rest| Some((Ok(part2_plane_body_effect(true,before,value)),rest));
+            reveal(part2_plane_body_staged_result);
+            part2_tier1_storage_pure(Ok(effect));
+            part2_tier1_storage_bind_frame(child,next,Ok(actual),Ok(effect));
+            assert forall|calls| #[trigger] run(calls)==part2_tier1_storage_bind(child(calls),next) by {}
+        } else {
+            part2_plane_body_transaction_frames(before,header,body,pass_limit,byte_limit,input_limit,work,actual);
+            assert forall|calls| #[trigger] run(calls)==part2_plane_body_transaction_run(before,header,body,pass_limit,byte_limit,input_limit,work,calls) by {}
+        }
+    }
+
+    pub(crate) proof fn part2_plane_body_mode_normal(owned: bool, before: Tier1DecoderState,
+        header: Part1CodeBlockContribution, body: Seq<u8>, pass_limit: u32, byte_limit: u64,
+        input_limit: u64, work: u64)
+        ensures part2_tier1_storage_framed(
+            |calls| part2_plane_body_mode_run(owned,before,header,body,pass_limit,byte_limit,input_limit,work,calls),
+            Ok(part1_code_block_body_transaction(before,header,body,pass_limit,byte_limit,input_limit,work))),
+    {
+        if part2_plane_body_in_place(owned,before) {
+            part2_plane_body_staged_normal(before,header,body,pass_limit,byte_limit,input_limit,work);
+            let actual=part1_code_block_body_staged(before,header,body,pass_limit,byte_limit,input_limit,work);
+            part2_plane_body_mode_observed(owned,before,header,body,pass_limit,byte_limit,input_limit,work,actual);
+        } else {
+            part2_plane_body_transaction_normal(before,header,body,pass_limit,byte_limit,input_limit,work);
+            let actual=part1_code_block_body_transaction(before,header,body,pass_limit,byte_limit,input_limit,work);
+            part2_plane_body_mode_observed(owned,before,header,body,pass_limit,byte_limit,input_limit,work,actual);
+        }
+    }
     pub closed spec fn part2_plane_body_transaction_result(before:Tier1DecoderState,header:Part1CodeBlockContribution,body:Seq<u8>,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,result:HtCodeBlockBodyResult)->bool {
         part2_tier1_storage_framed(|calls|part2_plane_body_transaction_run(before,header,body,pass_limit,byte_limit,input_limit,work,calls),Ok(result))
     }

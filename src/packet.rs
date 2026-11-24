@@ -218,6 +218,7 @@ struct PrecinctHeaderProgress {
 
 #[derive(Clone, Copy)]
 struct PrecinctPayloadParameters {
+    owned_body: bool,
     error_offset: usize,
     packed_offset: usize,
     expected_packet_length: Option<u32>,
@@ -268,6 +269,7 @@ struct ProgressionTilePreparation {
 }
 
 struct ProgressionTileParameters<'a, 'data> {
+    owned_body: bool,
     tile_parts: &'a [TilePartPayload<'data>],
     grid: &'a PacketGrid,
     input: &'a ProgressionTilePreparation,
@@ -526,13 +528,14 @@ pub(crate) use tag_tree::{tag_tree_from_dimensions, tag_tree_new};
 mod tile;
 pub use tile::decode_progression_tile_packets;
 #[cfg(test)]
+pub(crate) use tile::decode_progression_tile_packets_selected;
+#[cfg(test)]
 use tile::{
     account_progression_packet, prepare_progression_tile_input, progression_tile_progress_new,
     run_progression_tile_packets,
 };
 pub(crate) use tile::{
-    decode_progression_tile_packets_recover_trailer_selected,
-    decode_progression_tile_packets_selected,
+    decode_progression_tile_packets_owned, decode_progression_tile_packets_recover_trailer_selected,
 };
 
 #[cfg(test)]

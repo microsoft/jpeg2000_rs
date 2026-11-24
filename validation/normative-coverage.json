@@ -8937,8 +8937,8 @@
         {"path": "src/decode/proof_support.rs", "symbol": "planning_precinct_planes_known_fields"},
         {"path": "src/decode/proof_support.rs", "symbol": "progression_plan_view"},
         {"path": "src/decode/execution.rs", "symbol": "reconstruct_planned_tile"},
-        {"path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets"},
-        {"path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets_selected"},
+        {"path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets_owned"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_packet_value_actual"},
         {"path": "src/packet/proof_support.rs", "symbol": "packet_precinct_vector_known_fields"},
         {"path": "src/packet/proof_support.rs", "symbol": "packet_precinct_decoder_states"},
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_plane_matches_state"},
@@ -12556,6 +12556,7 @@
         {
           "path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets_selected"
         },
+        {"path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets_mode"},
         {
           "path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets"
         },
@@ -12933,6 +12934,7 @@
         {
           "path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets_selected"
         },
+        {"path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets_mode"},
         {
           "path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets"
         },
@@ -13282,6 +13284,10 @@
         {"path": "specs/cold_packet_tile_planes.rs", "symbol": "part2_plane_tile_precinct_normal"},
         {"path": "specs/cold_packet_tile_planes.rs", "symbol": "part2_plane_tile_packet_normal"},
         {"path": "specs/cold_packet_tile_planes.rs", "symbol": "part2_plane_tile_run_normal"},
+        {"path": "specs/cold_packet_execute.rs", "symbol": "part2_packet_effect_witness"},
+        {"path": "specs/cold_packet_execute.rs", "symbol": "part2_packet_effect_publish"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_plane_body_mode_normal"},
+        {"path": "specs/cold_packet_planes.rs", "symbol": "part2_plane_body_mode_observed"},
         {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_tile_plane_calls_observed"},
         {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_packet_after_progress_observed"},
         {"path": "specs/cold_tile_plane_calls.rs", "symbol": "part2_packet_stage_values"},

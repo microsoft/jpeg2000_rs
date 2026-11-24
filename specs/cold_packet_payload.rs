@@ -14,7 +14,7 @@ pub(crate) open spec fn part2_plane_multi_body_run(decoders:Seq<Tier1DecoderStat
     let preflight=part1_packet_body_preflight_at(Part1PacketBodyPreflight {index:0,end:start},contributions,data,offset,offset);
     match preflight.0{
         Err(error)=>Some((Ok((Err(error),decoders)),calls)),
-        Ok(())=>part2_tier1_storage_bind(part2_plane_execute_run(Part1PacketBodyExecution {decoders,index:0,offset:start,segments:0,passes:0},contributions,data,offset,offset,true,
+        Ok(())=>part2_tier1_storage_bind(part2_plane_execute_run(false,Part1PacketBodyExecution {decoders,index:0,offset:start,segments:0,passes:0},contributions,data,offset,offset,true,
             pass_limit,byte_limit,input_limit,work,calls),|executed:Part1PacketBodyExecutionResult,rest|
                 Some((Ok(part2_plane_multi_finish(decoders,blocks,present,count,header,start,preflight.1.end,offset,executed)),rest))),
     }
@@ -33,11 +33,11 @@ pub(crate) proof fn part2_plane_multi_body_normal(decoders:Seq<Tier1DecoderState
     let preflight=part1_packet_body_preflight_at(Part1PacketBodyPreflight {index:0,end:start},contributions,data,offset,offset);
     if preflight.0.is_err(){part2_tier1_storage_pure(Ok(result));}else{
         let initial=Part1PacketBodyExecution {decoders,index:0,offset:start,segments:0,passes:0};
-        part2_plane_execute_normal(initial,contributions,data,offset,offset,true,pass_limit,byte_limit,input_limit,work);
+        part2_plane_execute_normal(false,initial,contributions,data,offset,offset,true,pass_limit,byte_limit,input_limit,work);
         let executed=part1_packet_body_execute_at(initial,contributions,data,offset,offset,true,pass_limit,byte_limit,input_limit,work);
-        part2_tier1_storage_eta(|calls|part2_plane_execute_run(initial,contributions,data,offset,offset,true,pass_limit,byte_limit,input_limit,work,calls),Ok(executed));
+        part2_tier1_storage_eta(|calls|part2_plane_execute_run(false,initial,contributions,data,offset,offset,true,pass_limit,byte_limit,input_limit,work,calls),Ok(executed));
         part2_tier1_storage_pure(Ok(result));
-        part2_tier1_storage_bind_frame(|calls|part2_plane_execute_run(initial,contributions,data,offset,offset,true,pass_limit,byte_limit,input_limit,work,calls),
+        part2_tier1_storage_bind_frame(|calls|part2_plane_execute_run(false,initial,contributions,data,offset,offset,true,pass_limit,byte_limit,input_limit,work,calls),
             |executed:Part1PacketBodyExecutionResult,rest|Some((Ok(part2_plane_multi_finish(decoders,blocks,present,count,header,start,preflight.1.end,offset,executed)),rest)),Ok(executed),Ok(result));
     }
 }
@@ -45,12 +45,12 @@ pub(crate) proof fn part2_plane_multi_body_observed(decoders:Seq<Tier1DecoderSta
     present:bool,count:u32,header:usize,start:usize,offset:usize,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,end:usize,executed:Part1PacketBodyExecutionResult)
     requires part1_packet_body_preflight_at(Part1PacketBodyPreflight {index:0,end:start},contributions,data,offset,offset).0==Ok(()),
         part1_packet_body_preflight_at(Part1PacketBodyPreflight {index:0,end:start},contributions,data,offset,offset).1.end==end,
-        part2_plane_execute_result(Part1PacketBodyExecution {decoders,index:0,offset:start,segments:0,passes:0},contributions,data,offset,offset,true,pass_limit,byte_limit,input_limit,work,executed),
+        part2_plane_execute_result(false,Part1PacketBodyExecution {decoders,index:0,offset:start,segments:0,passes:0},contributions,data,offset,offset,true,pass_limit,byte_limit,input_limit,work,executed),
     ensures part2_plane_multi_body_result(decoders,blocks,data,contributions,present,count,header,start,offset,pass_limit,byte_limit,input_limit,work,
         part2_plane_multi_finish(decoders,blocks,present,count,header,start,end,offset,executed)),
 {
     let result=part2_plane_multi_finish(decoders,blocks,present,count,header,start,end,offset,executed);part2_tier1_storage_pure(Ok(result));
-    part2_tier1_storage_bind_frame(|calls|part2_plane_execute_run(Part1PacketBodyExecution {decoders,index:0,offset:start,segments:0,passes:0},contributions,data,offset,offset,true,
+    part2_tier1_storage_bind_frame(|calls|part2_plane_execute_run(false,Part1PacketBodyExecution {decoders,index:0,offset:start,segments:0,passes:0},contributions,data,offset,offset,true,
         pass_limit,byte_limit,input_limit,work,calls),|executed:Part1PacketBodyExecutionResult,rest|Some((Ok(part2_plane_multi_finish(decoders,blocks,present,count,header,start,end,offset,executed)),rest)),Ok(executed),Ok(result));
 }
 pub(crate) open spec fn part2_plane_payload_admit(parameters:Part1PrecinctPayloadParameters,data:Seq<u8>,packet_data:Seq<u8>,reader:Part1PacketReaderState,
@@ -87,22 +87,22 @@ pub(crate) open spec fn part2_plane_payload_finish(state:Part1PacketPrecinctStat
     let after=Part1PacketPrecinctState {decoders:executed.1.decoders,..state};
     match executed.0{Err(error)=>(Err(error),after),Ok(())=>part1_precinct_payload_finish(after,parameters,present,count,executed.1.segments,executed.1.passes,args.0,args.1,args.3,args.2)}
 }
-pub(crate) open spec fn part2_plane_payload_after_run(state:Part1PacketPrecinctState,parameters:Part1PrecinctPayloadParameters,data:Seq<u8>,packet_data:Seq<u8>,reader:Part1PacketReaderState,
+pub(crate) open spec fn part2_plane_payload_after_run(owned:bool,state:Part1PacketPrecinctState,parameters:Part1PrecinctPayloadParameters,data:Seq<u8>,packet_data:Seq<u8>,reader:Part1PacketReaderState,
     contributions:Seq<Option<Part1CodeBlockContribution>>,count:u32,present:bool,sop:usize,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1PrecinctPayloadResult> {
     match part2_plane_payload_admit(parameters,data,packet_data,reader,contributions,sop){
         Err(error)=>Some((Ok((Err(error),state)),calls)),
-        Ok(args)=>part2_tier1_storage_bind(part2_plane_execute_run(Part1PacketBodyExecution {decoders:state.decoders,index:0,offset:args.1,segments:0,passes:0},contributions,data,
+        Ok(args)=>part2_tier1_storage_bind(part2_plane_execute_run(owned,Part1PacketBodyExecution {decoders:state.decoders,index:0,offset:args.1,segments:0,passes:0},contributions,data,
             parameters.error_offset,0,parameters.decode_tier1,pass_limit,byte_limit,input_limit,work,calls),|executed:Part1PacketBodyExecutionResult,rest|
                 Some((Ok(part2_plane_payload_finish(state,parameters,present,count,args,executed)),rest))),
     }
 }
-pub(crate) open spec fn part2_plane_payload_after_result(state:Part1PacketPrecinctState,parameters:Part1PrecinctPayloadParameters,data:Seq<u8>,packet_data:Seq<u8>,reader:Part1PacketReaderState,
+pub(crate) open spec fn part2_plane_payload_after_result(owned:bool,state:Part1PacketPrecinctState,parameters:Part1PrecinctPayloadParameters,data:Seq<u8>,packet_data:Seq<u8>,reader:Part1PacketReaderState,
     contributions:Seq<Option<Part1CodeBlockContribution>>,count:u32,present:bool,sop:usize,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,result:Part1PrecinctPayloadResult)->bool {
-    part2_tier1_storage_framed(|calls|part2_plane_payload_after_run(state,parameters,data,packet_data,reader,contributions,count,present,sop,pass_limit,byte_limit,input_limit,work,calls),Ok(result))
+    part2_tier1_storage_framed(|calls|part2_plane_payload_after_run(owned,state,parameters,data,packet_data,reader,contributions,count,present,sop,pass_limit,byte_limit,input_limit,work,calls),Ok(result))
 }
-pub(crate) proof fn part2_plane_payload_after_normal(state:Part1PacketPrecinctState,parameters:Part1PrecinctPayloadParameters,data:Seq<u8>,packet_data:Seq<u8>,reader:Part1PacketReaderState,
+pub(crate) proof fn part2_plane_payload_after_normal(owned:bool,state:Part1PacketPrecinctState,parameters:Part1PrecinctPayloadParameters,data:Seq<u8>,packet_data:Seq<u8>,reader:Part1PacketReaderState,
     contributions:Seq<Option<Part1CodeBlockContribution>>,count:u32,present:bool,sop:usize,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64)
-    ensures part2_plane_payload_after_result(state,parameters,data,packet_data,reader,contributions,count,present,sop,pass_limit,byte_limit,input_limit,work,
+    ensures part2_plane_payload_after_result(owned,state,parameters,data,packet_data,reader,contributions,count,present,sop,pass_limit,byte_limit,input_limit,work,
         part1_precinct_payload_after_headers(state,parameters,data,packet_data,reader,contributions,count,present,sop,pass_limit,byte_limit,input_limit,work)),
 {
     reveal(part1_precinct_payload_after_headers);reveal(part1_precinct_payload_body);reveal(part1_packet_body_execute);
@@ -111,25 +111,25 @@ pub(crate) proof fn part2_plane_payload_after_normal(state:Part1PacketPrecinctSt
         Err(_)=>{part2_tier1_storage_pure(Ok(result));},
         Ok(args)=>{
             let initial=Part1PacketBodyExecution {decoders:state.decoders,index:0,offset:args.1,segments:0,passes:0};
-            part2_plane_execute_normal(initial,contributions,data,parameters.error_offset,0,parameters.decode_tier1,pass_limit,byte_limit,input_limit,work);
+            part2_plane_execute_normal(owned,initial,contributions,data,parameters.error_offset,0,parameters.decode_tier1,pass_limit,byte_limit,input_limit,work);
             let executed=part1_packet_body_execute_at(initial,contributions,data,parameters.error_offset,0,parameters.decode_tier1,pass_limit,byte_limit,input_limit,work);
-            part2_tier1_storage_eta(|calls|part2_plane_execute_run(initial,contributions,data,parameters.error_offset,0,parameters.decode_tier1,pass_limit,byte_limit,input_limit,work,calls),Ok(executed));
+            part2_tier1_storage_eta(|calls|part2_plane_execute_run(owned,initial,contributions,data,parameters.error_offset,0,parameters.decode_tier1,pass_limit,byte_limit,input_limit,work,calls),Ok(executed));
             part2_tier1_storage_pure(Ok(result));
-            part2_tier1_storage_bind_frame(|calls|part2_plane_execute_run(initial,contributions,data,parameters.error_offset,0,parameters.decode_tier1,pass_limit,byte_limit,input_limit,work,calls),
+            part2_tier1_storage_bind_frame(|calls|part2_plane_execute_run(owned,initial,contributions,data,parameters.error_offset,0,parameters.decode_tier1,pass_limit,byte_limit,input_limit,work,calls),
                 |executed:Part1PacketBodyExecutionResult,rest|Some((Ok(part2_plane_payload_finish(state,parameters,present,count,args,executed)),rest)),Ok(executed),Ok(result));
         },
     }
 }
-pub(crate) proof fn part2_plane_payload_after_observed(state:Part1PacketPrecinctState,parameters:Part1PrecinctPayloadParameters,data:Seq<u8>,packet_data:Seq<u8>,reader:Part1PacketReaderState,
+pub(crate) proof fn part2_plane_payload_after_observed(owned:bool,state:Part1PacketPrecinctState,parameters:Part1PrecinctPayloadParameters,data:Seq<u8>,packet_data:Seq<u8>,reader:Part1PacketReaderState,
     contributions:Seq<Option<Part1CodeBlockContribution>>,count:u32,present:bool,sop:usize,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,args:(usize,usize,usize,usize),executed:Part1PacketBodyExecutionResult)
     requires part2_plane_payload_admit(parameters,data,packet_data,reader,contributions,sop)==Ok(args),
-        part2_plane_execute_result(Part1PacketBodyExecution {decoders:state.decoders,index:0,offset:args.1,segments:0,passes:0},contributions,data,parameters.error_offset,0,parameters.decode_tier1,
+        part2_plane_execute_result(owned,Part1PacketBodyExecution {decoders:state.decoders,index:0,offset:args.1,segments:0,passes:0},contributions,data,parameters.error_offset,0,parameters.decode_tier1,
             pass_limit,byte_limit,input_limit,work,executed),
-    ensures part2_plane_payload_after_result(state,parameters,data,packet_data,reader,contributions,count,present,sop,pass_limit,byte_limit,input_limit,work,
+    ensures part2_plane_payload_after_result(owned,state,parameters,data,packet_data,reader,contributions,count,present,sop,pass_limit,byte_limit,input_limit,work,
         part2_plane_payload_finish(state,parameters,present,count,args,executed)),
 {
     let result=part2_plane_payload_finish(state,parameters,present,count,args,executed);part2_tier1_storage_pure(Ok(result));
-    part2_tier1_storage_bind_frame(|calls|part2_plane_execute_run(Part1PacketBodyExecution {decoders:state.decoders,index:0,offset:args.1,segments:0,passes:0},contributions,data,
+    part2_tier1_storage_bind_frame(|calls|part2_plane_execute_run(owned,Part1PacketBodyExecution {decoders:state.decoders,index:0,offset:args.1,segments:0,passes:0},contributions,data,
         parameters.error_offset,0,parameters.decode_tier1,pass_limit,byte_limit,input_limit,work,calls),
         |executed:Part1PacketBodyExecutionResult,rest|Some((Ok(part2_plane_payload_finish(state,parameters,present,count,args,executed)),rest)),Ok(executed),Ok(result));
 }
@@ -180,15 +180,15 @@ pub(crate) proof fn part2_precinct_contributions_observed(context:Part2PrecinctC
     }
     assert(part2_tier1_storage_prefix(|calls|part2_precinct_contributions_run(context,calls),prefix,result));
 }
-pub(crate) open spec fn part2_plane_payload_prepared_run(state:Part1PacketPrecinctState,data:Seq<u8>,packed:Seq<u8>,parameters:Part1PrecinctPayloadParameters,
+pub(crate) open spec fn part2_plane_payload_prepared_run(owned:bool,state:Part1PacketPrecinctState,data:Seq<u8>,packed:Seq<u8>,parameters:Part1PrecinctPayloadParameters,
     header_limit:u64,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1PrecinctPayloadResult> {
     let prepared=part2_plane_payload_headers(state,data,packed,parameters,header_limit,work);
     match prepared.0{
         Err(error)=>Some((Ok((Err(error),prepared.1)),calls)),
-        Ok(h)=>part2_plane_payload_after_run(prepared.1,parameters,data,h.packet,h.reader,h.contributions,h.count,h.present,h.sop,pass_limit,byte_limit,input_limit,work,calls),
+        Ok(h)=>part2_plane_payload_after_run(owned,prepared.1,parameters,data,h.packet,h.reader,h.contributions,h.count,h.present,h.sop,pass_limit,byte_limit,input_limit,work,calls),
     }
 }
-pub(crate) open spec fn part2_plane_payload_run(state:Part1PacketPrecinctState,data:Seq<u8>,packed:Seq<u8>,parameters:Part1PrecinctPayloadParameters,
+pub(crate) open spec fn part2_plane_payload_run(owned:bool,state:Part1PacketPrecinctState,data:Seq<u8>,packed:Seq<u8>,parameters:Part1PrecinctPayloadParameters,
     header_limit:u64,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1PrecinctPayloadResult> {
     match part1_precinct_payload_prefix(data,packed,parameters,header_limit,work) {
         Err(error)=>Some((Ok((Err(error),state)),calls)),
@@ -196,18 +196,18 @@ pub(crate) open spec fn part2_plane_payload_run(state:Part1PacketPrecinctState,d
             Part2PrecinctContributionsContext {state,data,packed,parameters,header_limit,work},calls),
             |result:Result<(),crate::DecodeError>,rest|match result {
                 Err(error)=>Some((Ok((Err(error),state)),rest)),
-                Ok(())=>part2_plane_payload_prepared_run(state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work,rest),
+                Ok(())=>part2_plane_payload_prepared_run(owned,state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work,rest),
             }),
     }
 }
-pub(crate) open spec fn part2_plane_payload_result(state:Part1PacketPrecinctState,data:Seq<u8>,packed:Seq<u8>,parameters:Part1PrecinctPayloadParameters,
+pub(crate) open spec fn part2_plane_payload_result(owned:bool,state:Part1PacketPrecinctState,data:Seq<u8>,packed:Seq<u8>,parameters:Part1PrecinctPayloadParameters,
     header_limit:u64,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,result:Part1PrecinctPayloadResult)->bool {
-    part2_tier1_storage_framed(|calls|part2_plane_payload_run(state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work,calls),Ok(result))
+    part2_tier1_storage_framed(|calls|part2_plane_payload_run(owned,state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work,calls),Ok(result))
 }
-pub(crate) proof fn part2_plane_payload_prepared_normal(state:Part1PacketPrecinctState,data:Seq<u8>,packed:Seq<u8>,parameters:Part1PrecinctPayloadParameters,
+pub(crate) proof fn part2_plane_payload_prepared_normal(owned:bool,state:Part1PacketPrecinctState,data:Seq<u8>,packed:Seq<u8>,parameters:Part1PrecinctPayloadParameters,
     header_limit:u64,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64)
     ensures part2_tier1_storage_framed(
-        |calls|part2_plane_payload_prepared_run(state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work,calls),
+        |calls|part2_plane_payload_prepared_run(owned,state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work,calls),
         Ok(part1_precinct_payload(state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work))),
 {
     reveal(part1_precinct_payload_headers);
@@ -216,35 +216,35 @@ pub(crate) proof fn part2_plane_payload_prepared_normal(state:Part1PacketPrecinc
     match prepared.0{
         Err(_)=>{part2_tier1_storage_pure(Ok(result));},
         Ok(h)=>{
-            part2_plane_payload_after_normal(prepared.1,parameters,data,h.packet,h.reader,h.contributions,h.count,h.present,h.sop,pass_limit,byte_limit,input_limit,work);
-            part2_tier1_storage_eta(|calls|part2_plane_payload_after_run(prepared.1,parameters,data,h.packet,h.reader,h.contributions,h.count,h.present,h.sop,pass_limit,byte_limit,input_limit,work,calls),Ok(result));
+            part2_plane_payload_after_normal(owned,prepared.1,parameters,data,h.packet,h.reader,h.contributions,h.count,h.present,h.sop,pass_limit,byte_limit,input_limit,work);
+            part2_tier1_storage_eta(|calls|part2_plane_payload_after_run(owned,prepared.1,parameters,data,h.packet,h.reader,h.contributions,h.count,h.present,h.sop,pass_limit,byte_limit,input_limit,work,calls),Ok(result));
         },
     }
 }
-pub(crate) proof fn part2_plane_payload_capacity_then(context:Part2PrecinctContributionsContext,pass_limit:u32,byte_limit:u64,input_limit:u64,
+pub(crate) proof fn part2_plane_payload_capacity_then(owned:bool,context:Part2PrecinctContributionsContext,pass_limit:u32,byte_limit:u64,input_limit:u64,
     response:Result<(),crate::DecodeError>,result:Part1PrecinctPayloadResult)
     requires part1_precinct_payload_prefix(context.data,context.packed,context.parameters,context.header_limit,context.work).is_ok(),
         part2_precinct_contributions_result(context,response),
         match response {
             Err(error)=>result==(Err(error),context.state),
             Ok(())=>part2_tier1_storage_framed(
-                |calls|part2_plane_payload_prepared_run(context.state,context.data,context.packed,context.parameters,context.header_limit,pass_limit,byte_limit,input_limit,context.work,calls),Ok(result)),
+                |calls|part2_plane_payload_prepared_run(owned,context.state,context.data,context.packed,context.parameters,context.header_limit,pass_limit,byte_limit,input_limit,context.work,calls),Ok(result)),
         },
-    ensures part2_plane_payload_result(context.state,context.data,context.packed,context.parameters,context.header_limit,pass_limit,byte_limit,input_limit,context.work,result),
+    ensures part2_plane_payload_result(owned,context.state,context.data,context.packed,context.parameters,context.header_limit,pass_limit,byte_limit,input_limit,context.work,result),
 {
     if let Err(error)=response {part2_tier1_storage_pure(Ok(result));}else{
         part2_tier1_storage_eta(
-            |calls|part2_plane_payload_prepared_run(context.state,context.data,context.packed,context.parameters,context.header_limit,pass_limit,byte_limit,input_limit,context.work,calls),Ok(result));
+            |calls|part2_plane_payload_prepared_run(owned,context.state,context.data,context.packed,context.parameters,context.header_limit,pass_limit,byte_limit,input_limit,context.work,calls),Ok(result));
     }
     part2_tier1_resume_frame(|calls|part2_precinct_contributions_run(context,calls),
         |reply:Result<(),crate::DecodeError>,rest|match reply {
             Err(error)=>Some((Ok((Err(error),context.state)),rest)),
-            Ok(())=>part2_plane_payload_prepared_run(context.state,context.data,context.packed,context.parameters,context.header_limit,pass_limit,byte_limit,input_limit,context.work,rest),
+            Ok(())=>part2_plane_payload_prepared_run(owned,context.state,context.data,context.packed,context.parameters,context.header_limit,pass_limit,byte_limit,input_limit,context.work,rest),
         },response,Ok(result));
 }
-pub(crate) proof fn part2_plane_payload_normal(state:Part1PacketPrecinctState,data:Seq<u8>,packed:Seq<u8>,parameters:Part1PrecinctPayloadParameters,
+pub(crate) proof fn part2_plane_payload_normal(owned:bool,state:Part1PacketPrecinctState,data:Seq<u8>,packed:Seq<u8>,parameters:Part1PrecinctPayloadParameters,
     header_limit:u64,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64)
-    ensures part2_plane_payload_result(state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work,
+    ensures part2_plane_payload_result(owned,state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work,
         part1_precinct_payload(state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work)),
 {
     let result=part1_precinct_payload(state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work);
@@ -253,21 +253,21 @@ pub(crate) proof fn part2_plane_payload_normal(state:Part1PacketPrecinctState,da
         Ok(_)=>{
             let context=Part2PrecinctContributionsContext {state,data,packed,parameters,header_limit,work};
             part2_precinct_contributions_observed(context,Ok(()));
-            part2_plane_payload_prepared_normal(state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work);
-            part2_plane_payload_capacity_then(context,pass_limit,byte_limit,input_limit,Ok(()),result);
+            part2_plane_payload_prepared_normal(owned,state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work);
+            part2_plane_payload_capacity_then(owned,context,pass_limit,byte_limit,input_limit,Ok(()),result);
         },
     }
 }
-pub(crate) proof fn part2_plane_payload_observed(state:Part1PacketPrecinctState,data:Seq<u8>,packed:Seq<u8>,parameters:Part1PrecinctPayloadParameters,
+pub(crate) proof fn part2_plane_payload_observed(owned:bool,state:Part1PacketPrecinctState,data:Seq<u8>,packed:Seq<u8>,parameters:Part1PrecinctPayloadParameters,
     header_limit:u64,pass_limit:u32,byte_limit:u64,input_limit:u64,work:u64,after:Part1PacketPrecinctState,h:Part2PlanePayloadHeader,result:Part1PrecinctPayloadResult)
     requires part2_plane_payload_headers(state,data,packed,parameters,header_limit,work)==(Ok(h),after),
         part2_precinct_contributions_result(Part2PrecinctContributionsContext {state,data,packed,parameters,header_limit,work},Ok(())),
-        part2_plane_payload_after_result(after,parameters,data,h.packet,h.reader,h.contributions,h.count,h.present,h.sop,pass_limit,byte_limit,input_limit,work,result),
-    ensures part2_plane_payload_result(state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work,result),
+        part2_plane_payload_after_result(owned,after,parameters,data,h.packet,h.reader,h.contributions,h.count,h.present,h.sop,pass_limit,byte_limit,input_limit,work,result),
+    ensures part2_plane_payload_result(owned,state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work,result),
 {
-    part2_tier1_storage_eta(|calls|part2_plane_payload_after_run(after,parameters,data,h.packet,h.reader,h.contributions,h.count,h.present,h.sop,pass_limit,byte_limit,input_limit,work,calls),Ok(result));
-    assert(part2_tier1_storage_framed(|calls|part2_plane_payload_prepared_run(state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work,calls),Ok(result)));
-    part2_plane_payload_capacity_then(Part2PrecinctContributionsContext {state,data,packed,parameters,header_limit,work},pass_limit,byte_limit,input_limit,Ok(()),result);
+    part2_tier1_storage_eta(|calls|part2_plane_payload_after_run(owned,after,parameters,data,h.packet,h.reader,h.contributions,h.count,h.present,h.sop,pass_limit,byte_limit,input_limit,work,calls),Ok(result));
+    assert(part2_tier1_storage_framed(|calls|part2_plane_payload_prepared_run(owned,state,data,packed,parameters,header_limit,pass_limit,byte_limit,input_limit,work,calls),Ok(result)));
+    part2_plane_payload_capacity_then(owned,Part2PrecinctContributionsContext {state,data,packed,parameters,header_limit,work},pass_limit,byte_limit,input_limit,Ok(()),result);
 }
 pub struct Part2PlaneMultiHeader {pub contributions:Seq<Option<Part1CodeBlockContribution>>,pub present:bool,pub count:u32,pub header:usize,pub start:usize}
 pub(crate) open spec fn part2_plane_multi_headers(s:Part1MultiPacketState,data:Seq<u8>,sop:bool,eph:bool,offset:usize,header_limit:u64,work:u64)
@@ -441,36 +441,36 @@ pub(crate) open spec fn part2_plane_precinct_admit(s:Part1PacketPrecinctState,pa
         },
     }}
 }
-pub(crate) open spec fn part2_plane_precinct_run(s:Part1PacketPrecinctState,part:Part2OwnedTilePart,offset:usize,packed:Seq<u8>,packed_offset:usize,expected:Option<u32>,sequence:u16,decode:bool,
+pub(crate) open spec fn part2_plane_precinct_run(owned:bool,s:Part1PacketPrecinctState,part:Part2OwnedTilePart,offset:usize,packed:Seq<u8>,packed_offset:usize,expected:Option<u32>,sequence:u16,decode:bool,
     blocks:u64,header:u64,passes:u32,bytes:u64,input:u64,work:u64,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part1PrecinctPayloadResult> {
     match part2_plane_precinct_admit(s,part,offset,packed_offset,expected,sequence,decode,blocks,work){
-        Err(error)=>Some((Ok((Err(error),s)),calls)),Ok(parameters)=>part2_plane_payload_run(s,part.data.subrange(offset as int,part.data.len() as int),packed,parameters,header,passes,bytes,input,work,calls),
+        Err(error)=>Some((Ok((Err(error),s)),calls)),Ok(parameters)=>part2_plane_payload_run(owned,s,part.data.subrange(offset as int,part.data.len() as int),packed,parameters,header,passes,bytes,input,work,calls),
     }
 }
-pub(crate) open spec fn part2_plane_precinct_result(s:Part1PacketPrecinctState,part:Part2OwnedTilePart,offset:usize,packed:Seq<u8>,packed_offset:usize,expected:Option<u32>,sequence:u16,decode:bool,
+pub(crate) open spec fn part2_plane_precinct_result(owned:bool,s:Part1PacketPrecinctState,part:Part2OwnedTilePart,offset:usize,packed:Seq<u8>,packed_offset:usize,expected:Option<u32>,sequence:u16,decode:bool,
     blocks:u64,header:u64,passes:u32,bytes:u64,input:u64,work:u64,result:Part1PrecinctPayloadResult)->bool {
-    part2_tier1_storage_framed(|calls|part2_plane_precinct_run(s,part,offset,packed,packed_offset,expected,sequence,decode,blocks,header,passes,bytes,input,work,calls),Ok(result))
+    part2_tier1_storage_framed(|calls|part2_plane_precinct_run(owned,s,part,offset,packed,packed_offset,expected,sequence,decode,blocks,header,passes,bytes,input,work,calls),Ok(result))
 }
-pub(crate) proof fn part2_plane_precinct_normal(s:Part1PacketPrecinctState,part:Part2OwnedTilePart,offset:usize,packed:Seq<u8>,packed_offset:usize,expected:Option<u32>,sequence:u16,decode:bool,
+pub(crate) proof fn part2_plane_precinct_normal(owned:bool,s:Part1PacketPrecinctState,part:Part2OwnedTilePart,offset:usize,packed:Seq<u8>,packed_offset:usize,expected:Option<u32>,sequence:u16,decode:bool,
     blocks:u64,header:u64,passes:u32,bytes:u64,input:u64,work:u64)
-    ensures part2_plane_precinct_result(s,part,offset,packed,packed_offset,expected,sequence,decode,blocks,header,passes,bytes,input,work,
+    ensures part2_plane_precinct_result(owned,s,part,offset,packed,packed_offset,expected,sequence,decode,blocks,header,passes,bytes,input,work,
         part1_precinct_packet_owned(s,part,offset,packed,packed_offset,expected,sequence,decode,blocks,header,passes,bytes,input,work)),
 {
     let result=part1_precinct_packet_owned(s,part,offset,packed,packed_offset,expected,sequence,decode,blocks,header,passes,bytes,input,work);
     match part2_plane_precinct_admit(s,part,offset,packed_offset,expected,sequence,decode,blocks,work){
         Err(_)=>{part2_tier1_storage_pure(Ok(result));},Ok(p)=>{
             let data=part.data.subrange(offset as int,part.data.len() as int);
-            part2_plane_payload_normal(s,data,packed,p,header,passes,bytes,input,work);
-            part2_tier1_storage_eta(|calls|part2_plane_payload_run(s,data,packed,p,header,passes,bytes,input,work,calls),Ok(result));
+            part2_plane_payload_normal(owned,s,data,packed,p,header,passes,bytes,input,work);
+            part2_tier1_storage_eta(|calls|part2_plane_payload_run(owned,s,data,packed,p,header,passes,bytes,input,work,calls),Ok(result));
         },
     }
 }
-pub(crate) proof fn part2_plane_precinct_observed(s:Part1PacketPrecinctState,part:Part2OwnedTilePart,offset:usize,packed:Seq<u8>,packed_offset:usize,expected:Option<u32>,sequence:u16,decode:bool,
+pub(crate) proof fn part2_plane_precinct_observed(owned:bool,s:Part1PacketPrecinctState,part:Part2OwnedTilePart,offset:usize,packed:Seq<u8>,packed_offset:usize,expected:Option<u32>,sequence:u16,decode:bool,
     blocks:u64,header:u64,passes:u32,bytes:u64,input:u64,work:u64,parameters:Part1PrecinctPayloadParameters,result:Part1PrecinctPayloadResult)
     requires part2_plane_precinct_admit(s,part,offset,packed_offset,expected,sequence,decode,blocks,work)==Ok(parameters),
-        part2_plane_payload_result(s,part.data.subrange(offset as int,part.data.len() as int),packed,parameters,header,passes,bytes,input,work,result),
-    ensures part2_plane_precinct_result(s,part,offset,packed,packed_offset,expected,sequence,decode,blocks,header,passes,bytes,input,work,result),
-{part2_tier1_storage_eta(|calls|part2_plane_payload_run(s,part.data.subrange(offset as int,part.data.len() as int),packed,parameters,header,passes,bytes,input,work,calls),Ok(result));}
+        part2_plane_payload_result(owned,s,part.data.subrange(offset as int,part.data.len() as int),packed,parameters,header,passes,bytes,input,work,result),
+    ensures part2_plane_precinct_result(owned,s,part,offset,packed,packed_offset,expected,sequence,decode,blocks,header,passes,bytes,input,work,result),
+{part2_tier1_storage_eta(|calls|part2_plane_payload_run(owned,s,part.data.subrange(offset as int,part.data.len() as int),packed,parameters,header,passes,bytes,input,work,calls),Ok(result));}
 pub(crate) open spec fn part2_jpip_inner_inline(part:Part2OwnedTilePart,data:Seq<u8>)->Part2OwnedTilePart {
     Part2OwnedTilePart {tile_part_index:0,tile_part_count:1,data,
         packet_lengths:Part1PacketLengths {source:Part1PacketLengthSource::None,packet_count:0,encoded_bytes:0},
@@ -523,7 +523,7 @@ pub(crate) proof fn part2_jpip_inline_copy_normal(source:Part2OwnedTilePart)
 }
 pub(crate) open spec fn part2_jpip_inner_after_copy_run(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,
     limits:&crate::ResourceLimits,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Result<usize,crate::DecodeError>,Part1PacketPrecinctState)> {
-    part2_tier1_storage_bind(part2_plane_precinct_run(part1_precinct_context_layer(initial,layer),part2_jpip_inner_inline(part,data),0,Seq::empty(),0,None,sequence,false,
+    part2_tier1_storage_bind(part2_plane_precinct_run(false,part1_precinct_context_layer(initial,layer),part2_jpip_inner_inline(part,data),0,Seq::empty(),0,None,sequence,false,
         crate::limits::resource_code_block_limit(limits),crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),
         crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),calls),
         |packet:Part1PrecinctPayloadResult,rest|Some((Ok(part2_jpip_inner_finish(packet)),rest)))
@@ -565,13 +565,13 @@ pub(crate) proof fn part2_jpip_inner_copy_error(initial:Part1PacketPrecinctState
 }
 pub(crate) proof fn part2_jpip_inner_observed(initial:Part1PacketPrecinctState,part:Part2OwnedTilePart,data:Seq<u8>,sequence:u16,layer:u16,
     limits:&crate::ResourceLimits,packet:Part1PrecinctPayloadResult)
-    requires part2_plane_precinct_result(part1_precinct_context_layer(initial,layer),part2_jpip_inner_inline(part,data),0,Seq::empty(),0,None,sequence,false,
+    requires part2_plane_precinct_result(false,part1_precinct_context_layer(initial,layer),part2_jpip_inner_inline(part,data),0,Seq::empty(),0,None,sequence,false,
         crate::limits::resource_code_block_limit(limits),crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),
         crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),packet),
     ensures part2_jpip_inner_result(initial,part,data,sequence,layer,limits,part2_jpip_inner_finish(packet)),
 {
     part2_tier1_storage_pure(Ok(part2_jpip_inner_finish(packet)));
-    part2_tier1_storage_bind_frame(|calls|part2_plane_precinct_run(part1_precinct_context_layer(initial,layer),part2_jpip_inner_inline(part,data),0,Seq::empty(),0,None,sequence,false,
+    part2_tier1_storage_bind_frame(|calls|part2_plane_precinct_run(false,part1_precinct_context_layer(initial,layer),part2_jpip_inner_inline(part,data),0,Seq::empty(),0,None,sequence,false,
         crate::limits::resource_code_block_limit(limits),crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),
         crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),calls),
         |packet:Part1PrecinctPayloadResult,rest|Some((Ok(part2_jpip_inner_finish(packet)),rest)),Ok(packet),Ok(part2_jpip_inner_finish(packet)));
@@ -584,7 +584,7 @@ pub(crate) proof fn part2_jpip_inner_normal(initial:Part1PacketPrecinctState,par
             crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits)))),
 {
     let state=part1_precinct_context_layer(initial,layer);let inline=part2_jpip_inner_inline(part,data);
-    part2_plane_precinct_normal(state,inline,0,Seq::empty(),0,None,sequence,false,
+    part2_plane_precinct_normal(false,state,inline,0,Seq::empty(),0,None,sequence,false,
         crate::limits::resource_code_block_limit(limits),crate::limits::resource_packet_header_byte_limit(limits),crate::limits::resource_code_block_pass_limit(limits),
         crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits));
     part2_jpip_inner_observed(initial,part,data,sequence,layer,limits,part1_precinct_packet_owned(state,inline,0,Seq::empty(),0,None,sequence,false,

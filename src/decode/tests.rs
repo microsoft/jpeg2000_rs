@@ -10463,3 +10463,54 @@ fn coefficient_extraction_storage_real_ht_raw_selected_jph_reconstruction_and_au
         assert_eq!(decoder.decoded_layers(), 1);
     }
 }
+
+#[test]
+fn private_owned_ht_refinement_after_cleanup_has_exact_retry_and_error() {
+    let mut data = prepared_codestream(1, 1, 1, &[0, 0x18], &[0xf1, 0x90, 0, 0x63, 0, 0, 0xc2, 0]);
+    let siz = data.windows(2).position(|p| p == [0xff, 0x51]).unwrap();
+    data[siz + 4..siz + 6].copy_from_slice(&0x4000_u16.to_be_bytes());
+    let cod = data.windows(2).position(|p| p == [0xff, 0x52]).unwrap();
+    data.splice(cod..cod, segment(0xff50, &[0, 2, 0, 0, 0, 8]));
+    let cod = cod + 10;
+    data[cod + 9] = 0;
+    data[cod + 12] = 0x40;
+    data[cod + 6..cod + 8].copy_from_slice(&2_u16.to_be_bytes());
+    let options = DecodeOptions::default();
+    let image = decode_codestream(&data, &options).unwrap();
+    #[cfg(feature = "cooperative-deadlines")]
+    {
+        use std::time::{Duration, Instant};
+
+        assert_eq!(
+            crate::with_decode_deadline(Instant::now(), || decode_codestream(&data, &options)),
+            Err(DecodeError::DeadlineExceeded)
+        );
+        assert_eq!(
+            crate::with_decode_deadline(Instant::now() + Duration::from_secs(60), || {
+                decode_codestream(&data, &options)
+            }),
+            Ok(decode_codestream(&data, &options).unwrap())
+        );
+    }
+    // Keep tile-part/body framing intact: this fires only in the second layer.
+    let mut invalid = data.clone();
+    let refinement = invalid.len() - 3;
+    invalid[refinement] = u8::MAX;
+    let baseline_error = decode_codestream(&invalid, &options).unwrap_err();
+    assert_eq!(
+        decode_codestream(&invalid, &options).unwrap_err(),
+        baseline_error
+    );
+    assert_eq!(decode_codestream(&data, &options).unwrap(), image);
+    // A surviving managed request must still be fallible, and a fresh retry
+    // after either result starts with newly planned ownership.
+    let last = (0..256)
+        .take_while(|&n| {
+            crate::allocation::with_refusal(n, || decode_codestream(&data, &options))
+                == Err(DecodeError::AllocationFailed)
+        })
+        .last()
+        .unwrap();
+    assert!(last > 0);
+    assert_eq!(decode_codestream(&data, &options).unwrap(), image);
+}

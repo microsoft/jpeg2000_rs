@@ -448,6 +448,7 @@ fn decode_multi_packet_body(
         (offset, offset),
         true,
         params.limits,
+        false,
     );
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::part2_plane_multi_body_observed(before,layout.blocks,data@,packet_body_contributions_view(contributions),layout.present,layout.count,layout.header,layout.start,params.offset,

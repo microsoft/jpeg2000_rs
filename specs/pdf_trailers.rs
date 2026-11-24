@@ -24,7 +24,7 @@ pub(crate) open spec fn part2_trailer_packet_after_progress_run(
 ) -> Part2ColdRun<Part2TrailerPacketOutput> {
     let params = part2_packet_parameters(parts, grid, input, selection, limits);
     part2_jpip_snapshot_bind(
-        part2_tile_plane_calls_run(params, Part1TilePacketExecution { progress, precincts }, events),
+        part2_tile_plane_calls_run(false,params, Part1TilePacketExecution { progress, precincts }, events),
         |decoded: (Result<(), crate::DecodeError>, Part1TilePacketExecution), rest|
             Some((Ok(part2_trailer_packet_finish(params, decoded, discarded)), rest)))
 }
@@ -125,7 +125,7 @@ pub(crate) proof fn part2_trailer_packet_actual(
 )
     requires part2_packet_input_result(parts, grid, precincts, selection, limits, Ok(input)),
         part2_progress_initial_result(part2_packet_parameters(parts, grid, input, selection, limits), Ok(progress)),
-        part2_plane_tile_run_result(part2_packet_parameters(parts, grid, input, selection, limits),
+        part2_plane_tile_run_result(false,part2_packet_parameters(parts, grid, input, selection, limits),
             Part1TilePacketExecution { progress, precincts }, decoded),
     ensures part2_trailer_packet_result(parts, grid, precincts, selection, limits, discarded,
         part2_trailer_packet_finish(part2_packet_parameters(parts, grid, input, selection, limits), decoded, discarded)),
@@ -135,10 +135,10 @@ pub(crate) proof fn part2_trailer_packet_actual(
     let initial = Part1TilePacketExecution { progress, precincts };
     let before = |events| part2_packet_input_run(parts, grid, precincts, selection, limits, events);
     let after = |events| part2_progress_initial_run(params, events);
-    let child = |events| part2_tile_plane_calls_run(params, initial, events);
+    let child = |events| part2_tile_plane_calls_run(false,params, initial, events);
     let first = part2_cold_witness(before, Ok(input));
     let second = part2_cold_witness(after, Ok(progress));
-    part2_tile_plane_calls_observed(params, initial, decoded);
+    part2_tile_plane_calls_observed(false,params, initial, decoded);
     let third = part2_cold_witness(child, Ok(decoded));
     let prefix = (first + second) + third;
     let output = part2_trailer_packet_finish(params, decoded, discarded);
@@ -170,7 +170,7 @@ pub(crate) proof fn part2_trailer_packet_normal(
                 Err(error) => part2_trailer_packet_progress_error(parts, grid, precincts, selection, limits, discarded, input, error),
                 Ok(progress) => {
                     let initial = Part1TilePacketExecution { progress, precincts };
-                    part2_plane_tile_run_normal(params, initial);
+                    part2_plane_tile_run_normal(false,params, initial);
                     part2_trailer_packet_actual(parts, grid, precincts, selection, limits, discarded,
                         input, progress, part1_tile_run(params, initial));
                 },

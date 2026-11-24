@@ -6387,6 +6387,93 @@ _packed_public_key = ("src/packet/tile.rs", "decode_progression_tile_packets")
 _packed_public_arguments = _COLD_RESULT_CONTRACTS[_packed_public_key][1].replace(
     _coverage_call("crate::codestream::tile_parts_owned_view", "tile_parts@"), "tile_parts@")
 _COLD_RESULT_CONTRACTS[_packed_public_key] = ("part1_progression_tile_cold_result", _packed_public_arguments)
+_PACKET_EFFECT_MODES = {
+    ("src/packet/body.rs", "execute_packet_body_contributions"): ("owned_body", "crate::specs::Part1PacketBodyExecutionResult"),
+    ("src/packet/precinct.rs", "decode_precinct_packet"): ("owned_body", "crate::specs::Part1PrecinctPayloadResult"),
+    ("src/packet/precinct.rs", "decode_precinct_packet_payload"): ("parameters.owned_body", "crate::specs::Part1PrecinctPayloadResult"),
+    ("src/packet/precinct.rs", "decode_precinct_packet_payload_after_headers"): ("parameters.owned_body", "crate::specs::Part1PrecinctPayloadResult"),
+    ("src/packet/tile.rs", "decode_progression_precinct_packet"): ("params.owned_body", "crate::specs::Part1PrecinctPayloadResult"),
+    ("src/packet/tile.rs", "execute_progression_packet"): ("params.owned_body", "(Result<(),DecodeError>,crate::specs::Part1TilePacketExecution)"),
+    ("src/packet/tile.rs", "run_progression_tile_packets"): ("params.owned_body", "(Result<(),DecodeError>,crate::specs::Part1TilePacketExecution)"),
+}
+_PACKET_BORROWED_SELECTED = ("src/packet/tile.rs", "decode_progression_tile_packets_selected")
+_borrowed_model, _borrowed_inputs = _COLD_RESULT_CONTRACTS[_PACKET_BORROWED_SELECTED]
+_COLD_RESULT_CONTRACTS[_PACKET_BORROWED_SELECTED] = (_borrowed_model, r"false\s*,\s*" + _borrowed_inputs)
+
+# Keep these checks local to the packet compositions. An exact leaf or edge
+# here supplements, rather than replaces, the existing storage guards.
+_OWNED_PACKET_SPEC_BODIES = {
+    ("specs/cold_packed_headers.rs", "part1_progression_tile_cold_result"):
+        "part2_packet_result(false,crate::codestream::tile_parts_owned_view(parts),grid,precincts,selection,limits,result)",
+    ("specs/cold_packet_execute.rs", "part2_packet_effect_matches"):
+        "actual.0 == model.0 && ((!owned || actual.0.is_ok()) ==> actual.1 == model.1)",
+    ("specs/cold_packet_execute.rs", "part2_packet_effect_observed"):
+        "model(actual) || (owned && actual.0.is_err() && exists|state:S| #[trigger] model((actual.0,state)))",
+    ("specs/cold_packet_planes.rs", "part2_plane_body_in_place"):
+        "owned && before.next_pass != 0",
+    ("specs/cold_packet_planes.rs", "part2_plane_body_effect"):
+        "if in_place && actual.0.is_err() { (actual.0, before) } else { actual }",
+    ("specs/cold_packet_planes.rs", "part2_plane_body_mode_run"): """
+        if part2_plane_body_in_place(owned,before) {
+            part2_tier1_storage_bind(part2_plane_body_staged_run(before,header,body,pass_limit,byte_limit,input_limit,work,calls),
+                |actual:HtCodeBlockBodyResult,rest|Some((Ok(part2_plane_body_effect(true,before,actual)),rest)))
+        } else {
+            part2_plane_body_transaction_run(before,header,body,pass_limit,byte_limit,input_limit,work,calls)
+        }""",
+    ("specs/cold_decode_packets.rs", "part2_packet_owned_result"):
+        "part2_cold_framed(|events|part2_packet_value_run(true,parts,grid,precincts,selection,limits,events),result)",
+    ("specs/cold_decode_packets.rs", "part2_packet_value_run"): """
+        match part2_packet_run(owned,parts,grid,precincts,selection,limits,events) {
+            None=>None, Some(((Err(error),_),rest))=>Some((Err(error),rest)),
+            Some(((Ok(value),after),rest))=>Some((Ok((value,after)),rest)),
+        }""",
+    ("specs/cold_decode_packets.rs", "part2_packet_observable"):
+        "match effect.0 { Err(error)=>Err(error), Ok(value)=>Ok((value,effect.1)) }",
+    ("src/packet/tile.rs", "owned_packet_outcome"):
+        "match result { Err(error)=>Err(error), Ok((value,precincts))=>Ok((value,owned_precincts_view(precincts@))) }",
+}
+_OWNED_PACKET_NATIVE_EDGES = {
+    _packed_public_key: ("decode_progression_tile_packets_selected(tile_parts,grid,precincts,None,limits)",),
+    _PACKET_BORROWED_SELECTED: ("decode_progression_tile_packets_mode(tile_parts,grid,precincts,maximum_resolution_counts,limits,false,)",),
+    ("src/packet/tile.rs", "decode_progression_tile_packets_owned"): (
+        "let slice = precincts.as_mut_slice();",
+        "let packets=decode_progression_tile_packets_mode(tile_parts,grid,slice,maximum_resolution_counts,limits,true,);",
+        "Ok((packets?,precincts))",
+    ),
+    ("src/packet/tile.rs", "decode_progression_tile_packets_mode"): (
+        "let decoded=run_progression_tile_packets(&params,precincts,&mut progress);",
+        "decoded?;", "finish_progression_tile_packets(&params,&mut progress)",
+    ),
+    ("src/packet/tile.rs", "decode_progression_precinct_packet"): (
+        "decode_precinct_packet(part,p.offset,packed,p.packed_offset,expected,sequence,precinct,decode,params.limits,params.owned_body,)",
+    ),
+    ("src/packet/precinct.rs", "decode_precinct_packet_payload_after_headers"): (
+        "preflight_packet_body_ranges(&contributions,data,&mut preflight,(offset,0))?;",
+        "execute_packet_body_contributions(&mut precinct.decoders,&contributions,data,&mut execution,(offset,0),decode_tier1,limits,parameters.owned_body,)",
+        "executed?;",
+    ),
+    ("src/packet/body.rs", "execute_packet_body_contributions"): (
+        "in_place=owned_body&&decoder.next_pass()!=0;",
+        """if in_place {
+            #[cfg(all(feature="cooperative-deadlines",not(verus_keep_ghost)))]
+            crate::deadline::checkpoint()?;
+            decode_code_block_contribution_body_staged(decoder,&contribution,body,limits,)
+        } else {
+            decode_code_block_contribution_body(decoder,&contribution,body,limits)
+        }""",
+    ),
+    ("src/decode/execution.rs", "decode_planned_tile_components"): (
+        "let packets=crate::packet::decode_progression_tile_packets_owned(tile_parts,&active.grid,active.precincts,maximum_resolution_counts,limits,);",
+        "let (_decoded_packets,precincts)=packets?;", "active.precincts=precincts;", "reconstruct_planned_tile(",
+    ),
+}
+_OWNED_PACKET_CONTRACT = """
+    ensures crate::specs::part2_packet_owned_result(crate::codestream::tile_parts_owned_view(tile_parts@),packet_grid_view(grid),
+        owned_precincts_view(precincts@),packet_selection_view(maximum_resolution_counts),limits,owned_packet_outcome(result)),
+    owned_packet_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        owned_packet_outcome(result)==crate::specs::part2_packet_observable(crate::specs::part1_progression_tile_decode(
+            tile_parts@,packet_grid_view(grid),owned_precincts_view(precincts@),packet_selection_view(maximum_resolution_counts),limits)),
+"""
 _grid_plan_public_key = ("src/decode/planning.rs", "plan_progression_tile_at_with_component_overrides")
 _grid_plan_public_legacy = _COMPONENT_TILE_PLANNING_CONTRACTS[_grid_plan_public_key]
 _COLD_RESULT_CONTRACTS[_grid_plan_public_key] = (
@@ -6785,9 +6872,9 @@ def _coverage_cold_result_body(text: str, model: str) -> bool:
     elif model == "part1_progression_plan_cold_result":
         expected = "part2_grid_plan_result(size,style,styles,crate::codestream::quantization_owner_view(quantizations),roi,selection,policy,limits,result)"
     elif model == "part1_progression_tile_cold_result":
-        expected = "part2_packet_result(crate::codestream::tile_parts_owned_view(parts), grid, precincts, selection, limits, result)"
+        expected = "part2_packet_result(false, crate::codestream::tile_parts_owned_view(parts), grid, precincts, selection, limits, result)"
     elif model == "part2_packet_result":
-        expected = "exists|prefix: Seq<Part2JpipSnapshotEvent>| #[trigger] part2_packet_prefix(parts, grid, precincts, selection, limits, prefix, result)"
+        expected = "exists|prefix: Seq<Part2JpipSnapshotEvent>| #[trigger] part2_packet_prefix(owned, parts, grid, precincts, selection, limits, prefix, result)"
     elif model == "part1_tile_progression_payload_storage_result":
         expected = """
             if segment.marker == 0xff5f && !raw.poc_seen {
@@ -7827,10 +7914,10 @@ _PLANE_ROLE_GUARDS = {
     ),
     ("specs/cold_tile_plane_calls.rs", "part2_tile_plane_calls_run"): (
         "TilePlaneCalls {params:actual,initial:before,calls}", "actual!=params || before!=initial",
-        "part2_plane_tile_run(params,initial,calls)", "rest.len()==0", "events.drop_first()",
+        "part2_plane_tile_run(owned,params,initial,calls)", "rest.len()==0", "events.drop_first()",
     ),
     ("specs/cold_tile_plane_calls.rs", "part2_packet_after_progress_run"): (
-        "part2_tile_plane_calls_run(params,Part1TilePacketExecution {progress,precincts},events)", "part2_packet_plane_finish(params,result)",
+        "part2_tile_plane_calls_run(owned,params,Part1TilePacketExecution {progress,precincts},events)", "part2_packet_plane_finish(params,result)",
     ),
 }
 _PLANE_ROLE_NATIVE_ORDER = {
@@ -8448,7 +8535,7 @@ _PREPARATION_NATIVE_ORDER = {
         "usize::try_from(params.grid.packet_count)", "crate::allocation::filled_values(false, seen_length)",
         "part2_preparation_observed(context,response)", "let seen=reserved?", "Ok(ProgressionTileProgress",
     ),
-    ("src/packet/tile.rs", "decode_progression_tile_packets_selected"): (
+    ("src/packet/tile.rs", "decode_progression_tile_packets_mode"): (
         "prepare_progression_tile_input(", "let input = prepared?", "progression_tile_progress_new(&params)",
         "part2_packet_progress_error(", "let mut progress = progress_result?", "run_progression_tile_packets(",
     ),
@@ -11091,7 +11178,7 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
         "part2_extraction_place_run(effect.1,plan.subbands,precincts,plan.placements[index as int],reversible,maximum,calls)",
     ),
     ("specs/cold_decode_packets.rs", "part2_planned_decode_run"): (
-        "part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
+        "part2_packet_value_run(true, parts, plan.grid, plan.precincts, selection, limits, events)",
         "part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest)",
     ),
 }
@@ -11187,14 +11274,14 @@ _PACKED_STORAGE_GUARDS = {
         "match part2_packet_input_run(parts, grid, precincts, selection, limits, events) { None => None, Some((Err(error), rest)) => Some(((Err(error), precincts), rest))",
         "Some((Ok(input), rest)) => match part2_progress_initial_run(part2_packet_parameters(parts,grid,input,selection,limits),rest)",
         "Some((Err(error),tail))=>Some(((Err(error),precincts),tail))",
-        "Some((Ok(progress),tail))=>match part2_packet_after_progress_run(parts,grid,precincts,selection,limits,input,progress,tail)",
+        "Some((Ok(progress),tail))=>match part2_packet_after_progress_run(owned,parts,grid,precincts,selection,limits,input,progress,tail)",
     ),
     ("specs/cold_packed_headers.rs", "part2_packet_prefix"): (
         "forall|tail: Seq<Part2JpipSnapshotEvent>| #[trigger]",
-        "part2_packet_run(parts, grid, precincts, selection, limits, prefix + tail) == Some((result, tail))",
+        "part2_packet_run(owned, parts, grid, precincts, selection, limits, prefix + tail) == Some((result, tail))",
     ),
     ("specs/cold_decode_packets.rs", "part2_planned_decode_run"): (
-        "part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
+        "part2_packet_value_run(true, parts, plan.grid, plan.precincts, selection, limits, events)",
         "|decoded: (crate::packet::TilePacketDecode, Seq<Part1PacketPrecinctState>), rest| part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest)",
     ),
     ("specs/cold_decode_packets.rs", "part2_planned_extraction_run"): (
@@ -18262,6 +18349,32 @@ def validate_normative_coverage(
                     relation_prefix + r"crate::specs::(?P<model>" + re.escape(model)
                     + r")\s*\(\s*(?P<state>" + arguments + r")\s*,?\s*\)", contract,
                 )
+                effect_mode = _PACKET_EFFECT_MODES.get((reference["path"], reference["symbol"]))
+                if effect_mode is not None:
+                    mode, effect_type = map(re.escape, effect_mode)
+                    key = reference["path"], reference["symbol"]
+                    old_model, result, state, normal_inputs = {
+                        **_PACKET_HEADER_CONTRACTS, **_PACKET_PROGRESSION_CONTRACTS, **_PACKET_WRAPPER_CONTRACTS,
+                    }[key]
+                    inputs = _coverage_cold_relation((old_model, "", None, normal_inputs))[1].removesuffix(r"\s*,\s*")
+                    observed = (
+                        relation_prefix + r"crate::specs::part2_packet_effect_observed\s*\(\s*" + mode
+                        + r"\s*,\s*\(\s*(?P<state>" + result + r"\s*,\s*" + state
+                        + r")\s*\)\s*,\s*\|effect\s*:\s*" + effect_type
+                        + r"\|\s*crate::specs::(?P<model>" + re.escape(model) + r")\s*\(\s*"
+                        + mode + r"\s*,\s*" + inputs + r"\s*,\s*effect\s*\)\s*\)"
+                    )
+                    allocation_guard = r"\1\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)"
+                    bypass = {
+                        "execute_packet_body_contributions": "!decode_tier1",
+                        "decode_precinct_packet_payload_after_headers": "!parameters.decode_tier1",
+                    }.get(reference["symbol"])
+                    guard = (r"\(\s*" + re.escape(bypass) + r"\s*\|\|\s*" + allocation_guard + r"\s*\)"
+                             if bypass else allocation_guard)
+                    normal = (r"\s*,\s*" + guard + r"\s*==>\s*crate::specs::part2_packet_effect_matches\s*\(\s*"
+                              + mode + r"\s*,\s*\(\s*" + result + r"\s*,\s*" + state + r"\s*\)\s*,\s*"
+                              + _coverage_call("crate::specs::" + old_model, normal_inputs) + r"\s*\)")
+                    relation = re.search(observed + normal, contract)
                 copy_phase = (reference["path"], reference["symbol"]) == (
                     "src/jpip/automatic_phases.rs", "decode_automatic_precinct")
                 exact_copy_phase_requires = copy_phase and re.search(
@@ -20013,6 +20126,43 @@ def validate_normative_coverage(
             if symbol == "PacketPrecinctDecoder::new_subbands" and any(
                     token in compact for token in ("packet_singleton_execution(", "empty_with_capacity(")):
                 raise ValueError("precinct singleton storage cannot invent an empty/subbands facade allocation")
+    if "part1-complete-native-grid-progression-composition" in ids:
+        path = (ROOT / "src/packet/tile.rs").resolve()
+        header = function_header(path, "decode_progression_tile_packets_owned")
+        text = source_text(path)
+        declaration = "" if header is None else text[text.rfind("#[cfg_attr", 0, header.start()):header.start()]
+        signature = "" if header is None else text[header.start():text.index("{", header.end())]
+        if ("".join(_OWNED_PACKET_CONTRACT.split()) not in "".join(declaration.split())
+                or re.search(r"\brequires\b", declaration)
+                or "mutprecincts:Vec<PacketPrecinctDecoder>," not in "".join(signature.split())
+                or "->Result<(TilePacketDecode,Vec<PacketPrecinctDecoder>),DecodeError>" not in "".join(signature.split())):
+            raise ValueError("owned packet audit requires an unconditional tape and an owner only in the success type")
+        for (relative, symbol), expected in _OWNED_PACKET_SPEC_BODIES.items():
+            body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
+            if body is None or "".join(re.sub(r"(?m)^\s*//[^\n]*", "", body).split()) != "".join(expected.split()):
+                raise ValueError(f"owned packet audit requires exact physical tape and success-only owner: {symbol}")
+        for (relative, symbol), edges in _OWNED_PACKET_NATIVE_EDGES.items():
+            path = (ROOT / relative).resolve()
+            body = _coverage_function_body(source_text(path), function_header(path, symbol))
+            compact = "".join(re.sub(r"(?m)^\s*//[^\n]*", "", body).split()) if body is not None else ""
+            for edge in edges:
+                token = "".join(edge.split())
+                at = compact.find(token)
+                if at < 0:
+                    raise ValueError(f"owned packet audit requires exact mode, producer and finish: {symbol}")
+                compact = compact[at + len(token):]
+            if symbol in {"decode_progression_tile_packets_mode", "decode_progression_tile_packets_owned"} and compact:
+                raise ValueError(f"owned packet audit requires exact mode, producer and finish: {symbol}")
+        for key, selection in ((_packed_public_key, "None"), (_PACKET_BORROWED_SELECTED, "packet_selection_view(maximum_resolution_counts)")):
+            path = (ROOT / key[0]).resolve()
+            header = function_header(path, key[1])
+            text = source_text(path)
+            declaration = "" if header is None else text[text.rfind("#[cfg_attr", 0, header.start()):header.start()]
+            ordinary = f"""result!=Err(DecodeError::AllocationFailed) ==>
+                (result,packet_precinct_vector_view(final(precincts)))==crate::specs::part1_progression_tile_decode(
+                    tile_parts@,packet_grid_view(grid),packet_precinct_vector_view(old(precincts)),{selection},limits),"""
+            if "".join(ordinary.split()) not in "".join(declaration.split()) or re.search(r"\brequires\b", declaration):
+                raise ValueError(f"borrowed packet audit requires its exact ordinary Result and full state: {key[1]}")
     if ids & {"part15-complete-actual-cleanup-plane", "part15-cleanup-only-actual-symbol-caller",
               "part15-complete-actual-refinement-plane", "part15-complete-substantive-segment-byte-entry",
               "part15-complete-retained-refinement-and-placeholder-steps", "part1-complete-native-grid-progression-composition"}:

@@ -126,12 +126,12 @@ pub(crate) proof fn part2_progress_initial_refused(params:Part1TilePacketParamet
     part2_cold_bind(|events|part2_preparation_capacity_run(part2_progress_context(params),events),
         |_:(),rest|Some((part1_tile_progress_initial(params),rest)),Err(crate::DecodeError::AllocationFailed),Err(crate::DecodeError::AllocationFailed));
 }
-pub(crate) proof fn part2_packet_stages_actual(parts:Seq<Part2OwnedTilePart>,grid:Part1PacketGrid,
+pub(crate) proof fn part2_packet_stages_actual(owned:bool,parts:Seq<Part2OwnedTilePart>,grid:Part1PacketGrid,
     precincts:Seq<Part1PacketPrecinctState>,selection:Option<Seq<u8>>,limits:&crate::ResourceLimits,
     input:Part1TilePacketPreparation,progress:Result<Part1TilePacketProgress,crate::DecodeError>)
     requires part2_packet_input_result(parts,grid,precincts,selection,limits,Ok(input)),
         part2_progress_initial_result(part2_packet_parameters(parts,grid,input,selection,limits),progress),
-    ensures part2_packet_result(parts,grid,precincts,selection,limits,match progress {
+    ensures part2_packet_result(owned,parts,grid,precincts,selection,limits,match progress {
         Err(error)=>(Err(error),precincts),Ok(_)=>part1_progression_tile_decode_owned(parts,grid,precincts,selection,limits),
     }),
 {
@@ -139,9 +139,9 @@ pub(crate) proof fn part2_packet_stages_actual(parts:Seq<Part2OwnedTilePart>,gri
        part2_packet_stage_values(parts,grid,precincts,selection,limits,input,p);
        let params=part2_packet_parameters(parts,grid,input,selection,limits);
        let initial=Part1TilePacketExecution {progress:p,precincts};
-       part2_plane_tile_run_normal(params,initial);
+       part2_plane_tile_run_normal(owned,params,initial);
        let result=part1_tile_run(params,initial);
-       part2_packet_run_observed(parts,grid,precincts,selection,limits,input,p,result);
+       part2_packet_run_observed(owned,parts,grid,precincts,selection,limits,input,p,result);
    }else{
     reveal(part2_packet_result);reveal(part2_packet_input_result);reveal(part2_progress_initial_result);
     let before=|events|part2_packet_input_run(parts,grid,precincts,selection,limits,events);
@@ -150,20 +150,20 @@ pub(crate) proof fn part2_packet_stages_actual(parts:Seq<Part2OwnedTilePart>,gri
     let second=part2_cold_witness(after,progress);
     let result=match progress {Err(error)=>(Err(error),precincts),Ok(_)=>part1_progression_tile_decode_owned(parts,grid,precincts,selection,limits)};
     assert forall|tail:Seq<Part2JpipSnapshotEvent>|
-        part2_packet_run(parts,grid,precincts,selection,limits,(first+second)+tail)==Some((result,tail)) by {
+        part2_packet_run(owned,parts,grid,precincts,selection,limits,(first+second)+tail)==Some((result,tail)) by {
         assert((first+second)+tail =~= first+(second+tail));
         part2_cold_prefix_at(before,first,Ok(input),second+tail);
         part2_cold_prefix_at(after,second,progress,tail);
     }
-    assert(part2_packet_prefix(parts,grid,precincts,selection,limits,first+second,result));
+    assert(part2_packet_prefix(owned,parts,grid,precincts,selection,limits,first+second,result));
    }
 }
-pub(crate) proof fn part2_packet_progress_error(parts:Seq<Part2OwnedTilePart>,grid:Part1PacketGrid,
+pub(crate) proof fn part2_packet_progress_error(owned:bool,parts:Seq<Part2OwnedTilePart>,grid:Part1PacketGrid,
     precincts:Seq<Part1PacketPrecinctState>,selection:Option<Seq<u8>>,limits:&crate::ResourceLimits,input:Part1TilePacketPreparation,error:crate::DecodeError)
     requires part2_packet_input_result(parts,grid,precincts,selection,limits,Ok(input)),
         part2_progress_initial_result(part2_packet_parameters(parts,grid,input,selection,limits),Err(error)),
-    ensures part2_packet_result(parts,grid,precincts,selection,limits,(Err(error),precincts)),
+    ensures part2_packet_result(owned,parts,grid,precincts,selection,limits,(Err(error),precincts)),
 {
-    part2_packet_stages_actual(parts,grid,precincts,selection,limits,input,Err(error));
+    part2_packet_stages_actual(owned,parts,grid,precincts,selection,limits,input,Err(error));
 }
 }

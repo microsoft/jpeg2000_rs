@@ -115,21 +115,21 @@ pub(super) fn preflight_packet_body_ranges(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::specs::part2_plane_execute_result(packet_body_execution_view(old(decoders),old(progress)),packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,
-        crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),
-        (result,packet_body_execution_view(final(decoders),final(progress)))),
-        (!decode_tier1 || result!=Err(DecodeError::AllocationFailed)) ==> (result, packet_body_execution_view(final(decoders), final(progress)))
-        == crate::specs::part1_packet_body_execute_at(packet_body_execution_view(old(decoders), old(progress)),
+    ensures crate::specs::part2_packet_effect_observed(owned_body,(result,packet_body_execution_view(final(decoders),final(progress))),|effect:crate::specs::Part1PacketBodyExecutionResult| crate::specs::part2_plane_execute_result(owned_body,packet_body_execution_view(old(decoders),old(progress)),packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),effect)),
+        (!decode_tier1 || result!=Err(DecodeError::AllocationFailed)) ==> crate::specs::part2_packet_effect_matches(owned_body,(result, packet_body_execution_view(final(decoders), final(progress))),crate::specs::part1_packet_body_execute_at(packet_body_execution_view(old(decoders), old(progress)),
             packet_body_contributions_view(contributions), data@, error_offsets.0,error_offsets.1,decode_tier1,
             crate::limits::resource_code_block_pass_limit(limits), crate::limits::resource_code_block_byte_limit(limits),
-            crate::limits::resource_input_byte_limit(limits), crate::limits::resource_work_limit(limits)),
-        ((!decode_tier1 || result!=Err(DecodeError::AllocationFailed)) && error_offsets.1==0) ==> (result,packet_body_execution_view(final(decoders),final(progress)))
-            ==crate::specs::part1_packet_body_execute(packet_body_execution_view(old(decoders),old(progress)),
+            crate::limits::resource_input_byte_limit(limits), crate::limits::resource_work_limit(limits))),
+        ((!decode_tier1 || result!=Err(DecodeError::AllocationFailed)) && error_offsets.1==0) ==> crate::specs::part2_packet_effect_matches(owned_body,(result,packet_body_execution_view(final(decoders),final(progress))),crate::specs::part1_packet_body_execute(packet_body_execution_view(old(decoders),old(progress)),
                 packet_body_contributions_view(contributions),data@,error_offsets.0,decode_tier1,
                 crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),
-                crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits)),
+                crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits))),
         !decode_tier1 ==> final(decoders)@==old(decoders)@,
 ))]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "keep body progress, offsets, limits, and transaction mode explicit"
+)]
 pub(super) fn execute_packet_body_contributions(
     decoders: &mut [Tier1CodeBlockDecoder],
     contributions: &[Option<CodeBlockContribution>],
@@ -138,6 +138,7 @@ pub(super) fn execute_packet_body_contributions(
     error_offsets: (usize, usize),
     decode_tier1: bool,
     limits: &ResourceLimits,
+    owned_body: bool,
 ) -> Result<(), DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! {
@@ -146,13 +147,13 @@ pub(super) fn execute_packet_body_contributions(
             packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,
             crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),
             crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits));
-        let ghost root=|calls:Seq<crate::specs::Part2Tier1StorageEvent>|crate::specs::part2_plane_execute_run(initial,
+        let ghost root=|calls:Seq<crate::specs::Part2Tier1StorageEvent>|crate::specs::part2_plane_execute_run(owned_body,initial,
             packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,crate::limits::resource_code_block_pass_limit(limits),
             crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),calls);
         let ghost mut prefix=Seq::<crate::specs::Part2Tier1StorageEvent>::empty();
     }
     #[cfg(verus_keep_ghost)]
-    proof! {crate::specs::part2_plane_execute_normal(initial,packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,
+    proof! {crate::specs::part2_plane_execute_normal(owned_body,initial,packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,
     crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits));}
     let error_offset = error_offsets.0;
     let local_offset = error_offsets.1;
@@ -164,13 +165,13 @@ pub(super) fn execute_packet_body_contributions(
             slots == contributions.len(),
             !decode_tier1 ==> decoders@==old(decoders)@,
             initial==packet_body_execution_view(old(decoders),old(progress)),
-            forall|calls:Seq<crate::specs::Part2Tier1StorageEvent>| #[trigger] root(calls)==crate::specs::part2_plane_execute_run(initial,
+            forall|calls:Seq<crate::specs::Part2Tier1StorageEvent>| #[trigger] root(calls)==crate::specs::part2_plane_execute_run(owned_body,initial,
                 packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,crate::limits::resource_code_block_pass_limit(limits),
                 crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),calls),
-            crate::specs::part2_tier1_phase(root,prefix,|calls|crate::specs::part2_plane_execute_run(packet_body_execution_view(decoders,progress),
+            crate::specs::part2_tier1_phase(root,prefix,|calls|crate::specs::part2_plane_execute_run(owned_body,packet_body_execution_view(decoders,progress),
                 packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,crate::limits::resource_code_block_pass_limit(limits),
                 crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),calls)),
-            crate::specs::part2_plane_execute_result(initial,packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,
+            crate::specs::part2_plane_execute_result(owned_body,initial,packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,
                 crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),expected),
             expected==crate::specs::part1_packet_body_execute_at(initial,
                 packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,
@@ -188,7 +189,7 @@ pub(super) fn execute_packet_body_contributions(
         proof_decl! {let ghost prior=packet_body_execution_view(decoders,progress);}
         #[cfg(verus_keep_ghost)]
         proof! {if !decode_tier1 || contributions@[progress.index as int].is_none(){
-            crate::specs::part2_plane_execute_pure_step(prior,packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,
+            crate::specs::part2_plane_execute_pure_step(owned_body,prior,packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,
                 crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits));
         }}
         #[cfg(verus_keep_ghost)]
@@ -228,17 +229,18 @@ pub(super) fn execute_packet_body_contributions(
                 #[cfg(verus_keep_ghost)]
                 proof! {
                     if prior.index<prior.decoders.len(){
-                    crate::specs::part2_plane_execute_body_step(prior,packet_body_contributions_view(contributions),code_block_contribution_view(&contribution),data@,error_offsets.0,error_offsets.1,
+                    crate::specs::part2_plane_execute_body_step(owned_body,prior,packet_body_contributions_view(contributions),code_block_contribution_view(&contribution),data@,error_offsets.0,error_offsets.1,
                         crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits));
                     assert forall|calls:Seq<crate::specs::Part2Tier1StorageEvent>| #[trigger] root(prefix+calls)
-                        ==crate::specs::part2_tier1_storage_bind(crate::specs::part2_plane_body_transaction_run(prior.decoders[prior.index as int],code_block_contribution_view(&contribution),body@,
+                        ==crate::specs::part2_tier1_storage_bind(crate::specs::part2_plane_body_mode_run(owned_body,prior.decoders[prior.index as int],code_block_contribution_view(&contribution),body@,
                             crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),calls),
-                            |decoded:crate::specs::HtCodeBlockBodyResult,rest|crate::specs::part2_plane_execute_next(
+                            |decoded:crate::specs::HtCodeBlockBodyResult,rest|crate::specs::part2_plane_execute_next(owned_body,
                                 crate::specs::part2_plane_execute_finish(prior,code_block_contribution_view(&contribution),error_offsets.1,decoded),prior.index,packet_body_contributions_view(contributions),data@,
                                 error_offsets.0,error_offsets.1,true,crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),
                                 crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),rest)) by {}
                     }
                 }
+                let in_place;
                 let decoded_result = {
                     let decoder = match decoders.get_mut(progress.index) {
                         Some(decoder) => decoder,
@@ -249,7 +251,19 @@ pub(super) fn execute_packet_body_contributions(
                             ));
                         }
                     };
-                    decode_code_block_contribution_body(decoder, &contribution, body, limits)
+                    in_place = owned_body && decoder.next_pass() != 0;
+                    if in_place {
+                        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+                        crate::deadline::checkpoint()?;
+                        decode_code_block_contribution_body_staged(
+                            decoder,
+                            &contribution,
+                            body,
+                            limits,
+                        )
+                    } else {
+                        decode_code_block_contribution_body(decoder, &contribution, body, limits)
+                    }
                 };
                 #[cfg(verus_keep_ghost)]
                 proof! {
@@ -259,22 +273,34 @@ pub(super) fn execute_packet_body_contributions(
                     assert(packet_body_execution_view(decoders, progress).decoders =~=
                         prior_states.update(selected_index as int,
                             crate::tier1::tier1_decoder_state(&decoders@[selected_index as int])));
-                    let decoded=(decoded_result,crate::tier1::tier1_decoder_state(&decoders@[selected_index as int]));
-                    let child=|calls|crate::specs::part2_plane_body_transaction_run(prior.decoders[prior.index as int],code_block_contribution_view(&contribution),body@,
+                    let actual=(decoded_result,crate::tier1::tier1_decoder_state(&decoders@[selected_index as int]));
+                    let decoded=crate::specs::part2_plane_body_effect(in_place,prior.decoders[prior.index as int],actual);
+                    if decoded_result!=Err(DecodeError::AllocationFailed) {
+                        assert(decoded==crate::specs::part1_code_block_body_transaction(prior.decoders[prior.index as int],code_block_contribution_view(&contribution),body@,
+                            crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),
+                            crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits)));
+                    }
+                    let child=|calls|crate::specs::part2_plane_body_mode_run(owned_body,prior.decoders[prior.index as int],code_block_contribution_view(&contribution),body@,
                         crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),calls);
-                    let next=|decoded:crate::specs::HtCodeBlockBodyResult,rest|crate::specs::part2_plane_execute_next(
+                    let next=|decoded:crate::specs::HtCodeBlockBodyResult,rest|crate::specs::part2_plane_execute_next(owned_body,
                         crate::specs::part2_plane_execute_finish(prior,code_block_contribution_view(&contribution),error_offsets.1,decoded),prior.index,packet_body_contributions_view(contributions),data@,
                         error_offsets.0,error_offsets.1,true,crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),
                         crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),rest);
-                    crate::specs::part2_plane_body_transaction_frames(prior.decoders[prior.index as int],code_block_contribution_view(&contribution),body@,
-                        crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),decoded);
+                    crate::specs::part2_plane_body_mode_observed(owned_body,prior.decoders[prior.index as int],code_block_contribution_view(&contribution),body@,
+                        crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),actual);
                     assert forall|calls|root(prefix+calls)==crate::specs::part2_tier1_storage_bind(child(calls),next) by {}
                     prefix=crate::specs::part2_tier1_prefix_advance(root,child,next,prefix,decoded);
                     if let Err(error)=decoded_result {
-                        let result=(Err(error),packet_body_execution_view(decoders,progress));
+                        let result=crate::specs::part2_plane_execute_finish(prior,code_block_contribution_view(&contribution),error_offsets.1,decoded);
+                        let actual=(Err(error),packet_body_execution_view(decoders,progress));
+                        assert(result.0==actual.0);
+                        assert(!owned_body ==> result.1==actual.1);
                         crate::specs::part2_tier1_prefix_finish(root,prefix,Ok(result));
-                        crate::specs::part2_plane_execute_join(initial,packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,
+                        crate::specs::part2_plane_execute_join(owned_body,initial,packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,
                             crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),root,result);
+                        crate::specs::part2_packet_effect_publish(owned_body,actual,result,|effect:crate::specs::Part1PacketBodyExecutionResult|
+                            crate::specs::part2_plane_execute_result(owned_body,initial,packet_body_contributions_view(contributions),data@,error_offsets.0,error_offsets.1,decode_tier1,
+                            crate::limits::resource_code_block_pass_limit(limits),crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_input_byte_limit(limits),crate::limits::resource_work_limit(limits),effect));
                     }
                 }
                 let decoded = decoded_result?;

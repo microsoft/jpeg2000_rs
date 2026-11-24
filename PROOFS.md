@@ -6163,6 +6163,18 @@ general MCT claim follows from these progression references.
 
 ## Complete original packet and JPIP boundary guarantees
 
+The private planned-tile decoder passes its precinct vector by value to packet
+execution and gets it back only after packet accounting and tile finalization
+succeed. When the block has advanced past pass zero, this path uses the
+existing staged body executor directly. Fresh blocks retain the borrowed
+snapshot path, and initial coefficient planes remain densely allocated.
+The owned storage program binds the actual staged result without a
+`PacketStaging` request. Its observed error is exact, but its unpublished
+working state on error is not a rollback result. The borrowed packet, JPIP,
+and trailer packet paths retain their original transaction and state
+guarantees. Legacy replay and HT cleanup/refinement retain their existing
+logical transitions and storage operations.
+
 The original single-block, multi-block, JPIP inner and JPIP transaction entries
 now have complete unconditional native Result/state contracts. Actual faithful
 subband/raw-tree cloning and the original Vec snapshots/restores establish

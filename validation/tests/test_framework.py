@@ -11253,6 +11253,50 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "linked function lacks executable Verus contract"):
                 framework.validate_normative_coverage(data)
 
+    def test_inventory_owned_packet_rejects_changed_modes_tape_and_owner(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part1-complete-native-grid-progression-composition")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, before, after, diagnostic in (
+            ("specs/cold_packed_headers.rs", "part1_progression_tile_cold_result",
+             "part2_packet_result(false,", "part2_packet_result(true,", "invalid complete cold Result body|exact physical tape and success-only owner"),
+            ("specs/cold_decode_packets.rs", "part2_packet_value_run",
+             "Some(((Err(error), _), rest)) => Some((Err(error), rest))",
+             "Some(((Err(_), after), rest)) => Some((Ok((arbitrary(), after)), rest))",
+             "exact physical tape and success-only owner"),
+            ("specs/cold_packet_planes.rs", "part2_plane_body_mode_run",
+             "part2_plane_body_staged_run(", "part2_plane_body_transaction_run(",
+             "exact physical tape and success-only owner"),
+            ("specs/cold_packet_planes.rs", "part2_plane_body_in_place",
+             "owned && before.next_pass != 0", "owned",
+             "exact physical tape and success-only owner"),
+            ("src/packet/tile.rs", "decode_progression_tile_packets_owned",
+             "Ok((packets?, precincts))", "Ok((packets.unwrap_or_default(), precincts))",
+             "exact mode, producer and finish"),
+            ("src/packet/tile.rs", "decode_progression_tile_packets_mode",
+             "finish_progression_tile_packets(&params, &mut progress)", "finish_progression_tile_packets(&params, &mut progress).or_else(|_| Ok(Default::default()))",
+             "exact mode, producer and finish"),
+            ("src/packet/body.rs", "execute_packet_body_contributions",
+             "decode_code_block_contribution_body_staged(",
+             "decode_code_block_contribution_body(", "exact mode, producer and finish"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_spec_function_body(original, symbol) if relative.startswith("specs/")
+                    else framework._coverage_function_body(original, framework._coverage_function_header(original, symbol)))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, diagnostic):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_cold_relations_require_complete_result_bodies_and_checked_normal_links(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         read_text = Path.read_text
