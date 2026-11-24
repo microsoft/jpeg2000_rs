@@ -37,6 +37,58 @@ pub(crate) open spec fn fixed_stage_bounded(samples:Seq<i64>, stage:nat)->bool {
     forall|i:int| 0<=i<samples.len() ==>
         -rowwise_fixed_bound(stage)<=#[trigger] samples[i]<=rowwise_fixed_bound(stage)
 }
+pub(crate) open spec fn fixed_scaled_parity_bounded(samples:Seq<i64>, even:bool, end:nat)->bool {
+    forall|i:int| 0<=i<end && (i%2==0)==even ==> -1073741824<=#[trigger] samples[i]<=1073741824
+}
+pub(crate) open spec fn fixed_scale_result(
+    samples:Seq<i64>, even:bool, factor:i64, track:bool,
+) -> (Result<bool, crate::DecodeError>, Seq<i64>) {
+    let (status, after) = part1_scaling_prefix(samples,even,factor,samples.len());
+    (match status {
+        Ok(()) => Ok(!track || fixed_scaled_parity_bounded(after,even,after.len())),
+        Err(error) => Err(error),
+    }, after)
+}
+
+pub(crate) proof fn fixed_scaled_parity_step(
+    before:Seq<i64>, after:Seq<i64>, even:bool, index:nat,
+)
+    requires index<before.len(), after.len()==before.len(),
+        forall|i:int| 0<=i<before.len() && i!=index ==> #[trigger] after[i]==before[i],
+    ensures fixed_scaled_parity_bounded(after,even,index+1) ==
+        (fixed_scaled_parity_bounded(before,even,index) &&
+            ((index%2==0)!=even || -1073741824<=after[index as int]<=1073741824)),
+{
+    if fixed_scaled_parity_bounded(after,even,index+1) {
+        assert forall|i:int| 0<=i<index && (i%2==0)==even implies
+            -1073741824<=#[trigger] before[i]<=1073741824 by { assert(after[i]==before[i]); }
+        if (index%2==0)==even { assert(-1073741824<=after[index as int]<=1073741824); }
+    }
+    if fixed_scaled_parity_bounded(before,even,index) &&
+        ((index%2==0)!=even || -1073741824<=after[index as int]<=1073741824) {
+        assert forall|i:int| 0<=i<index+1 && (i%2==0)==even implies
+            -1073741824<=#[trigger] after[i]<=1073741824 by {
+            if i<index { assert(after[i]==before[i]); }
+        }
+    }
+}
+
+pub(crate) proof fn fixed_scaled_row_admission(low:Seq<i64>, both:Seq<i64>, first:bool)
+    requires low.len()==both.len(),
+        forall|i:int| 0<=i<both.len() && (i%2==0)==first ==> #[trigger] both[i]==low[i],
+    ensures rowwise_bounded(both) ==
+        (fixed_scaled_parity_bounded(low,first,low.len()) && fixed_scaled_parity_bounded(both,!first,both.len())),
+{
+    if rowwise_bounded(both) {
+        assert forall|i:int| 0<=i<low.len() && (i%2==0)==first implies
+            -1073741824<=#[trigger] low[i]<=1073741824 by { assert(both[i]==low[i]); }
+    }
+    if fixed_scaled_parity_bounded(low,first,low.len()) && fixed_scaled_parity_bounded(both,!first,both.len()) {
+        assert forall|i:int| 0<=i<both.len() implies -1073741824<=#[trigger] both[i]<=1073741824 by {
+            if (i%2==0)==first { assert(both[i]==low[i]); }
+        }
+    }
+}
 pub(crate) proof fn fixed_stage_bound_grows(stage:nat)
     requires stage<4,
     ensures rowwise_fixed_bound(stage)<=rowwise_fixed_bound(stage+1),

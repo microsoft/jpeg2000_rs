@@ -21327,7 +21327,6 @@
       "id": "part1-complete-nine-seven-sequence",
       "implementation_refs": [
         {"path": "src/transform/levels.rs", "symbol": "inverse_rows"},
-        {"path": "src/transform/rowwise.rs", "symbol": "bounded"},
         {"path": "src/transform/wavelets.rs", "symbol": "inverse_fixed_line"},
         {"path": "src/transform/wavelets.rs", "symbol": "inverse_nine_seven_lifts"},
         {"path": "src/transform/wavelets.rs", "symbol": "inverse_lift_impl"},
@@ -21355,6 +21354,8 @@
           "symbol": "production_scaling_error_persists"
         },
         {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "fixed_stage_bound_grows"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "fixed_scaled_row_admission"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "fixed_scaled_parity_step"},
         {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_neighbors_bound"},
         {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_product_bound"},
         {
@@ -21376,6 +21377,8 @@
         {"path": "specs/mod.rs", "symbol": "part1_lifting_sample"},
         {"path": "specs/mod.rs", "symbol": "part1_fixed_product"},
         {"path": "specs/rowwise_wavelet.rs", "symbol": "rowwise_bounded"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "fixed_scale_result"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "fixed_scaled_parity_bounded"},
         {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "fixed_stage_bounded"},
         {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_bound"},
         {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_neighbors"},
@@ -21396,6 +21399,7 @@
           "symbol": "complete_nine_seven_sequences_match_independent_wide_reference"
         },
         {"path": "src/transform/tests.rs", "symbol": "horizontal_nine_seven_scaled_bound_and_roi_match_wide_reference"},
+        {"path": "src/transform/tests.rs", "symbol": "tracked_q16_scaling_reports_late_outliers_and_keeps_error_prefix"},
         {
           "path": "src/transform/tests.rs",
           "symbol": "complete_scaling_lifting_and_column_store_states_match_independent_arithmetic"

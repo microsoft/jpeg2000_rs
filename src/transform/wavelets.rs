@@ -1,5 +1,5 @@
 use super::arithmetic::{arithmetic_overflow, invalid_transform};
-use super::{FIXED_ONE, InverseLiftingStep};
+use super::{FIXED_ONE, InverseLiftingStep, WAVELET_INPUT_BOUND as INPUT_BOUND};
 #[cfg(verus_keep_ghost)]
 use super::{lifting_step_view, sequence_outcome};
 use crate::DecodeError;
@@ -76,19 +76,26 @@ pub(super) fn inverse_fixed_line<const HORIZONTAL: bool>(
     if output.len() <= 1 {
         return Ok(output);
     }
-    scale_parity(
+    let low_bounded = scale_parity::<HORIZONTAL>(
         &mut output,
         low_pass_first,
         crate::refinement::nine_seven_scale(true),
     )?;
-    scale_parity(
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost after_low = output@;}
+    let high_bounded = scale_parity::<HORIZONTAL>(
         &mut output,
         !low_pass_first,
         crate::refinement::nine_seven_scale(false),
     )?;
-    // Scale with the original checks before inspecting the actual lifting
-    // inputs. One scan admits all four lifts; no changes to the scale passes.
-    if HORIZONTAL && super::rowwise::bounded(&output)? {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if HORIZONTAL {
+            crate::specs::fixed_scaled_row_admission(after_low,output@,low_pass_first);
+            assert((low_bounded && high_bounded)==crate::specs::rowwise_bounded(output@));
+        }
+    }
+    if HORIZONTAL && low_bounded && high_bounded {
         inverse_nine_seven_lifts::<true>(&mut output, low_pass_first)?;
     } else {
         inverse_nine_seven_lifts::<false>(&mut output, low_pass_first)?;
@@ -466,32 +473,42 @@ pub(super) fn inverse_reversible_bounded(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures (result, final(samples)@) == crate::specs::part1_scaling_prefix(
-        old(samples)@, low_parity, factor, old(samples).len() as nat,
+    ensures (result, final(samples)@) == crate::specs::fixed_scale_result(
+        old(samples)@, low_parity, factor, TRACK_BOUND,
     ),
+        final(samples).len() == old(samples).len(),
+        forall |i:int| result.is_ok() && 0<=i<old(samples).len() && (i%2==0)!=low_parity ==>
+            #[trigger] final(samples)[i] == old(samples)[i],
 ))]
-pub(super) fn scale_parity(
+pub(super) fn scale_parity<const TRACK_BOUND: bool>(
     samples: &mut [i64],
     low_parity: bool,
     factor: i64,
-) -> Result<(), DecodeError> {
+) -> Result<bool, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost original = samples@; }
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(INPUT_BOUND == 1073741824) by(compute); }
     let mut index = 0_usize;
+    let mut bounded = true;
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
             invariant index <= samples.len(),
             original == old(samples)@,
             samples.len() == original.len(),
-            forall |i: int| index <= i < samples.len() ==> samples[i] == original[i],
+            INPUT_BOUND == 1073741824,
+            forall |i: int| 0 <= i < samples.len() && (index <= i || (i%2==0)!=low_parity) ==> samples[i] == original[i],
             crate::specs::part1_scaling_prefix(original, low_parity, factor, index as nat) == (Ok(()), samples@),
+            bounded == (!TRACK_BOUND || crate::specs::fixed_scaled_parity_bounded(samples@,low_parity,index as nat)),
             decreases samples.len() - index,
         )
     )]
     while index < samples.len() {
         #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
         crate::deadline::checkpoint_periodic(index)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost before = samples@; let ghost prior_bound = bounded; }
         #[cfg(verus_keep_ghost)]
         proof! { crate::proofs::production_impl::production_index_parity(index); }
         if (index & 1 == 0) == low_parity {
@@ -508,10 +525,21 @@ pub(super) fn scale_parity(
                 }
             };
             samples[index] = value;
+            if TRACK_BOUND {
+                bounded &= (-INPUT_BOUND..=INPUT_BOUND).contains(&value);
+            }
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if TRACK_BOUND {
+                crate::specs::fixed_scaled_parity_step(before,samples@,low_parity,index as nat);
+                assert(bounded==(prior_bound && ((index%2==0)!=low_parity
+                    || -1073741824<=samples[index as int]<=1073741824)));
+            }
         }
         index = index.checked_add(1).ok_or_else(arithmetic_overflow)?;
     }
-    Ok(())
+    Ok(bounded)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

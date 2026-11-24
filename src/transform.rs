@@ -46,6 +46,7 @@ use wavelets::scale_parity;
 
 const FIXED_BITS: u8 = 16;
 const FIXED_ONE: i64 = 1 << FIXED_BITS;
+const WAVELET_INPUT_BOUND: i64 = 1_073_741_824;
 
 #[derive(Clone, Copy)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]

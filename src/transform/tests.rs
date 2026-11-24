@@ -2036,6 +2036,44 @@ fn horizontal_nine_seven_scaled_bound_and_roi_match_wide_reference() {
 }
 
 #[test]
+fn tracked_q16_scaling_reports_late_outliers_and_keeps_error_prefix() {
+    let bound = 1_i64 << 30;
+    for even in [true, false] {
+        let last = if even { 1024 } else { 1023 };
+        for value in [
+            bound - 1,
+            bound,
+            bound + 1,
+            -bound + 1,
+            -bound,
+            -bound - 1,
+            i64::MIN,
+        ] {
+            let mut input = vec![-3; 1025];
+            input[usize::from(even)] = i64::MAX; // other parity never participates
+            input[last] = value;
+            let (expected_status, expected) = reference_scale(&input, even, 65536);
+            let expected_bound = expected_status.map(|()| {
+                expected
+                    .iter()
+                    .enumerate()
+                    .all(|(i, &v)| (i.is_multiple_of(2) != even) || (-bound..=bound).contains(&v))
+            });
+            let status = scale_parity::<true>(&mut input, even, 65536);
+            assert_eq!((status, input), (expected_bound, expected));
+        }
+        // Earlier wide success must not skip a later error in the same pass.
+        let mut input = vec![3; 1025];
+        input[usize::from(!even)] = 2 * bound;
+        input[last] = i64::MIN;
+        let (status, expected) = reference_scale(&input, even, 80621);
+        assert!(status.is_err());
+        let actual = scale_parity::<true>(&mut input, even, 80621);
+        assert_eq!((actual.map(|_| ()), input), (status, expected));
+    }
+}
+
+#[test]
 fn complete_scaling_lifting_and_column_store_states_match_independent_arithmetic() {
     for input in [
         vec![],
@@ -2051,7 +2089,7 @@ fn complete_scaling_lifting_and_column_store_states_match_independent_arithmetic
             for factor in [80621, 53274, -1, i64::MAX] {
                 let expected = reference_scale(&input, low_first, factor);
                 let mut actual = input.clone();
-                let status = scale_parity(&mut actual, low_first, factor);
+                let status = scale_parity::<false>(&mut actual, low_first, factor).map(|_| ());
                 assert_eq!((status, actual), expected);
             }
         }

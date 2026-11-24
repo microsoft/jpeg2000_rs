@@ -1,14 +1,11 @@
-use super::WaveletBand;
 use super::geometry::low_count;
 use super::wavelets::inverse_reversible_bounded;
+use super::{WAVELET_INPUT_BOUND as INPUT_BOUND, WaveletBand};
 #[cfg(verus_keep_ghost)]
 use super::{sequence_outcome, wavelet_band_view};
 use crate::DecodeError;
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
-
-// Two reversible stages grow this bound to at most 2^32, including rounding.
-const INPUT_BOUND: i64 = 1_073_741_824;
 
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod fixed;

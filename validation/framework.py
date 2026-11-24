@@ -8627,6 +8627,8 @@ _WAVELET_CONST_CALLS = {
     ("inverse_9_7", "inverse_fixed_line"): "inverse_fixed_line::<false>(low,high,low_pass_first)",
     ("inverse_fixed_line", "inverse_nine_seven_lifts"):
         "inverse_nine_seven_lifts::<false>(&mut output,low_pass_first)",
+    ("inverse_fixed_line", "scale_parity"):
+        "let low_bounded=scale_parity::<HORIZONTAL>(&mut output,low_pass_first,crate::refinement::nine_seven_scale(true))?;",
     ("inverse_lift_impl", "inverse_lifting_value"):
         "let value=match inverse_lifting_value::<BOUNDED>(samples,index,target_even,step,stage)",
 }
@@ -8649,16 +8651,11 @@ _HORIZONTAL_FIXED_NATIVE = {
     ("src/transform/wavelets.rs", "inverse_fixed_line"): (
         "let interleaved=interleave(low,high,low_pass_first);",
         "let mut output=interleaved?;",
-        "scale_parity(&mut output,low_pass_first,crate::refinement::nine_seven_scale(true))?;"
-        "scale_parity(&mut output,!low_pass_first,crate::refinement::nine_seven_scale(false))?;"
-        "if HORIZONTAL&&super::rowwise::bounded(&output)?{"
+        _WAVELET_CONST_CALLS["inverse_fixed_line", "scale_parity"],
+        "let high_bounded=scale_parity::<HORIZONTAL>(&mut output,!low_pass_first,crate::refinement::nine_seven_scale(false))?;",
+        "if HORIZONTAL&&low_bounded&&high_bounded{"
         "inverse_nine_seven_lifts::<true>(&mut output,low_pass_first)?;}else{"
         + _WAVELET_CONST_CALLS["inverse_fixed_line", "inverse_nine_seven_lifts"] + "?;}Ok(output)",
-    ),
-    ("src/transform/rowwise.rs", "bounded"): (
-        "while index<samples.len(){",
-        "if samples[index]<-INPUT_BOUND||samples[index]>INPUT_BOUND{",
-        "return Ok(false);}index+=1;}Ok(true)",
     ),
     ("src/transform/wavelets.rs", "inverse_nine_seven_lifts"): (
         "let mut stage=0_u8;",
@@ -8688,7 +8685,15 @@ _HORIZONTAL_FIXED_NATIVE = {
         "let adjustment=crate::refinement::fixed_round_q16(biased);",
         "current-adjustment",
     ),
-    ("src/transform/wavelets.rs", "scale_parity"): ("match fixed_mul(samples[index],factor)",),
+    ("src/transform/wavelets.rs", "scale_parity"): (
+        "let mut index=0_usize;let mut bounded=true;",
+        "while index<samples.len(){",
+        "crate::deadline::checkpoint_periodic(index)?;",
+        "if (index&1==0)==low_parity{let value=match fixed_mul(samples[index],factor){Ok(value)=>value,Err(error)=>{",
+        "return Err(error);}};samples[index]=value;"
+        "if TRACK_BOUND{bounded&=(-INPUT_BOUND..=INPUT_BOUND).contains(&value);}}",
+        "index=index.checked_add(1).ok_or_else(arithmetic_overflow)?;}Ok(bounded)",
+    ),
     ("src/transform/wavelets.rs", "inverse_lifting_neighbors"): (
         "let sum=left.checked_add(right).ok_or_else(arithmetic_overflow)?;",
         "InverseLiftingStep::Fixed(coefficient)=>fixed_mul(sum,coefficient)?",
@@ -8701,8 +8706,8 @@ _HORIZONTAL_FIXED_NATIVE = {
     ),
 }
 _HORIZONTAL_FIXED_CONTRACTS = {
-    ("src/transform/rowwise.rs", "bounded"): (
-        "ensures result==Ok(crate::specs::rowwise_bounded(samples@))",
+    ("src/transform/wavelets.rs", "scale_parity"): (
+        "ensures (result,final(samples)@)==crate::specs::fixed_scale_result(old(samples)@,low_parity,factor,TRACK_BOUND)",
     ),
     ("src/transform/wavelets.rs", "inverse_nine_seven_lifts"): (
         "requires BOUNDED ==> crate::specs::fixed_stage_bounded(old(samples)@,0)",
@@ -19101,18 +19106,23 @@ def validate_normative_coverage(
         linked = {(ref["path"], ref["symbol"]) for ref in sequence["implementation_refs"]}
         if not _HORIZONTAL_FIXED_NATIVE.keys() <= linked:
             raise ValueError("horizontal Q16 requires the linked executing scaling, guard and both lifting routes")
-        if {"path": "src/transform/tests.rs", "symbol": "horizontal_nine_seven_scaled_bound_and_roi_match_wide_reference"} not in sequence["test_refs"]:
+        if not {
+            "horizontal_nine_seven_scaled_bound_and_roi_match_wide_reference",
+            "tracked_q16_scaling_reports_late_outliers_and_keeps_error_prefix",
+        } <= {ref["symbol"] for ref in sequence["test_refs"] if ref["path"] == "src/transform/tests.rs"}:
             raise ValueError("horizontal Q16 requires the scaled-bound and wide-fallback numerical control")
         if {"path": "src/transform/wavelets.rs", "symbol": "inverse_fixed_line"} not in sequence["contract_refs"]:
             raise ValueError("horizontal Q16 requires the shared line's complete Result and allocation projection")
         if re.search(
-            r"(?m)^const INPUT_BOUND:\s*i64\s*=\s*1_073_741_824\s*;",
-            source_text((ROOT / "src/transform/rowwise.rs").resolve()),
+            r"(?m)^const WAVELET_INPUT_BOUND:\s*i64\s*=\s*1_073_741_824\s*;",
+            source_text((ROOT / "src/transform.rs").resolve()),
         ) is None:
             raise ValueError("horizontal Q16 requires the audited inclusive scaled-sample bound")
         for (relative, symbol), fragments in _HORIZONTAL_FIXED_NATIVE.items():
             path = (ROOT / relative).resolve()
             body = _wavelet_native_tokens(_coverage_function_body(source_text(path), function_header(path, symbol)))
+            if symbol == "inverse_fixed_line" and "super::rowwise::bounded(" in body:
+                raise ValueError("horizontal Q16 must use tracked scaling instead of rescanning the row")
             end = 0
             for fragment in fragments:
                 token = _wavelet_native_tokens(fragment)
@@ -19129,6 +19139,17 @@ def validate_normative_coverage(
             if ("verus_spec(result=>" not in contract
                     or any(_wavelet_native_tokens(fragment) not in contract for fragment in fragments)):
                 raise ValueError(f"horizontal Q16 missing exact stage-bound or checked-result contract: {symbol}")
+        fixed_specs = source_text((ROOT / "specs/rowwise_fixed_wavelet.rs").resolve())
+        for symbol, expected in (
+            ("fixed_scale_result",
+             "let (status,after)=part1_scaling_prefix(samples,even,factor,samples.len());"
+             "(match status{Ok(())=>Ok(!track||fixed_scaled_parity_bounded(after,even,after.len())),"
+             "Err(error)=>Err(error),},after)"),
+            ("fixed_scaled_parity_bounded",
+             "forall|i:int|0<=i<end&&(i%2==0)==even==>-1073741824<=#[trigger]samples[i]<=1073741824"),
+        ):
+            if _wavelet_native_tokens(_coverage_spec_function_body(fixed_specs,symbol)) != _wavelet_native_tokens(expected):
+                raise ValueError(f"horizontal Q16 missing exact tracked-scaling model: {symbol}")
     if "part1-complete-standard-wavelet-planes" in ids:
         wavelet_entry = next(e for e in coverage["requirements"] if e["id"] == "part1-complete-standard-wavelet-planes")
         if not _WAVELET_PLANE_TESTS.issubset({(r["path"],r["symbol"]) for r in wavelet_entry["test_refs"]}):
