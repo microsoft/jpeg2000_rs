@@ -15,6 +15,68 @@ boundary. The standalone study selects exactly one linked backend per executable
 The control revisions' `src/`, `specs/` and `proofs/` trees are identical.
 The early-MPS candidate is neither built nor used.
 
+## Focused native revision comparison
+
+On a branch containing this change in the same repository, opt in to the
+registered `ci.yml` workflow (set `BASELINE` and `CANDIDATE` to the exact IDs):
+
+```sh
+gh workflow run ci.yml --ref perf/native-candidate-comparison \
+  -f consumer_benchmark=true -f consumer_benchmark_scope=native-comparison \
+  -f native_baseline="$BASELINE" -f native_candidate="$CANDIDATE" \
+  -f native_pairs=8
+```
+
+Both distinct commits must be reachable from branches of `microsoft/jpeg2000_rs`
+(not fork-only objects or synthetic PR merge refs). The job runs separately on
+hosted native x86-64 and ARM64; choose 8 or 24 fresh process pairs. Each host
+builds the same direct Rust API consumer twice with Rust
+1.93.1, O3/native/ThinLTO/cgu1, assertions and overflow checks off, and the system
+allocator. The two consumers share a single available CPU and the same inputs.
+Cargo runs from a generated consumer with a fresh `CARGO_HOME`; local
+`.cargo/config` and `.cargo/config.toml` files in its ancestor chain or at the
+decoder source root are refused, never changed. The driver binds the resolved
+Rust 1.93.1 executable and records its version, hash, and actual arguments for
+both the decoder's bitcode build and the consumer's final ThinLTO link.
+Before any timing, all native output pairs must match bit-for-bit with
+valid image/component geometry and sample representation, nonblank planes,
+and source recovery for lossless cases. Each measured process then does two
+warm-ups and three fixed in-memory decode-and-drop iterations; order is seeded
+by round and backend order reverses in alternate pairs. A refusal or mismatch
+fails the run; raw evidence up to the failure remains available.
+
+The **focused** input set includes three MIT, synthetic HT codestreams (reversible
+gray, reversible RGB MCT, irreversible RGB MCT) plus two unchanged MIT legacy
+controls (noisy gray and smooth RGB, both lossless). Those five cases still use
+`decode_codestream_reconstructed` and their original input bytes. The two
+additional `decode_jp2` targets exercise nonempty 256-row palette tables on the
+same 1024² first-party gray indices: gray plus CDEF opacity and mixed
+signed-38/unsigned-38/unsigned-5. `native_palette.py` regenerates both boxed
+files and checks the original local #479 hashes, without an encoder or new
+dependencies. Each palette dump must match an independent oracle over the
+authored indices, table, native sample tags, geometry and channel definitions
+before either build can be timed. See
+[`native-ht-cohort.json`](native-ht-cohort.json) for encoder, recipe and hashes.
+To reproduce the HT encoded files, use `validation/build-openjph.sh` with an
+owned output directory, then pass its `ojph_compress` and a fresh output directory
+to `generate_native_ht.py` using the pinned validation Python dependencies.
+Always compare regenerated hashes; never substitute re-encodings in a run.
+
+The 30-day artifacts include source/binary/compiler/host provenance, raw native
+qualification and process streams/status, absolute latency and tails, paired
+bootstrap intervals, and OS resource measurements (hardware counters are not
+collected). Do not pool architectures or other cohort studies. This is not the
+historical PDF handoff, full HT or function coverage, a release/integration
+gate, a matched actual-consumer OpenJPEG comparison, or a claim of a win.
+Dispatch grants no merge authority. For an untimed local smoke, run this from a
+clean checkout with the pinned compiler and any required shared validation lock:
+
+```sh
+python3 validation/consumer-tuning/native_comparison.py \
+  --baseline "$BASELINE" --candidate "$CANDIDATE" \
+  --output target/native-smoke --qualify-only
+```
+
 ## Reproduce
 
 On **native** Linux ARM64 or x86-64, from the repository root:

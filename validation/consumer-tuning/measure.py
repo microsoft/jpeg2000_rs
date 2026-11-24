@@ -26,15 +26,22 @@ def tree_rss_kib(pid):
         return 0
 
 
-def measure(command, prefix, env=None, sample_tree=False, preserve_jobserver=False):
+def measure(command, prefix, env=None, sample_tree=False, preserve_jobserver=False,
+            *, extended=False, cwd=None, timeout_s=None):
     prefix = Path(prefix)
     prefix.parent.mkdir(parents=True, exist_ok=True)
     if prefix.with_suffix(".time.json").exists():
         raise FileExistsError(prefix)
     time_file = str(prefix) + ".time.json"
-    wrapped = ["/usr/bin/time", "-q", "-f",
-               '{"user_s":%U,"system_s":%S,"max_process_rss_kib":%M,"exit":%x}',
+    fields = '{"user_s":%U,"system_s":%S,"max_process_rss_kib":%M,"exit":%x'
+    if extended:
+        fields += (',"minor_faults":%R,"major_faults":%F,'
+                   '"voluntary_context_switches":%w,"involuntary_context_switches":%c')
+    wrapped = ["/usr/bin/time", "-q", "-f", fields + "}",
                "-o", time_file, *map(str, command)]
+    if timeout_s is not None:
+        # Time the target, not the watchdog. A killed watchdog may leave no GNU time output.
+        wrapped = ["/usr/bin/timeout", "--kill-after=5s", f"{timeout_s}s", *wrapped]
     start = time.perf_counter_ns()
     peak = 0
     pass_fds = ()
@@ -47,16 +54,24 @@ def measure(command, prefix, env=None, sample_tree=False, preserve_jobserver=Fal
                 os.fstat(fd)
     with open(str(prefix) + ".stdout", "w") as stdout, \
             open(str(prefix) + ".stderr", "w") as stderr:
-        process = subprocess.Popen(wrapped, env=env, stdout=stdout, stderr=stderr, pass_fds=pass_fds)
+        process = subprocess.Popen(wrapped, env=env, stdout=stdout, stderr=stderr,
+                                   pass_fds=pass_fds, cwd=cwd)
         if sample_tree:
             while process.poll() is None:
                 peak = max(peak, tree_rss_kib(process.pid))
                 time.sleep(0.05)
         code = process.wait()
     elapsed = time.perf_counter_ns() - start
-    metrics = json.loads(Path(time_file).read_text())
+    try:
+        metrics = json.loads(Path(time_file).read_text())
+    except (OSError, ValueError):
+        if timeout_s is None or code == 0:
+            raise
+        metrics = {"exit": None, "measurement_unavailable": "GNU time did not report"}
     metrics.update({"wall_ns": elapsed, "command": list(map(str, command)),
                     "returncode": code, "sampled_tree_rss_kib": peak if sample_tree else None,
                     "pid": process.pid})
+    if timeout_s is not None:
+        metrics["launch_argv"] = wrapped
     Path(str(prefix) + ".metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
     return metrics
