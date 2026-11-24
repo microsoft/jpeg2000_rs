@@ -21,8 +21,10 @@ pub use deadline::with_decode_deadline;
 ///
 /// This reflects the decoder's resolved features, including Cargo feature
 /// unification. It does not indicate whether a deadline scope is active.
-pub const COOPERATIVE_DEADLINES_ENABLED: bool =
-    cfg!(all(feature = "cooperative-deadlines", not(verus_keep_ghost)));
+pub const COOPERATIVE_DEADLINES_ENABLED: bool = cfg!(all(
+    feature = "cooperative-deadlines",
+    not(verus_keep_ghost)
+));
 
 #[cfg(all(verus_keep_ghost, feature = "pdf-mq-recovery"))]
 compile_error!(
