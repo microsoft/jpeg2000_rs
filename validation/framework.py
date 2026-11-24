@@ -2996,12 +2996,12 @@ _COMPONENT_TILE_PLANNING_CONTRACTS = {
         "part2_progression_tile_plan", _coverage_call("progression_plan_outcome", r"\1"), None,
         r"size\s*,\s*coding_style\s*,\s*coding_styles\s*,\s*quantizations\s*,\s*roi_shifts\s*,\s*"
         r"\(\s*tile_index\s*,\s*discard_levels\s*\)\s*,\s*"
-        r"\(\s*allow_multiple_ht_sets\s*,\s*ht_magnitude_bound\s*,\s*force_high_throughput\s*\)\s*,\s*limits",
+        r"\(\s*allow_multiple_ht_sets\s*,\s*ht_magnitude_bound\s*,\s*force_high_throughput\s*,\s*pack_ht_checkpoint\s*\)\s*,\s*limits",
     ),
     ("src/decode/planning.rs", "plan_progression_tile_at_with_component_overrides"): (
         "part2_progression_tile_plan", _coverage_call("progression_plan_outcome", r"\1"), None,
         r"size\s*,\s*coding_style\s*,\s*coding_styles\s*,\s*quantizations\s*,\s*roi_shifts\s*,\s*"
-        r"\(\s*tile_index\s*,\s*0\s*\)\s*,\s*\(\s*false\s*,\s*74\s*,\s*false\s*\)\s*,\s*limits",
+        r"\(\s*tile_index\s*,\s*0\s*\)\s*,\s*\(\s*false\s*,\s*74\s*,\s*false\s*,\s*false\s*\)\s*,\s*limits",
     ),
 }
 
@@ -6091,7 +6091,7 @@ def _plane_role_special_contracts():
             args(plane("plane"), cleanup, "maximum_passes", "maximum_u", "skipped_bitplanes", work)),
         ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane"): (
             "ht_refinement_plane", call("ht_plane_outcome", r"\1"), None,
-            args(plane("cleanup_plane"), call("ht_refinement_segment_view", r"&\s*segment"),
+            args(call("cleanup_plane.view"), call("ht_refinement_segment_view", r"&\s*segment"),
                  "refinement_passes", "decoded_bitplanes", "vertical_causal_context", work)),
         ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_ht_coefficient_symbols"): (
             "ht_coefficient_symbols", r"\1", final_decoder("self"),
@@ -6328,6 +6328,11 @@ _COLD_RESULT_CONTRACTS.update({
     for key, legacy in _RECONSTRUCTION_CONTRACTS.items()
     if legacy[0] in _PLANE_ROLE_MODEL_INFO
 })
+_HT_PREPARE_KEY = ("src/tier1/ht_cleanup.rs", "prepare_ht_cleanup_symbols")
+_ht_prepare_model, _ht_prepare_outcome, _ht_prepare_state, _ht_prepare_inputs = _PLANE_ROLE_SPECIAL_CONTRACTS[_HT_PREPARE_KEY]
+_COLD_RESULT_CONTRACTS[_HT_PREPARE_KEY] = _coverage_cold_relation((
+    _ht_prepare_model, _ht_prepare_outcome, _ht_prepare_state, _ht_prepare_inputs + r"\s*,\s*private_plan",
+))
 _stage_key = ("src/image/mct.rs", "apply_mct_stage")
 _stage_legacy = _RECONSTRUCTION_CONTRACTS[_stage_key]
 _stage_view = _coverage_call("crate::codestream::mct_stage_view", "stage") + r"\s*\.1"
@@ -6998,9 +7003,15 @@ _HT_BYTE_COPY_NATIVE_ORDER = {
         "bitplane_state:", "try_duplicate_bitplane(&self.bitplane_state,role,false)", "part2_ht_duplicate_bitplane_error(", "copied?",
         "mq_context_state:self.mq_context_state", "legacy_segment:", "try_duplicate_legacy_segment(&self.legacy_segment,role)", "part2_ht_duplicate_legacy_error(", "copied?",
         "ht_cleanup_plane:match self.ht_cleanup_plane.as_ref()", "None=>", "part2_decoder_cleanup_none(role)", "Some(source)=>",
-        "source.try_duplicate_raw(role,true,false)", "part2_decoder_cleanup_observed(", "part2_ht_duplicate_cleanup_error(", "Some(copied?)",
+        "source.try_duplicate_for_storage(role)", "part2_decoder_cleanup_observed(source.view(),role,",
+        "part2_ht_duplicate_cleanup_error(", "let copied = copied?",
+        "Some(super::ht_checkpoint::HtCleanupCheckpoint::Wide(copied))",
         "ht_refinement_data:", "copy_ht_refinement_bytes(&self.ht_refinement_data,role)",
         "part2_ht_duplicate_observed(", "copied?", "ht_refinement_passes:self.ht_refinement_passes",
+    ),
+    ("src/tier1/ht_checkpoint.rs", "HtCleanupCheckpoint::try_duplicate_for_storage"): (
+        "Self::Wide(plane) => plane.try_duplicate_raw(role, true, false)",
+        "Self::Packed(plane) => plane.materialize_snapshot(role)",
     ),
     ("src/tier1/ht_refinement.rs", "copy_ht_refinement_bytes"): (
         "let copied = crate::allocation::copy_values(input)", "part2_ht_bytes_observed(input@,_role,match copied{Err(error)=>Err(error),Ok(_)=>Ok(())})", "copied",
@@ -7015,7 +7026,8 @@ _HT_BYTE_COPY_NATIVE_ORDER = {
         "self.try_duplicate(super::HtRefinementCopyRole::HtStaging)", "let mut staged = duplicated?", "staged.run_ht_placeholder_groups(",
     ),
     ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_ht_coefficient_symbols"): (
-        "self.clear_ht_refinement_state()", "decode_ht_refinement_plane(", "statistics.merge(refinement_statistics)?",
+        "self.clear_ht_refinement_state()", "decode_ht_refinement_plane(",
+        "let merged = statistics.merge(refinement_statistics)", "merged?",
         "copy_ht_refinement_bytes(", "HtRefinementCopyRole::CleanupRetention", "self.ht_refinement_data = copied?",
         "self.ht_refinement_passes = refinement_passes",
     ),
@@ -7782,15 +7794,29 @@ _PLANE_ROLE_GUARDS = {
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_prepare_run"): (
         "part2_ht_metadata_run(cleanup,plane.width,plane.height,maximum_u,work,calls)",
-        "part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,metadata,rest)",
+        "part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,private_plan,metadata,rest)",
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_prepare_after_metadata"): (
         "ht_significant_bitplanes(passes)", "if bits<skipped", "Err(error)=>Some((Err(error),calls))",
-        "part2_plane_cleanup_run(", "part2_plane_prepare_tail(output,admitted.1,rest)",
+        "part2_plane_cleanup_run(", "part2_plane_prepare_tail(output,admitted.1,private_plan,rest)",
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_prepare_tail"): (
-        "part2_plane_duplicate_run(output.0,crate::tier1::CoefficientStorageRole::CleanupCopy,calls)",
+        "part2_ht_checkpoint_run(output.0,private_plan,calls)",
         "Ok((output.0,duplicate,output.1,bits))",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_ht_checkpoint_selected"): (
+        "private_plan && source.width>0", "source.width as nat * source.height as nat == source.coefficients.len()",
+        "compact_packable_plane(source)",
+    ),
+    ("specs/cold_tier1_planes.rs", "part2_ht_checkpoint_run"): (
+        "if !part2_ht_checkpoint_selected(source,private_plan)", "CoefficientStorageRole::CleanupCopy",
+        "Part2Tier1StorageEvent::HtPackedCleanup {source:actual,elements,succeeded}",
+        "actual!=source || elements!=source.coefficients.len()+1 {None}", "Err(crate::DecodeError::AllocationFailed)",
+        "calls.drop_first()",
+    ),
+    ("specs/cold_ht_decoder.rs", "part2_ht_coeff_run"): (
+        "part2_plane_prepare_run(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,before.private_plan,calls)",
+        "part2_ht_coeff_after_prepare(",
     ),
     ("specs/cold_tier1_planes.rs", "part2_plane_refinement_run"): (
         "if passes==0 || passes>2 || bits<2", "part2_plane_duplicate_run(cleanup,crate::tier1::CoefficientStorageRole::RefinementOutput,calls)",
@@ -7850,7 +7876,55 @@ _PLANE_ROLE_NATIVE_ORDER = {
     ),
     ("src/tier1/ht_cleanup.rs", "prepare_ht_cleanup_symbols"): (
         "decode_ht_cleanup_segment_metadata(", "ht_significant_bitplanes(", ".checked_sub(skipped_bitplanes)",
-        "reconstruct_ht_cleanup_plane(", "let (output, statistics) = reconstructed?", "CoefficientStorageRole::CleanupCopy", "let duplicate = duplicated?",
+        "reconstruct_ht_cleanup_plane(", "let (output, statistics) = reconstructed?",
+        "retain_ht_cleanup(&output, private_plan)", "let duplicate = duplicated?",
+    ),
+    ("src/tier1/ht_checkpoint.rs", "retain_ht_cleanup"): (
+        "let count = source.coefficients.len()", "if !private_plan", "|| !cleanup_packable(source)",
+        "source.duplicate(CoefficientStorageRole::CleanupCopy)", "let elements = count + 1",
+        "let reserved = crate::allocation::empty_with_capacity(elements)",
+        "part2_ht_checkpoint_packed(code_block_plane_view(source),elements,", "let mut words = reserved?",
+        "let header = geometry_word(source.width, source.height)", "words.push(header)",
+        "words.push(pack_word(source.coefficients[index]))", "Ok(HtCleanupCheckpoint::Packed(plane))",
+    ),
+    ("src/tier1/ht_checkpoint.rs", "geometry_word"): (
+        "let word = (u64::from(width) << 16) | u64::from(height)", "word",
+    ),
+    ("src/tier1/ht_checkpoint.rs", "PackedCleanup::header_and_cells"): (
+        "if self.words.is_empty()", "return (0, 0, &[])", "let header = self.words[0]",
+        "let width_bits = (header >> 16) & 0xffff", "let height_bits = header & 0xffff",
+        "(width_bits as u16, height_bits as u16, &self.words[1..])",
+    ),
+    ("src/tier1/ht_checkpoint.rs", "PackedCleanup::materialize"): (
+        "let (width, height, cells) = self.header_and_cells()",
+        "let output = code_block_plane_from_dimensions(width, height, role)",
+        "let mut output = output?", "output.coefficients.len() != cells.len()",
+        "output.coefficients[index] = unpack_word(cells[index])", "Ok(output)",
+    ),
+    ("src/tier1/ht_checkpoint.rs", "PackedCleanup::materialize_snapshot"): (
+        "let (width, height, cells) = self.header_and_cells()", "let count = cells.len()",
+        "let reserved = if count == 0", "Ok(Vec::new())", "empty_with_capacity(count)",
+        "coefficients.push(unpack_word(cells[index]))", "CodeBlockPlane { width, height, coefficients, }",
+    ),
+    ("src/tier1/contributions.rs", "tier1_configured_decoder_with_checkpoint"): (
+        "let configured = tier1_configured_decoder(", "let mut decoder = configured?",
+        "decoder.private_plan = pack_ht_checkpoint && style.block_coding.uses_high_throughput()", "Ok(decoder)",
+    ),
+    ("src/decode/planning.rs", "plan_progression_tile_at_with_component_overrides"): (
+        "plan_progression_tile_at_selected(",
+        "roi_shifts, 0, false, 74, false, false, limits,",
+    ),
+    ("src/decode/execution.rs", "decode_tile_parts_at"): (
+        "let plan_result = plan_progression_tile_at_selected(",
+        "profile.part15_requires_all_ht_blocks(), true, limits,",
+    ),
+    ("src/decode/pdf_trailers.rs", "decode_trailer_tile"): (
+        "let plan_result = plan_progression_tile_at_selected(",
+        "profile.part15_requires_all_ht_blocks(), true, limits,",
+    ),
+    ("src/decode/planning.rs", "append_planned_codeblock"): (
+        "let decoder_result = crate::tier1::tier1_configured_decoder_with_checkpoint(",
+        "policy.0, policy.1, policy.2,", "let decoder = decoder_result?",
     ),
     ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane"): (
         "if refinement_passes == 0", "CoefficientStorageRole::RefinementOutput", "let output = copied?", "ht_refinement_readers_from_inputs(",
@@ -7858,8 +7932,8 @@ _PLANE_ROLE_NATIVE_ORDER = {
         "state.magnitude_pass(", "ht_significance_magnitude(", "CoefficientStorageRole::RefinementDiscovery", "let significance_plane = discovered?",
     ),
     ("src/tier1/ht_contributions.rs", "Tier1CodeBlockDecoder::decode_ht_coefficient_symbols"): (
-        "prepare_ht_cleanup_symbols(", "let (plane, cleanup_plane, statistics, decoded_bitplanes) = prepared_result?",
-        "self.clear_ht_refinement_state()", "decode_ht_refinement_plane(", "store_ht_coefficient_symbols(",
+        "prepare_ht_cleanup_symbols(", "limits, self.private_plan,", "let (plane, cleanup_plane, statistics, decoded_bitplanes) = prepared_result?",
+        "self.clear_ht_refinement_state()", "decode_ht_refinement_plane(cleanup_plane.read(),", "store_ht_coefficient_symbols(",
     ),
 }
 _TIER1_INITIAL_GUARDS = {
@@ -7880,11 +7954,11 @@ _TIER1_INITIAL_GUARDS = {
     ),
     ("specs/cold_tier1_initial.rs", "part2_tier1_call_run"): (
         "part2_tier1_call_admit(context)", "Err(error)=>Some((Err(error),events))", "Tier1Initial {context:actual,calls}",
-        "actual!=context", "part2_tier1_configured_run(", "rest.len()==0", "events.drop_first()",
+        "actual!=context", "part2_tier1_configured_checkpoint_run(", "context.pack_ht_checkpoint,calls", "rest.len()==0", "events.drop_first()",
     ),
     ("specs/cold_codeblock_plan.rs", "part2_tier1_cell_context"): (
         "width:geometry.2,height:geometry.3,significant:subband.significant_bitplanes,orientation:subband.orientation,style,",
-        "allowed:policy.0,bound:policy.1,grid,clip,block,indices,before",
+        "allowed:policy.0,bound:policy.1,pack_ht_checkpoint:policy.2,grid,clip,block,indices,before",
     ),
     ("specs/cold_codeblock_plan.rs", "part2_codeblock_cell_run"): (
         "part2_planned_codeblock_geometry(", "Err(error)=>Some((Err(error),events))", "part2_tier1_call_run(",
@@ -7918,6 +7992,8 @@ _TIER1_INITIAL_FIXED_BODIES = {
     }else{part2_tier1_plane_admit(context.width,context.height)}""",
     "part2_tier1_configured_run": """part2_tier1_storage_bind(part2_tier1_initial_run(width,height,significant,orientation,style,calls),
         |_:Tier1DecoderState,rest|Some((part2_tier1_configured_decoder(width,height,significant,orientation,style,allowed,bound),rest)))""",
+    "part2_tier1_configured_checkpoint_run": """part2_tier1_storage_resume(part2_tier1_configured_run(width,height,significant,orientation,style,allowed,bound,calls),
+        |configured:Result<Tier1DecoderState,crate::DecodeError>,rest|Some((part2_with_ht_checkpoint(configured,pack),rest)))""",
 }
 _TIER1_INITIAL_NATIVE_ORDER = {
     ("src/tier1/state.rs", "code_block_plane_from_dimensions"): (
@@ -8781,7 +8857,7 @@ _CLEANUP_SIGNIFICANCE_NATIVE_ORDER = {
         "if refinement_passes == 0 || refinement_passes > 2 || decoded_bitplanes < 2",
         "let copied = cleanup_plane.duplicate(super::CoefficientStorageRole::RefinementOutput)",
         "let output = copied?", "let reader_result = ht_refinement_readers_from_inputs",
-        "let readers = reader_result?", "let flags = ht_collect_cleanup_significance(cleanup_plane.coefficients())",
+        "let readers = reader_result?", "let flags = ht_collect_cleanup_significance(output.coefficients())",
         "let cleanup_significant = flags?", "let mut state = HtRefinementPlaneState",
         "state.magnitude_pass", "let significance_magnitude = ht_significance_magnitude",
     ),
@@ -12824,7 +12900,7 @@ def validate_normative_coverage(
                 "crate::specs::part2_progression_tile_plan(&layout.info.image_size,"
                 "tile_part.coding_style, &tile_part.component_coding_styles,"
                 "&tile_part.component_quantizations, &tile_part.roi_shifts,"
-                "(tile_number, 0), (false, 74, false), limits)"
+                "(tile_number, 0), (false, 74, false, false), limits)"
                 "== Ok(crate::decode::progression_plan_view(&plan))",
             ):
                 if native is None or "".join(fragment.split()) not in "".join(native.split()):
@@ -18571,7 +18647,7 @@ def validate_normative_coverage(
                     "ht_store_coefficient_symbols",
                     r"tier1_decoder_state\s*\(\s*old\s*\(\s*self\s*\)\s*\)\s*,\s*"
                     r"code_block_plane_view\s*\(\s*&\s*output\s*\)\s*,\s*"
-                    r"code_block_plane_view\s*\(\s*&\s*cleanup_plane\s*\)\s*,\s*"
+                    r"cleanup_plane\.view\s*\(\s*\)\s*,\s*"
                     r"statistics\s*,\s*decoded_bitplanes\s*,\s*pass_count\s*,\s*bytes\s*,\s*has_refinement",
                 ),
                 "CodeBlockPlane::duplicate": (
@@ -18590,7 +18666,7 @@ def validate_normative_coverage(
             refinement_contract_arguments = {
                 "decode_ht_refinement_plane": (
                     "ht_refinement_plane",
-                    r"code_block_plane_view\s*\(\s*cleanup_plane\s*\)\s*,\s*"
+                    r"cleanup_plane\.view\s*\(\s*\)\s*,\s*"
                     r"ht_refinement_segment_view\s*\(\s*&\s*segment\s*\)\s*,\s*"
                     r"refinement_passes\s*,\s*decoded_bitplanes\s*,\s*vertical_causal_context\s*,\s*"
                     r"crate::limits::resource_work_limit\s*\(\s*limits\s*\)",
@@ -19375,7 +19451,7 @@ def validate_normative_coverage(
         clone_path = (ROOT / "src/tier1/contributions.rs").resolve()
         clone = _coverage_function_body(source_text(clone_path), function_header(clone_path, "Tier1CodeBlockDecoder::clone"))
         original_clone = """Self {
-            plane:self.plane.clone(),orientation:self.orientation,style:self.style,maximum_passes:self.maximum_passes,
+            plane:self.plane.clone(),private_plan:self.private_plan,orientation:self.orientation,style:self.style,maximum_passes:self.maximum_passes,
             next_pass:self.next_pass,bitplane:self.bitplane,zero_bitplanes:self.zero_bitplanes,bitplane_state:self.bitplane_state.clone(),
             mq_context_state:self.mq_context_state,reset_contexts_before_mq:self.reset_contexts_before_mq,
             decoded_segments:self.decoded_segments,decoded_bytes:self.decoded_bytes,legacy_segment:self.legacy_segment.clone(),

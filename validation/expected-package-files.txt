@@ -387,6 +387,7 @@ src/refinement.rs
 src/tier1/coding.rs
 src/tier1/compact_legacy.rs
 src/tier1/contributions.rs
+src/tier1/ht_checkpoint.rs
 src/tier1/ht_cleanup.rs
 src/tier1/ht_cleanup_readers.rs
 src/tier1/ht_contributions.rs

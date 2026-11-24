@@ -68,45 +68,98 @@ pub(crate) open spec fn part2_plane_prepare_admit(plane:Tier1RawPlane,cleanup:Ht
         },
     }
 }
-pub(crate) open spec fn part2_plane_prepare_tail(output:(Tier1RawPlane,crate::tier1::Tier1PassStatistics),bits:u16,calls:Seq<Part2Tier1StorageEvent>)
+pub(crate) open spec fn part2_ht_checkpoint_selected(source:Tier1RawPlane,private_plan:bool)->bool {
+    private_plan && source.width>0 && source.height>0 && 0<source.coefficients.len()<=4096 &&
+        source.width as nat * source.height as nat == source.coefficients.len() && compact_packable_plane(source)
+}
+pub(crate) open spec fn part2_ht_checkpoint_run(source:Tier1RawPlane,private_plan:bool,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Tier1RawPlane> {
+    if !part2_ht_checkpoint_selected(source,private_plan) {
+        part2_plane_duplicate_run(source,crate::tier1::CoefficientStorageRole::CleanupCopy,calls)
+    } else if calls.len()==0 { None }
+    else { match calls[0] {
+        Part2Tier1StorageEvent::HtPackedCleanup {source:actual,elements,succeeded} =>
+            if actual!=source || elements!=source.coefficients.len()+1 {None}
+            else {Some((if succeeded {Ok(source)} else {Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))},
+        _=>None,
+    } }
+}
+pub(crate) open spec fn part2_ht_checkpoint_result(source:Tier1RawPlane,private_plan:bool,result:Result<Tier1RawPlane,crate::DecodeError>)->bool {
+    part2_tier1_storage_framed(|calls|part2_ht_checkpoint_run(source,private_plan,calls),result)
+}
+pub(crate) proof fn part2_ht_checkpoint_wide(source:Tier1RawPlane,private_plan:bool,result:Result<Tier1RawPlane,crate::DecodeError>)
+    requires !part2_ht_checkpoint_selected(source,private_plan),
+        part1_plane_duplicate_storage_result(source,crate::tier1::CoefficientStorageRole::CleanupCopy,result),
+    ensures part2_ht_checkpoint_result(source,private_plan,result),
+{
+    reveal(part1_plane_duplicate_storage_result);
+    part2_tier1_storage_eta(|calls|part2_plane_duplicate_run(source,crate::tier1::CoefficientStorageRole::CleanupCopy,calls),result);
+}
+pub(crate) proof fn part2_ht_checkpoint_packed(source:Tier1RawPlane,elements:usize,result:Result<(),crate::DecodeError>)
+    requires part2_ht_checkpoint_selected(source,true), elements==source.coefficients.len()+1,
+        result==Ok(()) || result==Err(crate::DecodeError::AllocationFailed),
+    ensures part2_ht_checkpoint_result(source,true,match result {Ok(())=>Ok(source),Err(error)=>Err(error)}),
+{
+    let event=Part2Tier1StorageEvent::HtPackedCleanup {source,elements:elements as nat,succeeded:result.is_ok()};
+    let prefix=seq![event];
+    let run=|calls|part2_ht_checkpoint_run(source,true,calls);
+    let outcome=match result {Ok(())=>Ok(source),Err(error)=>Err(error)};
+    assert forall |tail:Seq<Part2Tier1StorageEvent>| #[trigger] run(prefix+tail)==Some((outcome,tail)) by {
+        assert((prefix+tail)[0]==event);
+        assert((prefix+tail).drop_first()=~=tail);
+    }
+    assert(part2_tier1_storage_prefix(run,prefix,outcome));
+}
+pub(crate) proof fn part2_ht_checkpoint_normal(source:Tier1RawPlane,private_plan:bool)
+    ensures part2_ht_checkpoint_result(source,private_plan,tier1_duplicate_plane(source)),
+{
+    if part2_ht_checkpoint_selected(source,private_plan) {
+        reveal(tier1_empty_plane);
+        assert(tier1_duplicate_plane(source)==Ok(source));
+        part2_ht_checkpoint_packed(source,(source.coefficients.len()+1) as usize,Ok(()));
+        assert(private_plan);
+    }else{
+        part2_plane_duplicate_normal(source,crate::tier1::CoefficientStorageRole::CleanupCopy);
+        part2_ht_checkpoint_wide(source,private_plan,tier1_duplicate_plane(source));
+    }
+}
+pub(crate) open spec fn part2_plane_prepare_tail(output:(Tier1RawPlane,crate::tier1::Tier1PassStatistics),bits:u16,private_plan:bool,calls:Seq<Part2Tier1StorageEvent>)
     ->Part2Tier1Run<(Tier1RawPlane,Tier1RawPlane,crate::tier1::Tier1PassStatistics,u16)> {
-    part2_tier1_storage_bind(part2_plane_duplicate_run(output.0,crate::tier1::CoefficientStorageRole::CleanupCopy,calls),
+    part2_tier1_storage_bind(part2_ht_checkpoint_run(output.0,private_plan,calls),
         |duplicate:Tier1RawPlane,rest|Some((Ok((output.0,duplicate,output.1,bits)),rest)))
 }
-pub(crate) open spec fn part2_plane_prepare_run(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,
+pub(crate) open spec fn part2_plane_prepare_run(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,private_plan:bool,
     calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Tier1RawPlane,Tier1RawPlane,crate::tier1::Tier1PassStatistics,u16)> {
     part2_tier1_storage_bind(part2_ht_metadata_run(cleanup,plane.width,plane.height,maximum_u,work,calls),
-        |metadata:HtMetadataOutput,rest|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,metadata,rest))
+        |metadata:HtMetadataOutput,rest|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,private_plan,metadata,rest))
 }
-pub(crate) open spec fn part2_plane_prepare_after_metadata(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,metadata:HtMetadataOutput,
+pub(crate) open spec fn part2_plane_prepare_after_metadata(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,private_plan:bool,metadata:HtMetadataOutput,
     calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<(Tier1RawPlane,Tier1RawPlane,crate::tier1::Tier1PassStatistics,u16)> {
     let admitted=match ht_significant_bitplanes(passes){Err(error)=>Err(error),Ok(bits)=>
         if bits<skipped{Err(ht_reader_error(crate::MalformedKind::ArithmeticOverflow))}else{Ok((metadata,(bits-skipped) as u16))}};
     match admitted {
         Err(error)=>Some((Err(error),calls)),
         Ok(admitted)=>part2_tier1_storage_bind(part2_plane_cleanup_run(plane,cleanup,admitted.0,maximum_u,admitted.1,work,calls),
-            |output:(Tier1RawPlane,crate::tier1::Tier1PassStatistics),rest|part2_plane_prepare_tail(output,admitted.1,rest)),
+            |output:(Tier1RawPlane,crate::tier1::Tier1PassStatistics),rest|part2_plane_prepare_tail(output,admitted.1,private_plan,rest)),
     }
 }
-pub(crate) open spec fn part2_plane_prepare_result(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,
+pub(crate) open spec fn part2_plane_prepare_result(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,private_plan:bool,
     result:Result<(Tier1RawPlane,Tier1RawPlane,crate::tier1::Tier1PassStatistics,u16),crate::DecodeError>)->bool {
-    part2_tier1_storage_framed(|calls|part2_plane_prepare_run(plane,cleanup,passes,maximum_u,skipped,work,calls),result)
+    part2_tier1_storage_framed(|calls|part2_plane_prepare_run(plane,cleanup,passes,maximum_u,skipped,work,private_plan,calls),result)
 }
-pub(crate) proof fn part2_plane_prepare_tail_normal(output:(Tier1RawPlane,crate::tier1::Tier1PassStatistics),bits:u16)
-    ensures part2_tier1_storage_framed(|calls|part2_plane_prepare_tail(output,bits,calls),
+pub(crate) proof fn part2_plane_prepare_tail_normal(output:(Tier1RawPlane,crate::tier1::Tier1PassStatistics),bits:u16,private_plan:bool)
+    ensures part2_tier1_storage_framed(|calls|part2_plane_prepare_tail(output,bits,private_plan,calls),
         match tier1_duplicate_plane(output.0) {Err(error)=>Err(error),Ok(duplicate)=>Ok((output.0,duplicate,output.1,bits))}),
 {
-    let role=crate::tier1::CoefficientStorageRole::CleanupCopy;
-    part2_plane_duplicate_normal(output.0,role);
+    part2_ht_checkpoint_normal(output.0,private_plan);
     let duplicate=tier1_duplicate_plane(output.0);
     let result=match duplicate{Err(error)=>Err(error),Ok(value)=>Ok((output.0,value,output.1,bits))};
     if duplicate.is_ok(){part2_tier1_storage_pure(result);}
-    part2_tier1_storage_bind_frame(|calls|part2_plane_duplicate_run(output.0,role,calls),
+    part2_tier1_storage_bind_frame(|calls|part2_ht_checkpoint_run(output.0,private_plan,calls),
         |duplicate:Tier1RawPlane,rest|Some((Ok((output.0,duplicate,output.1,bits)),rest)),duplicate,result);
 }
-pub(crate) proof fn part2_plane_prepare_after_normal(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,metadata:HtMetadataOutput)
+pub(crate) proof fn part2_plane_prepare_after_normal(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,private_plan:bool,metadata:HtMetadataOutput)
     requires ht_cleanup_segment_metadata(cleanup,plane.width,plane.height,maximum_u,work)==Ok(metadata),
-    ensures part2_tier1_storage_framed(|calls|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,metadata,calls),ht_cleanup_prepare(plane,cleanup,passes,maximum_u,skipped,work)),
+    ensures part2_tier1_storage_framed(|calls|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,private_plan,metadata,calls),ht_cleanup_prepare(plane,cleanup,passes,maximum_u,skipped,work)),
 {
     let result=ht_cleanup_prepare(plane,cleanup,passes,maximum_u,skipped,work);
     match part2_plane_prepare_admit(plane,cleanup,passes,maximum_u,skipped,work) {
@@ -115,67 +168,67 @@ pub(crate) proof fn part2_plane_prepare_after_normal(plane:Tier1RawPlane,cleanup
             part2_plane_cleanup_normal(plane,cleanup,admitted.0,maximum_u,admitted.1,work);
             let output=ht_cleanup_plane(plane,cleanup,admitted.0,maximum_u,admitted.1,work);
             if let Ok(value)=output{
-                part2_plane_prepare_tail_normal(value,admitted.1);
-                part2_tier1_storage_eta(|calls|part2_plane_prepare_tail(value,admitted.1,calls),result);
+                part2_plane_prepare_tail_normal(value,admitted.1,private_plan);
+                part2_tier1_storage_eta(|calls|part2_plane_prepare_tail(value,admitted.1,private_plan,calls),result);
             }
             part2_tier1_storage_bind_frame(|calls|part2_plane_cleanup_run(plane,cleanup,admitted.0,maximum_u,admitted.1,work,calls),
-                |output:(Tier1RawPlane,crate::tier1::Tier1PassStatistics),rest|part2_plane_prepare_tail(output,admitted.1,rest),output,result);
+                |output:(Tier1RawPlane,crate::tier1::Tier1PassStatistics),rest|part2_plane_prepare_tail(output,admitted.1,private_plan,rest),output,result);
         },
     }
 }
-pub(crate) proof fn part2_plane_prepare_normal(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64)
-    ensures part2_plane_prepare_result(plane,cleanup,passes,maximum_u,skipped,work,ht_cleanup_prepare(plane,cleanup,passes,maximum_u,skipped,work)),
+pub(crate) proof fn part2_plane_prepare_normal(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,private_plan:bool)
+    ensures part2_plane_prepare_result(plane,cleanup,passes,maximum_u,skipped,work,private_plan,ht_cleanup_prepare(plane,cleanup,passes,maximum_u,skipped,work)),
 {
     let metadata=ht_cleanup_segment_metadata(cleanup,plane.width,plane.height,maximum_u,work);
     let result=ht_cleanup_prepare(plane,cleanup,passes,maximum_u,skipped,work);
     part2_ht_metadata_normal(cleanup,plane.width,plane.height,maximum_u,work);
     if let Ok(value)=metadata{
-        part2_plane_prepare_after_normal(plane,cleanup,passes,maximum_u,skipped,work,value);
-        part2_tier1_storage_eta(|calls|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,value,calls),result);
+        part2_plane_prepare_after_normal(plane,cleanup,passes,maximum_u,skipped,work,private_plan,value);
+        part2_tier1_storage_eta(|calls|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,private_plan,value,calls),result);
     }
     part2_tier1_storage_bind_frame(|calls|part2_ht_metadata_run(cleanup,plane.width,plane.height,maximum_u,work,calls),
-        |value:HtMetadataOutput,rest|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,value,rest),metadata,result);
+        |value:HtMetadataOutput,rest|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,private_plan,value,rest),metadata,result);
 }
-pub(crate) proof fn part2_plane_prepare_metadata_error(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,error:crate::DecodeError)
+pub(crate) proof fn part2_plane_prepare_metadata_error(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,private_plan:bool,error:crate::DecodeError)
     requires part2_ht_metadata_result(cleanup,plane.width,plane.height,maximum_u,work,Err(error)),
-    ensures part2_plane_prepare_result(plane,cleanup,passes,maximum_u,skipped,work,Err(error)),
+    ensures part2_plane_prepare_result(plane,cleanup,passes,maximum_u,skipped,work,private_plan,Err(error)),
 {
     part2_tier1_storage_bind_frame(|calls|part2_ht_metadata_run(cleanup,plane.width,plane.height,maximum_u,work,calls),
-        |value:HtMetadataOutput,rest|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,value,rest),Err(error),Err(error));
+        |value:HtMetadataOutput,rest|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,private_plan,value,rest),Err(error),Err(error));
 }
-pub(crate) proof fn part2_plane_prepare_metadata_join(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,metadata:HtMetadataOutput,
+pub(crate) proof fn part2_plane_prepare_metadata_join(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,private_plan:bool,metadata:HtMetadataOutput,
     result:Result<(Tier1RawPlane,Tier1RawPlane,crate::tier1::Tier1PassStatistics,u16),crate::DecodeError>)
     requires ht_cleanup_segment_metadata(cleanup,plane.width,plane.height,maximum_u,work)==Ok(metadata),
-        part2_tier1_storage_framed(|calls|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,metadata,calls),result),
-    ensures part2_plane_prepare_result(plane,cleanup,passes,maximum_u,skipped,work,result),
+        part2_tier1_storage_framed(|calls|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,private_plan,metadata,calls),result),
+    ensures part2_plane_prepare_result(plane,cleanup,passes,maximum_u,skipped,work,private_plan,result),
 {
     part2_ht_metadata_normal(cleanup,plane.width,plane.height,maximum_u,work);
-    part2_tier1_storage_eta(|calls|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,metadata,calls),result);
+    part2_tier1_storage_eta(|calls|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,private_plan,metadata,calls),result);
     part2_tier1_storage_bind_frame(|calls|part2_ht_metadata_run(cleanup,plane.width,plane.height,maximum_u,work,calls),
-        |value:HtMetadataOutput,rest|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,value,rest),Ok(metadata),result);
+        |value:HtMetadataOutput,rest|part2_plane_prepare_after_metadata(plane,cleanup,passes,maximum_u,skipped,work,private_plan,value,rest),Ok(metadata),result);
 }
-pub(crate) proof fn part2_plane_prepare_cleanup_error(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,
+pub(crate) proof fn part2_plane_prepare_cleanup_error(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,private_plan:bool,
     admitted:(HtMetadataOutput,u16),error:crate::DecodeError)
     requires part2_plane_prepare_admit(plane,cleanup,passes,maximum_u,skipped,work)==Ok(admitted),
         part2_plane_cleanup_result(plane,cleanup,admitted.0,maximum_u,admitted.1,work,Err(error)),
-    ensures part2_plane_prepare_result(plane,cleanup,passes,maximum_u,skipped,work,Err(error)),
+    ensures part2_plane_prepare_result(plane,cleanup,passes,maximum_u,skipped,work,private_plan,Err(error)),
 {
     part2_tier1_storage_bind_frame(|calls|part2_plane_cleanup_run(plane,cleanup,admitted.0,maximum_u,admitted.1,work,calls),
-        |output:(Tier1RawPlane,crate::tier1::Tier1PassStatistics),rest|part2_plane_prepare_tail(output,admitted.1,rest),Err(error),Err(error));
-    part2_plane_prepare_metadata_join(plane,cleanup,passes,maximum_u,skipped,work,admitted.0,Err(error));
+        |output:(Tier1RawPlane,crate::tier1::Tier1PassStatistics),rest|part2_plane_prepare_tail(output,admitted.1,private_plan,rest),Err(error),Err(error));
+    part2_plane_prepare_metadata_join(plane,cleanup,passes,maximum_u,skipped,work,private_plan,admitted.0,Err(error));
 }
-pub(crate) proof fn part2_plane_prepare_duplicate_error(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,
+pub(crate) proof fn part2_plane_prepare_duplicate_error(plane:Tier1RawPlane,cleanup:HtCleanupSegmentState,passes:u32,maximum_u:u8,skipped:u16,work:u64,private_plan:bool,
     admitted:(HtMetadataOutput,u16),output:(Tier1RawPlane,crate::tier1::Tier1PassStatistics),error:crate::DecodeError)
     requires part2_plane_prepare_admit(plane,cleanup,passes,maximum_u,skipped,work)==Ok(admitted),
         part2_plane_cleanup_result(plane,cleanup,admitted.0,maximum_u,admitted.1,work,Ok(output)),
-        part1_plane_duplicate_storage_result(output.0,crate::tier1::CoefficientStorageRole::CleanupCopy,Err(error)),
-    ensures part2_plane_prepare_result(plane,cleanup,passes,maximum_u,skipped,work,Err(error)),
+        part2_ht_checkpoint_result(output.0,private_plan,Err(error)),
+    ensures part2_plane_prepare_result(plane,cleanup,passes,maximum_u,skipped,work,private_plan,Err(error)),
 {
-    part2_tier1_storage_bind_frame(|calls|part2_plane_duplicate_run(output.0,crate::tier1::CoefficientStorageRole::CleanupCopy,calls),
+    part2_tier1_storage_bind_frame(|calls|part2_ht_checkpoint_run(output.0,private_plan,calls),
         |duplicate:Tier1RawPlane,rest|Some((Ok((output.0,duplicate,output.1,admitted.1)),rest)),Err(error),Err(error));
     part2_tier1_storage_bind_frame(|calls|part2_plane_cleanup_run(plane,cleanup,admitted.0,maximum_u,admitted.1,work,calls),
-        |output:(Tier1RawPlane,crate::tier1::Tier1PassStatistics),rest|part2_plane_prepare_tail(output,admitted.1,rest),Ok(output),Err(error));
-    part2_plane_prepare_metadata_join(plane,cleanup,passes,maximum_u,skipped,work,admitted.0,Err(error));
+        |output:(Tier1RawPlane,crate::tier1::Tier1PassStatistics),rest|part2_plane_prepare_tail(output,admitted.1,private_plan,rest),Ok(output),Err(error));
+    part2_plane_prepare_metadata_join(plane,cleanup,passes,maximum_u,skipped,work,private_plan,admitted.0,Err(error));
 }
 pub(crate) open spec fn part2_plane_refinement_prepared(cleanup:Tier1RawPlane,output:Tier1RawPlane,segment:HtRefinementSegmentState,passes:u8,bits:u16,work:u64)
     ->Result<HtRefinementCoreState,crate::DecodeError> {
