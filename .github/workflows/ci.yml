@@ -34,6 +34,7 @@ on:
           - zune-acceptance
           - native-comparison
           - matched-capi
+          - matched-capi-entrypaths
       consumer_evidence_run:
         description: Prior actual-zune run for fixed-corpus artifact execution
         required: false
@@ -144,7 +145,7 @@ jobs:
 
   matched-capi-comparison:
     name: Focused matched CAPI / OpenJPEG (${{ matrix.arch }})
-    if: github.event_name == 'workflow_dispatch' && inputs.consumer_benchmark && inputs.consumer_benchmark_scope == 'matched-capi'
+    if: github.event_name == 'workflow_dispatch' && inputs.consumer_benchmark && (inputs.consumer_benchmark_scope == 'matched-capi' || inputs.consumer_benchmark_scope == 'matched-capi-entrypaths')
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -198,11 +199,14 @@ jobs:
           CANDIDATE: ${{ inputs.native_candidate }}
           PAIRS: ${{ inputs.native_pairs }}
           ARCH: ${{ matrix.arch }}
+          SCOPE: ${{ inputs.consumer_benchmark_scope }}
         run: |
+          extra=()
+          if [[ "$SCOPE" == matched-capi-entrypaths ]]; then extra+=(--entrypaths); fi
           python3 validation/consumer-tuning/matched_capi.py \
             --baseline "$BASELINE" --candidate "$CANDIDATE" --pairs "$PAIRS" --arch "$ARCH" \
             --llvm-bin target/matched-capi/llvm/bin --cmake "$(command -v cmake)" \
-            --output target/matched-capi/run
+            --output target/matched-capi/run "${extra[@]}"
       - name: Preserve raw CAPI qualification, profile and process evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

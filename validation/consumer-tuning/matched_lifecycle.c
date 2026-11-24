@@ -104,17 +104,23 @@ static uint64_t now(void) {
 
 int main(int argc, char **argv) {
     _Static_assert(sizeof(OPJ_INT32) == 4, "S32 output required");
-    if (argc != 4 && argc != 5) return 2;
+    if (argc != 6 && argc != 7) return 2;
+    const int strict = !strcmp(argv[3], "strict");
+    const int full = !strcmp(argv[4], "full");
+    if ((!strict && strcmp(argv[3], "compatible")) ||
+        (!full && strcmp(argv[4], "header")) ||
+        (strcmp(argv[1], "jp2") && strcmp(argv[1], "j2k"))) return 2;
     FILE *file = fopen(argv[2], "rb");
     if (!file || fseek(file, 0, SEEK_END)) return 2;
     long length = ftell(file);
     if (length <= 0 || length > 16 * 1024 * 1024 || fseek(file, 0, SEEK_SET)) return 2;
     unsigned char *data = malloc((size_t)length);
     if (!data || fread(data, 1, (size_t)length, file) != (size_t)length || fclose(file)) return 2;
-    FILE *dump = argc == 5 ? fopen(argv[4], "wb") : NULL;
-    if (argc == 5 && !dump) return 2;
-    unsigned iterations = (unsigned)strtoul(argv[3], NULL, 10);
-    if ((dump && iterations) || (!dump && !iterations) || iterations > 1024) return 2;
+    char *end;
+    unsigned long iterations = strtoul(argv[5], &end, 10);
+    if (end == argv[5] || *end || (argc == 7) != (iterations == 0) || iterations > 2048) return 2;
+    FILE *dump = argc == 7 ? fopen(argv[6], "wb") : NULL;
+    if (argc == 7 && !dump) return 2;
     const unsigned warmups = dump ? 0 : 2;
     for (unsigned i = 0; i < (dump ? 1 : warmups + iterations); ++i) {
         struct trial t = {.data = data, .size = (size_t)length, .dump = dump};
@@ -126,7 +132,7 @@ int main(int argc, char **argv) {
         opj_set_default_decoder_parameters(&parameters);
         if (!stream || !codec || !opj_set_error_handler(codec, error, &t) ||
             !opj_set_warning_handler(codec, warning, &t) || !opj_set_info_handler(codec, info, &t) ||
-            !opj_setup_decoder(codec, &parameters) || !opj_decoder_set_strict_mode(codec, OPJ_TRUE))
+            !opj_setup_decoder(codec, &parameters) || !opj_decoder_set_strict_mode(codec, strict))
             return 2;
         opj_stream_set_user_data(stream, &t, NULL);
         opj_stream_set_user_data_length(stream, t.size);
@@ -137,10 +143,10 @@ int main(int argc, char **argv) {
         unsigned header = !!opj_read_header(stream, codec, &image);
         if (dump) snapshot(dump, image);
         t.phase = 2;
-        unsigned decoded = header && image && opj_decode(codec, stream, image);
+        unsigned decoded = full && header && image && opj_decode(codec, stream, image);
         t.phase = 3;
         unsigned ended = decoded && opj_end_decompress(codec, stream);
-        if (dump) snapshot(dump, image);
+        if (dump) snapshot(dump, full ? image : NULL);
         /* Escape the same planes in all builds, without a timed pixel scan. */
         if (decoded) {
             for (uint32_t c = 0; c < image->numcomps; ++c) {

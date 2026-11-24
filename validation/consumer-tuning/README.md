@@ -109,6 +109,25 @@ python3 validation/consumer-tuning/matched_capi.py --qualify-only \
   --llvm-bin "$LLVM_BIN" --cmake "$CMAKE" --output target/matched-capi/smoke
 ```
 
+Use `--entrypaths` (dispatch scope `matched-capi-entrypaths`) for the additional
+Root-only gates. The original seven full lifecycles and four OpenJPEG ratio
+targets stay in the run. The #483 authored 1×1 JP2 gray and subsampled RGB
+fixtures run in both strict and compatible modes; the Psot0 missing-EOC fixture
+runs in compatible mode, with strict refusal retained as a negative control.
+Header-only measures create/setup/read-header/destroy, with a separate untimed
+capture required to match the header in the full lifecycle. Both phases use
+512 fixed iterations for the 1×1 fixtures and 16 for Psot0.
+
+The boxed PDF-compatible cases use actual `opj_decoder_set_strict_mode(false)`
+with no input trimming, decode-area change or raw/strict proxy. They include
+authored single- and four-tile RGB with CRLF, a strict CRLF refusal control,
+and the tracked MIT sized missing-EOC regression in an authored JP2 envelope.
+The authored tiles use 128 iterations, the MIT fixture 16. The existing
+authored gray+alpha palette adds a Root-only full lifecycle (16 iterations);
+neither mixed38 nor any refusal is timed. Every timed process uses two
+warmups. All added cases capture all backends; no OpenJPEG speed ratios are
+reported for these added paths.
+
 ## Reproduce
 
 On **native** Linux ARM64 or x86-64, from the repository root:

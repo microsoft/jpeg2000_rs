@@ -16,6 +16,7 @@ import struct
 import sys
 
 import native_comparison as native
+import matched_entrypaths
 from generate_fixtures import samples, sha
 from run import append, capture, configuration_environment, sha as file_sha
 from summarize import geometric, interval
@@ -305,12 +306,16 @@ def check_shape(image, fixture, *, header):
         count = 1
     if fields[:5] != (0, 0, width, height, count) or fields[6:] != (0, 0) or icc:
         raise ValueError("unexpected CAPI image geometry/ICC metadata")
+    if fixture.get("color") is not None and fields[5] != fixture["color"]:
+        raise ValueError("unexpected CAPI colour metadata")
+    tiny_dx = fixture.get("tiny_dx")
     for n, (plane, pixels) in enumerate(planes):
         alpha = int(palette and not header and n == 1)
-        if plane[:10] != (width, height, 0, 0, 1, 1, 8, 0, 0, alpha) or plane[-1] != int(not header):
+        dx = tiny_dx[n] if tiny_dx else 1
+        if plane[:10] != (width, height, 0, 0, dx, 1, 8, 0, 0, alpha) or plane[-1] != int(not header):
             raise ValueError("unexpected CAPI component metadata or sample presence")
         if not header and (any(pixels[i::4].strip(b"\0") for i in (1, 2, 3))
-                           or pixels == pixels[:4] * (width * height)):
+                           or (not tiny_dx and pixels == pixels[:4] * (width * height))):
             raise ValueError("blank or out-of-range S32 plane")
     if header:
         return None
@@ -320,19 +325,26 @@ def check_shape(image, fixture, *, header):
     return sha(interleaved)
 
 
-def qualify(fixture, captures):
+def qualify(fixture, captures, *, phase="full", full_captures=None):
     name = fixture["id"]
-    baseline, candidate, cpp = (captures[label] for label in BACKENDS)
+    baseline, candidate = (captures[label] for label in native.BACKENDS)
     states = {label: status(captures[label][0]) for label in BACKENDS}
     if baseline != candidate:
         raise ValueError(f"{name}: Root status, callbacks, metadata or S32 output differs")
     outputs = {label: snapshots(captures[label][2]) for label in BACKENDS}
-    result = {"fixture": name, "backends": {
+    blocked = CASES[name] if name in CASES else fixture["cpp_block_reason"]
+    result = {"fixture": name, "phase": phase, "mode": fixture.get("mode", "strict"), "backends": {
         label: {"status": states[label], "status_line": captures[label][0],
                 "callback_sha256": sha(captures[label][1]), "snapshot_sha256": sha(captures[label][2]),
                 "image_metadata": [None if image is None else [image[0], [p[0] for p in image[2]]]
                                    for image in outputs[label]]}
-        for label in BACKENDS}, "cpp_block_reason": CASES[name]}
+        for label in BACKENDS}, "cpp_block_reason": blocked}
+    if fixture.get("expect_refusal"):
+        if (phase != "full" or states["baseline"][:6] != (0, 0, 0, 1, 0, 0)
+                or b"Unsupported or invalid JPEG 2000 header" not in baseline[1]
+                or outputs["baseline"] != [None, None]):
+            raise ValueError(f"{name}: expected intentional strict Root header refusal did not occur")
+        return dict(result, disposition="intentional-root-refusal-no-ratio")
     if name == "palette-mixed38":
         if states["baseline"][:6] != (1, 0, 0, 1, 0, 0) or b"Unsupported JPEG 2000 output plane" not in baseline[1]:
             raise ValueError(f"{name}: expected intentional Root precision refusal did not occur")
@@ -348,7 +360,17 @@ def qualify(fixture, captures):
         interleaved[::2] = indices
         interleaved[1::2] = bytes(255 - i for i in indices)
         expected = sha(interleaved)
-    labels = BACKENDS if CASES[name] is None else ("baseline",)
+    if phase == "header":
+        for label in BACKENDS:
+            header, image = outputs[label]
+            if (states[label][:3] != (int(header is not None), 0, 0) or image is not None
+                    or header != snapshots(full_captures[label][2])[0]):
+                raise ValueError(f"{name}: {label} header-only capture differs from full lifecycle header")
+        if states["baseline"][:5] != (1, 0, 0, 0, 0):
+            raise ValueError(f"{name}: Root header-only phase refused or warned")
+        check_shape(outputs["baseline"][0], fixture, header=True)
+        return dict(result, disposition="root-exact-cpp-blocked-no-ratio")
+    labels = BACKENDS if blocked is None else ("baseline",)
     for label in labels:
         if states[label][:5] != (1, 1, 1, 0, 0):
             raise ValueError(f"{name}: {label} refused or warned on an expected accepted case")
@@ -357,7 +379,7 @@ def qualify(fixture, captures):
         digest = check_shape(image, fixture, header=False)
         if expected is not None and digest != expected:
             raise ValueError(f"{name}: {label} differs from independent first-party samples")
-    if CASES[name] is not None:
+    if blocked is not None:
         return dict(result, disposition="root-exact-cpp-blocked-no-ratio", source_samples_sha256=expected)
     # Raw J2K has no declared colour space. Resolutions decoded and informative
     # callbacks are implementation metadata; retain both, never rewrite either.
@@ -366,43 +388,46 @@ def qualify(fixture, captures):
     return dict(result, disposition="exact-comparable", source_samples_sha256=expected)
 
 
-def samples_from_child(stdout, expected):
-    lines = stdout.splitlines()
+def samples_from_child(stdout, expected, iterations=ITERATIONS):
+    lines = iter(stdout.splitlines())
     values = []
-    for i in range(WARMUPS + ITERATIONS):
-        if not lines or lines.pop(0) != expected:
+    for i in range(WARMUPS + iterations):
+        if next(lines, None) != expected:
             raise ValueError("timed child changed status or callbacks")
         if i >= WARMUPS:
-            if not lines or not re.fullmatch(r"sample [1-9][0-9]*", lines[0]):
+            line = next(lines, "")
+            if not re.fullmatch(r"sample [1-9][0-9]*", line):
                 raise ValueError("timed child omitted a latency")
-            values.append(int(lines.pop(0).split()[1]))
-    if lines:
+            values.append(int(line.split()[1]))
+    if next(lines, None) is not None:
         raise ValueError("unexpected timed child output")
     return values
 
 
-def schedule(pair):
+def schedule(pair, backends=BACKENDS):
     # Reverse every adjacent pair of orders: every backend precedes each
     # other backend equally often, even when the round count is not a multiple of six.
-    shift, reverse = (pair // 2) % len(BACKENDS), pair % 2
-    order = BACKENDS[shift:] + BACKENDS[:shift]
+    shift, reverse = (pair // 2) % len(backends), pair % 2
+    order = backends[shift:] + backends[:shift]
     return order[::-1] if reverse else order
 
 
 def summarize(rows, fixtures, pairs):
+    fixture_backends = fixtures if isinstance(fixtures, dict) else dict.fromkeys(fixtures, BACKENDS)
     groups = {}
     for row in rows:
         key = (row["fixture"], row["pair"], row["backend"])
         if key in groups:
             raise ValueError("duplicate timed process")
         groups[key] = row["decode_ns"]
-    required = {(name, pair, label) for name in fixtures for pair in range(pairs) for label in BACKENDS}
+    required = {(name, pair, label) for name, labels in fixture_backends.items()
+                for pair in range(pairs) for label in labels}
     if set(groups) != required:
         raise ValueError("missing or extra timed processes")
     result = {}
-    for name in fixtures:
+    for name, labels in fixture_backends.items():
         medians, absolute = {}, {}
-        for label in BACKENDS:
+        for label in labels:
             children = [groups[name, pair, label] for pair in range(pairs)]
             medians[label] = [statistics.median(child) for child in children]
             pool = sorted(t for child in children for t in child)
@@ -412,6 +437,8 @@ def summarize(rows, fixtures, pairs):
         ratios = {}
         for numerator, denominator in (("candidate", "baseline"), ("baseline", "openjpeg"),
                                        ("candidate", "openjpeg")):
+            if denominator not in labels:
+                continue
             raw = [a / b for a, b in zip(medians[numerator], medians[denominator], strict=True)]
             ratios[numerator + "_over_" + denominator] = {
                 "geomean": geometric(raw), "bootstrap95": interval(raw), "pairs": raw,
@@ -455,6 +482,10 @@ def run(options):
     if len(cohort) != len(CASES) or {row["id"] for row in cohort} != set(CASES):
         raise ValueError("changed seven-fixture cohort; dispositions must be reviewed")
     revisions = dict(zip(native.BACKENDS, (options.baseline, options.candidate), strict=True))
+    if options.entrypaths:
+        added = matched_entrypaths.fixtures(evidence)
+        native.write_json(evidence / "entrypath-fixtures.json", added)
+        cohort.extend(added)
     native.write_json(evidence / "metadata.json", {
         "schema": 1, "scope": SCOPE, "revisions": dict(revisions, openjpeg=OPENJPEG),
         "driver_head": capture(["git", "-C", ROOT, "rev-parse", "HEAD"], env=env),
@@ -463,6 +494,7 @@ def run(options):
         "host": capture(["lscpu", "--json"], env=env), "binding": pinned, "toolchain": toolchain,
         "environment": env, "warmups": WARMUPS, "iterations": ITERATIONS, "pairs": options.pairs,
         "case_order_seed": native.SEED, "case_dispositions": CASES,
+        "entrypaths": options.entrypaths,
         "hardware_counters": "not collected",
     })
     native.sources(revisions, work, evidence, env=env)
@@ -476,34 +508,45 @@ def run(options):
     if len({entry[2] for entry in binaries.values()}) != 1:
         raise ValueError("different runtime libc")
 
-    def invocation(fixture, label, iterations):
+    def invocation(fixture, label, phase, iterations):
         path = evidence / fixture["path"]
         native.checked_bytes(path.read_bytes(), fixture)
         binary, digest, _ = binaries[label]
         if file_sha(binary) != digest:
             raise ValueError(f"{label}: final binary changed")
-        return [*pinned, binary, fixture["format"], path, str(iterations)]
+        return [*pinned, binary, fixture["format"], path, fixture.get("mode", "strict"), phase, str(iterations)]
 
-    qualification, failures = {}, []
+    qualification, failures, timing_targets = {}, [], {}
     for fixture in cohort:
         name = fixture["id"]
-        captures = {}
-        for label in BACKENDS:
-            prefix = evidence / "qualify" / name / label
-            dump = prefix.with_suffix(".s32")
-            native.checked([*invocation(fixture, label, 0), dump], prefix, env=env)
-            captures[label] = (native.text(prefix), prefix.with_suffix(".stderr").read_bytes(), dump.read_bytes())
-        try:
-            result = qualify(fixture, captures)
-        except ValueError as error:
-            failures.append(str(error))
-            result = {"fixture": name, "disposition": "failed", "reason": str(error)}
-        append(evidence / "qualification.jsonl", result)
-        qualification[name] = result
+        full_captures = None
+        for phase in ("full", "header") if fixture.get("header_phase") else ("full",):
+            key = name if phase == "full" else f"{name}/header"
+            captures = {}
+            for label in BACKENDS:
+                prefix = evidence / "qualify" / key / label
+                dump = prefix.with_suffix(".s32")
+                native.checked([*invocation(fixture, label, phase, 0), dump], prefix, env=env)
+                captures[label] = (native.text(prefix), prefix.with_suffix(".stderr").read_bytes(), dump.read_bytes())
+            try:
+                result = qualify(fixture, captures, phase=phase, full_captures=full_captures)
+            except ValueError as error:
+                failures.append(str(error))
+                result = {"fixture": name, "phase": phase, "disposition": "failed", "reason": str(error)}
+            append(evidence / "qualification.jsonl", result)
+            qualification[key] = result
+            if phase == "full":
+                full_captures = captures
+            if result["disposition"] == "exact-comparable":
+                timing_targets[key] = (fixture, phase, BACKENDS)
+            elif (options.entrypaths and result["disposition"] == "root-exact-cpp-blocked-no-ratio"
+                  and (name not in CASES or name == "palette-gray-alpha")):
+                timing_targets[key] = (fixture, phase, native.BACKENDS)
     if failures:
         raise ValueError("; ".join(failures))
-    comparable = [fixture for fixture in cohort if qualification[fixture["id"]]["disposition"] == "exact-comparable"]
-    if not comparable or len(comparable) != sum(reason is None for reason in CASES.values()):
+    if {key for key, (_, _, labels) in timing_targets.items() if labels == BACKENDS} != {
+        name for name, reason in CASES.items() if reason is None
+    }:
         raise ValueError("missing exact comparable fixtures")
     if options.qualify_only:
         return
@@ -511,29 +554,33 @@ def run(options):
     rows, rng = [], random.Random(native.SEED)
     load_start = os.getloadavg()
     for pair in range(options.pairs):
-        order = comparable.copy()
+        order = list(timing_targets)
         rng.shuffle(order)
-        for case_index, fixture in enumerate(order):
+        for case_index, key in enumerate(order):
+            fixture, phase, labels = timing_targets[key]
             name = fixture["id"]
-            for position, label in enumerate(schedule(pair)):
-                prefix = evidence / "processes" / f"pair-{pair:02d}" / name / label
-                metrics = native.checked(invocation(fixture, label, ITERATIONS), prefix, env=env)
+            iterations = fixture.get("iterations", ITERATIONS)
+            for position, label in enumerate(schedule(pair, labels)):
+                prefix = evidence / "processes" / f"pair-{pair:02d}" / key / label
+                metrics = native.checked(invocation(fixture, label, phase, iterations), prefix, env=env)
                 for key in ("user_s", "system_s", "max_process_rss_kib"):
                     if type(metrics.get(key)) not in (int, float) or not math.isfinite(metrics[key]) or metrics[key] < 0:
                         raise ValueError(f"missing or malformed GNU time field: {key}")
                 if metrics["max_process_rss_kib"] == 0:
                     raise ValueError("GNU time reported no resident-set measurement")
-                expected = qualification[name]["backends"][label]["status_line"]
-                row = {"fixture": name, "input_sha256": fixture["sha256"], "binary_sha256": binaries[label][1],
+                expected = qualification[key]["backends"][label]["status_line"]
+                row = {"fixture": key, "case": name, "phase": phase, "mode": fixture.get("mode", "strict"),
+                       "warmups": WARMUPS, "iterations": iterations,
+                       "input_sha256": fixture["sha256"], "binary_sha256": binaries[label][1],
                        "backend": label, "pair": pair, "case_index": case_index, "position": position,
-                       "metrics": metrics, "decode_ns": samples_from_child(native.text(prefix), expected)}
+                       "metrics": metrics, "decode_ns": samples_from_child(native.text(prefix), expected, iterations)}
                 append(evidence / "samples.jsonl", row)
                 rows.append(row)
     native.write_json(evidence / "summary.json", {
         "scope": SCOPE, "pairs": options.pairs, "qualification": qualification,
         "loadavg_start": load_start, "loadavg_end": os.getloadavg(),
         "uncertainty": "4000 bootstrap draws of matched fresh process pairs; per fixture only",
-        "fixtures": summarize(rows, [row["id"] for row in comparable], options.pairs),
+        "fixtures": summarize(rows, {key: labels for key, (_, _, labels) in timing_targets.items()}, options.pairs),
     })
 
 
@@ -548,6 +595,7 @@ if __name__ == "__main__":
     parser.add_argument("--cmake", type=Path, default=Path("/usr/bin/cmake"))
     parser.add_argument("--validate-inputs", action="store_true")
     parser.add_argument("--qualify-only", action="store_true")
+    parser.add_argument("--entrypaths", action="store_true", help="include #483, #477 and Root palette targets")
     options = parser.parse_args()
     try:
         validate(options) if options.validate_inputs else run(options)

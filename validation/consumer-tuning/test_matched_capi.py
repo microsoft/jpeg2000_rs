@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 import matched_capi as gate
+import matched_entrypaths as entry
 
 
 def dump(pixels=(0, 255), *, color=0, decoded_resolutions=0):
@@ -117,3 +118,40 @@ class MatchedCapiTests(unittest.TestCase):
         self.assertEqual(gate.samples_from_child(good, status), [42] * gate.ITERATIONS)
         with self.assertRaisesRegex(ValueError, "omitted a latency"):
             gate.samples_from_child(good.removesuffix("sample 42\n"), status)
+
+    def test_entrypaths_require_exact_one_pixel_and_phase_output(self):
+        fixture = dict(id="component-1-strict", width=1, height=1, channels=1, color=2,
+                       tiny_dx=[1], lossless=True, source_samples_sha256=gate.sha(b"\x80"),
+                       cpp_block_reason="not a CPP ratio")
+        head = struct.pack("<21I", 1, 0, 0, 1, 1, 1, 2, 0, 0,
+                           1, 1, 0, 0, 1, 1, 8, 0, 0, 0, 0, 0)
+        full_status = "status 1 1 1 0 0 0 1 0 0 10"
+        full = (full_status, b"", head + head[:-4] + struct.pack("<Ii", 1, 128))
+        captures = dict.fromkeys(gate.BACKENDS, full)
+        self.assertEqual(gate.qualify(fixture, captures)["disposition"], "root-exact-cpp-blocked-no-ratio")
+        with self.assertRaisesRegex(ValueError, "first-party samples"):
+            gate.qualify(fixture, dict.fromkeys(gate.BACKENDS, (*full[:2], full[2][:-4] + b"\xff\0\0\0")))
+        header = ("status 1 0 0 0 0 0 1 0 0 10", b"", head + bytes(4))
+        gate.qualify(fixture, dict.fromkeys(gate.BACKENDS, header), phase="header", full_captures=captures)
+        with self.assertRaisesRegex(ValueError, "header-only capture differs"):
+            gate.qualify(fixture, captures, phase="header", full_captures=captures)
+
+    def test_root_pair_does_not_produce_cpp_ratio(self):
+        rows = [{"fixture": "pdf-single-tile", "pair": p, "backend": label, "decode_ns": [1, 2]}
+                for p in range(2) for label in gate.native.BACKENDS]
+        summary = gate.summarize(rows, {"pdf-single-tile": gate.native.BACKENDS}, 2)
+        self.assertEqual(set(summary["pdf-single-tile"]["ratios"]), {"candidate_over_baseline"})
+        with self.assertRaisesRegex(ValueError, "missing or extra"):
+            gate.summarize(rows + [dict(rows[0], backend="openjpeg")],
+                           {"pdf-single-tile": gate.native.BACKENDS}, 2)
+
+    def test_pdf_cases_are_boxed_compatible_and_keep_negative_controls(self):
+        with tempfile.TemporaryDirectory(dir=gate.ROOT / "target") as dest:
+            rows = {row["id"]: row for row in entry.fixtures(Path(dest))}
+            for name, count in (("pdf-single-tile", 1), ("pdf-multi-tile", 4), ("pdf-mit-sized-eoc", 1)):
+                case = rows[name]
+                self.assertEqual((case["mode"], case["format"], case["tiles"]), ("compatible", "jp2", count))
+                self.assertTrue((Path(dest) / case["path"]).read_bytes().endswith(b"\r\n")
+                                or name == "pdf-mit-sized-eoc")
+            for strict in ("pdf-single-tile-strict-refusal", "psot-zero-missing-eoc-strict"):
+                self.assertTrue(rows[strict]["expect_refusal"])
