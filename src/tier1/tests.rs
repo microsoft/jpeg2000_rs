@@ -3839,6 +3839,37 @@ fn retained_refinement_decoder() -> Tier1CodeBlockDecoder {
     decoder
 }
 
+#[test]
+fn checkpoint_header_replays_geometry_independent_of_current_output() {
+    let mut wide = retained_refinement_decoder();
+    let mut packed = wide.clone();
+    let source = wide_cleanup(packed.ht_cleanup_plane.as_mut().unwrap());
+    let checkpoint = retain_ht_cleanup(source, true).unwrap();
+    assert!(matches!(checkpoint, HtCleanupCheckpoint::Packed(_)));
+    packed.ht_cleanup_plane = Some(checkpoint);
+    assert_eq!((packed.plane().width(), packed.plane().height()), (1, 1));
+
+    let limits = ResourceLimits::default();
+    for _ in 0..2 {
+        let expected = wide.decode_high_throughput_refinement(&[1], 1, &limits);
+        assert!(expected.is_ok());
+        assert_eq!(
+            packed.decode_high_throughput_refinement(&[1], 1, &limits),
+            expected
+        );
+        assert_eq!((packed.plane().width(), packed.plane().height()), (2, 1));
+        assert_eq!(
+            format!(
+                "{:?}",
+                packed
+                    .try_duplicate(HtRefinementCopyRole::PacketStaging)
+                    .unwrap()
+            ),
+            format!("{wide:?}")
+        );
+    }
+}
+
 fn literal_replayed_plane(magnitude: u64, refined: bool) -> CodeBlockPlane {
     CodeBlockPlane {
         width: 2,

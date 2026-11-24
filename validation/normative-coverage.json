@@ -15537,7 +15537,9 @@
         {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_preserves_replay_and_replacement_state"},
         {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_uses_actual_fields_and_refuses_real_allocations"},
         {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_expired_materialization_leaves_source_exact"},
-        {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_does_not_skip_dense_initial_allocation_or_snapshot"}
+        {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_does_not_skip_dense_initial_allocation_or_snapshot"},
+        {"path": "src/tier1/tests.rs", "symbol": "checkpoint_header_replays_geometry_independent_of_current_output"},
+        {"path": "src/tier1/ht_checkpoint.rs", "symbol": "checkpoint_header_snapshot_keeps_full_raw_dimensions_and_payload"}
       ]
     },
     {

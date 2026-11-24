@@ -6379,6 +6379,11 @@ word format. The actual reconstructed magnitude limbs, raw legacy bitplane
 field and flags determine whether the checkpoint fits; otherwise the original
 wide copy is retained. The storage model accounts separately for the packed
 word request or the original dense request, at the same cleanup frontier.
+The packed owner reserves one additional word in the same allocation for its
+own width and height. Snapshot and refinement skip that header when counting
+or copying cells; they use the encoded dimensions, not the current output's.
+An empty packed buffer denotes a raw empty 0×0 checkpoint, distinct from
+absence. The packed cleanup constructor always emits a header.
 The private routing bit is set only after the original dense constructor
 succeeds. Public planning and JPIP leave it disabled. All packet transactions
 continue to snapshot and roll back in the original order; a snapshot of a

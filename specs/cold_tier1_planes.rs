@@ -78,7 +78,7 @@ pub(crate) open spec fn part2_ht_checkpoint_run(source:Tier1RawPlane,private_pla
     } else if calls.len()==0 { None }
     else { match calls[0] {
         Part2Tier1StorageEvent::HtPackedCleanup {source:actual,elements,succeeded} =>
-            if actual!=source || elements!=source.coefficients.len() {None}
+            if actual!=source || elements!=source.coefficients.len()+1 {None}
             else {Some((if succeeded {Ok(source)} else {Err(crate::DecodeError::AllocationFailed)},calls.drop_first()))},
         _=>None,
     } }
@@ -94,11 +94,12 @@ pub(crate) proof fn part2_ht_checkpoint_wide(source:Tier1RawPlane,private_plan:b
     reveal(part1_plane_duplicate_storage_result);
     part2_tier1_storage_eta(|calls|part2_plane_duplicate_run(source,crate::tier1::CoefficientStorageRole::CleanupCopy,calls),result);
 }
-pub(crate) proof fn part2_ht_checkpoint_packed(source:Tier1RawPlane,result:Result<(),crate::DecodeError>)
-    requires part2_ht_checkpoint_selected(source,true), result==Ok(()) || result==Err(crate::DecodeError::AllocationFailed),
+pub(crate) proof fn part2_ht_checkpoint_packed(source:Tier1RawPlane,elements:usize,result:Result<(),crate::DecodeError>)
+    requires part2_ht_checkpoint_selected(source,true), elements==source.coefficients.len()+1,
+        result==Ok(()) || result==Err(crate::DecodeError::AllocationFailed),
     ensures part2_ht_checkpoint_result(source,true,match result {Ok(())=>Ok(source),Err(error)=>Err(error)}),
 {
-    let event=Part2Tier1StorageEvent::HtPackedCleanup {source,elements:source.coefficients.len(),succeeded:result.is_ok()};
+    let event=Part2Tier1StorageEvent::HtPackedCleanup {source,elements:elements as nat,succeeded:result.is_ok()};
     let prefix=seq![event];
     let run=|calls|part2_ht_checkpoint_run(source,true,calls);
     let outcome=match result {Ok(())=>Ok(source),Err(error)=>Err(error)};
@@ -114,7 +115,7 @@ pub(crate) proof fn part2_ht_checkpoint_normal(source:Tier1RawPlane,private_plan
     if part2_ht_checkpoint_selected(source,private_plan) {
         reveal(tier1_empty_plane);
         assert(tier1_duplicate_plane(source)==Ok(source));
-        part2_ht_checkpoint_packed(source,Ok(()));
+        part2_ht_checkpoint_packed(source,(source.coefficients.len()+1) as usize,Ok(()));
         assert(private_plan);
     }else{
         part2_plane_duplicate_normal(source,crate::tier1::CoefficientStorageRole::CleanupCopy);

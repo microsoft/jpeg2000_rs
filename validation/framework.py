@@ -7811,7 +7811,7 @@ _PLANE_ROLE_GUARDS = {
     ("specs/cold_tier1_planes.rs", "part2_ht_checkpoint_run"): (
         "if !part2_ht_checkpoint_selected(source,private_plan)", "CoefficientStorageRole::CleanupCopy",
         "Part2Tier1StorageEvent::HtPackedCleanup {source:actual,elements,succeeded}",
-        "actual!=source || elements!=source.coefficients.len()", "Err(crate::DecodeError::AllocationFailed)",
+        "actual!=source || elements!=source.coefficients.len()+1 {None}", "Err(crate::DecodeError::AllocationFailed)",
         "calls.drop_first()",
     ),
     ("specs/cold_ht_decoder.rs", "part2_ht_coeff_run"): (
@@ -7881,13 +7881,30 @@ _PLANE_ROLE_NATIVE_ORDER = {
     ),
     ("src/tier1/ht_checkpoint.rs", "retain_ht_cleanup"): (
         "let count = source.coefficients.len()", "if !private_plan", "|| !cleanup_packable(source)",
-        "source.duplicate(CoefficientStorageRole::CleanupCopy)", "let reserved = crate::allocation::empty_with_capacity(count)",
-        "part2_ht_checkpoint_packed(code_block_plane_view(source)", "let mut words = reserved?",
+        "source.duplicate(CoefficientStorageRole::CleanupCopy)", "let elements = count + 1",
+        "let reserved = crate::allocation::empty_with_capacity(elements)",
+        "part2_ht_checkpoint_packed(code_block_plane_view(source),elements,", "let mut words = reserved?",
+        "let header = geometry_word(source.width, source.height)", "words.push(header)",
         "words.push(pack_word(source.coefficients[index]))", "Ok(HtCleanupCheckpoint::Packed(plane))",
     ),
+    ("src/tier1/ht_checkpoint.rs", "geometry_word"): (
+        "let word = (u64::from(width) << 16) | u64::from(height)", "word",
+    ),
+    ("src/tier1/ht_checkpoint.rs", "PackedCleanup::header_and_cells"): (
+        "if self.words.is_empty()", "return (0, 0, &[])", "let header = self.words[0]",
+        "let width_bits = (header >> 16) & 0xffff", "let height_bits = header & 0xffff",
+        "(width_bits as u16, height_bits as u16, &self.words[1..])",
+    ),
     ("src/tier1/ht_checkpoint.rs", "PackedCleanup::materialize"): (
-        "let output = code_block_plane_from_dimensions(self.width, self.height, role)",
-        "let mut output = output?", "output.coefficients[index] = unpack_word(self.words[index])", "Ok(output)",
+        "let (width, height, cells) = self.header_and_cells()",
+        "let output = code_block_plane_from_dimensions(width, height, role)",
+        "let mut output = output?", "output.coefficients.len() != cells.len()",
+        "output.coefficients[index] = unpack_word(cells[index])", "Ok(output)",
+    ),
+    ("src/tier1/ht_checkpoint.rs", "PackedCleanup::materialize_snapshot"): (
+        "let (width, height, cells) = self.header_and_cells()", "let count = cells.len()",
+        "let reserved = if count == 0", "Ok(Vec::new())", "empty_with_capacity(count)",
+        "coefficients.push(unpack_word(cells[index]))", "CodeBlockPlane { width, height, coefficients, }",
     ),
     ("src/tier1/contributions.rs", "tier1_configured_decoder_with_checkpoint"): (
         "let configured = tier1_configured_decoder(", "let mut decoder = configured?",
