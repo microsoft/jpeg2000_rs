@@ -14,6 +14,31 @@ use crate::{DecodeError, MalformedKind, Resource, ResourceLimits};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[cfg(verus_keep_ghost)]
+verus! {
+    use crate::specs::HtMagSgnState;
+
+    pub(super) open spec fn magsgn_resident(state: HtMagSgnState, width: u8) -> bool {
+        state.has_byte && state.current_is_physical
+            && state.next_bit as int + width <= state.last_bit as int + 1 <= 8
+            && state.work_units as int + width <= state.maximum_work_units
+            && state.physical_bits_read as int + width <= u64::MAX
+    }
+
+    pub(super) open spec fn magsgn_field(state: HtMagSgnState, width: u8) -> u8 {
+        (((state.value >> state.next_bit) as u16) & (0xffu16 >> ((8 - width) as u8))) as u8
+    }
+
+    pub(super) open spec fn magsgn_consumed(state: HtMagSgnState, width: u8) -> HtMagSgnState {
+        HtMagSgnState {
+            next_bit: (state.next_bit + width) as u8,
+            physical_bits_read: (state.physical_bits_read + width) as u64,
+            work_units: (state.work_units + width) as u64,
+            ..state
+        }
+    }
+}
+
 #[cfg_attr(
     verus_keep_ghost,
     verus_spec(result =>
@@ -154,6 +179,44 @@ impl<'a> HtForwardMagSgnReader<'a> {
     fn has_pending_physical_bits(&self) -> bool {
         (self.has_byte && self.current_is_physical && self.next_bit <= self.last_bit)
             || self.next_byte < self.input.len()
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures match result {
+            None => ht_magsgn_view(final(self)) == ht_magsgn_view(old(self)),
+            Some((width, field)) => {
+                let start = ht_magsgn_view(old(self));
+                3 <= width <= remaining && width <= 8
+                    && magsgn_resident(start, width) && field == magsgn_field(start, width)
+                    && ht_magsgn_view(final(self)) == magsgn_consumed(start, width)
+            },
+        },
+    ))]
+    #[inline]
+    pub(super) fn take_resident_physical(&mut self, remaining: u8) -> Option<(u8, u8)> {
+        if !self.has_byte
+            || !self.current_is_physical
+            || self.last_bit >= 8
+            || self.next_bit > self.last_bit
+        {
+            return None;
+        }
+        let width = remaining.min(self.last_bit - self.next_bit + 1);
+        if width < 3 {
+            return None;
+        }
+        // Do not take a shorter partial batch on budget/overflow failure:
+        // the checked bit path must commit exactly the original error prefix.
+        let work = self.work_units.checked_add(u64::from(width))?;
+        if work > self.maximum_work_units {
+            return None;
+        }
+        let physical = self.physical_bits_read.checked_add(u64::from(width))?;
+        let field = (u16::from(self.value >> self.next_bit) & (0xff_u16 >> (8 - width))) as u8;
+        self.next_bit += width;
+        self.physical_bits_read = physical;
+        self.work_units = work;
+        Some((width, field))
     }
 
     #[cfg_attr(

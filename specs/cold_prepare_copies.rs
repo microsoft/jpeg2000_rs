@@ -283,6 +283,54 @@ pub(crate) open spec fn part2_assemble_prepared_storage_result(size:Part1Assembl
     result:Result<Part1DecodedImageModel,crate::DecodeError>)->bool {
     part2_cold_framed(|events|part2_assemble_prepared_storage_run(size,source,selection,maximum,events),result)
 }
+pub(crate) open spec fn part2_owned_prepared_selected_run(
+    size:Part1AssemblySize,source:Seq<Part1AssemblyTile>,region:[u32;4],discard:u8,maximum:u64,single_tile:bool,
+    events:Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Part1DecodedImageModel> {
+    if part2_owned_assembly_eligible(size,source,region,discard,maximum,single_tile) {
+        part2_owned_assembly_storage_run(size,source,region,maximum,events)
+    } else {
+        part2_assemble_prepared_storage_run(size,source,Some((region,discard)),maximum,events)
+    }
+}
+pub(crate) open spec fn part2_owned_prepared_selected_result(
+    size:Part1AssemblySize,source:Seq<Part1AssemblyTile>,region:[u32;4],discard:u8,maximum:u64,single_tile:bool,
+    result:Result<Part1DecodedImageModel,crate::DecodeError>,
+) -> bool {
+    part2_cold_framed(|events|part2_owned_prepared_selected_run(size,source,region,discard,maximum,single_tile,events),result)
+}
+pub(crate) proof fn part2_owned_prepared_selected_observed(
+    size:Part1AssemblySize,source:Seq<Part1AssemblyTile>,region:[u32;4],discard:u8,maximum:u64,single_tile:bool,
+    result:Result<Part1DecodedImageModel,crate::DecodeError>,
+)
+    requires if part2_owned_assembly_eligible(size,source,region,discard,maximum,single_tile) {
+        part2_owned_assembly_storage_result(size,source,region,maximum,result)
+    } else {
+        part2_assemble_prepared_storage_result(size,source,Some((region,discard)),maximum,result)
+    },
+    ensures part2_owned_prepared_selected_result(size,source,region,discard,maximum,single_tile,result),
+{
+    if part2_owned_assembly_eligible(size,source,region,discard,maximum,single_tile) {
+        part2_decode_eta(|events|part2_owned_assembly_storage_run(size,source,region,maximum,events),result);
+    } else {
+        part2_decode_eta(|events|part2_assemble_prepared_storage_run(size,source,Some((region,discard)),maximum,events),result);
+    }
+}
+pub(crate) proof fn part2_owned_prepared_selected_normal(
+    size:Part1AssemblySize,source:Seq<Part1AssemblyTile>,region:[u32;4],discard:u8,maximum:u64,single_tile:bool,
+)
+    ensures part2_owned_prepared_selected_result(size,source,region,discard,maximum,single_tile,
+        part2_assemble_prepared(size,source,Some((region,discard)),maximum)),
+{
+    if part2_owned_assembly_eligible(size,source,region,discard,maximum,single_tile) {
+        part2_owned_assembly_value(size,source,region,maximum);
+        part2_owned_assembly_capacity_observed(size,source,region,maximum,Ok(()));
+    } else {
+        part2_assemble_prepared_storage_normal(size,source,Some((region,discard)),maximum);
+    }
+    part2_owned_prepared_selected_observed(size,source,region,discard,maximum,single_tile,
+        part2_assemble_prepared(size,source,Some((region,discard)),maximum));
+}
 pub(crate) proof fn part2_assemble_prepared_storage_normal(size:Part1AssemblySize,source:Seq<Part1AssemblyTile>,selection:Option<([u32;4],u8)>,maximum:u64)
     ensures part2_assemble_prepared_storage_result(size,source,selection,maximum,part2_assemble_prepared(size,source,selection,maximum)),
 {

@@ -1,0 +1,74 @@
+{
+  "openjpeg": {
+    "compilation_counts": {
+      "-O3": 1232
+    },
+    "rust": {},
+    "sha256": "b7a74c7901802caefe44b380bc9b3d1779d530b6b9c8462ba7fd0cba9d295b53",
+    "binary_bytes": 5637352,
+    "link_lto_optimization": 3,
+    "pdf_requested_strict": false
+  },
+  "shim": {
+    "compilation_counts": {
+      "-O3": 1215
+    },
+    "rust": {
+      "obj/third_party/jpeg2000_decoder/lib.rsp.rust": {
+        "opt_level": "3",
+        "target_cpu": "native",
+        "codegen_units": "1",
+        "debug_assertions": "no",
+        "overflow_checks": "no",
+        "linker_plugin_lto": "yes"
+      },
+      "obj/third_party/jpeg2000_decoder/compat.rsp.rust": {
+        "opt_level": "3",
+        "target_cpu": "native",
+        "codegen_units": "1",
+        "debug_assertions": "no",
+        "overflow_checks": "no",
+        "linker_plugin_lto": "yes"
+      }
+    },
+    "sha256": "c8e14c5fa8fb5036ce24966579d68d708a915f782be4e5fad8aaf6eed068b3a8",
+    "binary_bytes": 7527960,
+    "link_lto_optimization": 3,
+    "pdf_requested_strict": false,
+    "core_archive_sha256": "3f4f084bff7702491c518203ac8c48e45bc8c4d25902041ebf0b55ce3e83beb9"
+  },
+  "ffi": {
+    "compilation_counts": {
+      "-O3": 1214
+    },
+    "rust": {
+      "obj/third_party/jpeg2000_decoder/lib.rsp.rust": {
+        "opt_level": "3",
+        "target_cpu": "native",
+        "codegen_units": "1",
+        "debug_assertions": "no",
+        "overflow_checks": "no",
+        "linker_plugin_lto": "yes"
+      },
+      "obj/core/fxcodec/rust_jpx_ffi.rsp.rust": {
+        "opt_level": "3",
+        "target_cpu": "native",
+        "codegen_units": "1",
+        "debug_assertions": "no",
+        "overflow_checks": "no",
+        "linker_plugin_lto": "yes"
+      }
+    },
+    "sha256": "98c24adc577b6331fcf93b798a1e9d37bbacf7faad5ac4f2483b632aaba1fe2d",
+    "binary_bytes": 7577480,
+    "link_lto_optimization": 3,
+    "pdf_requested_strict": false,
+    "core_archive_sha256": "3f4f084bff7702491c518203ac8c48e45bc8c4d25902041ebf0b55ce3e83beb9"
+  },
+  "decoder_commit": "a99ab056b20b48a58a3eda23a89e4f3f6ec042b8",
+  "pdfium_integration_commit": "fde5c34ad6305392ced34e7cd7128fc1e1334c66",
+  "verified_openjpeg_ir_cpus": [
+    "neoverse-n2"
+  ],
+  "direct_ffi_rust_source_sha256": "79d36dd730f8a701239d55323da607c4c269514125d9696280d361f62d94e62d"
+}

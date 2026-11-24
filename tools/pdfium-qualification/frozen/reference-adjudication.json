@@ -1,0 +1,302 @@
+[
+  {
+    "id": "conformance/jp2_cdef_alpha_not_last.jp2",
+    "reference": {
+      "path": "main_rgba.png",
+      "png_sha256": "175d486cb9173aa6b17b390e934df09d8b836a6e6f155290007d012351bba035",
+      "samples_sha256": "405c23c7c5c4a5df68d2fcdddd6853f2741b835a2ad455ec9f47925fefad38d2",
+      "width": 128,
+      "height": 96,
+      "channels": 4,
+      "public_commit": "e7ada1354dff4041cdeed3d8ba56fe01b6186132"
+    },
+    "openjpeg": {
+      "max_delta": 0,
+      "different_samples": 0,
+      "samples": 49152,
+      "mae": 0.0
+    },
+    "shim": {
+      "max_delta": 255,
+      "different_samples": 33738,
+      "samples": 49152,
+      "mae": 64.118896484375
+    },
+    "ffi": {
+      "max_delta": 255,
+      "different_samples": 33738,
+      "samples": 49152,
+      "mae": 64.118896484375
+    }
+  },
+  {
+    "id": "conformance/jp2_cdef_reordered.jp2",
+    "reference": {
+      "path": "main_rgba.png",
+      "png_sha256": "175d486cb9173aa6b17b390e934df09d8b836a6e6f155290007d012351bba035",
+      "samples_sha256": "405c23c7c5c4a5df68d2fcdddd6853f2741b835a2ad455ec9f47925fefad38d2",
+      "width": 128,
+      "height": 96,
+      "channels": 4,
+      "public_commit": "e7ada1354dff4041cdeed3d8ba56fe01b6186132"
+    },
+    "openjpeg": {
+      "max_delta": 0,
+      "different_samples": 0,
+      "samples": 49152,
+      "mae": 0.0
+    },
+    "shim": {
+      "max_delta": 207,
+      "different_samples": 23388,
+      "samples": 49152,
+      "mae": 46.5494384765625
+    },
+    "ffi": {
+      "max_delta": 207,
+      "different_samples": 23388,
+      "samples": 49152,
+      "mae": 46.5494384765625
+    }
+  },
+  {
+    "id": "conformance/jp2_cdef_reversed_sycc.jp2",
+    "reference": {
+      "path": "jp2_cdef_reversed_sycc.png",
+      "png_sha256": "b4482482b2406745a19c6db6ae1039bb476394d52b57908b06149ac6dd3d9c3e",
+      "samples_sha256": "60db1da9508c238f59864d9b4c7da02462430e7ab3867268c8b8505eaeb89088",
+      "width": 128,
+      "height": 96,
+      "channels": 3,
+      "public_commit": "e7ada1354dff4041cdeed3d8ba56fe01b6186132"
+    },
+    "openjpeg": {
+      "max_delta": 1,
+      "different_samples": 17238,
+      "samples": 36864,
+      "mae": 0.4676106770833333
+    },
+    "shim": {
+      "max_delta": 255,
+      "different_samples": 36046,
+      "samples": 36864,
+      "mae": 85.69487847222223
+    },
+    "ffi": {
+      "max_delta": 1,
+      "different_samples": 20264,
+      "samples": 36864,
+      "mae": 0.5496961805555556
+    }
+  },
+  {
+    "id": "conformance/jp2_duplicate_ihdr.jp2",
+    "reference": {
+      "path": "main_rgb.png",
+      "png_sha256": "47f792da83d54ff96a6e9ff51b3d2c296e7a5878051190db4cd7d2acfd9ff975",
+      "samples_sha256": "732e19ab48d019f8f65f2ae97f069bd554cc49d9123f5516f8a41786b54af014",
+      "width": 128,
+      "height": 96,
+      "channels": 3,
+      "public_commit": "e7ada1354dff4041cdeed3d8ba56fe01b6186132"
+    },
+    "openjpeg": {
+      "max_delta": 0,
+      "different_samples": 0,
+      "samples": 36864,
+      "mae": 0.0
+    },
+    "shim": {
+      "max_delta": 0,
+      "different_samples": 0,
+      "samples": 36864,
+      "mae": 0.0
+    },
+    "ffi": {
+      "max_delta": 0,
+      "different_samples": 0,
+      "samples": 36864,
+      "mae": 0.0
+    }
+  },
+  {
+    "id": "conformance/packets_poc_clamped_values.j2k",
+    "reference": {
+      "path": "main_rgb.png",
+      "png_sha256": "47f792da83d54ff96a6e9ff51b3d2c296e7a5878051190db4cd7d2acfd9ff975",
+      "samples_sha256": "732e19ab48d019f8f65f2ae97f069bd554cc49d9123f5516f8a41786b54af014",
+      "width": 128,
+      "height": 96,
+      "channels": 3,
+      "public_commit": "e7ada1354dff4041cdeed3d8ba56fe01b6186132"
+    },
+    "openjpeg": {
+      "max_delta": 255,
+      "different_samples": 36863,
+      "samples": 36864,
+      "mae": 162.95762803819446
+    },
+    "shim": {
+      "max_delta": 0,
+      "different_samples": 0,
+      "samples": 36864,
+      "mae": 0.0
+    },
+    "ffi": {
+      "max_delta": 0,
+      "different_samples": 0,
+      "samples": 36864,
+      "mae": 0.0
+    }
+  },
+  {
+    "id": "conformance/packets_poc_tile_parts.j2k",
+    "reference": {
+      "path": "main_rgb.png",
+      "png_sha256": "47f792da83d54ff96a6e9ff51b3d2c296e7a5878051190db4cd7d2acfd9ff975",
+      "samples_sha256": "732e19ab48d019f8f65f2ae97f069bd554cc49d9123f5516f8a41786b54af014",
+      "width": 128,
+      "height": 96,
+      "channels": 3,
+      "public_commit": "e7ada1354dff4041cdeed3d8ba56fe01b6186132"
+    },
+    "openjpeg": {
+      "max_delta": 0,
+      "different_samples": 0,
+      "samples": 36864,
+      "mae": 0.0
+    },
+    "shim": {
+      "max_delta": 0,
+      "different_samples": 0,
+      "samples": 36864,
+      "mae": 0.0
+    },
+    "ffi": {
+      "max_delta": 0,
+      "different_samples": 0,
+      "samples": 36864,
+      "mae": 0.0
+    }
+  },
+  {
+    "id": "conformance/packets_poc_main_header_tile_override.j2k",
+    "reference": {
+      "path": "main_rgb.png",
+      "png_sha256": "47f792da83d54ff96a6e9ff51b3d2c296e7a5878051190db4cd7d2acfd9ff975",
+      "samples_sha256": "732e19ab48d019f8f65f2ae97f069bd554cc49d9123f5516f8a41786b54af014",
+      "width": 128,
+      "height": 96,
+      "channels": 3,
+      "public_commit": "e7ada1354dff4041cdeed3d8ba56fe01b6186132"
+    },
+    "openjpeg": {
+      "max_delta": 255,
+      "different_samples": 17678,
+      "samples": 36864,
+      "mae": 52.932698567708336
+    },
+    "shim": {
+      "max_delta": 0,
+      "different_samples": 0,
+      "samples": 36864,
+      "mae": 0.0
+    },
+    "ffi": {
+      "max_delta": 0,
+      "different_samples": 0,
+      "samples": 36864,
+      "mae": 0.0
+    }
+  },
+  {
+    "id": "conformance/jp2_colr_sycc_420.jp2",
+    "reference": {
+      "path": "jp2_colr_sycc_420.png",
+      "png_sha256": "b998bacab13027131364d4998b9070b4e553abefce967a117728264448a553fb",
+      "samples_sha256": "2b070bc6412ec08b588ab4571fc8c82f3d17030c9000be91e8a9ede8371a9131",
+      "width": 33,
+      "height": 33,
+      "channels": 3,
+      "public_commit": "e7ada1354dff4041cdeed3d8ba56fe01b6186132"
+    },
+    "openjpeg": {
+      "max_delta": 1,
+      "different_samples": 1505,
+      "samples": 3267,
+      "mae": 0.46066727884909703
+    },
+    "shim": {
+      "max_delta": 1,
+      "different_samples": 1505,
+      "samples": 3267,
+      "mae": 0.46066727884909703
+    },
+    "ffi": {
+      "max_delta": 1,
+      "different_samples": 1804,
+      "samples": 3267,
+      "mae": 0.5521885521885522
+    }
+  },
+  {
+    "id": "conformance/jp2_colr_sycc_422.jp2",
+    "reference": {
+      "path": "jp2_colr_sycc_422.png",
+      "png_sha256": "e01637586aa9e218168c6eee9b5227bbfe763fe495c3f2aaf14f7cf920bf8130",
+      "samples_sha256": "0839fffa0f26980f1b12bb1eb26231a6c6dbd6a027203e29838a1e97eb4a1b29",
+      "width": 33,
+      "height": 33,
+      "channels": 3,
+      "public_commit": "e7ada1354dff4041cdeed3d8ba56fe01b6186132"
+    },
+    "openjpeg": {
+      "max_delta": 1,
+      "different_samples": 1538,
+      "samples": 3267,
+      "mae": 0.47076828895010714
+    },
+    "shim": {
+      "max_delta": 1,
+      "different_samples": 1538,
+      "samples": 3267,
+      "mae": 0.47076828895010714
+    },
+    "ffi": {
+      "max_delta": 1,
+      "different_samples": 1841,
+      "samples": 3267,
+      "mae": 0.5635139271502908
+    }
+  },
+  {
+    "id": "conformance/jp2_colr_sycc_444.jp2",
+    "reference": {
+      "path": "jp2_colr_sycc_444.png",
+      "png_sha256": "8b2cd06d3933989e1e749c91f7da827cda202c81b09d226309d7bdedf206f6b4",
+      "samples_sha256": "cd8ac9db3e0379db25ca394e6cb19dac28f1b6c0cb4346417e5a71aa85fcee0a",
+      "width": 33,
+      "height": 33,
+      "channels": 3,
+      "public_commit": "e7ada1354dff4041cdeed3d8ba56fe01b6186132"
+    },
+    "openjpeg": {
+      "max_delta": 1,
+      "different_samples": 1620,
+      "samples": 3267,
+      "mae": 0.49586776859504134
+    },
+    "shim": {
+      "max_delta": 1,
+      "different_samples": 1620,
+      "samples": 3267,
+      "mae": 0.49586776859504134
+    },
+    "ffi": {
+      "max_delta": 1,
+      "different_samples": 1850,
+      "samples": 3267,
+      "mae": 0.56626874808693
+    }
+  }
+]

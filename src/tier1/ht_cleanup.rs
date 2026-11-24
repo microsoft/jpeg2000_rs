@@ -1,4 +1,6 @@
 use super::ht_cleanup_readers::ht_magsgn_from_input;
+#[cfg(verus_keep_ghost)]
+use super::ht_cleanup_readers::{magsgn_consumed, magsgn_field, magsgn_resident};
 use super::ht_metadata::decode_ht_cleanup_segment_metadata;
 use super::state::{
     arithmetic_overflow, code_block_plane_from_dimensions, ht_statistics_zero, invalid_code_block,
@@ -25,6 +27,119 @@ verus! {
         -> Result<(nat, bool, u8), DecodeError> {
         match result { Err(error) => Err(error), Ok((word, negative, exponent)) =>
             Ok((word as nat, negative, exponent)) }
+    }
+
+    spec fn field_bits(field: u8) -> nat {
+        (8 - vstd::std_specs::bits::u8_leading_zeros(field)) as nat
+    }
+
+    proof fn field_halves(field: u8)
+        ensures
+            field as nat == 2 * (field >> 1u8) as nat + (field & 1) as nat,
+            field_bits(field) == if field >> 1u8 != 0 {
+                field_bits(field >> 1u8) + 1
+            } else { (field & 1) as nat },
+    {
+        use vstd::std_specs::bits::axiom_u8_leading_zeros;
+        let tail = field >> 1u8;
+        let low = field & 1u8;
+        let quotient = (field / 2) as u8;
+        let remainder = (field % 2) as u8;
+        assert(field >> 1u8 == quotient && field & 1u8 == remainder) by (bit_vector)
+            requires quotient == field / 2u8, remainder == field % 2u8;
+        assert(field as nat == 2 * tail as nat + low as nat);
+        axiom_u8_leading_zeros(field);
+        axiom_u8_leading_zeros(tail);
+        let top = field_bits(field) as u8;
+        let rest = field_bits(tail) as u8;
+        if tail == 0 {
+            assert(field == low);
+            assert(field != 0 && top > 0 && field == 1 && (field >> sub(top, 1)) & 1 != 0
+                ==> top == 1) by (bit_vector);
+        } else {
+            assert(field != 0);
+            assert(top > 0);
+            assert(field >> top == 0);
+            assert(top > 1) by (bit_vector)
+                requires top > 0, tail == field >> 1u8, tail != 0, field >> top == 0;
+            assert(top == add(rest, 1)) by (bit_vector)
+                requires 1 < top <= 8, 0 < rest <= 8, tail == field >> 1u8,
+                    field >> top == 0, tail >> rest == 0,
+                    (field >> sub(top, 1)) & 1 != 0, (tail >> sub(rest, 1)) & 1 != 0;
+        }
+    }
+
+    proof fn resident_payload_equivalence(
+        start: crate::specs::HtMagSgnState, width: u8, remaining: nat, index: nat,
+        word: nat, negative: bool, exponent: u8,
+    )
+        requires
+            magsgn_resident(start, width), width <= remaining, index + remaining <= 64,
+            word < vstd::arithmetic::power2::pow2(index),
+            crate::specs::part1_magnitude_capacity() > u64::MAX,
+        ensures ({
+            let field = magsgn_field(start, width);
+            let scale = vstd::arithmetic::power2::pow2(index);
+            let combined = word + field as nat * scale;
+            &&& combined < vstd::arithmetic::power2::pow2(index + width as nat)
+            &&& field_bits(field) <= width
+            &&& crate::specs::ht_numeric_payload(start, remaining, index, word, negative, exponent)
+                == crate::specs::ht_numeric_payload(magsgn_consumed(start, width),
+                    (remaining - width) as nat, index + width as nat, combined,
+                    negative || (index == 0 && field & 1 != 0),
+                    if field == 0 { exponent } else { (index + field_bits(field)) as u8 })
+        }),
+        decreases width,
+    {
+        use crate::specs::{ht_magsgn_read, ht_numeric_payload};
+        use vstd::arithmetic::power2::{pow2, lemma_pow2_adds, lemma_pow2_pos,
+            lemma_pow2_strictly_increases};
+        let field = magsgn_field(start, width);
+        if width == 0 {
+            let shifted = (start.value >> start.next_bit) as u16;
+            assert(field == 0) by (bit_vector) requires field == (shifted & (0xffu16 >> 8u8)) as u8;
+            vstd::std_specs::bits::axiom_u8_leading_zeros(field);
+        } else {
+            let next = magsgn_consumed(start, 1);
+            let rest = (width - 1) as u8;
+            let bit = field & 1 != 0;
+            let value = start.value;
+            let pos = start.next_bit;
+            let pos1 = next.next_bit;
+            let tail = magsgn_field(next, rest);
+            assert(bit == ((value >> pos) & 1 != 0) && tail == field >> 1u8) by (bit_vector)
+                requires 0 < width <= 8, pos < 8, pos1 == pos + 1u8, rest == width - 1u8,
+                    bit == (field & 1 != 0),
+                    field == (((value >> pos) as u16) & (0xffu16 >> sub(8u8, width))) as u8,
+                    tail == (((value >> pos1) as u16) & (0xffu16 >> sub(8u8, rest))) as u8;
+            assert(ht_magsgn_read(start) == (Ok(bit), next));
+            let scale = pow2(index);
+            let prefix = word + if bit { scale } else { 0 };
+            lemma_pow2_pos(index);
+            lemma_pow2_adds(index, 1);
+            vstd::arithmetic::power2::lemma2_to64();
+            if index + 1 < 64 { lemma_pow2_strictly_increases(index + 1, 64); }
+            assert(prefix < pow2(index + 1) && prefix <= u64::MAX);
+            assert(word <= u64::MAX);
+            let sign = negative || (index == 0 && bit);
+            let exp = if bit { (index + 1) as u8 } else { exponent };
+            crate::proofs::production_impl::production_ht_numeric_payload_unfold(
+                start, remaining, index, word, negative, exponent);
+            assert(ht_numeric_payload(start, remaining, index, word, negative, exponent)
+                == ht_numeric_payload(next, (remaining - 1) as nat, index + 1, prefix, sign, exp));
+            resident_payload_equivalence(next, rest, (remaining - 1) as nat,
+                index + 1, prefix, sign, exp);
+            field_halves(field);
+            let low = field & 1u8;
+            assert(low <= 1) by (bit_vector) requires low == field & 1u8;
+            assert(low as nat == if bit { 1nat } else { 0 });
+            assert(magsgn_consumed(next, rest) == magsgn_consumed(start, width));
+            assert(word + field as nat * scale == prefix + tail as nat * pow2(index + 1))
+                by (nonlinear_arith)
+                requires pow2(index + 1) == 2 * scale,
+                    prefix == word + if bit { scale } else { 0 },
+                    field as nat == 2 * tail as nat + if bit { 1nat } else { 0 };
+        }
     }
 }
 
@@ -90,6 +205,27 @@ fn read_ht_payload_word(
         decreases magnitude_bits - bit,
     ))]
     while bit < magnitude_bits {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost old_reader = ht_magsgn_view(reader); }
+        if let Some((width, field)) = reader.take_resident_physical(magnitude_bits - bit) {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                use vstd::arithmetic::power2::{pow2, lemma_pow2_strictly_increases};
+                resident_payload_equivalence(old_reader, width, (magnitude_bits - bit) as nat,
+                    bit as nat, word as nat, negative, exponent);
+                if bit + width < 64 { lemma_pow2_strictly_increases((bit + width) as nat, 64); }
+                vstd::bits::lemma_u64_shl_is_mul(field as u64, bit as u64);
+                assert((field as u64) << bit == (field as u64) << (bit as u64)) by (bit_vector);
+                vstd::std_specs::bits::axiom_u8_leading_zeros(field);
+            }
+            word += u64::from(field) << bit;
+            negative |= bit == 0 && field & 1 != 0;
+            if field != 0 {
+                exponent = bit + (8 - field.leading_zeros()) as u8;
+            }
+            bit += width;
+            continue;
+        }
         #[cfg(verus_keep_ghost)]
         proof! {
             crate::proofs::production_impl::production_ht_numeric_payload_unfold(
@@ -887,5 +1023,67 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn resident_payload_matches_checked_bits_and_state_at_each_frontier() {
+        for data in [&[0xff, 0x42, 0xa0][..], &[0xff, 0x80][..], &[][..]] {
+            for limit in [4, 8, 9, 15, 17, 128] {
+                let limits = ResourceLimits::default()
+                    .with_maximum_work_units(limit)
+                    .unwrap();
+                for prefix in [0, 1, 6, 7, 8] {
+                    let mut reader = HtForwardMagSgnReader::new(data, &limits).unwrap();
+                    if (0..prefix)
+                        .try_for_each(|_| reader.read_bit().map(|_| ()))
+                        .is_err()
+                    {
+                        continue;
+                    }
+                    for width in [0, 1, 2, 3, 6, 7, 8, 13, 63, 64] {
+                        let mut actual = reader;
+                        let mut checked = reader;
+                        let expected = (|| {
+                            let mut word = 0_u64;
+                            for bit in 0..width {
+                                if checked.read_bit()? {
+                                    word |= 1_u64 << bit;
+                                }
+                            }
+                            Ok((word, word & 1 != 0, (64 - word.leading_zeros()) as u8))
+                        })();
+                        assert_eq!(read_ht_payload_word(&mut actual, width), expected);
+                        assert_eq!(
+                            actual, checked,
+                            "{data:?} limit={limit} prefix={prefix} width={width}"
+                        );
+                        assert_eq!(actual.read_bit(), checked.read_bit());
+                        assert_eq!(actual, checked);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn resident_payload_never_batches_a_physical_counter_overflow() {
+        let limits = ResourceLimits::default();
+        let mut reader = HtForwardMagSgnReader::new(&[0xfe], &limits).unwrap();
+        assert_eq!(reader.read_bit(), Ok(false));
+        reader.physical_bits_read = u64::MAX - 1;
+        assert_eq!(
+            read_ht_payload_word(&mut reader, 6),
+            Err(arithmetic_overflow())
+        );
+        // The second read advances the cursor but cannot charge either counter.
+        assert_eq!(
+            (
+                reader.next_byte,
+                reader.next_bit,
+                reader.physical_bits_read(),
+                reader.work_units
+            ),
+            (1, 3, u64::MAX, 2)
+        );
     }
 }

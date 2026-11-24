@@ -1,0 +1,4 @@
+*.jp2 -text
+*.j2k -text
+*.jpx -text
+*.jph -text

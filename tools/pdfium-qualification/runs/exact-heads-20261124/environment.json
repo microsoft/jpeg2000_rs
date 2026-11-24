@@ -1,0 +1,17 @@
+{
+  "architecture": "aarch64",
+  "cpu_model": "Neoverse-N2",
+  "clang": "clang version 24.0.0git (https://chromium.googlesource.com/external/github.com/llvm/llvm-project c3223914b50811fb3be915840f06456acb83d096)",
+  "rustc": "rustc 1.101.0-nightly (41b321963 2026-10-29) (96a18bf5ffa2b24f9cf3d1c731a9eb121c1acad9-5-llvmorg-24-init-17044-gc3223914 chromium)",
+  "functional_parallel_cores": [
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "timing_cpu": 2,
+  "shared_host": true,
+  "host_policy_changed": false,
+  "original_default_feature_profile": true
+}

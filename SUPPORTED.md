@@ -16,6 +16,10 @@ single RFC, and this library does not implement every part of that family.
 | Combined proof/MQ-recovery profile | `verus_keep_ghost` with `pdf-mq-recovery` | Explicitly rejected; native scoped policy is not silently omitted from a proof claim |
 | Combined proof/incremental profile | `verus_keep_ghost` with `incremental-input` | Explicitly rejected; native framing/replay orchestration is not silently omitted from a proof claim |
 
+`COOPERATIVE_DEADLINES_ENABLED` is available in every supported decoder build.
+It reports whether cooperative checkpoints were compiled in, including via
+dependency feature unification; it does not report an active deadline scope.
+
 Enabling deadlines without installing an active scope retains ordinary decoder
 results. The feature supplies no arbitrary global timeout or cross-thread token.
 See [the API](src/deadline.rs) and [observations](validation/VALIDATION.md#cooperative-deadline-profile).

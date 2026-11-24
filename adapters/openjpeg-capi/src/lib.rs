@@ -1,7 +1,9 @@
 use jpeg2000_decoder::{
-    ChannelType, DecodeError, DecodeOptions, DecodeSelection, MalformedKind, TypedImage,
-    TypedSamples, codestream, jp2,
+    COOPERATIVE_DEADLINES_ENABLED, ChannelType, DecodeError, DecodeOptions, DecodeSelection,
+    MalformedKind, TypedImage, TypedSamples, codestream, jp2,
 };
+
+const PREFIX_PLANES: usize = 4;
 
 #[repr(C)]
 pub struct Header {
@@ -11,9 +13,12 @@ pub struct Header {
     y1: u32,
     count: u32,
     color: i32,
+    filled: u32,
+    prefix: [Plane; PREFIX_PLANES],
 }
 
 #[repr(C)]
+#[derive(Clone, Copy, Default)]
 pub struct Plane {
     width: u32,
     height: u32,
@@ -102,11 +107,90 @@ fn inspect(data: &[u8], boxed: bool, strict: bool) -> Option<(codestream::ImageS
     Some((size, color))
 }
 
+fn project_plane(size: &codestream::ImageSize, index: u16, x1: u32, y1: u32) -> Option<Plane> {
+    plane_from_component(
+        size.component(index).ok()?,
+        size.x_origin,
+        size.y_origin,
+        x1,
+        y1,
+    )
+}
+
+fn plane_from_component(
+    c: codestream::ComponentInfo,
+    x0: u32,
+    y0: u32,
+    x1: u32,
+    y1: u32,
+) -> Option<Plane> {
+    let dx = u32::from(c.x_subsampling);
+    let dy = u32::from(c.y_subsampling);
+    if dx == 0 || dy == 0 {
+        return None;
+    }
+    Some(Plane {
+        width: x1.div_ceil(dx) - x0.div_ceil(dx),
+        height: y1.div_ceil(dy) - y0.div_ceil(dy),
+        precision: c.precision.into(),
+        signed: c.signed.into(),
+        dx,
+        dy,
+        alpha: 0,
+    })
+}
+
+fn project_header(
+    size: &codestream::ImageSize,
+    color: i32,
+    index: u32,
+    batch: bool,
+) -> Option<(Header, Plane)> {
+    project_header_with(size, color, index, batch, |index, x1, y1| {
+        project_plane(size, index, x1, y1)
+    })
+}
+
+fn project_header_with(
+    size: &codestream::ImageSize,
+    color: i32,
+    index: u32,
+    batch: bool,
+    project: impl Fn(u16, u32, u32) -> Option<Plane>,
+) -> Option<(Header, Plane)> {
+    let index = u16::try_from(index).ok()?;
+    let x1 = size.x_origin.checked_add(size.width)?;
+    let y1 = size.y_origin.checked_add(size.height)?;
+    let plane = project(index, x1, y1)?;
+    let mut header = Header {
+        x0: size.x_origin,
+        y0: size.y_origin,
+        x1,
+        y1,
+        count: size.components.into(),
+        color,
+        filled: 0,
+        prefix: [Plane::default(); PREFIX_PLANES],
+    };
+    if batch && index == 0 {
+        header.prefix[0] = plane;
+        header.filled = 1;
+        for (index, slot) in (1..size.components).zip(header.prefix[1..].iter_mut()) {
+            let Some(next) = project(index, x1, y1) else {
+                break; // Let the shim reach this index after its C allocations.
+            };
+            *slot = next;
+            header.filled += 1;
+        }
+    }
+    Some((header, plane))
+}
+
 #[unsafe(no_mangle)]
 /// # Safety
 /// `data` must point to `len` readable bytes. The output references must be
 /// valid, exclusive, and disjoint from the input.
-pub unsafe extern "C" fn jpeg2000_compat_inspect_v2(
+pub unsafe extern "C" fn jpeg2000_compat_inspect_v3(
     data: *const u8,
     len: usize,
     boxed: bool,
@@ -120,48 +204,21 @@ pub unsafe extern "C" fn jpeg2000_compat_inspect_v2(
     else {
         return false;
     };
-    let Some(c) = u16::try_from(index)
-        .ok()
-        .and_then(|i| size.component(i).ok())
+    let Some((projected, selected)) =
+        project_header(&size, color, index, !COOPERATIVE_DEADLINES_ENABLED)
     else {
         return false;
     };
-    let (Some(x1), Some(y1)) = (
-        size.x_origin.checked_add(size.width),
-        size.y_origin.checked_add(size.height),
-    ) else {
-        return false;
-    };
-    let dx = u32::from(c.x_subsampling);
-    let dy = u32::from(c.y_subsampling);
-    if dx == 0 || dy == 0 {
-        return false;
-    }
-    *header = Header {
-        x0: size.x_origin,
-        y0: size.y_origin,
-        x1,
-        y1,
-        count: size.components.into(),
-        color,
-    };
-    *plane = Plane {
-        width: x1.div_ceil(dx) - size.x_origin.div_ceil(dx),
-        height: y1.div_ceil(dy) - size.y_origin.div_ceil(dy),
-        precision: c.precision.into(),
-        signed: c.signed.into(),
-        dx,
-        dy,
-        alpha: 0,
-    };
+    *header = projected;
+    *plane = selected;
     true
 }
 
 #[unsafe(no_mangle)]
 /// # Safety
 /// `data` must point to `len` readable bytes. A non-null result must be released
-/// exactly once with `jpeg2000_compat_destroy_v2`.
-pub unsafe extern "C" fn jpeg2000_compat_decode_v2(
+/// exactly once with `jpeg2000_compat_destroy_v3`.
+pub unsafe extern "C" fn jpeg2000_compat_decode_v3(
     data: *const u8,
     len: usize,
     boxed: bool,
@@ -210,9 +267,9 @@ pub unsafe extern "C" fn jpeg2000_compat_decode_v2(
 
 #[unsafe(no_mangle)]
 /// # Safety
-/// `image` must be a live result of `jpeg2000_compat_decode_v2`; `plane` must be
+/// `image` must be a live result of `jpeg2000_compat_decode_v3`; `plane` must be
 /// a valid, exclusive output reference.
-pub unsafe extern "C" fn jpeg2000_compat_plane_v2(
+pub unsafe extern "C" fn jpeg2000_compat_plane_v3(
     image: &TypedImage,
     index: u32,
     plane: &mut Plane,
@@ -246,8 +303,8 @@ pub unsafe extern "C" fn jpeg2000_compat_plane_v2(
 
 #[unsafe(no_mangle)]
 /// # Safety
-/// `image` must be a live result of `jpeg2000_compat_decode_v2`.
-pub unsafe extern "C" fn jpeg2000_compat_component_count_v2(image: &TypedImage) -> usize {
+/// `image` must be a live result of `jpeg2000_compat_decode_v3`.
+pub unsafe extern "C" fn jpeg2000_compat_component_count_v3(image: &TypedImage) -> usize {
     image.components().len()
 }
 
@@ -255,7 +312,7 @@ pub unsafe extern "C" fn jpeg2000_compat_component_count_v2(image: &TypedImage) 
 /// # Safety
 /// `image` must be a live decoded image and `plane` a valid reference. `dest`
 /// must point to `len` writable `i32` values, disjoint from the image and plane.
-pub unsafe extern "C" fn jpeg2000_compat_copy_plane_v2(
+pub unsafe extern "C" fn jpeg2000_compat_copy_plane_v3(
     image: &TypedImage,
     index: u32,
     dest: *mut i32,
@@ -298,10 +355,83 @@ pub unsafe extern "C" fn jpeg2000_compat_copy_plane_v2(
 
 #[unsafe(no_mangle)]
 /// # Safety
-/// `image` must be null or an unconsumed result of `jpeg2000_compat_decode_v2`,
+/// `image` must be null or an unconsumed result of `jpeg2000_compat_decode_v3`,
 /// with no outstanding references.
-pub unsafe extern "C" fn jpeg2000_compat_destroy_v2(image: *mut TypedImage) {
+pub unsafe extern "C" fn jpeg2000_compat_destroy_v3(image: *mut TypedImage) {
     if !image.is_null() {
         drop(unsafe { Box::from_raw(image) });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn size(components: u16) -> codestream::ImageSize {
+        let mut data =
+            include_bytes!("../../../validation/generated/corpus/raw-minimal.j2k").to_vec();
+        // Extend SIZ's component table without changing the packet payload:
+        // these tests exercise header inspection, not entropy decode.
+        data[40..42].copy_from_slice(&components.to_be_bytes());
+        data[4..6].copy_from_slice(&(38 + 3 * components).to_be_bytes());
+        data.splice(45..45, (1..components).flat_map(|i| [7, 1 + i as u8, 1]));
+        inspect(&data, false, true).unwrap().0
+    }
+
+    fn fields(p: Plane) -> [u32; 7] {
+        [
+            p.width,
+            p.height,
+            p.precision,
+            p.signed,
+            p.dx,
+            p.dy,
+            p.alpha,
+        ]
+    }
+
+    #[test]
+    fn leading_prefix_matches_per_index_projection() {
+        for count in [1, 3, 4, 5] {
+            let size = size(count);
+            let (header, first) = project_header(&size, 17, 0, true).unwrap();
+            assert_eq!(header.filled, u32::from(count.min(4)));
+            assert_eq!((header.count, header.color), (u32::from(count), 17));
+            assert_eq!(fields(first), fields(header.prefix[0]));
+            for i in 0..header.count {
+                let (single, plane) = project_header(&size, 17, i, false).unwrap();
+                assert_eq!(single.filled, 0);
+                assert_eq!(plane.dx, i + 1);
+                if i < header.filled {
+                    assert_eq!(fields(header.prefix[i as usize]), fields(plane));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_index_and_endpoint_overflow_refuse_projection() {
+        let mut size = size(1);
+        assert!(project_header(&size, 0, 1, true).is_none());
+        assert!(project_header(&size, 0, 1 << 16, true).is_none());
+        size.x_origin = u32::MAX;
+        assert!(project_header(&size, 0, 0, true).is_none());
+    }
+
+    #[test]
+    fn later_zero_sampling_stops_prefix_without_failing_plane_zero() {
+        let size = size(4);
+        let project = |index, x1, y1| {
+            let mut component = size.component(index).ok()?;
+            if index == 2 {
+                component.x_subsampling = 0;
+            }
+            plane_from_component(component, size.x_origin, size.y_origin, x1, y1)
+        };
+        let (header, first) = project_header_with(&size, 0, 0, true, project).unwrap();
+        assert_eq!(header.filled, 2);
+        assert_eq!(fields(header.prefix[0]), fields(first));
+        assert!(project_header_with(&size, 0, 2, false, project).is_none());
+        assert!(project_header_with(&size, 0, 3, false, project).is_some());
     }
 }

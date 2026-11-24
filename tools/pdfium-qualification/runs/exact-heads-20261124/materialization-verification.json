@@ -1,0 +1,7 @@
+{
+  "result": "PASS",
+  "image_requests": 310,
+  "pdfs": 41,
+  "exact_configurations": 2521,
+  "portable_cohort_sha256": "b69ec989c2741b39f751c672241581b17bb1504d20340728e1ed15318c109987"
+}

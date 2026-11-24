@@ -57,6 +57,11 @@ retains the strong default contracts and five existing Rust-only adapter
 boundaries. It does not claim verification of the optional profile.
 
 A combined `verus_keep_ghost`/`cooperative-deadlines` build fails explicitly.
+The always-available `COOPERATIVE_DEADLINES_ENABLED` constant describes which
+core build includes native checkpoints, not whether a scope is active. The
+OpenJPEG C compatibility adapter uses it to preserve its repeated inspection
+checkpoints in that build. Core Verus results do not verify the C shim,
+the adapter's Rust FFI, or native clock/TLS effects.
 This prevents a successful proof receipt from silently dropping enabled clock
 checks. No blanket deadline alternative, caller availability premise, changed
 solver/pin/budget, trusted clock axiom or additional default-profile exclusion
@@ -67,6 +72,21 @@ Use the [supported build profiles](SUPPORTED.md#build-and-runtime-profiles) and
 [native validation observations](validation/VALIDATION.md#cooperative-deadline-profile)
 when reporting this API. Native `--all-features` tests exercise it, but are not
 an all-feature Verus proof. Full source-function coverage remains `not-measured`.
+
+## Consuming full-cover native assembly
+
+The legacy PDF/trailer terminal handoff can transfer its prepared `Vec<i64>`
+planes without copying. The checked dispatch requires a single selected tile,
+the entire image at discard level zero, and one ordered plane per component.
+It reuses registered component geometry and aggregate decoded-byte admission.
+If any check fails, the original borrowed assembly still determines the
+result, including its coverage checks and ordered allocation failures.
+The [assembly model](specs/cold_image_storage.rs) proves that the checked
+row-major rectangle writes every output index exactly once and yields the
+same samples and fraction tag. The owned storage trace contains only the
+retained component-table reservation, with no sample, visited, view-table or
+per-plane publication requests. Typed conversion and the strict and ordinary
+selected decoder handoffs are unchanged.
 
 ## Source-proved bounded compact legacy candidate
 
@@ -6371,6 +6391,15 @@ This removes unreachable overflow branches and permits branchless native
 accumulation while retaining the exact original payload fold and partial reader
 state on errors. The inlined MagSgn bit reader still performs its original
 byte-stuffing, physical/fill accounting and checked work-limit transitions.
+
+The resident physical-byte experiment batches three or more bits in that
+word payload loop. It proves the masked digit, sign, exponent and complete
+reader state equivalent to repeatedly applying the original numeric fold.
+Admission uses only the current byte's established stuffing limit and checks
+both physical-count overflow and work before any mutation. Refills, virtual
+fill, short spans, insufficient budget and wider payloads still use the
+checked bit path. MagSgn operates on a separate substream; the MEL/VLC
+claims and their ordering are unchanged.
 
 ### Guarded native neighbor aggregation
 

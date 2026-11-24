@@ -4,16 +4,21 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct Header { uint32_t x0, y0, x1, y1, count; int32_t color; };
 struct Plane { uint32_t width, height, precision, signedness, dx, dy, alpha; };
-extern bool jpeg2000_compat_inspect_v2(const uint8_t *, size_t, bool, bool, uint32_t,
+struct Header {
+    uint32_t x0, y0, x1, y1, count;
+    int32_t color;
+    uint32_t filled;
+    struct Plane prefix[4];
+};
+extern bool jpeg2000_compat_inspect_v3(const uint8_t *, size_t, bool, bool, uint32_t,
                           struct Header *, struct Plane *);
-extern void *jpeg2000_compat_decode_v2(const uint8_t *, size_t, bool, bool, bool, uint8_t);
-extern size_t jpeg2000_compat_component_count_v2(const void *);
-extern bool jpeg2000_compat_plane_v2(const void *, uint32_t, struct Plane *);
-extern bool jpeg2000_compat_copy_plane_v2(const void *, uint32_t, int32_t *, size_t,
+extern void *jpeg2000_compat_decode_v3(const uint8_t *, size_t, bool, bool, bool, uint8_t);
+extern size_t jpeg2000_compat_component_count_v3(const void *);
+extern bool jpeg2000_compat_plane_v3(const void *, uint32_t, struct Plane *);
+extern bool jpeg2000_compat_copy_plane_v3(const void *, uint32_t, int32_t *, size_t,
                              const struct Plane *);
-extern void jpeg2000_compat_destroy_v2(void *);
+extern void jpeg2000_compat_destroy_v3(void *);
 
 struct Codec {
     bool boxed, configured, indexed, strict, decoded;
@@ -216,9 +221,9 @@ OPJ_BOOL opj_read_header(opj_stream_t *stream_handle, opj_codec_t *codec_handle,
         stream->size += n;
     }
 
-    struct Header header;
-    struct Plane plane;
-    if (!jpeg2000_compat_inspect_v2(stream->bytes, stream->size, codec->boxed,
+    struct Header header = {0};
+    struct Plane plane = {0};
+    if (!jpeg2000_compat_inspect_v3(stream->bytes, stream->size, codec->boxed,
                                 codec->strict, 0, &header, &plane))
         return fail(codec, "Unsupported or invalid JPEG 2000 header");
     opj_image_t *image = calloc(1, sizeof(*image));
@@ -236,7 +241,9 @@ OPJ_BOOL opj_read_header(opj_stream_t *stream_handle, opj_codec_t *codec_handle,
     image->y1 = header.y1;
     image->color_space = (OPJ_COLOR_SPACE)header.color;
     for (uint32_t i = 0; i < image->numcomps; ++i) {
-        if (i && !jpeg2000_compat_inspect_v2(stream->bytes, stream->size, codec->boxed,
+        if (i && i < header.filled) {
+            plane = header.prefix[i];
+        } else if (i && !jpeg2000_compat_inspect_v3(stream->bytes, stream->size, codec->boxed,
                                          codec->strict, i, &header, &plane)) {
             opj_image_destroy(image);
             return OPJ_FALSE;
@@ -269,18 +276,18 @@ OPJ_BOOL opj_decode(opj_codec_t *codec_handle, opj_stream_t *stream_handle,
         if (image->comps[i].data)
             return OPJ_FALSE;
     codec->decoded = false;
-    void *decoded = jpeg2000_compat_decode_v2(stream->bytes, stream->size, codec->boxed,
+    void *decoded = jpeg2000_compat_decode_v3(stream->bytes, stream->size, codec->boxed,
                                           codec->indexed, codec->strict, codec->reduce);
     if (!decoded)
         return fail(codec, "JPEG 2000 decode failed");
-    size_t count = jpeg2000_compat_component_count_v2(decoded);
+    size_t count = jpeg2000_compat_component_count_v3(decoded);
     if (!count || count > UINT32_MAX || count > SIZE_MAX / sizeof(*image->comps)) {
-        jpeg2000_compat_destroy_v2(decoded);
+        jpeg2000_compat_destroy_v3(decoded);
         return fail(codec, "Invalid JPEG 2000 output component count");
     }
     opj_image_comp_t *components = calloc(count, sizeof(*components));
     if (!components) {
-        jpeg2000_compat_destroy_v2(decoded);
+        jpeg2000_compat_destroy_v3(decoded);
         return fail(codec, "Cannot allocate JPEG 2000 output components");
     }
     bool ok = true;
@@ -288,7 +295,7 @@ OPJ_BOOL opj_decode(opj_codec_t *codec_handle, opj_stream_t *stream_handle,
     for (size_t i = 0; i < count; ++i) {
         opj_image_comp_t *c = &components[i];
         struct Plane plane;
-        if (!jpeg2000_compat_plane_v2(decoded, (uint32_t)i, &plane)) {
+        if (!jpeg2000_compat_plane_v3(decoded, (uint32_t)i, &plane)) {
             ok = false;
             break;
         }
@@ -296,7 +303,7 @@ OPJ_BOOL opj_decode(opj_codec_t *codec_handle, opj_stream_t *stream_handle,
         if (!plane.dx || !plane.dy || !plane.precision || plane.precision > 31 ||
             !samples || samples > remaining ||
             !(c->data = opj_image_data_alloc((size_t)samples * sizeof(*c->data))) ||
-            !jpeg2000_compat_copy_plane_v2(decoded, (uint32_t)i, c->data, (size_t)samples, &plane)) {
+            !jpeg2000_compat_copy_plane_v3(decoded, (uint32_t)i, c->data, (size_t)samples, &plane)) {
             ok = false;
             break;
         }
@@ -312,7 +319,7 @@ OPJ_BOOL opj_decode(opj_codec_t *codec_handle, opj_stream_t *stream_handle,
         c->alpha = (OPJ_UINT16)plane.alpha;
         remaining -= samples;
     }
-    jpeg2000_compat_destroy_v2(decoded);
+    jpeg2000_compat_destroy_v3(decoded);
     if (!ok) {
         for (size_t i = 0; i < count; ++i)
             free(components[i].data);

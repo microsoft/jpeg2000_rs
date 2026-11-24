@@ -340,6 +340,30 @@ static void test_lenient_jpx(int baseline, int indexed) {
     close_decoder(&d);
 }
 
+static void test_component_prefix(uint16_t count, int boxed, int indexed,
+                                  int lenient, int missing_eoc) {
+    struct Bytes stream = codestream(0, 0, 1, 1, 1, count, 0);
+    for (uint16_t i = 0; i < count; ++i)
+        stream.data[43 + 3 * i] = (uint8_t)(i + 1);
+    if (missing_eoc)
+        stream.size -= 2; /* Sized, complete part; compatible appends EOC. */
+    struct Bytes input = boxed ? jp2(&stream, count, 16, 0) : stream;
+    struct Decoder d;
+    open_decoder(&d, &input, boxed, indexed, lenient, 0);
+    assert(d.image->numcomps == count);
+    for (uint16_t i = 0; i < count; ++i) {
+        assert(d.image->comps[i].dx == (unsigned)i + 1);
+        assert(d.image->comps[i].dy == 1);
+        assert(d.image->comps[i].w == 1 && d.image->comps[i].h == 1);
+        assert(d.image->comps[i].prec == 8 && !d.image->comps[i].sgnd);
+    }
+    assert(opj_decode(d.codec, d.stream, d.image));
+    assert(opj_end_decompress(d.codec, d.stream) && d.errors == 0);
+    for (uint16_t i = 0; i < count; ++i)
+        assert(d.image->comps[i].data[0] == 128);
+    close_decoder(&d);
+}
+
 int main(void) {
     test_origin(1, 0);
     test_origin(2, 0);
@@ -356,6 +380,10 @@ int main(void) {
     for (int baseline = 0; baseline <= 1; ++baseline)
         for (int indexed = 0; indexed <= 1; ++indexed)
             test_lenient_jpx(baseline, indexed);
-    puts("20 OpenJPEG adapter regression cases passed");
+    test_component_prefix(1, 0, 0, 0, 0);
+    test_component_prefix(3, 1, 0, 0, 0);
+    test_component_prefix(4, 1, 1, 1, 0);
+    test_component_prefix(5, 0, 0, 1, 1);
+    puts("24 OpenJPEG adapter regression cases passed");
     return 0;
 }

@@ -1088,8 +1088,11 @@ selected descriptor and starts with empty CDEF. It preserves the source's
 width/height, subsampling and registration even when those fields are malformed.
 
 The precision variable is the descriptor's bit count, restricted by the actual
-body to 1..38. `part2_palette_modulus` denotes the same power of two; explicit
-bit-vector facts relate its original multiply-by-two loop to the existing
+body to 1..38. After the original sample reservation, a nonempty column
+computes its admitted modulus once; an empty column does no modulus work.
+The modulus cannot fail at an admitted precision, so the per-sample
+index, lookup and range errors retain their original order. Explicit
+bit-vector facts relate the multiply-by-two loop to the existing
 `part1_output_minimum`/`part1_output_maximum` signed/unsigned range functions.
 Source indices are interpreted independently of source precision/sign metadata.
 They must fit the native 16-bit palette index and stored logical entry count
