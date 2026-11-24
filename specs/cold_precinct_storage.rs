@@ -3,10 +3,10 @@ use super::*;
 verus! {
 pub enum Part2PlanningCapacityContext {
     Executions {band:[u32;4],block_size:[u32;2],subbands:Seq<crate::decode::SubbandGeometry>,range:(usize,usize),
-        style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),location:(u16,u8,u32,usize),
+        style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),location:(u16,u8,u32,usize),
         placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool},
     Decoders {grid:[u32;4],clip:[u32;4],blocks:[u32;2],subband:crate::decode::SubbandGeometry,
-        style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize,usize),
+        style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize,usize),
         placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool},
     CodeBlockGrowth {cell:Part2Tier1CallContext,subband:crate::decode::SubbandGeometry,
         geometry:(u32,u32,u16,u16),placements:bool},
@@ -64,12 +64,12 @@ pub(crate) open spec fn part2_codeblock_owner_admit(blocks:[u32;2],total:u64,sel
     }else if count>usize::MAX {Err(part1_block_placement_error(true))}else{Ok(next as u64)}
 }
 pub(crate) open spec fn part2_codeblock_owner_context(grid:[u32;4],clip:[u32;4],blocks:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
     total:u64,selected:bool)->Part2PlanningCapacityContext {
     Part2PlanningCapacityContext::Decoders {grid,clip,blocks,subband,style,policy,indices,placements,total,selected}
 }
 pub(crate) open spec fn part2_codeblock_owner_run(grid:[u32;4],clip:[u32;4],blocks:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
     total:u64,selected:bool,limits:&crate::ResourceLimits,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks> {
     match part2_codeblock_owner_admit(blocks,total,selected,limits) {
         Err(error)=>Some((Err(error),events)),
@@ -80,12 +80,12 @@ pub(crate) open spec fn part2_codeblock_owner_run(grid:[u32;4],clip:[u32;4],bloc
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_codeblock_owner_result(grid:[u32;4],clip:[u32;4],blocks:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
     total:u64,selected:bool,limits:&crate::ResourceLimits,result:Result<Part2PlannedCodeBlocks,crate::DecodeError>)->bool {
     part2_cold_framed(|events|part2_codeblock_owner_run(grid,clip,blocks,subband,style,policy,indices,placements,total,selected,limits,events),result)
 }
 pub(crate) proof fn part2_codeblock_owner_normal(grid:[u32;4],clip:[u32;4],blocks:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
     total:u64,selected:bool,limits:&crate::ResourceLimits)
     ensures part2_codeblock_owner_result(grid,clip,blocks,subband,style,policy,indices,placements,total,selected,limits,
         part2_planned_codeblocks(grid,clip,blocks,subband,style,policy,indices,placements,total,selected,limits)),
@@ -106,7 +106,7 @@ pub(crate) proof fn part2_codeblock_owner_normal(grid:[u32;4],clip:[u32;4],block
     }
 }
 pub(crate) proof fn part2_codeblock_owner_refused(grid:[u32;4],clip:[u32;4],blocks:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
     total:u64,selected:bool,limits:&crate::ResourceLimits)
     requires part2_codeblock_owner_admit(blocks,total,selected,limits).is_ok(),
         part2_planning_capacity_result(part2_codeblock_owner_context(grid,clip,blocks,subband,style,policy,indices,placements,total,selected),Err(crate::DecodeError::AllocationFailed)),
@@ -119,7 +119,7 @@ pub(crate) proof fn part2_codeblock_owner_refused(grid:[u32;4],clip:[u32;4],bloc
         Err(crate::DecodeError::AllocationFailed),Err(crate::DecodeError::AllocationFailed));
 }
 pub(crate) open spec fn part2_subband_execution_run(band:[u32;4],block_size:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
     total:u64,selected:bool,limits:&crate::ResourceLimits,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedSubbandExecution> {
     match part2_planned_subband_lattice(band,block_size,subband) {
         Ok(Some(lattice))=>part2_jpip_snapshot_bind(part2_codeblock_owner_run(lattice.grid,lattice.clip,lattice.blocks,subband,style,policy,indices,placements,total,selected,limits,events),
@@ -129,12 +129,12 @@ pub(crate) open spec fn part2_subband_execution_run(band:[u32;4],block_size:[u32
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_subband_execution_result(band:[u32;4],block_size:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
     total:u64,selected:bool,limits:&crate::ResourceLimits,result:Result<Part2PlannedSubbandExecution,crate::DecodeError>)->bool {
     part2_cold_framed(|events|part2_subband_execution_run(band,block_size,subband,style,policy,indices,placements,total,selected,limits,events),result)
 }
 pub(crate) proof fn part2_subband_execution_normal(band:[u32;4],block_size:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
     total:u64,selected:bool,limits:&crate::ResourceLimits)
     ensures part2_subband_execution_result(band,block_size,subband,style,policy,indices,placements,total,selected,limits,
         part2_planned_subband_execution(band,block_size,subband,style,policy,indices,placements,total,selected,limits)),
@@ -150,7 +150,7 @@ pub(crate) proof fn part2_subband_execution_normal(band:[u32;4],block_size:[u32;
     }else{part2_cold_pure(result);}
 }
 pub(crate) proof fn part2_subband_execution_error(band:[u32;4],block_size:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
     total:u64,selected:bool,limits:&crate::ResourceLimits,lattice:Part2PlannedSubbandLattice,error:crate::DecodeError)
     requires part2_planned_subband_lattice(band,block_size,subband)==Ok(Some(lattice)),
         part2_codeblock_owner_result(lattice.grid,lattice.clip,lattice.blocks,subband,style,policy,indices,placements,total,selected,limits,Err(error)),
@@ -161,7 +161,7 @@ pub(crate) proof fn part2_subband_execution_error(band:[u32;4],block_size:[u32;2
         |_:Part2PlannedCodeBlocks,rest|Some((part2_planned_subband_execution(band,block_size,subband,style,policy,indices,placements,total,selected,limits),rest)),Err(error),Err(error));
 }
 pub(crate) proof fn part2_subband_execution_frames(band:[u32;4],block_size:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
     total:u64,selected:bool,limits:&crate::ResourceLimits,result:Result<Part2PlannedSubbandExecution,crate::DecodeError>)
     requires part2_subband_execution_result(band,block_size,subband,style,policy,indices,placements,total,selected,limits,result),
     ensures part2_cold_framed(|events|part2_subband_execution_run(band,block_size,subband,style,policy,indices,placements,total,selected,limits,events),result),
@@ -178,7 +178,7 @@ pub(crate) open spec fn part2_precinct_after_subband(before:Part2PrecinctPlanBui
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_precinct_rows_run(band:[u32;4],block_size:[u32;2],subbands:Seq<crate::decode::SubbandGeometry>,range:(usize,usize),
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),location:(u16,u8,u32,usize),selected:bool,limits:&crate::ResourceLimits,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),location:(u16,u8,u32,usize),selected:bool,limits:&crate::ResourceLimits,
     local:nat,before:Part2PrecinctPlanBuilder,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedPrecinct>
     decreases if local<range.1 {(range.1 as int-local) as nat}else{0nat},
 {
@@ -195,7 +195,7 @@ pub(crate) open spec fn part2_precinct_rows_run(band:[u32;4],block_size:[u32;2],
     }
 }
 pub(crate) proof fn part2_precinct_rows_normal(band:[u32;4],block_size:[u32;2],subbands:Seq<crate::decode::SubbandGeometry>,range:(usize,usize),
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),location:(u16,u8,u32,usize),selected:bool,limits:&crate::ResourceLimits,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),location:(u16,u8,u32,usize),selected:bool,limits:&crate::ResourceLimits,
     local:nat,before:Part2PrecinctPlanBuilder)
     ensures part2_cold_framed(|events|part2_precinct_rows_run(band,block_size,subbands,range,style,policy,location,selected,limits,local,before,events),
         part2_planned_precinct_rows(band,block_size,subbands,range,style,policy,location,selected,limits,local,before)),
@@ -226,11 +226,11 @@ pub(crate) proof fn part2_precinct_rows_normal(band:[u32;4],block_size:[u32;2],s
     }
 }
 pub(crate) open spec fn part2_precinct_owner_context(band:[u32;4],block_size:[u32;2],subbands:Seq<crate::decode::SubbandGeometry>,range:(usize,usize),
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool)->Part2PlanningCapacityContext {
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool)->Part2PlanningCapacityContext {
     Part2PlanningCapacityContext::Executions {band,block_size,subbands,range,style,policy,location,placements,total,selected}
 }
 pub(crate) open spec fn part2_precinct_owner_run(band:[u32;4],block_size:[u32;2],subbands:Seq<crate::decode::SubbandGeometry>,range:(usize,usize),
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool,
     limits:&crate::ResourceLimits,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedPrecinct> {
     part2_jpip_snapshot_bind(part2_planning_capacity_run(part2_precinct_owner_context(band,block_size,subbands,range,style,policy,location,placements,total,selected),events),
         |_:(),rest|part2_precinct_rows_run(band,block_size,subbands,range,style,policy,location,selected,limits,0,
@@ -238,12 +238,12 @@ pub(crate) open spec fn part2_precinct_owner_run(band:[u32;4],block_size:[u32;2]
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_precinct_owner_result(band:[u32;4],block_size:[u32;2],subbands:Seq<crate::decode::SubbandGeometry>,range:(usize,usize),
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool,
     limits:&crate::ResourceLimits,result:Result<Part2PlannedPrecinct,crate::DecodeError>)->bool {
     part2_cold_framed(|events|part2_precinct_owner_run(band,block_size,subbands,range,style,policy,location,placements,total,selected,limits,events),result)
 }
 pub(crate) proof fn part2_precinct_owner_normal(band:[u32;4],block_size:[u32;2],subbands:Seq<crate::decode::SubbandGeometry>,range:(usize,usize),
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool,limits:&crate::ResourceLimits)
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool,limits:&crate::ResourceLimits)
     ensures part2_precinct_owner_result(band,block_size,subbands,range,style,policy,location,placements,total,selected,limits,
         part2_planned_precinct(band,block_size,subbands,range,style,policy,location,placements,total,selected,limits)),
 {
@@ -258,7 +258,7 @@ pub(crate) proof fn part2_precinct_owner_normal(band:[u32;4],block_size:[u32;2],
         |_:(),rest|part2_precinct_rows_run(band,block_size,subbands,range,style,policy,location,selected,limits,0,initial,rest),Ok(()),result);
 }
 pub(crate) proof fn part2_precinct_owner_refused(band:[u32;4],block_size:[u32;2],subbands:Seq<crate::decode::SubbandGeometry>,range:(usize,usize),
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool,limits:&crate::ResourceLimits)
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool,limits:&crate::ResourceLimits)
     requires part2_planning_capacity_result(part2_precinct_owner_context(band,block_size,subbands,range,style,policy,location,placements,total,selected),Err(crate::DecodeError::AllocationFailed)),
     ensures part2_precinct_owner_result(band,block_size,subbands,range,style,policy,location,placements,total,selected,limits,Err(crate::DecodeError::AllocationFailed)),
 {
@@ -273,7 +273,7 @@ pub(crate) open spec fn part2_cold_phase<R>(root:spec_fn(Seq<Part2JpipSnapshotEv
     forall|tail:Seq<Part2JpipSnapshotEvent>| #[trigger] root(prefix+tail)==child(tail)
 }
 pub(crate) proof fn part2_precinct_owner_start(band:[u32;4],block_size:[u32;2],subbands:Seq<crate::decode::SubbandGeometry>,range:(usize,usize),
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool,limits:&crate::ResourceLimits)
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool,limits:&crate::ResourceLimits)
     ->(prefix:Seq<Part2JpipSnapshotEvent>)
     requires part2_planning_capacity_result(part2_precinct_owner_context(band,block_size,subbands,range,style,policy,location,placements,total,selected),Ok(())),
     ensures part2_cold_phase(|events|part2_precinct_owner_run(band,block_size,subbands,range,style,policy,location,placements,total,selected,limits,events),prefix,
@@ -291,7 +291,7 @@ pub(crate) proof fn part2_precinct_owner_start(band:[u32;4],block_size:[u32;2],s
     prefix
 }
 pub(crate) proof fn part2_precinct_rows_step(band:[u32;4],block_size:[u32;2],subbands:Seq<crate::decode::SubbandGeometry>,range:(usize,usize),
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),location:(u16,u8,u32,usize),selected:bool,limits:&crate::ResourceLimits,local:nat,before:Part2PrecinctPlanBuilder)
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),location:(u16,u8,u32,usize),selected:bool,limits:&crate::ResourceLimits,local:nat,before:Part2PrecinctPlanBuilder)
     requires local<range.1,range.0 as nat+local<=usize::MAX,range.0 as nat+local<subbands.len(),
     ensures forall|events:Seq<Part2JpipSnapshotEvent>|
         #[trigger] part2_precinct_rows_run(band,block_size,subbands,range,style,policy,location,selected,limits,local,before,events)
@@ -301,7 +301,7 @@ pub(crate) proof fn part2_precinct_rows_step(band:[u32;4],block_size:[u32;2],sub
                 local+1,part2_precinct_after_subband(before,planned),rest)),
 {reveal_with_fuel(part2_precinct_rows_run,1);}
 pub(crate) proof fn part2_precinct_owner_frames(band:[u32;4],block_size:[u32;2],subbands:Seq<crate::decode::SubbandGeometry>,range:(usize,usize),
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool,
     limits:&crate::ResourceLimits,result:Result<Part2PlannedPrecinct,crate::DecodeError>)
     requires part2_precinct_owner_result(band,block_size,subbands,range,style,policy,location,placements,total,selected,limits,result),
     ensures part2_cold_framed(|events|part2_precinct_owner_run(band,block_size,subbands,range,style,policy,location,placements,total,selected,limits,events),result),
@@ -310,7 +310,7 @@ pub(crate) proof fn part2_precinct_owner_frames(band:[u32;4],block_size:[u32;2],
             ==> #[trigger] part2_cold_framed(other,result),
 {reveal(part2_precinct_owner_result);part2_decode_eta(|events|part2_precinct_owner_run(band,block_size,subbands,range,style,policy,location,placements,total,selected,limits,events),result);}
 pub(crate) proof fn part2_precinct_owner_join(band:[u32;4],block_size:[u32;2],subbands:Seq<crate::decode::SubbandGeometry>,range:(usize,usize),
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),location:(u16,u8,u32,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64,selected:bool,
     limits:&crate::ResourceLimits,root:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedPrecinct>,result:Result<Part2PlannedPrecinct,crate::DecodeError>)
     requires part2_cold_framed(root,result),
         forall|events| #[trigger] root(events)==part2_precinct_owner_run(band,block_size,subbands,range,style,policy,location,placements,total,selected,limits,events),
@@ -323,7 +323,7 @@ pub(crate) open spec fn part2_precinct_plan_finish(before:Part2PrecinctPlanBuild
     Part2PlannedPrecinct {precinct,placements:before.placements,planned_code_blocks:before.planned_code_blocks}
 }
 pub(crate) proof fn part2_precinct_rows_end(band:[u32;4],block_size:[u32;2],subbands:Seq<crate::decode::SubbandGeometry>,range:(usize,usize),
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),location:(u16,u8,u32,usize),selected:bool,limits:&crate::ResourceLimits,local:nat,before:Part2PrecinctPlanBuilder)
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),location:(u16,u8,u32,usize),selected:bool,limits:&crate::ResourceLimits,local:nat,before:Part2PrecinctPlanBuilder)
     requires local>=range.1,
     ensures forall|events:Seq<Part2JpipSnapshotEvent>| #[trigger] part2_precinct_rows_run(band,block_size,subbands,range,style,policy,location,selected,limits,local,before,events)
         ==part2_jpip_snapshot_bind(part2_precinct_state_run(location.0,location.1,location.2,style,before.executions,limits,events),

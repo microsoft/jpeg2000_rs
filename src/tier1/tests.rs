@@ -573,10 +573,7 @@ fn decoder_nested_storage_primary_flags_legacy_plane_flags_input_cleanup_byte_or
         }
     }
     source.plane.coefficients.clear();
-    source
-        .ht_cleanup_plane
-        .as_mut()
-        .unwrap()
+    wide_cleanup(source.ht_cleanup_plane.as_mut().unwrap())
         .coefficients
         .clear();
     source.ht_refinement_data.clear();
@@ -675,7 +672,7 @@ fn decoder_plane_storage_raw_sources_copy_without_dimension_admission_or_false_e
 fn decoder_plane_storage_primary_optional_cleanup_and_byte_order_restore_all_fields() {
     let mut source = retained_refinement_decoder();
     source.plane.width = 0;
-    source.ht_cleanup_plane.as_mut().unwrap().height = 0;
+    wide_cleanup(source.ht_cleanup_plane.as_mut().unwrap()).height = 0;
     source.ht_refinement_data = vec![7];
     let before = format!("{source:?}");
     for role in [
@@ -692,10 +689,7 @@ fn decoder_plane_storage_primary_optional_cleanup_and_byte_order_restore_all_fie
         }
     }
     source.plane.coefficients.clear();
-    source
-        .ht_cleanup_plane
-        .as_mut()
-        .unwrap()
+    wide_cleanup(source.ht_cleanup_plane.as_mut().unwrap())
         .coefficients
         .clear();
     source.ht_refinement_data.clear();
@@ -1391,7 +1385,7 @@ fn initialization_policy_setters_preserve_all_unrelated_raw_state_and_error_snap
     decoder.decoded_segments = u32::MAX;
     decoder.decoded_bytes = u64::MAX;
     decoder.legacy_decode_work = u64::MAX;
-    decoder.ht_cleanup_plane = Some(decoder.plane.clone());
+    decoder.ht_cleanup_plane = Some(HtCleanupCheckpoint::Wide(decoder.plane.clone()));
     decoder.ht_refinement_data = vec![0xff, 0, 0xfe, 0x7f];
     decoder.ht_refinement_passes = u8::MAX;
     decoder.ht_decoded_bitplanes = u16::MAX;
@@ -3624,11 +3618,11 @@ fn ht_full_symbol_caller_distinguishes_none_empty_refinement_and_pre_refinement_
                 ..cleanup_coefficient
             }],
         };
-        expected.ht_cleanup_plane = Some(CodeBlockPlane {
+        expected.ht_cleanup_plane = Some(HtCleanupCheckpoint::Wide(CodeBlockPlane {
             width: 1,
             height: 1,
             coefficients: vec![cleanup_coefficient],
-        });
+        }));
         expected.ht_refinement_data = refinement.unwrap_or(&[]).to_vec();
         expected.ht_refinement_passes = retained;
         expected.ht_decoded_bitplanes = 2;
@@ -3824,7 +3818,7 @@ fn retained_refinement_decoder() -> Tier1CodeBlockDecoder {
         significant: true,
         ..CoefficientState::default()
     };
-    decoder.ht_cleanup_plane = Some(cleanup);
+    decoder.ht_cleanup_plane = Some(HtCleanupCheckpoint::Wide(cleanup));
     decoder.plane = CodeBlockPlane {
         width: 1,
         height: 1,
@@ -3944,11 +3938,11 @@ fn ht_continuation_empty_concatenation_preserves_output_and_skips_replay_only() 
         .with_maximum_code_block_passes(0)
         .unwrap();
     let mut decoder = retained_refinement_decoder();
-    decoder.ht_cleanup_plane = Some(CodeBlockPlane {
+    decoder.ht_cleanup_plane = Some(HtCleanupCheckpoint::Wide(CodeBlockPlane {
         width: 0,
         height: 7,
         coefficients: vec![],
-    });
+    }));
     decoder.ht_decoded_bitplanes = 0;
     decoder.ht_refinement_data = Vec::with_capacity(64);
     let mut expected = decoder.clone();
@@ -4048,11 +4042,11 @@ fn ht_continuation_native_pass_domain_and_retained_size_boundaries_are_exact() {
         for additional in 0_u8..=u8::MAX {
             let mut decoder = template.clone();
             decoder.ht_refinement_passes = existing;
-            decoder.ht_cleanup_plane = Some(CodeBlockPlane {
+            decoder.ht_cleanup_plane = Some(HtCleanupCheckpoint::Wide(CodeBlockPlane {
                 width: 0,
                 height: 0,
                 coefficients: vec![],
-            });
+            }));
             let result = decoder.decode_high_throughput_refinement(&[], additional, &limits);
             if additional > 0 && u16::from(existing) + u16::from(additional) <= 2 {
                 assert!(result.is_ok());
@@ -4330,7 +4324,7 @@ fn ht_actual_groups_continue_and_replace_using_real_retained_state() {
     decoder.allow_multiple_ht_sets = true;
     decoder.skip_high_throughput_segment(1, &limits).unwrap();
     assert_eq!(
-        decoder.ht_cleanup_plane.as_ref().unwrap().coefficients()[0].magnitude,
+        wide_cleanup(decoder.ht_cleanup_plane.as_mut().unwrap()).coefficients()[0].magnitude,
         12
     );
     assert!(!decoder.ht_current_set_has_cleanup);
@@ -4405,7 +4399,7 @@ fn ht_whole_decoder_clone_preserves_all_raw_malformed_fields_and_independent_sto
         decoder.ht_cleanup_plane = if value % 3 == 0 {
             None
         } else {
-            Some(decoder.plane.clone())
+            Some(HtCleanupCheckpoint::Wide(decoder.plane.clone()))
         };
         decoder.ht_refinement_data = vec![value as u8; usize::from(value % 9)];
         decoder.ht_refinement_passes = value as u8;
@@ -4436,7 +4430,9 @@ fn ht_whole_decoder_clone_preserves_all_raw_malformed_fields_and_independent_sto
             coefficient.magnitude = 99;
         }
         if let Some(plane) = cloned.ht_cleanup_plane.as_mut() {
-            plane.coefficients.push(CoefficientState::default());
+            wide_cleanup(plane)
+                .coefficients
+                .push(CoefficientState::default());
         }
         assert_eq!(format!("{decoder:?}"), original);
     }
@@ -4507,11 +4503,11 @@ fn ht_staged_group_every_late_failure_keeps_original_state_not_staged_partial_wr
         decoder.legacy_segment = cleanup_caller_decoder().legacy_segment;
         decoder.ht_refinement_data = vec![17, 19];
         decoder.ht_refinement_passes = 2;
-        decoder.ht_cleanup_plane = Some(CodeBlockPlane {
+        decoder.ht_cleanup_plane = Some(HtCleanupCheckpoint::Wide(CodeBlockPlane {
             width: 0,
             height: 0,
             coefficients: vec![],
-        });
+        }));
         let (input, limits, expected) = match failure {
             0 => (
                 &[0, 0x63, 0][..],
@@ -4557,11 +4553,11 @@ fn ht_staged_group_every_late_failure_keeps_original_state_not_staged_partial_wr
         },
     )
     .unwrap();
-    mixed.ht_cleanup_plane = Some(CodeBlockPlane {
+    mixed.ht_cleanup_plane = Some(HtCleanupCheckpoint::Wide(CodeBlockPlane {
         width: 0,
         height: 0,
         coefficients: vec![],
-    });
+    }));
     mixed.ht_current_set_has_cleanup = false;
     assert!(mixed.decode_segment(&[0, 0x63, 0], 4, &defaults).is_ok());
     assert_eq!(
@@ -4586,7 +4582,7 @@ fn mixed_segment_dispatch_uses_actual_cleanup_option_not_current_flag() {
         (1, 1, 1)
     );
     let mut ht = Tier1CodeBlockDecoder::new(1, 1, 1, SubbandOrientation::Ll, style).unwrap();
-    ht.ht_cleanup_plane = Some(ht.plane.clone());
+    ht.ht_cleanup_plane = Some(HtCleanupCheckpoint::Wide(ht.plane.clone()));
     assert!(!ht.ht_current_set_has_cleanup);
     ht.decode_segment(&[0, 0x63, 0], 1, &limits).unwrap();
     assert_eq!(ht.plane.signed_coefficient(0, 0).unwrap(), -1);
@@ -4612,7 +4608,7 @@ fn ht_packet_segment_routes_real_slices_and_keeps_progress_after_decoder_effects
     decoder.ht_sets_seen = 0;
     let mut expected = decoder.clone();
     expected.plane = literal_cleanup_coefficient();
-    expected.ht_cleanup_plane = Some(literal_cleanup_coefficient());
+    expected.ht_cleanup_plane = Some(HtCleanupCheckpoint::Wide(literal_cleanup_coefficient()));
     expected.ht_refinement_data.clear();
     expected.ht_refinement_passes = 0;
     expected.ht_decoded_bitplanes = 1;
@@ -4729,7 +4725,7 @@ fn cleanup_caller_decoder() -> Tier1CodeBlockDecoder {
     decoder.ht_refinement_data = vec![77, 88];
     decoder.ht_refinement_passes = 2;
     decoder.ht_decoded_bitplanes = 19;
-    decoder.ht_cleanup_plane = Some(decoder.plane.clone());
+    decoder.ht_cleanup_plane = Some(HtCleanupCheckpoint::Wide(decoder.plane.clone()));
     decoder.legacy_decode_work = 123;
     decoder.legacy_segment = Some(LegacySegmentState {
         plane: decoder.plane.clone(),
@@ -4768,7 +4764,7 @@ fn ht_cleanup_caller_composes_real_metadata_numeric_duplicate_and_complete_decod
     let mut decoder = cleanup_caller_decoder();
     let mut expected = decoder.clone();
     expected.plane = literal_cleanup_coefficient();
-    expected.ht_cleanup_plane = Some(literal_cleanup_coefficient());
+    expected.ht_cleanup_plane = Some(HtCleanupCheckpoint::Wide(literal_cleanup_coefficient()));
     expected.ht_refinement_data.clear();
     expected.ht_refinement_passes = 0;
     expected.ht_decoded_bitplanes = 1;
@@ -4864,7 +4860,7 @@ fn ht_cleanup_caller_accounting_failures_preserve_ordered_commits_not_rollback()
         }
         let mut expected = decoder.clone();
         expected.plane = literal_cleanup_coefficient();
-        expected.ht_cleanup_plane = Some(literal_cleanup_coefficient());
+        expected.ht_cleanup_plane = Some(HtCleanupCheckpoint::Wide(literal_cleanup_coefficient()));
         expected.ht_refinement_data.clear();
         expected.ht_refinement_passes = 0;
         expected.ht_decoded_bitplanes = 1;
@@ -8808,4 +8804,225 @@ fn ht_cleanup_significance_storage_actual_replay_prior_decoder_and_exact_restore
         result
     );
     assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+}
+use super::ht_checkpoint::{HtCheckpointRef, HtCleanupCheckpoint, retain_ht_cleanup};
+
+fn decode_ht_refinement_plane(
+    cleanup: &CodeBlockPlane,
+    segment: HtRefinementSegment<'_>,
+    passes: u8,
+    bitplanes: u16,
+    causal: bool,
+    limits: &ResourceLimits,
+) -> Result<(CodeBlockPlane, Tier1PassStatistics), DecodeError> {
+    super::ht_refinement::decode_ht_refinement_plane(
+        HtCheckpointRef::Wide(cleanup),
+        segment,
+        passes,
+        bitplanes,
+        causal,
+        limits,
+    )
+}
+
+fn wide_cleanup(checkpoint: &mut HtCleanupCheckpoint) -> &mut CodeBlockPlane {
+    match checkpoint {
+        HtCleanupCheckpoint::Wide(plane) => plane,
+        HtCleanupCheckpoint::Packed(_) => panic!("expected public dense checkpoint"),
+    }
+}
+
+#[test]
+fn private_ht_checkpoint_preserves_replay_and_replacement_state() {
+    let limits = ResourceLimits::default();
+    let style = Tier1CodingStyle::from_code_block_style(0x40).unwrap();
+    let make = |private| {
+        tier1_configured_decoder_with_checkpoint(
+            1,
+            1,
+            2,
+            SubbandOrientation::Ll,
+            style,
+            true,
+            MAX_HT_MAGNITUDE_BITS,
+            private,
+        )
+        .unwrap()
+    };
+    let mut wide = make(false);
+    let mut packed = make(true);
+    let cleanup = [0, 0x63, 0];
+    for (body, passes, cleanup) in [
+        (cleanup.as_slice(), 1, true),
+        (&[0], 1, false),
+        (&[0], 1, false),
+        (cleanup.as_slice(), 1, true),
+    ] {
+        let run = |decoder: &mut Tier1CodeBlockDecoder| {
+            if cleanup {
+                decoder.decode_high_throughput_segments(body, passes, None, 0, &limits)
+            } else {
+                decoder.decode_high_throughput_refinement(body, passes, &limits)
+            }
+        };
+        let expected = run(&mut wide);
+        assert!(
+            expected.is_ok(),
+            "{body:?}, cleanup={cleanup}: {expected:?}"
+        );
+        assert_eq!(expected, run(&mut packed));
+        assert!(matches!(
+            packed.ht_cleanup_plane,
+            Some(HtCleanupCheckpoint::Packed(_))
+        ));
+        assert_eq!(packed.plane(), wide.plane());
+        // Normalize only the physical owner and private policy; compare every
+        // decoder field including cleanup, refinement input, counters and cursors.
+        let mut exact = packed
+            .try_duplicate(HtRefinementCopyRole::PacketStaging)
+            .unwrap();
+        exact.private_plan = false;
+        assert_eq!(format!("{exact:?}"), format!("{wide:?}"));
+    }
+}
+
+#[test]
+fn private_ht_checkpoint_does_not_skip_dense_initial_allocation_or_snapshot() {
+    let limits = ResourceLimits::default();
+    let style = Tier1CodingStyle::from_code_block_style(0x40).unwrap();
+    let make = |style, pack| {
+        tier1_configured_decoder_with_checkpoint(
+            1,
+            1,
+            2,
+            SubbandOrientation::Ll,
+            style,
+            true,
+            MAX_HT_MAGNITUDE_BITS,
+            pack,
+        )
+    };
+    for pack in [false, true] {
+        assert!(matches!(
+            crate::allocation::with_refusal(0, || make(style, pack)),
+            Err(DecodeError::AllocationFailed)
+        ));
+    }
+    let legacy = make(Tier1CodingStyle::default(), true).unwrap();
+    assert!(!legacy.private_plan);
+    let mut packed = make(style, true).unwrap();
+    assert_eq!(
+        packed.plane().coefficients(),
+        &[CoefficientState::default()]
+    );
+    packed
+        .decode_high_throughput_segments(&[0, 0x63, 0], 1, None, 0, &limits)
+        .unwrap();
+    assert!(matches!(
+        packed.ht_cleanup_plane,
+        Some(HtCleanupCheckpoint::Packed(_))
+    ));
+    let before = format!("{packed:?}");
+    assert!(matches!(
+        crate::allocation::with_refusal(1, || packed
+            .try_duplicate(HtRefinementCopyRole::PacketStaging)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    assert_eq!(format!("{packed:?}"), before);
+    let staged = packed
+        .try_duplicate(HtRefinementCopyRole::PacketStaging)
+        .unwrap();
+    assert!(matches!(
+        staged.ht_cleanup_plane,
+        Some(HtCleanupCheckpoint::Wide(_))
+    ));
+    assert_eq!(packed.plane(), staged.plane());
+}
+
+#[test]
+fn private_ht_checkpoint_uses_actual_fields_and_refuses_real_allocations() {
+    let mut source = CodeBlockPlane::new(2, 1).unwrap();
+    source.coefficients[0] = CoefficientState {
+        magnitude: u64::from(u32::MAX),
+        magnitude_high: [0; 5],
+        legacy_bitplane: Some(62),
+        negative: true,
+        significant: true,
+        refined: true,
+    };
+    let before = source.clone();
+    let packed = retain_ht_cleanup(&source, true).unwrap();
+    assert!(matches!(packed, HtCleanupCheckpoint::Packed(_)));
+    assert!(matches!(
+        crate::allocation::with_refusal(0, || retain_ht_cleanup(&source, true)),
+        Err(DecodeError::AllocationFailed)
+    ));
+    assert_eq!(
+        crate::allocation::with_refusal(0, || packed
+            .read()
+            .duplicate(CoefficientStorageRole::RefinementOutput)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        packed
+            .read()
+            .duplicate(CoefficientStorageRole::RefinementOutput)
+            .unwrap(),
+        before
+    );
+    for unrepresentable in [
+        CoefficientState {
+            magnitude: u64::from(u32::MAX) + 1,
+            ..before.coefficients[0]
+        },
+        CoefficientState {
+            magnitude_high: [0, 0, 0, 0, 1],
+            ..before.coefficients[0]
+        },
+        CoefficientState {
+            legacy_bitplane: Some(63),
+            ..before.coefficients[0]
+        },
+    ] {
+        source.coefficients[0] = unrepresentable;
+        let wide = retain_ht_cleanup(&source, true).unwrap();
+        assert!(matches!(wide, HtCleanupCheckpoint::Wide(_)));
+        assert_eq!(
+            wide.read()
+                .duplicate(CoefficientStorageRole::RefinementOutput)
+                .unwrap(),
+            source
+        );
+    }
+}
+
+#[cfg(feature = "cooperative-deadlines")]
+#[test]
+fn private_ht_checkpoint_expired_materialization_leaves_source_exact() {
+    use std::time::{Duration, Instant};
+
+    let source = literal_cleanup_coefficient();
+    let checkpoint = retain_ht_cleanup(&source, true).unwrap();
+    let deadline = Instant::now() + Duration::from_millis(100);
+    let mut entered = false;
+    assert_eq!(
+        crate::deadline::with_decode_deadline(deadline, || {
+            entered = true;
+            std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
+            let refused = checkpoint
+                .read()
+                .duplicate(CoefficientStorageRole::RefinementOutput);
+            assert_eq!(refused, Err(DecodeError::DeadlineExceeded));
+            refused
+        }),
+        Err(DecodeError::DeadlineExceeded)
+    );
+    assert!(entered);
+    assert_eq!(
+        checkpoint
+            .read()
+            .duplicate(CoefficientStorageRole::RefinementOutput)
+            .unwrap(),
+        source
+    );
 }

@@ -229,6 +229,7 @@ fn decode_trailer_tile(
         profile.part15_allows_multiple_ht_sets(),
         profile.part15_magnitude_bound(),
         profile.part15_requires_all_ht_blocks(),
+        true,
         limits,
     );
     #[cfg(verus_keep_ghost)]

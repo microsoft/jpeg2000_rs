@@ -566,8 +566,17 @@ fn actual_codeblock_vectors_bind_every_decoder_placement_prefix_policy_and_selec
                                             &limits,
                                         );
                                         let actual = plan_codeblock_decoders(
-                                            grid, clip, blocks, subband, style, policy, indices,
-                                            prefix, total, selected, &limits,
+                                            grid,
+                                            clip,
+                                            blocks,
+                                            subband,
+                                            style,
+                                            (policy.0, policy.1, false),
+                                            indices,
+                                            prefix,
+                                            total,
+                                            selected,
+                                            &limits,
                                         );
                                         successes += usize::from(assert_planned_blocks_equal(
                                             actual, expected,
@@ -608,7 +617,7 @@ fn actual_codeblock_vectors_bind_every_decoder_placement_prefix_policy_and_selec
             blocks,
             subband,
             Tier1CodingStyle::default(),
-            (true, 0),
+            (true, 0, false),
             (0, 0, usize::MAX),
             Vec::new(),
             0,
@@ -661,7 +670,7 @@ fn actual_codeblock_cell_retains_existing_owned_decoder_and_placement_buffers() 
                             block,
                             subband,
                             style,
-                            (true, bound),
+                            (true, bound, false),
                             (usize::MAX, 31),
                             seed(),
                         );
@@ -1008,8 +1017,16 @@ fn actual_subband_execution_derives_full_packet_row_and_preserves_lazy_owned_pre
                                         &limits,
                                     );
                                     let actual = plan_subband_execution(
-                                        band, block, subband, style, policy, indices, prefix,
-                                        total, selected, &limits,
+                                        band,
+                                        block,
+                                        subband,
+                                        style,
+                                        (policy.0, policy.1, false),
+                                        indices,
+                                        prefix,
+                                        total,
+                                        selected,
+                                        &limits,
                                     );
                                     match (actual, expected) {
                                         (Err(actual), Err(expected)) => {
@@ -1234,7 +1251,7 @@ fn actual_precinct_plan_derives_all_private_packet_fields_from_raw_subband_range
                                                     &subbands,
                                                     (first, count),
                                                     style,
-                                                    policy,
+                                                    (policy.0, policy.1, false),
                                                     location,
                                                     prefix,
                                                     total,
@@ -1553,7 +1570,7 @@ fn actual_component_plan_derives_full_component_and_precinct_vectors_from_real_r
                                             roi,
                                             component,
                                             (tile, discard),
-                                            policy,
+                                            (policy.0, policy.1, policy.2, false),
                                             planning_prefix(prefix),
                                             total,
                                             limit,
@@ -1649,6 +1666,7 @@ fn actual_selected_tile_plan_and_public_owner_boundary_bind_every_field_and_firs
                                 policy.0,
                                 policy.1,
                                 policy.2,
+                                false,
                                 limit,
                             );
                             successes += usize::from(assert_tile_plans_equal(actual, expected));
@@ -1777,6 +1795,7 @@ fn actual_packet_reconstruction_uses_real_bytes_complete_decoder_planes_and_owne
                     0,
                     false,
                     74,
+                    false,
                     false,
                     &ResourceLimits::HARDENED,
                 )
@@ -2072,6 +2091,7 @@ fn actual_layout_accounting_preserves_full_selected_global_limits_empty_and_malf
                     0,
                     false,
                     74,
+                    false,
                     false,
                     &ResourceLimits::HARDENED,
                 )
@@ -6868,7 +6888,7 @@ fn precinct_storage_execution_frontier_empty_and_later_range_error_restore() {
             &subbands,
             range,
             style,
-            (false, 74),
+            (false, 74, false),
             (0, 0, 0, 0),
             Vec::new(),
             0,
@@ -6915,7 +6935,7 @@ fn precinct_storage_decoder_admission_zero_overflow_and_later_geometry_restore()
             blocks,
             subband,
             style,
-            (false, 74),
+            (false, 74, false),
             (0, 0, 0),
             Vec::new(),
             total,
@@ -6981,7 +7001,7 @@ fn precinct_publication_storage_refuses_after_child_and_reuses_held_capacity() {
             &part.roi_shifts,
             0,
             (0, 0),
-            (false, 74, false),
+            (false, 74, false, false),
             precincts,
             0,
             &limits,
@@ -7172,7 +7192,7 @@ fn planned_codeblock_growth_keeps_both_owner_refusals_and_error_frontiers() {
             [0, 0],
             band,
             style,
-            (false, 74),
+            (false, 74, false),
             (7, 11),
             state,
         )
@@ -7262,7 +7282,7 @@ fn tier1_initial_storage_cell_columns_rows_retain_prior_owners_and_restore() {
             [2, 2],
             subband,
             style,
-            (false, 74),
+            (false, 74, false),
             (0, 0, 0),
             Vec::new(),
             0,

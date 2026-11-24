@@ -733,7 +733,7 @@ pub(super) fn reconstruct_ht_cleanup_plane(
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part2_plane_prepare_result(code_block_plane_view(plane),ht_cleanup_segment_view(&cleanup),maximum_passes,maximum_u,skipped_bitplanes,
-        crate::limits::resource_work_limit(limits),ht_cleanup_prepare_outcome(result)),
+        crate::limits::resource_work_limit(limits),private_plan,ht_cleanup_prepare_outcome(result)),
         ht_cleanup_prepare_outcome(result)!=Err(DecodeError::AllocationFailed) ==> ht_cleanup_prepare_outcome(result) == crate::specs::ht_cleanup_prepare(
         code_block_plane_view(plane), ht_cleanup_segment_view(&cleanup), maximum_passes,
         maximum_u, skipped_bitplanes, crate::limits::resource_work_limit(limits)),
@@ -745,9 +745,18 @@ pub(super) fn prepare_ht_cleanup_symbols(
     maximum_u: u8,
     skipped_bitplanes: u16,
     limits: &ResourceLimits,
-) -> Result<(CodeBlockPlane, CodeBlockPlane, Tier1PassStatistics, u16), DecodeError> {
+    private_plan: bool,
+) -> Result<
+    (
+        CodeBlockPlane,
+        super::ht_checkpoint::HtCleanupCheckpoint,
+        Tier1PassStatistics,
+        u16,
+    ),
+    DecodeError,
+> {
     #[cfg(verus_keep_ghost)]
-    proof! {crate::specs::part2_plane_prepare_normal(code_block_plane_view(plane),ht_cleanup_segment_view(&cleanup),maximum_passes,maximum_u,skipped_bitplanes,crate::limits::resource_work_limit(limits));}
+    proof! {crate::specs::part2_plane_prepare_normal(code_block_plane_view(plane),ht_cleanup_segment_view(&cleanup),maximum_passes,maximum_u,skipped_bitplanes,crate::limits::resource_work_limit(limits),private_plan);}
     let metadata_result = decode_ht_cleanup_segment_metadata(
         cleanup,
         plane.width(),
@@ -757,7 +766,7 @@ pub(super) fn prepare_ht_cleanup_symbols(
     );
     #[cfg(verus_keep_ghost)]
     proof! {if let Err(error)=metadata_result{crate::specs::part2_plane_prepare_metadata_error(code_block_plane_view(plane),ht_cleanup_segment_view(&cleanup),
-    maximum_passes,maximum_u,skipped_bitplanes,crate::limits::resource_work_limit(limits),error);}}
+    maximum_passes,maximum_u,skipped_bitplanes,crate::limits::resource_work_limit(limits),private_plan,error);}}
     let metadata = metadata_result?;
     let significant_bitplanes = ht_significant_bitplanes(maximum_passes)?;
     let decoded_bitplanes = significant_bitplanes
@@ -773,12 +782,12 @@ pub(super) fn prepare_ht_cleanup_symbols(
     );
     #[cfg(verus_keep_ghost)]
     proof! {if let Err(error)=reconstructed {crate::specs::part2_plane_prepare_cleanup_error(code_block_plane_view(plane),ht_cleanup_segment_view(&cleanup),maximum_passes,maximum_u,skipped_bitplanes,
-    crate::limits::resource_work_limit(limits),(ht_cleanup_metadata_view(&metadata),decoded_bitplanes),error);}}
+    crate::limits::resource_work_limit(limits),private_plan,(ht_cleanup_metadata_view(&metadata),decoded_bitplanes),error);}}
     let (output, statistics) = reconstructed?;
-    let duplicated = output.duplicate(super::CoefficientStorageRole::CleanupCopy);
+    let duplicated = super::ht_checkpoint::retain_ht_cleanup(&output, private_plan);
     #[cfg(verus_keep_ghost)]
     proof! {if let Err(error)=duplicated {crate::specs::part2_plane_prepare_duplicate_error(code_block_plane_view(plane),ht_cleanup_segment_view(&cleanup),maximum_passes,maximum_u,skipped_bitplanes,
-    crate::limits::resource_work_limit(limits),(ht_cleanup_metadata_view(&metadata),decoded_bitplanes),(code_block_plane_view(&output),statistics),error);}}
+    crate::limits::resource_work_limit(limits),private_plan,(ht_cleanup_metadata_view(&metadata),decoded_bitplanes),(code_block_plane_view(&output),statistics),error);}}
     let duplicate = duplicated?;
     Ok((output, duplicate, statistics, decoded_bitplanes))
 }

@@ -3,7 +3,7 @@ use super::*;
 verus! {
 pub enum Part2ComponentCapacityContext {
     Components {size:crate::codestream::ImageSize,style:crate::codestream::CodingStyle,styles:crate::codestream::ComponentCodingStyles,
-        quantizations:(u16,Seq<crate::codestream::Quantization>),roi:crate::codestream::RoiShifts,selection:(u16,u8),policy:(bool,u8,bool)},
+        quantizations:(u16,Seq<crate::codestream::Quantization>),roi:crate::codestream::RoiShifts,selection:(u16,u8),policy:(bool,u8,bool,bool)},
     Subbands {size:crate::codestream::ImageSize,style:crate::codestream::CodingStyle,quantization:Part2Quantization,component:u16,tile:Option<u16>,roi:u8},
 }
 pub(crate) open spec fn part2_component_capacity_count(context:Part2ComponentCapacityContext)->usize {
@@ -193,7 +193,7 @@ pub(crate) proof fn part2_component_metadata_subbands_error(size:&crate::codestr
         |_:Seq<crate::decode::SubbandGeometry>,rest|Some((part2_component_plan_metadata_owned(size,styles,quantizations,roi,component,selection,force),rest)),Err(error),Err(error));
 }
 pub(crate) open spec fn part2_planned_component_run(size:&crate::codestream::ImageSize,styles:&crate::codestream::ComponentCodingStyles,
-    quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,component:u16,selection:(u16,u8),policy:(bool,u8,bool),
+    quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,component:u16,selection:(u16,u8),policy:(bool,u8,bool,bool),
     precincts:Seq<Part1PacketPrecinctState>,total:u64,limits:&crate::ResourceLimits,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedComponent> {
     part2_jpip_snapshot_bind(part2_component_metadata_run(size,styles,quantizations,roi,component,selection,policy.2,events),
         |meta:Part2ComponentPlanMetadata,rest|part2_resolution_plan_run(size,component,selection.0,meta,policy,limits,0,
@@ -201,12 +201,12 @@ pub(crate) open spec fn part2_planned_component_run(size:&crate::codestream::Ima
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_planned_component_result(size:&crate::codestream::ImageSize,styles:&crate::codestream::ComponentCodingStyles,
-    quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,component:u16,selection:(u16,u8),policy:(bool,u8,bool),
+    quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,component:u16,selection:(u16,u8),policy:(bool,u8,bool,bool),
     precincts:Seq<Part1PacketPrecinctState>,total:u64,limits:&crate::ResourceLimits,result:Result<Part2PlannedComponent,crate::DecodeError>)->bool {
     part2_cold_framed(|events|part2_planned_component_run(size,styles,quantizations,roi,component,selection,policy,precincts,total,limits,events),result)
 }
 pub(crate) proof fn part2_planned_component_frames(size:&crate::codestream::ImageSize,styles:&crate::codestream::ComponentCodingStyles,
-    quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,component:u16,selection:(u16,u8),policy:(bool,u8,bool),
+    quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,component:u16,selection:(u16,u8),policy:(bool,u8,bool,bool),
     precincts:Seq<Part1PacketPrecinctState>,total:u64,limits:&crate::ResourceLimits,result:Result<Part2PlannedComponent,crate::DecodeError>)
     requires part2_planned_component_result(size,styles,quantizations,roi,component,selection,policy,precincts,total,limits,result),
     ensures part2_cold_framed(|events|part2_planned_component_run(size,styles,quantizations,roi,component,selection,policy,precincts,total,limits,events),result),
@@ -218,7 +218,7 @@ pub(crate) proof fn part2_planned_component_frames(size:&crate::codestream::Imag
     part2_decode_eta(|events|part2_planned_component_run(size,styles,quantizations,roi,component,selection,policy,precincts,total,limits,events),result);
 }
 pub(crate) proof fn part2_planned_component_normal(size:&crate::codestream::ImageSize,styles:&crate::codestream::ComponentCodingStyles,
-    quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,component:u16,selection:(u16,u8),policy:(bool,u8,bool),
+    quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,component:u16,selection:(u16,u8),policy:(bool,u8,bool,bool),
     precincts:Seq<Part1PacketPrecinctState>,total:u64,limits:&crate::ResourceLimits)
     ensures part2_planned_component_result(size,styles,quantizations,roi,component,selection,policy,precincts,total,limits,
         part2_planned_component_owned(size,styles,quantizations,roi,component,selection,policy,precincts,total,limits)),
@@ -237,7 +237,7 @@ pub(crate) proof fn part2_planned_component_normal(size:&crate::codestream::Imag
             Part2ComponentPlanBuffers {precincts,placements:Seq::empty(),planned_code_blocks:total},rest),meta,result);
 }
 pub(crate) proof fn part2_planned_component_metadata_error(size:&crate::codestream::ImageSize,styles:&crate::codestream::ComponentCodingStyles,
-    quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,component:u16,selection:(u16,u8),policy:(bool,u8,bool),
+    quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,component:u16,selection:(u16,u8),policy:(bool,u8,bool,bool),
     precincts:Seq<Part1PacketPrecinctState>,total:u64,limits:&crate::ResourceLimits,error:crate::DecodeError)
     requires part2_component_metadata_result(size,styles,quantizations,roi,component,selection,policy.2,Err(error)),
     ensures part2_planned_component_result(size,styles,quantizations,roi,component,selection,policy,precincts,total,limits,Err(error)),

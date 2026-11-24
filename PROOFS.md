@@ -6372,6 +6372,25 @@ accumulation while retaining the exact original payload fold and partial reader
 state on errors. The inlined MagSgn bit reader still performs its original
 byte-stuffing, physical/fill accounting and checked work-limit transitions.
 
+### Private HT cleanup checkpoint storage
+
+Full-image plans may retain the HT cleanup checkpoint in the existing compact
+word format. The actual reconstructed magnitude limbs, raw legacy bitplane
+field and flags determine whether the checkpoint fits; otherwise the original
+wide copy is retained. The storage model accounts separately for the packed
+word request or the original dense request, at the same cleanup frontier.
+The private routing bit is set only after the original dense constructor
+succeeds. Public planning and JPIP leave it disabled. All packet transactions
+continue to snapshot and roll back in the original order; a snapshot of a
+packed checkpoint materializes the same dense checkpoint copy as before.
+
+The current decoder output and public coefficient slices remain dense.
+Refinement loads every checkpoint field into the dense output allocation it
+already requires, then reads the initial significance flags before modifying
+that output. No additional dense materialization is needed for replay. This
+does not narrow the current output, the refinement discovery plane, or the
+legacy replay owner, and does not change entropy replay frequency.
+
 ### Guarded native neighbor aggregation
 
 Tier 1 neighbor summaries can aggregate significant/sign flags from three

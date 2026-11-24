@@ -600,14 +600,14 @@ pub(super) fn run_ht_significance_pass(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::specs::part2_plane_refinement_result(code_block_plane_view(cleanup_plane),ht_refinement_segment_view(&segment),refinement_passes,decoded_bitplanes,vertical_causal_context,
+    ensures crate::specs::part2_plane_refinement_result(cleanup_plane.view(),ht_refinement_segment_view(&segment),refinement_passes,decoded_bitplanes,vertical_causal_context,
         crate::limits::resource_work_limit(limits),ht_plane_outcome(result)),
         ht_plane_outcome(result)!=Err(DecodeError::AllocationFailed) ==> ht_plane_outcome(result) == crate::specs::ht_refinement_plane(
-        code_block_plane_view(cleanup_plane), ht_refinement_segment_view(&segment),
+        cleanup_plane.view(), ht_refinement_segment_view(&segment),
         refinement_passes, decoded_bitplanes, vertical_causal_context, crate::limits::resource_work_limit(limits)),
 ))]
 pub(super) fn decode_ht_refinement_plane(
-    cleanup_plane: &CodeBlockPlane,
+    cleanup_plane: super::ht_checkpoint::HtCheckpointRef<'_>,
     segment: HtRefinementSegment<'_>,
     refinement_passes: u8,
     decoded_bitplanes: u16,
@@ -615,13 +615,13 @@ pub(super) fn decode_ht_refinement_plane(
     limits: &ResourceLimits,
 ) -> Result<(CodeBlockPlane, Tier1PassStatistics), DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! {crate::specs::part2_plane_refinement_normal(code_block_plane_view(cleanup_plane),ht_refinement_segment_view(&segment),refinement_passes,decoded_bitplanes,vertical_causal_context,crate::limits::resource_work_limit(limits));}
+    proof! {crate::specs::part2_plane_refinement_normal(cleanup_plane.view(),ht_refinement_segment_view(&segment),refinement_passes,decoded_bitplanes,vertical_causal_context,crate::limits::resource_work_limit(limits));}
     if refinement_passes == 0 || refinement_passes > 2 || decoded_bitplanes < 2 {
         return Err(invalid_code_block());
     }
     let copied = cleanup_plane.duplicate(super::CoefficientStorageRole::RefinementOutput);
     #[cfg(verus_keep_ghost)]
-    proof! {if let Err(error)=copied {crate::specs::part2_plane_refinement_output_error(code_block_plane_view(cleanup_plane),ht_refinement_segment_view(&segment),refinement_passes,decoded_bitplanes,vertical_causal_context,crate::limits::resource_work_limit(limits),error);}}
+    proof! {if let Err(error)=copied {crate::specs::part2_plane_refinement_output_error(cleanup_plane.view(),ht_refinement_segment_view(&segment),refinement_passes,decoded_bitplanes,vertical_causal_context,crate::limits::resource_work_limit(limits),error);}}
     let output = copied?;
     #[cfg(verus_keep_ghost)]
     proof_decl! {let ghost initial_output=code_block_plane_view(&output);}
@@ -633,12 +633,13 @@ pub(super) fn decode_ht_refinement_plane(
         limits.maximum_work_units(),
     );
     #[cfg(verus_keep_ghost)]
-    proof! {if let Err(error)=reader_result{crate::specs::part2_plane_refinement_readers_error(code_block_plane_view(cleanup_plane),initial_output,ht_refinement_segment_view(&segment),
+    proof! {if let Err(error)=reader_result{crate::specs::part2_plane_refinement_readers_error(cleanup_plane.view(),initial_output,ht_refinement_segment_view(&segment),
     refinement_passes,decoded_bitplanes,vertical_causal_context,crate::limits::resource_work_limit(limits),error);}}
     let readers = reader_result?;
-    let flags = ht_collect_cleanup_significance(cleanup_plane.coefficients());
+    // The actual wide copy has the checkpoint's untouched coefficients here.
+    let flags = ht_collect_cleanup_significance(output.coefficients());
     #[cfg(verus_keep_ghost)]
-    proof! {if let Err(error)=flags{crate::specs::part2_plane_refinement_flags_error(code_block_plane_view(cleanup_plane),initial_output,
+    proof! {if let Err(error)=flags{crate::specs::part2_plane_refinement_flags_error(cleanup_plane.view(),initial_output,
     ht_refinement_segment_view(&segment),crate::tier1::ht_refinement_readers_view(&readers),refinement_passes,decoded_bitplanes,vertical_causal_context,
     crate::limits::resource_work_limit(limits),error);}}
     let cleanup_significant = flags?;
@@ -670,7 +671,7 @@ pub(super) fn decode_ht_refinement_plane(
         .output
         .duplicate(super::CoefficientStorageRole::RefinementDiscovery);
     #[cfg(verus_keep_ghost)]
-    proof! {if let Err(error)=discovered {crate::specs::part2_plane_refinement_discovery_error(code_block_plane_view(cleanup_plane),ht_refinement_segment_view(&segment),
+    proof! {if let Err(error)=discovered {crate::specs::part2_plane_refinement_discovery_error(cleanup_plane.view(),ht_refinement_segment_view(&segment),
     refinement_passes,decoded_bitplanes,vertical_causal_context,crate::limits::resource_work_limit(limits),initial_output,ht_refinement_core_view(&state),error);}}
     let significance_plane = discovered?;
     let output_height = state.output.height();

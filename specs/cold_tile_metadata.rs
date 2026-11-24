@@ -129,7 +129,7 @@ pub(crate) open spec fn part2_tile_after_metadata_run(size:&crate::codestream::I
     metadata:Part2TileDecodeMetadata,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2DecodedLayoutTile> {
     part2_jpip_snapshot_bind(part2_grid_plan_run(size,metadata.first.coding_style,&metadata.first.component_coding_styles,
         metadata.first.component_quantizations,&metadata.first.roi_shifts,(tile,match discard {None=>0u8,Some(level)=>level}),
-        (part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps)),limits,events),
+        (part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps),true),limits,events),
         |plan:Part2ProgressionTilePlan,rest|part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,plan,rest))
 }
 pub(crate) proof fn part2_tile_after_metadata_normal(size:&crate::codestream::ImageSize,tile:u16,parts:Seq<Part2OwnedTilePart>,caps:Option<(u32,Seq<u16>)>,
@@ -140,7 +140,7 @@ pub(crate) proof fn part2_tile_after_metadata_normal(size:&crate::codestream::Im
 {
     let result=part2_decode_tile_parts_owned(size,tile,parts,caps,discard,limits,prepared,initial,work);
     let select=(tile,match discard {None=>0u8,Some(level)=>level});
-    let policy=(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps));
+    let policy=(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps),true);
     let plan=part2_progression_tile_plan_owned(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,select,policy,limits);
     part2_grid_plan_normal(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,select,policy,limits);
     part2_grid_plan_frames(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,select,policy,limits,plan);
