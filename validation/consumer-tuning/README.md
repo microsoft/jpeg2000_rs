@@ -390,5 +390,6 @@ decode/drop lifecycles with zero in-process warmups. Wall time divided by 32
 includes amortized startup/input read; percentiles are across process means,
 not individual-decode tails. Ratios are Rust baseline over Rust candidate,
 reported separately per case, without a C++ comparator or pooled historical data.
+Artifact directories use `<case>/<mode>`; JSON keeps the `<case>:<mode>` ID.
 Use `native_sycc.py --qualify-only --output target/<fresh-name>` for untimed
 local output qualification on a supported Linux host.

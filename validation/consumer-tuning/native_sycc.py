@@ -53,7 +53,7 @@ def fixtures(evidence):
             raise ValueError(f"input hash mismatch: {name}")
         (dst / name).write_bytes(data)
     return [
-        {"id": f'{case["id"]}:{mode}', "mode": mode,
+        {"id": f'{case["id"]}:{mode}', "name": case["id"], "mode": mode,
          "fixture": f'fixtures/{case["fixture"]}.jp2',
          "input_sha256": manifest["fixtures"][case["fixture"]],
          "discard": case["discard"], "roi": case["roi"],
@@ -73,13 +73,18 @@ def command(pinned, binary, case, evidence, *, dump):
             *map(str, case["roi"] or [])]
 
 
+def artifact_prefix(directory, case, label):
+    # Keep the colon-delimited ID in JSON only; artifact uploads reject it in paths.
+    return directory / case["name"] / case["mode"] / label
+
+
 def qualify(binaries, cohort, evidence, pinned, env):
     qualified = []
     for case in cohort:
         name = case["id"]
         dumps = {}
         for label in native.BACKENDS:
-            prefix = evidence / "qualification" / name / label
+            prefix = artifact_prefix(evidence / "qualification", case, label)
             prefix.parent.mkdir(parents=True, exist_ok=True)
             argv = command(pinned, binaries[label], case, evidence, dump=True)
             with prefix.with_suffix(".stdout").open("xb") as stdout, \
@@ -111,7 +116,7 @@ def pair(binaries, cohort, qualified, evidence, pinned, env, pairs):
         for case in order:
             name = case["id"]
             for position, label in enumerate(labels):
-                prefix = evidence / "processes" / f"pair-{round_index:02d}" / name / label
+                prefix = artifact_prefix(evidence / "processes" / f"pair-{round_index:02d}", case, label)
                 argv = command(pinned, binaries[label], case, evidence, dump=False)
                 metrics = native.checked(argv, prefix, env=env, seconds=TIMEOUT)
                 if (metrics["wall_ns"] <= 0 or prefix.with_suffix(".stdout").stat().st_size
