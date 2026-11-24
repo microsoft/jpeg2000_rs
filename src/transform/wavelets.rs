@@ -49,6 +49,18 @@ pub fn inverse_9_7(
     high: &[i64],
     low_pass_first: bool,
 ) -> Result<Vec<i64>, DecodeError> {
+    inverse_fixed_line::<false>(low, high, low_pass_first)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_wavelet_sequence_result(low@,high@,low_pass_first,true,None,sequence_outcome(result)),
+        sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part1_inverse_nine_seven(low@, high@, low_pass_first),
+))]
+pub(super) fn inverse_fixed_line<const HORIZONTAL: bool>(
+    low: &[i64],
+    high: &[i64],
+    low_pass_first: bool,
+) -> Result<Vec<i64>, DecodeError> {
     #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
     crate::deadline::checkpoint()?;
     #[cfg(verus_keep_ghost)]
@@ -74,14 +86,21 @@ pub fn inverse_9_7(
         !low_pass_first,
         crate::refinement::nine_seven_scale(false),
     )?;
-    inverse_nine_seven_lifts(&mut output, low_pass_first)?;
+    // Scale with the original checks before inspecting the actual lifting
+    // inputs. One scan admits all four lifts; no changes to the scale passes.
+    if HORIZONTAL && super::rowwise::bounded(&output)? {
+        inverse_nine_seven_lifts::<true>(&mut output, low_pass_first)?;
+    } else {
+        inverse_nine_seven_lifts::<false>(&mut output, low_pass_first)?;
+    }
     Ok(output)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires BOUNDED ==> crate::specs::fixed_stage_bounded(old(samples)@,0),
     ensures (result, final(samples)@) == crate::specs::part1_nine_seven_lifting_prefix(old(samples)@, low_first, 4),
 ))]
-pub(super) fn inverse_nine_seven_lifts(
+pub(super) fn inverse_nine_seven_lifts<const BOUNDED: bool>(
     samples: &mut [i64],
     low_first: bool,
 ) -> Result<(), DecodeError> {
@@ -91,6 +110,7 @@ pub(super) fn inverse_nine_seven_lifts(
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant stage <= 4,
         original == old(samples)@,
+        BOUNDED ==> crate::specs::fixed_stage_bounded(samples@,stage as nat),
         crate::specs::part1_nine_seven_lifting_prefix(original, low_first, stage as nat) == (Ok(()), samples@),
         decreases 4 - stage,
     ))]
@@ -101,7 +121,12 @@ pub(super) fn inverse_nine_seven_lifts(
             !low_first
         };
         let factor = crate::refinement::nine_seven_lift(stage);
-        match inverse_lift(samples, target_even, InverseLiftingStep::Fixed(factor)) {
+        match inverse_lift_impl::<BOUNDED>(
+            samples,
+            target_even,
+            InverseLiftingStep::Fixed(factor),
+            stage,
+        ) {
             Ok(()) => {}
             Err(error) => {
                 #[cfg(verus_keep_ghost)]
@@ -201,8 +226,27 @@ pub(super) fn inverse_lift(
     target_even: bool,
     step: InverseLiftingStep,
 ) -> Result<(), DecodeError> {
+    inverse_lift_impl::<false>(samples, target_even, step, 0)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires BOUNDED ==> stage<4 && lifting_step_view(step)==(2u8,crate::specs::part1_nine_seven_lift(stage))
+        && crate::specs::fixed_stage_bounded(old(samples)@,stage as nat),
+    ensures (result, final(samples)@) == crate::specs::part1_lifting_prefix(
+        old(samples)@, target_even, lifting_step_view(step).0, lifting_step_view(step).1, old(samples).len() as nat,
+    ),
+        BOUNDED && result.is_ok() ==> crate::specs::fixed_stage_bounded(final(samples)@,stage as nat+1),
+))]
+fn inverse_lift_impl<const BOUNDED: bool>(
+    samples: &mut [i64],
+    target_even: bool,
+    step: InverseLiftingStep,
+    stage: u8,
+) -> Result<(), DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost original = samples@; }
+    #[cfg(verus_keep_ghost)]
+    proof! { if BOUNDED {crate::specs::fixed_stage_bound_grows(stage as nat);} }
     let mut index = 0_usize;
     #[cfg_attr(
         verus_keep_ghost,
@@ -210,6 +254,9 @@ pub(super) fn inverse_lift(
             invariant index <= samples.len(),
             original == old(samples)@,
             samples.len() == original.len(),
+            BOUNDED ==> stage<4 && lifting_step_view(step)==(2u8,crate::specs::part1_nine_seven_lift(stage))
+                && crate::specs::fixed_stage_bounded(original,stage as nat)
+                && crate::specs::fixed_stage_bounded(samples@,stage as nat+1),
             forall |i: int| 0 <= i < samples.len() && (i >= index || (i % 2 == 0) != target_even) ==>
                 samples[i] == original[i],
             crate::specs::part1_lifting_prefix(
@@ -226,8 +273,16 @@ pub(super) fn inverse_lift(
             crate::proofs::production_impl::production_lifting_sample_frame(
                 original, samples@, index as nat, target_even, lifting_step_view(step).0, lifting_step_view(step).1,
             );
+            if BOUNDED {
+                assert forall |i:int| 0<=i<samples.len() && (i>=index || (i%2==0)!=target_even) implies
+                    -crate::specs::rowwise_fixed_bound(stage as nat)<=#[trigger] samples[i]<=crate::specs::rowwise_fixed_bound(stage as nat) by {
+                    assert(samples[i]==original[i]);
+                    assert(-crate::specs::rowwise_fixed_bound(stage as nat)<=original[i]<=crate::specs::rowwise_fixed_bound(stage as nat));
+                }
+            }
         }
-        let value = match inverse_lifting_value(samples, index, target_even, step) {
+        let value = match inverse_lifting_value::<BOUNDED>(samples, index, target_even, step, stage)
+        {
             Ok(value) => value,
             Err(error) => {
                 #[cfg(verus_keep_ghost)]
@@ -251,18 +306,27 @@ pub(super) fn inverse_lift(
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires index < samples.len(),
+        BOUNDED ==> stage<4 && lifting_step_view(step)==(2u8,crate::specs::part1_nine_seven_lift(stage))
+            && forall |i:int| 0<=i<samples.len() && (i>=index || (i%2==0)!=target_even) ==>
+                -crate::specs::rowwise_fixed_bound(stage as nat)<=#[trigger] samples[i]<=crate::specs::rowwise_fixed_bound(stage as nat),
     ensures result == crate::specs::part1_lifting_sample(
         samples@, index as nat, target_even, lifting_step_view(step).0, lifting_step_view(step).1,
     ),
+        BOUNDED ==> result.is_ok() &&
+            -crate::specs::rowwise_fixed_bound(stage as nat+1)<=(result->Ok_0)<=crate::specs::rowwise_fixed_bound(stage as nat+1),
 ))]
-fn inverse_lifting_value(
+fn inverse_lifting_value<const BOUNDED: bool>(
     samples: &[i64],
     index: usize,
     target_even: bool,
     step: InverseLiftingStep,
+    stage: u8,
 ) -> Result<i64, DecodeError> {
     #[cfg(verus_keep_ghost)]
-    proof! { crate::proofs::production_impl::production_index_parity(index); }
+    proof! {
+        crate::proofs::production_impl::production_index_parity(index);
+        if BOUNDED {crate::specs::fixed_stage_bound_grows(stage as nat);}
+    }
     if (index & 1 == 0) != target_even || samples.len() <= 1 {
         return Ok(samples[index]);
     }
@@ -276,7 +340,54 @@ fn inverse_lifting_value(
     } else {
         samples[index - 1]
     };
+    if BOUNDED {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let l=if index==0{1int}else{index-1};
+            let r=if index+1<samples.len(){index as int+1}else{index-1};
+            assert((l%2==0)!=target_even && (r%2==0)!=target_even);
+            assert(left==samples[l] && right==samples[r]);
+        }
+        if let InverseLiftingStep::Fixed(factor) = step {
+            return Ok(fixed_97_bounded(samples[index], left, right, factor, stage));
+        }
+    }
     inverse_lifting_neighbors(samples[index], left, right, step)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires _stage<4, factor==crate::specs::part1_nine_seven_lift(_stage),
+        -crate::specs::rowwise_fixed_bound(_stage as nat)<=current<=crate::specs::rowwise_fixed_bound(_stage as nat),
+        -crate::specs::rowwise_fixed_bound(_stage as nat)<=left<=crate::specs::rowwise_fixed_bound(_stage as nat),
+        -crate::specs::rowwise_fixed_bound(_stage as nat)<=right<=crate::specs::rowwise_fixed_bound(_stage as nat),
+    ensures crate::specs::rowwise_fixed_neighbors(current,left,right,_stage)==Ok(result),
+        -crate::specs::rowwise_fixed_bound(_stage as nat+1)<=result<=crate::specs::rowwise_fixed_bound(_stage as nat+1),
+))]
+#[inline]
+fn fixed_97_bounded(current: i64, left: i64, right: i64, factor: i64, _stage: u8) -> i64 {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::rowwise_fixed_neighbors_bound(current,left,right,_stage);
+        assert(FIXED_ONE == 65536) by(compute);
+        if _stage==0 {} else if _stage==1 {} else if _stage==2 {} else { assert(_stage==3); }
+        assert(0<crate::specs::rowwise_fixed_bound(_stage as nat)<=2199023255552);
+        assert(-131071<=factor<=131071);
+    }
+    let sum = left + right;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let bound=crate::specs::rowwise_fixed_bound(_stage as nat);
+        crate::specs::rowwise_fixed_product_bound(sum,factor,(2*bound) as i64);
+        assert(crate::specs::part1_fixed_product(sum,factor).is_ok());
+    }
+    let product = sum * factor;
+    let biased = product + FIXED_ONE / 2;
+    let adjustment = crate::refinement::fixed_round_q16(biased);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::specs::part1_fixed_product(sum,factor)==Ok(adjustment));
+    }
+    current - adjustment
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

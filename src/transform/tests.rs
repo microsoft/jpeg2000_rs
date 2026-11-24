@@ -1964,6 +1964,78 @@ fn complete_plane_rejections_preserve_late_band_checks_and_resource_order() {
 }
 
 #[test]
+fn horizontal_nine_seven_scaled_bound_and_roi_match_wide_reference() {
+    let limits = ResourceLimits::default();
+    let bound = 1_i64 << 30;
+    for width in [1, 2, 5, 1025] {
+        for first in [true, false] {
+            let low_width = (width + u32::from(first)) / 2;
+            // The high scale is <1, so each of these exact scaled integers
+            // can be reached on either side of the inclusive admission limit.
+            for scaled in [bound - 1, bound, bound + 1, -bound + 1, -bound, -bound - 1] {
+                let high = (scaled * 65536 + 26637).div_euclid(53274);
+                assert_eq!(reference_scale(&[high], true, 53274).1, [scaled]);
+                let low_samples: Vec<_> = (0..low_width).map(|i| i64::from(i % 5) - 2).collect();
+                let high_samples = vec![high; (width - low_width) as usize];
+                let low = WaveletBand {
+                    width: low_width,
+                    height: 1,
+                    samples: &low_samples,
+                };
+                let high = WaveletBand {
+                    width: width - low_width,
+                    height: 1,
+                    samples: &high_samples,
+                };
+                assert_eq!(
+                    observed_reconstruction(inverse_horizontal_9_7(
+                        low, high, width, first, &limits
+                    )),
+                    reference_horizontal(
+                        low,
+                        high,
+                        width,
+                        first,
+                        true,
+                        limits.maximum_decoded_bytes()
+                    ),
+                    "width={width} first={first} scaled={scaled}",
+                );
+            }
+        }
+    }
+
+    // Large restored ROI magnitudes exceed the line bound after quantization.
+    let restored = inverse_quantize(
+        &[1 << 33, -(1 << 32), 3],
+        QuantizationStep {
+            exponent: 24,
+            mantissa: 0,
+        },
+        24,
+        false,
+        4,
+        &limits,
+    )
+    .unwrap();
+    assert!(restored.samples()[0] > bound);
+    for high in [[0, 1], [i64::MIN, 1]] {
+        assert_eq!(
+            wavelets::inverse_fixed_line::<true>(restored.samples(), &high, true),
+            reference_sequence(restored.samples(), &high, true, true),
+        );
+    }
+    assert_eq!(
+        crate::allocation::with_refusal(0, || wavelets::inverse_fixed_line::<true>(
+            &[i64::MIN],
+            &[0],
+            true
+        )),
+        Err(DecodeError::AllocationFailed),
+    );
+}
+
+#[test]
 fn complete_scaling_lifting_and_column_store_states_match_independent_arithmetic() {
     for input in [
         vec![],
@@ -1974,7 +2046,7 @@ fn complete_scaling_lifting_and_column_store_states_match_independent_arithmetic
         for low_first in [false, true] {
             let expected = reference_nine_seven_lifts(&input, low_first);
             let mut actual = input.clone();
-            let status = inverse_nine_seven_lifts(&mut actual, low_first);
+            let status = inverse_nine_seven_lifts::<false>(&mut actual, low_first);
             assert_eq!((status, actual), expected);
             for factor in [80621, 53274, -1, i64::MAX] {
                 let expected = reference_scale(&input, low_first, factor);

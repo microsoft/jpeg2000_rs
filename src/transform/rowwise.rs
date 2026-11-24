@@ -17,7 +17,7 @@ pub(super) use fixed::inverse as inverse_fixed;
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == Ok(crate::specs::rowwise_bounded(samples@)),
 ))]
-fn bounded(samples: &[i64]) -> Result<bool, DecodeError> {
+pub(super) fn bounded(samples: &[i64]) -> Result<bool, DecodeError> {
     let mut index = 0;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant index <= samples.len(),

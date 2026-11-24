@@ -222,6 +222,17 @@ uniform bounds are `2^32` after both scaling passes, then `2^35`, `2^38`,
 `2^41` and `2^44`. Products, the positive Q16 rounding bias, arithmetic shifts
 and every subtraction fit the original checked integer range on admitted input.
 
+The standard horizontal 9/7 child leaves scaling checked and inspects the
+actual scaled line before the four lifting stages. It reuses the inclusive
+`[-2^30, 2^30]` scanner and the vertical stage bounds (`2^32` through `2^44`)
+to prove the scalar sum, product, bias and subtraction on the admitted route.
+The bounded and checked specialization use the same lift traversal and
+lifting-prefix contract, including reflected neighbors and unchanged parity.
+On refusal the original checked lifts run without mutation by admission.
+There is no change to allocation or resource charging, public standalone
+sequence dispatch, or vertical arithmetic. The scan adds one polling pass;
+the scale and lift polling boundaries are unchanged.
+
 `specs/rowwise_wavelet.rs` and `specs/rowwise_fixed_wavelet.rs` describe those
 independently bounded traversals and their single actual
 `Columns` capacity event. The existing cold plane/level composition selects it

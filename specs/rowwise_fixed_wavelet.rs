@@ -33,6 +33,16 @@ pub(crate) open spec fn rowwise_fixed_bound(stage:nat)->int {
     if stage==0{4294967296}else if stage==1{34359738368}
     else if stage==2{274877906944}else if stage==3{2199023255552}else{17592186044416}
 }
+pub(crate) open spec fn fixed_stage_bounded(samples:Seq<i64>, stage:nat)->bool {
+    forall|i:int| 0<=i<samples.len() ==>
+        -rowwise_fixed_bound(stage)<=#[trigger] samples[i]<=rowwise_fixed_bound(stage)
+}
+pub(crate) proof fn fixed_stage_bound_grows(stage:nat)
+    requires stage<4,
+    ensures rowwise_fixed_bound(stage)<=rowwise_fixed_bound(stage+1),
+{
+    if stage==0 {} else if stage==1 {} else if stage==2 {} else { assert(stage==3); }
+}
 pub(crate) open spec fn rowwise_scale_bound(low:bool)->int {
     if low{1073741824}else{2147483648}
 }
