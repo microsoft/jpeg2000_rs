@@ -23,7 +23,7 @@ on:
           - '4'
           - '6'
       consumer_benchmark_scope:
-        description: Standalone study or supplied actual zune/PDFium consumer
+        description: Standalone study, native revision comparison, or supplied actual consumer
         required: false
         type: choice
         default: standalone
@@ -32,11 +32,25 @@ on:
           - zune
           - pdfium
           - zune-acceptance
+          - native-comparison
       consumer_evidence_run:
         description: Prior actual-zune run for fixed-corpus artifact execution
         required: false
         type: string
         default: ''
+      native_baseline:
+        description: Same-repository baseline commit (40 lowercase hex; native-comparison only)
+        type: string
+      native_candidate:
+        description: Same-repository candidate commit (40 lowercase hex; native-comparison only)
+        type: string
+      native_pairs:
+        description: Paired fresh processes per case (native-comparison only)
+        type: choice
+        default: '8'
+        options:
+          - '8'
+          - '24'
 
 permissions:
   contents: read
@@ -73,6 +87,59 @@ jobs:
           path: target/consumer-tuning
           retention-days: 30
           if-no-files-found: error
+
+  native-candidate-comparison:
+    name: Focused native revision comparison (${{ matrix.arch }})
+    if: github.event_name == 'workflow_dispatch' && inputs.consumer_benchmark && inputs.consumer_benchmark_scope == 'native-comparison'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.13'
+      - name: Validate opt-in revision and pairing inputs
+        env:
+          BASELINE: ${{ inputs.native_baseline }}
+          CANDIDATE: ${{ inputs.native_candidate }}
+          PAIRS: ${{ inputs.native_pairs }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          python3 validation/consumer-tuning/native_comparison.py \
+            --baseline "$BASELINE" --candidate "$CANDIDATE" --pairs "$PAIRS" \
+            --arch "$ARCH" --output target/native-comparison --validate-inputs
+      - name: Pin native final consumer compiler and check driver guards
+        run: |
+          rustup toolchain install 1.93.1 --profile minimal
+          python3 -m unittest discover -s validation/consumer-tuning -p 'test_native_comparison.py' -v
+      - name: Qualify native output, then measure paired consumers
+        env:
+          BASELINE: ${{ inputs.native_baseline }}
+          CANDIDATE: ${{ inputs.native_candidate }}
+          PAIRS: ${{ inputs.native_pairs }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          python3 validation/consumer-tuning/native_comparison.py \
+            --baseline "$BASELINE" --candidate "$CANDIDATE" --pairs "$PAIRS" \
+            --arch "$ARCH" --output target/native-comparison
+      - name: Preserve focused raw qualification and process evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: native-comparison-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/native-comparison/evidence
+          retention-days: 30
+          if-no-files-found: warn
 
   zune-consumer-fixtures:
     name: Verify supplied historical zune inputs
