@@ -34,6 +34,7 @@ on:
           - zune-acceptance
           - native-comparison
           - native-requested-sycc
+          - native-selected-parts
       consumer_evidence_run:
         description: Prior actual-zune run for fixed-corpus artifact execution
         required: false
@@ -183,6 +184,50 @@ jobs:
         with:
           name: native-requested-sycc-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/native-requested-sycc/evidence
+          retention-days: 30
+          if-no-files-found: warn
+
+  native-selected-parts:
+    name: Selected tile parts native comparison (${{ matrix.arch }})
+    if: github.event_name == 'workflow_dispatch' && inputs.consumer_benchmark && inputs.consumer_benchmark_scope == 'native-selected-parts'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.13'
+      - name: Pin native compiler and test selected-parts driver
+        run: |
+          rustup toolchain install 1.93.1 --profile minimal
+          python3 -B -m unittest discover -s validation/consumer-tuning -p 'test_native_selected_parts.py' -v
+      - name: Compare literal selected output before paired measurement
+        env:
+          BASELINE: ${{ inputs.native_baseline }}
+          CANDIDATE: ${{ inputs.native_candidate }}
+          PAIRS: ${{ inputs.native_pairs }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          python3 -B validation/consumer-tuning/native_selected_parts.py \
+            --baseline "${BASELINE:-9279e2bad720511c2187a3602eda361ebf037287}" \
+            --candidate "${CANDIDATE:-e21eb47936be4c6310a38498df5ab255a2648cbf}" \
+            --pairs "$PAIRS" --arch "$ARCH" --output target/native-selected-parts
+      - name: Preserve selected output, native compiler and raw process evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-selected-parts-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/native-selected-parts/evidence
           retention-days: 30
           if-no-files-found: warn
 

@@ -392,3 +392,28 @@ not individual-decode tails. Ratios are Rust baseline over Rust candidate,
 reported separately per case, without a C++ comparator or pooled historical data.
 Use `native_sycc.py --qualify-only --output target/<fresh-name>` for untimed
 local output qualification on a supported Linux host.
+
+### Selected tile parts (#481)
+
+The opt-in `ci.yml` scope `native-selected-parts` compares the pinned
+`9279e2b` and `e21eb47` Rust revisions on native x86-64 and ARM64 Linux.
+Set `consumer_benchmark=true` and choose 8 or 24 `native_pairs`. The same
+upstream reachability and compiler checks apply as for `native-comparison`.
+
+Both revisions must match an independent literal oracle for every public
+`decode_codestream_selected` field, on both [fixtures](native-selected-parts/)
+with both full and last-pixel ROI selections, and pass the probe's negative
+self-check. The timed cases are grouped full, interleaved full, and
+interleaved ROI. Alternating sides run in fresh processes bound to one CPU.
+Each child reports one batch of 512 complete decode-and-drop iterations after
+two untimed warmups. Batch nanoseconds divided by 512 exclude startup, input
+read, and warmups. Tails are across child batch means; GNU time CPU, RSS,
+faults, and context switches cover the whole child. No C++ comparison,
+outlier exclusion, or broad integration claim is made.
+
+For untimed local qualification on a supported Linux host:
+
+```sh
+python3 -B validation/consumer-tuning/native_selected_parts.py \
+  --qualify-only --output target/native-selected-parts-preflight
+```
