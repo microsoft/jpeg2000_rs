@@ -72,13 +72,25 @@ def main():
         summary = load(args.results / "performance-summary.json")
         save("performance-summary.json", summary)
         with (args.output / "per-case.tsv").open("w") as file:
-            fields = ("source", "id", "group", "backend", "ms", "p90_ms", "candidate_over_base")
+            fields = ("source", "id", "group", "backend", "ms", "p90_ms", "candidate_over_base", "p90_candidate_over_base")
             writer = csv.DictWriter(file, fields, delimiter="\t")
             writer.writeheader()
             for case in summary["per_case"]:
                 for backend, value in case["backends"].items():
                     writer.writerow(dict(source=case["source"], id=case["id"], group=case["group"],
-                                         backend=backend, **{k: value[k] for k in ("ms", "p90_ms", "candidate_over_base")}))
+                                         backend=backend, **{k: value[k] for k in ("ms", "p90_ms", "candidate_over_base", "p90_candidate_over_base")}))
+        for label, result in source_results.items():
+            cases = [case for case in summary["per_case"] if case["source"] == label]
+            assert len(cases) == 65
+            result["performance"] = dict(
+                cases=len(cases),
+                rust_median_rows_over_5_percent=sum(row["source"] == label for row in summary["adverse_over_5_percent"]),
+                rust_p90_rows_over_5_percent=sum(row["source"] == label and row["backend"] != "openjpeg"
+                                                for row in summary["adverse_p90_over_5_percent"]),
+                unchanged_cpp_median_rows_over_5_percent=sum(row["source"] == label
+                                                           for row in summary["adverse_openjpeg_control_over_5_percent"]),
+                unchanged_cpp_p90_rows_over_5_percent=sum(row["source"] == label and row["backend"] == "openjpeg"
+                                                        for row in summary["adverse_p90_over_5_percent"]))
     receipt = dict(
         phase="functional-only" if args.functional_only else "complete",
         source_results=source_results, image_requests_per_source=310,
@@ -94,6 +106,9 @@ def main():
         performance_note="Original65-workload selection,3 rounds,7 image/5 PDF timed reps,3 warmups,CPU2; source and backend orders rotate. Base block shared across heads; comparisons correlated/descriptive, not independent confirmatory CIs.",
         rss_note="Original consumer protocol captures elapsed p50/p90 and a2GiB data cap; no new per-process RSS attribution is fabricated.",
         merge_authorization=False, runtime_modified=False, replacement_gate=False)
+    if summary is not None:
+        receipt["timed_processes"] = summary["timed_processes"]
+        receipt["source_case_rounds"] = summary["source_case_rounds"]
     receipt["files"] = {str(p.relative_to(args.output)): hashlib.sha256(p.read_bytes()).hexdigest()
                         for p in sorted(args.output.rglob("*")) if p.is_file() and p.name != "receipt.json"}
     save("receipt.json", receipt)

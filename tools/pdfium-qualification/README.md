@@ -141,6 +141,14 @@ geometry/color and pixels. Exact input materialization and ten independent
 reference controls also pass. See `frozen/bundle-verification.json`.
 This validates the transfer, **not an untested performance PR head**.
 
+New native N2 execution of the common base and exact heads #485/#486/#488/
+#489, including the complete functional gate and original65-workload
+performance study, is published in
+[`runs/exact-heads-20261124`](runs/exact-heads-20261124/README.md).
+These source-bound receipts resolve the evaluator-access blocker; they do
+not waive the documented adverse tails, feature-specific gates or owner
+tradeoff/merge decisions.
+
 Run base and candidate in separate result directories with the same materialized
 cohort. Historical Rust results are not a substitute for each current PR base.
 

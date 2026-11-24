@@ -188,6 +188,13 @@ def performance(args):
 
 def summarize(args):
     rows = load(args.results / "performance.json")
+    sources = load(args.sources)
+    selection = load(BUNDLE / "frozen/benchmark-selection.json")
+    expected = {(label, ident, round_number + 1)
+                for label in sources for ident in selection["selected"]
+                for round_number in range(selection["rounds"])}
+    assert len(rows) == len(expected)
+    assert {(row["source"], row["id"], row["round"]) for row in rows} == expected
     groups = collections.defaultdict(list)
     for row in rows:
         groups[(row["source"], row["id"])].append(row)
@@ -198,18 +205,31 @@ def summarize(args):
         base = groups[("Base", ident)]
         for backend in BACKENDS:
             ratios = [float(v[backend]["p50_us"]) / float(next(b for b in base if b["round"] == v["round"])[backend]["p50_us"]) for v in values]
+            tail_ratios = [float(v[backend]["p90_us"]) / float(next(b for b in base if b["round"] == v["round"])[backend]["p90_us"]) for v in values]
             value["backends"][backend] = dict(ms=statistics.median(float(v[backend]["p50_us"]) / 1000 for v in values),
                                                candidate_over_base=statistics.median(ratios),
                                                per_round_ratios=ratios,
+                                               p90_candidate_over_base=statistics.median(tail_ratios),
+                                               per_round_p90_ratios=tail_ratios,
                                                p90_ms=statistics.median(float(v[backend]["p90_us"]) / 1000 for v in values))
         output.append(value)
     adverse = [dict(source=i["source"], id=i["id"], backend=b, **v)
                for i in output if i["source"] != "Base" for b, v in i["backends"].items()
                if b != "openjpeg" and v["candidate_over_base"] > 1.05]
+    control_adverse = [dict(source=i["source"], id=i["id"], backend="openjpeg", **i["backends"]["openjpeg"])
+                       for i in output if i["source"] != "Base"
+                       and i["backends"]["openjpeg"]["candidate_over_base"] > 1.05]
+    tail_adverse = [dict(source=i["source"], id=i["id"], backend=b, **v)
+                    for i in output if i["source"] != "Base" for b, v in i["backends"].items()
+                    if v["p90_candidate_over_base"] > 1.05]
     save(args.results / "performance-summary.json", dict(
         per_case=output, adverse_over_5_percent=adverse,
-        note="Three-round original protocol; common-base block is shared by heads, so comparisons are correlated and descriptive. No case dropped, no repeat confirmation substituted. Flags above1.05 require review, not automatic causal attribution or rejection."))
-    print("All adverse median rows retained:", len(adverse), flush=True)
+        adverse_openjpeg_control_over_5_percent=control_adverse,
+        adverse_p90_over_5_percent=tail_adverse,
+        source_case_rounds=len(rows), timed_processes=len(rows) * len(BACKENDS),
+        note="Three-round original protocol; common-base block is shared by heads, so comparisons are correlated and descriptive. Ratios are medians of same-round candidate/base ratios, separately for p50 and p90. Seven/five samples make p90 near/max-sample, not a population tail estimate. No case dropped, no repeat confirmation substituted. Flags above1.05 require review, not automatic causal attribution or rejection."))
+    print("Adverse rows retained: Rust medians", len(adverse),
+          "unchanged-C++ medians", len(control_adverse), "all-backend p90", len(tail_adverse), flush=True)
 
 
 if __name__ == "__main__":

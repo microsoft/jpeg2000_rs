@@ -1,40 +1,75 @@
 {
-  "phase": "functional-only",
+  "phase": "complete",
   "source_results": {
     "Base": {
       "source": "54abff44a778b6c210d580770286a531370550b6",
       "functional_gate": "PASS",
       "differences": 0,
       "represented_outcomes": 7563,
-      "actual_processes": 7563
+      "actual_processes": 7563,
+      "performance": {
+        "cases": 65,
+        "rust_median_rows_over_5_percent": 0,
+        "rust_p90_rows_over_5_percent": 0,
+        "unchanged_cpp_median_rows_over_5_percent": 0,
+        "unchanged_cpp_p90_rows_over_5_percent": 0
+      }
     },
     "Pr485": {
       "source": "09962930ea9982d253f91b605c5f311de4f7a9be",
       "functional_gate": "PASS",
       "differences": 0,
       "represented_outcomes": 7563,
-      "actual_processes": 5042
+      "actual_processes": 5042,
+      "performance": {
+        "cases": 65,
+        "rust_median_rows_over_5_percent": 0,
+        "rust_p90_rows_over_5_percent": 5,
+        "unchanged_cpp_median_rows_over_5_percent": 1,
+        "unchanged_cpp_p90_rows_over_5_percent": 6
+      }
     },
     "Pr486": {
       "source": "5d548158a6be8d20e4ec0aff946724453701e3db",
       "functional_gate": "PASS",
       "differences": 0,
       "represented_outcomes": 7563,
-      "actual_processes": 5042
+      "actual_processes": 5042,
+      "performance": {
+        "cases": 65,
+        "rust_median_rows_over_5_percent": 0,
+        "rust_p90_rows_over_5_percent": 5,
+        "unchanged_cpp_median_rows_over_5_percent": 3,
+        "unchanged_cpp_p90_rows_over_5_percent": 6
+      }
     },
     "Pr488": {
       "source": "09b5006df6c4048c0676310d7a56db90ad510a6a",
       "functional_gate": "PASS",
       "differences": 0,
       "represented_outcomes": 7563,
-      "actual_processes": 5042
+      "actual_processes": 5042,
+      "performance": {
+        "cases": 65,
+        "rust_median_rows_over_5_percent": 0,
+        "rust_p90_rows_over_5_percent": 5,
+        "unchanged_cpp_median_rows_over_5_percent": 1,
+        "unchanged_cpp_p90_rows_over_5_percent": 7
+      }
     },
     "Pr489": {
       "source": "0dcd53fc6317747c5fd837b6264ff2b4ee276be1",
       "functional_gate": "PASS",
       "differences": 0,
       "represented_outcomes": 7563,
-      "actual_processes": 5042
+      "actual_processes": 5042,
+      "performance": {
+        "cases": 65,
+        "rust_median_rows_over_5_percent": 0,
+        "rust_p90_rows_over_5_percent": 2,
+        "unchanged_cpp_median_rows_over_5_percent": 1,
+        "unchanged_cpp_p90_rows_over_5_percent": 6
+      }
     }
   },
   "image_requests_per_source": 310,
@@ -52,12 +87,14 @@
     "original_llvm24": true,
     "compiler_flags": "actual O3/native/ThinLTO/linkO3, same-revision C/Rust halves and identical shim/FFI core archives"
   },
-  "performance": "pending",
+  "performance": "completed, all adverse rows retained for owner review",
   "performance_note": "Original65-workload selection,3 rounds,7 image/5 PDF timed reps,3 warmups,CPU2; source and backend orders rotate. Base block shared across heads; comparisons correlated/descriptive, not independent confirmatory CIs.",
   "rss_note": "Original consumer protocol captures elapsed p50/p90 and a2GiB data cap; no new per-process RSS attribution is fabricated.",
   "merge_authorization": false,
   "runtime_modified": false,
   "replacement_gate": false,
+  "timed_processes": 2925,
+  "source_case_rounds": 975,
   "files": {
     "Base/build-audit.json": "ffd08ccf56b7f615b779380e16f158aca66dc92d9e544d26cb2079897fcbb1a8",
     "Base/functional-gate.json": "8ddb37c202bc8b3e98bd0544e9f43170c8c5d90ad05e1fa805a6d5158845eccc",
@@ -79,10 +116,13 @@
     "Pr489/functional-gate.json": "b620c02d4a2bd493cd302e692f6852a5de2dc1853cf0b909b40c1f752f8d24fb",
     "Pr489/functionality.json": "730d6d555e0484182e91b0c9ee5a42a295609e1271155c827324558012c53142",
     "Pr489/references.json": "d3d1be1988c223ebad8220fcf4987d16d08788d6a648591cb6efe8ba173d8eb2",
-    "README.md": "320e1ab910bccfec12c8ecdc6fa866f27b87ba2922f1d0d37fdc47fb74228f11",
+    "README.md": "50b83da5c239af7c74eac489a26aa9ff9a174290f2b8e1c2c49c9a3489b2ef02",
     "diagnostic-parity.json": "5644f2e17cdba3287fc2c29ee4c858a2a1eb49533db471d0820ddf457445aadd",
     "environment.json": "bbbed71beaea9667b63a2cddf4faa8bbb2ef96d5c864c905eaa702eed8332b45",
     "materialization-verification.json": "721251f2a93ff03579c09160d405400d9df27339ccf13ca2c66ec6a9672180e8",
+    "per-case.tsv": "15665c0cbb53b3cb5943a80cbb7bd6e8e900d04f982339e845e6286114260425",
+    "performance-summary.json": "9a260e3e9047e7781f96a231d0a1d6acfef31fbb15cddeabb862cfa890ad9022",
+    "performance.json": "aa89feb205c8a863bb23ce844be348e2ebbd2d046e04cb66fa7dede9fe0e6b20",
     "sources.json": "44265804348ca9d8af36ed3fcf39d0c4715dbef262ed7c5b6795f04e563e7740",
     "targeted-tests.json": "8d96ea7a7f7ea8b4c610ccecb1fe99bb8bc70b2b5d4bf1474d3440537d89770a"
   }
