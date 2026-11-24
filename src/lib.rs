@@ -17,6 +17,13 @@ mod deadline;
 #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
 pub use deadline::with_decode_deadline;
 
+/// Whether this build of the decoder includes native cooperative deadline checkpoints.
+///
+/// This reflects the decoder's resolved features, including Cargo feature
+/// unification. It does not indicate whether a deadline scope is active.
+pub const COOPERATIVE_DEADLINES_ENABLED: bool =
+    cfg!(all(feature = "cooperative-deadlines", not(verus_keep_ghost)));
+
 #[cfg(all(verus_keep_ghost, feature = "pdf-mq-recovery"))]
 compile_error!(
     "pdf-mq-recovery is a native-only qualification profile; pinned Verus does not verify its scoped TLS policy. Verify without this opt-in feature."

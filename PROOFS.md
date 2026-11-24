@@ -57,6 +57,11 @@ retains the strong default contracts and five existing Rust-only adapter
 boundaries. It does not claim verification of the optional profile.
 
 A combined `verus_keep_ghost`/`cooperative-deadlines` build fails explicitly.
+The always-available `COOPERATIVE_DEADLINES_ENABLED` constant describes which
+core build includes native checkpoints, not whether a scope is active. The
+OpenJPEG C compatibility adapter uses it to preserve its repeated inspection
+checkpoints in that build. Core Verus results do not verify the C shim,
+the adapter's Rust FFI, or native clock/TLS effects.
 This prevents a successful proof receipt from silently dropping enabled clock
 checks. No blanket deadline alternative, caller availability premise, changed
 solver/pin/budget, trusted clock axiom or additional default-profile exclusion
