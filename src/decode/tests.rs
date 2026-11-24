@@ -8,10 +8,10 @@ use super::arithmetic::{arithmetic_overflow, invalid_decode};
 use super::code_blocks::collect_code_block_coefficients;
 use super::code_blocks::{decode_code_block, decode_subband};
 use super::execution::{
-    account_planned_tile, apply_prepared_component_transform, collect_tile_parts,
-    count_selected_component_blocks, decode_layout, decode_layout_selected,
+    SelectedTileParts, account_planned_tile, apply_prepared_component_transform,
+    collect_tile_parts, count_selected_component_blocks, decode_layout, decode_layout_selected,
     decode_planned_tile_components, decode_tile_parts_at, prepare_tile_decode_metadata,
-    reconstruct_planned_tile, validate_part2_execution,
+    reconstruct_planned_tile, select_tile_parts, validate_part2_execution,
 };
 use super::geometry::{
     derive_component_subbands, derive_packet_grid_for_components, quantization_step_for_subband,
@@ -2310,6 +2310,12 @@ fn actual_codec_output_is_identical_for_source_parts_and_independent_complete_ow
         let layout = parse_layout(&bytes, &ResourceLimits::HARDENED).unwrap();
         let copied = collect_tile_parts(&layout.tile_parts, 0).unwrap();
         assert_eq!(copied, layout.tile_parts);
+        let selected = select_tile_parts(&layout.tile_parts, 0).unwrap();
+        assert!(matches!(selected, SelectedTileParts::Borrowed(_)));
+        assert!(core::ptr::eq(
+            selected.as_slice(),
+            layout.tile_parts.as_slice()
+        ));
         for discard in [None, Some(0), Some(1), Some(2), Some(u8::MAX)] {
             for limit in &limits {
                 for initial in [(0, 0, 0), (1, 2, 3), (u64::MAX, 0, 0), (0, 0, u64::MAX)] {
@@ -2380,6 +2386,89 @@ fn actual_codec_output_is_identical_for_source_parts_and_independent_complete_ow
     }
     assert_eq!(cases, 1_440);
     assert!(successes > 10 && nonzero > 0);
+}
+
+#[test]
+fn contiguous_tile_collection_keeps_source_identity_and_real_refusal_order() {
+    let bytes = two_tile_codestream();
+    let layout = parse_layout(&bytes, &ResourceLimits::HARDENED).unwrap();
+    let mut sources = vec![
+        layout.tile_parts[0].clone(),
+        layout.tile_parts[1].clone(),
+        layout.tile_parts[1].clone(),
+        layout.tile_parts[0].clone(),
+    ];
+    // The classifier does not normalize, sort, or validate duplicate part indices.
+    sources[1].tile_part_index = 2;
+    sources[2].tile_part_index = 2;
+    let before = sources.clone();
+    crate::allocation::with_refusal(0, || {
+        let selected = select_tile_parts(&sources, 1).unwrap();
+        assert!(matches!(selected, SelectedTileParts::Borrowed(_)));
+        assert!(core::ptr::eq(selected.as_slice(), &sources[1..3]));
+        assert_eq!(selected.as_slice(), &before[1..3]);
+        let missing = select_tile_parts(&sources, 2).unwrap();
+        assert!(matches!(missing, SelectedTileParts::Owned(_)));
+        assert!(missing.as_slice().is_empty());
+        assert!(matches!(
+            select_tile_parts(&sources, 0),
+            Err(DecodeError::AllocationFailed)
+        ));
+        let retry = select_tile_parts(&sources, 0).unwrap();
+        assert!(matches!(retry, SelectedTileParts::Owned(_)));
+        assert_eq!(retry.as_slice(), &[before[0].clone(), before[3].clone()]);
+    });
+    assert_eq!(sources, before);
+}
+
+#[test]
+fn contiguous_tile_collection_preserves_malformed_part_failures_in_layout() {
+    let bytes = two_tile_codestream();
+    let limits = ResourceLimits::HARDENED;
+    let expected = DecodeError::MalformedInput {
+        offset: 0,
+        kind: MalformedKind::InvalidTilePart,
+    };
+    let selection = DecodeSelection::tile(1);
+    for duplicate in [false, true] {
+        let mut layout = parse_layout(&bytes, &limits).unwrap();
+        if duplicate {
+            let mut second = layout.tile_parts[1].clone();
+            second.tile_part_count = 0;
+            layout.tile_parts[1].tile_part_count = 0;
+            layout.tile_parts.push(second);
+        } else {
+            layout.tile_parts.pop();
+        }
+        assert_eq!(decode_layout(&layout, &limits), Err(expected));
+        assert_eq!(
+            decode_layout_selected(&layout, &selection, &limits),
+            Err(expected)
+        );
+        assert_eq!(
+            super::pdf_trailers::decode_trailer_layout(&layout, &selection, &limits).err(),
+            Some(expected),
+        );
+    }
+}
+
+#[cfg(feature = "cooperative-deadlines")]
+#[test]
+fn contiguous_tile_collection_checks_deadline_and_restores_retry() {
+    let bytes = two_tile_codestream();
+    let layout = parse_layout(&bytes, &ResourceLimits::HARDENED).unwrap();
+    let failure = crate::with_decode_deadline(
+        std::time::Instant::now() + std::time::Duration::from_millis(20),
+        || {
+            std::thread::sleep(std::time::Duration::from_millis(40));
+            let selected = select_tile_parts(&layout.tile_parts, 1);
+            assert!(matches!(selected, Err(DecodeError::DeadlineExceeded)));
+            selected.map(|_| ())
+        },
+    );
+    assert_eq!(failure, Err(DecodeError::DeadlineExceeded));
+    let selected = select_tile_parts(&layout.tile_parts, 1).unwrap();
+    assert!(core::ptr::eq(selected.as_slice(), &layout.tile_parts[1..]));
 }
 
 fn reference_complete_layout(

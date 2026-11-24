@@ -2769,6 +2769,10 @@ _TILE_COLLECTION_CONTRACTS = {
         "part2_collect_tile_parts", _coverage_call("collected_tile_parts_outcome", r"\1"), None,
         _coverage_call("codestream::tile_parts_owned_view", "parts@") + r"\s*,\s*tile",
     ),
+    ("src/decode/execution.rs", "select_tile_parts"): (
+        "part2_collect_tile_parts", _coverage_call("selected_tile_parts_outcome", r"\1"), None,
+        _coverage_call("codestream::tile_parts_owned_view", "parts@") + r"\s*,\s*tile",
+    ),
 }
 
 _RAW_TILE_DECODING_CONTRACTS = {
@@ -5589,6 +5593,9 @@ _COLD_RESULT_MODELS = {
     "part2_collect_tile_parts": (
         "part2_collected_parts_result", "specs/decoder_input.rs", "part2_collected_parts_normal",
     ),
+    "part2_select_tile_parts_run": (
+        "part2_select_tile_parts_result", "specs/decoder_input.rs", "part2_select_tile_parts_normal",
+    ),
     "part2_select_intersecting_tiles": (
         "part2_select_tiles_result", "specs/decoder_input.rs", "part2_select_tiles_normal",
     ),
@@ -6208,6 +6215,10 @@ _COLD_RESULT_CONTRACTS = {
 } | {
     ("src/jpip/precinct.rs", "validate_precinct_codestream"): (
         "part2_jpip_validate_precinct_cold_result", r"bytes@\s*,\s*layers\s*,\s*limits\s*,\s*\1",
+    ),
+    ("src/decode/execution.rs", "select_tile_parts"): (
+        "part2_select_tile_parts_result", _coverage_call("codestream::tile_parts_owned_view", "parts@")
+        + r"\s*,\s*tile\s*,\s*" + _coverage_call("selected_tile_parts_outcome", r"\1"),
     ),
 }
 _COLD_RESULT_CONTRACTS.update(_LEGACY_PACKET_STORAGE_CONTRACTS)
@@ -11214,12 +11225,12 @@ _PACKED_STORAGE_GUARDS = {
         "prepared:decoded.prepared,counters,mct_work:decoded.mct_work",
     ),
     ("specs/cold_decode_packets.rs", "part2_full_decode_run"): (
-        "part2_collected_parts_run(parts, tile as u16, events)",
+        "part2_select_tile_parts_run(parts, tile as u16, events)",
         "part2_tile_decode_run(size, tile as u16, selected, caps, None, limits, before.prepared, before.counters, before.mct_work, rest)",
         "part2_full_decode_run(size, parts, caps, limits, count, (tile + 1) as u64, after, tail)",
     ),
     ("specs/cold_decode_packets.rs", "part2_selected_decode_run"): (
-        "part2_collected_parts_run(parts, tiles[index as int], events)",
+        "part2_select_tile_parts_run(parts, tiles[index as int], events)",
         "part2_tile_decode_run(size, tiles[index as int], selected, caps, Some(discard), limits, before.prepared, before.counters, before.mct_work, rest)",
         "part2_selected_decode_run(size, parts, caps, tiles, region, discard, limits, index + 1, after, tail)",
     ),
@@ -12196,6 +12207,64 @@ def validate_normative_coverage(
                     raise ValueError("collected payload storage must not use allocating Clone")
                 if symbol == "collect_tile_parts" and body.index("if part.tile_index") > body.index("part.try_duplicate"):
                     raise ValueError("collected payload storage must filter before duplicating owners")
+            for relative, symbol, required in (
+                ("src/decode/execution.rs", "select_tile_parts", (
+                    "let bounds = contiguous_tile_run(parts, tile)?",
+                    "let slice = parts.get(start..end).ok_or_else(invalid_decode)?",
+                    "part2_tile_run_value(source, tile, start as int, end as int)",
+                    "Ok(SelectedTileParts::Borrowed(slice))",
+                    "None => { let owned = collect_tile_parts(parts, tile)",
+                    "Ok(SelectedTileParts::Owned(owned?))",
+                )),
+                ("src/decode/execution.rs", "contiguous_tile_run", (
+                    "while index < parts.len()", "checkpoint_periodic(index)?",
+                    "if parts[index].tile_index == tile", "start = index",
+                    "else if end != index", "return Ok(None)", "end = index + 1",
+                    "checkpoint()?", "Ok(Some((start, end)))",
+                )),
+                ("src/decode/execution.rs", "SelectedTileParts::as_slice", (
+                    "Self::Borrowed(slice) => slice", "Self::Owned(parts) => parts.as_slice()",
+                )),
+                ("src/decode/execution.rs", "decode_layout", (
+                    "let collected = select_tile_parts(&layout.tile_parts, tile_index)",
+                    "part2_select_tile_parts_run(source.parts,tile_index,events)",
+                    "match selected_tile_parts_outcome(collected)",
+                    "let tile_parts = collected?; let tile_parts = tile_parts.as_slice()",
+                    "decode_tile_parts_at(&layout.info.image_size, tile_index, tile_parts,",
+                )),
+                ("src/decode/execution.rs", "decode_layout_selected", (
+                    "let collected = select_tile_parts(&layout.tile_parts, tile_index)",
+                    "part2_select_tile_parts_run(source.parts,tile_index,events)",
+                    "match selected_tile_parts_outcome(collected)",
+                    "let tile_parts = collected?; let tile_parts = tile_parts.as_slice()",
+                    "decode_tile_parts_at(&layout.info.image_size, tile_index, tile_parts,",
+                )),
+                ("src/decode/pdf_trailers.rs", "decode_trailer_layout", (
+                    "let collected = select_tile_parts(&layout.tile_parts, tile)",
+                    "part2_select_tile_parts_run(source.parts, tile, events)",
+                    "match selected_tile_parts_outcome(collected)",
+                    "let parts = collected?; let parts = parts.as_slice()",
+                    "decode_trailer_tile(&layout.info.image_size, tile, parts,",
+                )),
+                ("specs/decoder_input.rs", "part2_select_tile_parts_run", (
+                    "if part2_has_contiguous_tile_run(parts, tile) { Some((part2_collect_tile_parts(parts, tile), events)) }",
+                    "else { part2_collected_parts_run(parts, tile, events) }",
+                )),
+                ("specs/pdf_trailers.rs", "part2_trailer_selected_run", (
+                    "part2_jpip_snapshot_bind(part2_select_tile_parts_run(parts, tiles[index as int], events)",
+                    "part2_trailer_tile_run(size, tiles[index as int], selected, caps,",
+                )),
+            ):
+                path = (ROOT / relative).resolve()
+                text = source_text(path)
+                body = (_coverage_function_body(text, function_header(path, symbol))
+                        if relative.startswith("src/") else _coverage_spec_function_body(text, symbol))
+                compact = "".join(body.split()) if body is not None else ""
+                if any("".join(item.split()) not in compact for item in required):
+                    raise ValueError(f"borrowed tile collection requires actual source slice and exact tape: {symbol}")
+                if symbol in {"select_tile_parts", "SelectedTileParts::as_slice", "contiguous_tile_run"} and (
+                        ".clone(" in compact or "try_duplicate(" in compact or "empty_with_capacity(" in compact):
+                    raise ValueError(f"borrowed tile collection must not copy or reserve: {symbol}")
         if entry["id"] == "part2-complete-native-container-selection-output":
             for relative, symbol, required in (
                 ("src/decode/selection.rs", "select_intersecting_tiles", (
@@ -18117,8 +18186,10 @@ def validate_normative_coverage(
                     if (re.search(named_prefix + r".*?" + ordinary, contract, re.S) is None
                             or re.search(named_prefix + r".*?" + admitted, contract, re.S) is None):
                         raise ValueError(f"linked function lacks executable Verus contract: {short}; missing exact context projection/preflight")
-                if cold_contract[0] == "part2_collected_parts_result":
-                    outcome = _coverage_call("collected_tile_parts_outcome", r"\1")
+                if cold_contract[0] in {"part2_collected_parts_result", "part2_select_tile_parts_result"}:
+                    projection = ("collected_tile_parts_outcome" if cold_contract[0] == "part2_collected_parts_result"
+                                  else "selected_tile_parts_outcome")
+                    outcome = _coverage_call(projection, r"\1")
                     ordinary = (outcome + r"\s*!=\s*Err\(\s*DecodeError::AllocationFailed\s*\)\s*==>\s*"
                                 + outcome + r"\s*==\s*" + _coverage_call("crate::specs::part2_collect_tile_parts",
                                     _coverage_call("codestream::tile_parts_owned_view", "parts@"), "tile"))

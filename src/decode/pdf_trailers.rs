@@ -1,6 +1,8 @@
+#[cfg(verus_keep_ghost)]
+use super::execution::selected_tile_parts_outcome;
 use super::execution::{
-    account_planned_tile, collect_tile_parts, prepare_tile_decode_metadata,
-    reconstruct_planned_tile, validate_part2_execution,
+    account_planned_tile, prepare_tile_decode_metadata, reconstruct_planned_tile,
+    select_tile_parts, validate_part2_execution,
 };
 use super::planning::plan_progression_tile_at_selected;
 use super::selection::validate_selection;
@@ -392,10 +394,10 @@ pub(super) fn decode_trailer_layout(
                         selection.discard_levels, limits, before.prepared, before.counters, before.mct_work, discarded, rest),
                     next_tile);
         }
-        let collected = collect_tile_parts(&layout.tile_parts, tile);
+        let collected = select_tile_parts(&layout.tile_parts, tile);
         #[cfg(verus_keep_ghost)]
         proof! {
-            let child = |events| crate::specs::part2_collected_parts_run(source.parts, tile, events);
+            let child = |events| crate::specs::part2_select_tile_parts_run(source.parts, tile, events);
             crate::specs::part2_trailer_selected_step(&source.size, source.parts, source.capabilities, selection.tiles@,
                 selection.region, selection.discard_levels, limits, index as nat, before, discarded);
             assert forall|tail: Seq<crate::specs::Part2JpipSnapshotEvent>|
@@ -403,16 +405,17 @@ pub(super) fn decode_trailer_layout(
                 assert(root(prefix + tail) == crate::specs::part2_trailer_selected_run(&source.size, source.parts,
                     source.capabilities, selection.tiles@, selection.region, selection.discard_levels, limits, index as nat, before, discarded, tail));
             }
-            match collected_tile_parts_outcome(collected) {
+            match selected_tile_parts_outcome(collected) {
                 Err(error) => crate::specs::part2_decode_prefix_error(root, child, after_parts, prefix, error),
                 Ok(selected) => { prefix = crate::specs::part2_decode_prefix_advance(root, child, after_parts, prefix, selected); },
             }
         }
         let parts = collected?;
+        let parts = parts.as_slice();
         let decoded_result = decode_trailer_tile(
             &layout.info.image_size,
             tile,
-            &parts,
+            parts,
             &layout.info.profile,
             selection.discard_levels,
             limits,

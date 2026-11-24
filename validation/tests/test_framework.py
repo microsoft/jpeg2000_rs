@@ -2050,7 +2050,7 @@ class FrameworkTests(WorkingFiles):
     def test_inventory_binds_actual_owned_payload_copy_and_ordered_tile_collection(self):
         self._assert_complete_packet_contract_bindings(
             {"part2-complete-native-owned-tile-collection"},
-            framework._TILE_COLLECTION_CONTRACTS, 1,
+            framework._TILE_COLLECTION_CONTRACTS, 2,
         )
 
     def test_contract_method_resolution_handles_clone_trait_and_rejects_other_or_ambiguous_impls(self):
@@ -9608,6 +9608,37 @@ class FrameworkTests(WorkingFiles):
             with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "collected payload storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_borrowed_tile_collection_binds_source_slice_and_composition(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part2-complete-native-owned-tile-collection")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/decode/execution.rs", "parts.get(start..end)", "parts.get(0..end)"),
+            ("src/decode/execution.rs", "else if end != index", "else if end == index"),
+            ("src/decode/execution.rs", "Self::Borrowed(slice) => slice", "Self::Borrowed(slice) => &slice[..0]"),
+            ("src/decode/execution.rs", "let collected = select_tile_parts(&layout.tile_parts, tile_index)",
+             "let collected = collect_tile_parts(&layout.tile_parts, tile_index)"),
+            ("src/decode/pdf_trailers.rs", "let parts = parts.as_slice()", "let parts = &[]"),
+            ("specs/decoder_input.rs", "Some((part2_collect_tile_parts(parts, tile), events))",
+             "Some((part2_collect_tile_parts(parts, tile), events.drop_first()))"),
+            ("specs/decoder_input.rs", "        part2_collected_parts_run(parts, tile, events)\n",
+             "        Some((part2_collect_tile_parts(parts, tile), events))\n"),
+        ):
+            source = framework.ROOT / relative
+            original = read_text(source)
+            changed = original.replace(before, after, 1)
+            self.assertNotEqual(original, changed)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "borrowed tile collection"):
+                framework.validate_normative_coverage(data)
 
     def test_inventory_selection_storage_rejects_misbound_capacity_and_erased_stages(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())

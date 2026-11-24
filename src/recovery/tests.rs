@@ -546,11 +546,12 @@ fn one_atomic_reservation_refusal_and_unwind_leave_exact_same_process_success() 
             Err(DecodeError::AllocationFailed)
         );
     });
-    // The single bounded block no longer owns coefficient/quantization staging.
+    // The sole tile part is borrowed: this path no longer requests either a
+    // collection Vec or a copy of the tile part's component quantizations.
     let requests = if cfg!(feature = "cooperative-deadlines") {
-        92
-    } else {
         90
+    } else {
+        88
     };
     allocation::with_refusal(requests - 1, || {
         assert_eq!(decode(&bytes).unwrap_err(), DecodeError::AllocationFailed);
@@ -645,9 +646,9 @@ fn reconstructed_recovery_refusal_limits_and_genuine_errors_preserve_recovery() 
         );
     });
     let requests = if cfg!(feature = "cooperative-deadlines") {
-        90
-    } else {
         88
+    } else {
+        86
     };
     allocation::with_refusal(requests - 1, || {
         assert_eq!(

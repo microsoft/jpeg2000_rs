@@ -425,6 +425,100 @@ pub(crate) proof fn part2_collected_parts_normal(parts: Seq<Part2OwnedTilePart>,
         Ok(()), part2_collect_tile_parts(parts, tile));
 }
 
+pub(crate) open spec fn part2_tile_run_bounds(
+    parts: Seq<Part2OwnedTilePart>, tile: u16, scanned: int, start: int, end: int,
+) -> bool {
+    0 <= start <= end <= scanned <= parts.len()
+        && (forall|i: int| 0 <= i < scanned ==>
+            (#[trigger] parts[i].tile_index == tile) == (start <= i < end))
+}
+
+pub(crate) open spec fn part2_has_contiguous_tile_run(parts: Seq<Part2OwnedTilePart>, tile: u16) -> bool {
+    exists|start: int, end: int| start < end && #[trigger] part2_tile_run_bounds(parts, tile, parts.len() as int, start, end)
+}
+
+pub(crate) open spec fn part2_tile_run_clamp(index: int, start: int, end: int) -> int {
+    if index < start { start } else if index > end { end } else { index }
+}
+
+pub(crate) proof fn part2_tile_run_exact(
+    parts: Seq<Part2OwnedTilePart>, tile: u16, start: int, end: int, index: nat,
+)
+    requires part2_tile_run_bounds(parts, tile, parts.len() as int, start, end),
+        index <= parts.len(),
+    ensures part2_collect_tile_parts_run(parts, tile, index, parts.subrange(start, part2_tile_run_clamp(index as int, start, end)))
+        == parts.subrange(start, end),
+    decreases parts.len() - index,
+{
+    reveal_with_fuel(part2_collect_tile_parts_run, 1);
+    if index < parts.len() {
+        part2_tile_run_exact(parts, tile, start, end, index + 1);
+        let before = parts.subrange(start, part2_tile_run_clamp(index as int, start, end));
+        let next = parts.subrange(start, part2_tile_run_clamp(index as int + 1, start, end));
+        if parts[index as int].tile_index == tile {
+            assert(before.push(parts[index as int]) =~= next);
+        } else {
+            assert(before == next);
+        }
+    }
+}
+
+pub(crate) proof fn part2_tile_run_value(
+    parts: Seq<Part2OwnedTilePart>, tile: u16, start: int, end: int,
+)
+    requires part2_tile_run_bounds(parts, tile, parts.len() as int, start, end),
+    ensures part2_collect_tile_parts(parts, tile) == Ok(parts.subrange(start, end)),
+{
+    part2_tile_run_exact(parts, tile, start, end, 0);
+    assert(parts.subrange(start, start) =~= Seq::empty());
+}
+
+pub(crate) open spec fn part2_select_tile_parts_run(
+    parts: Seq<Part2OwnedTilePart>, tile: u16, events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Seq<Part2OwnedTilePart>> {
+    if part2_has_contiguous_tile_run(parts, tile) {
+        Some((part2_collect_tile_parts(parts, tile), events))
+    } else {
+        part2_collected_parts_run(parts, tile, events)
+    }
+}
+
+pub(crate) open spec fn part2_select_tile_parts_result(
+    parts: Seq<Part2OwnedTilePart>, tile: u16, result: Result<Seq<Part2OwnedTilePart>, crate::DecodeError>,
+) -> bool {
+    part2_cold_framed(|events| part2_select_tile_parts_run(parts, tile, events), result)
+}
+
+pub(crate) proof fn part2_select_tile_parts_join(
+    parts: Seq<Part2OwnedTilePart>, tile: u16, borrowed: bool,
+    result: Result<Seq<Part2OwnedTilePart>, crate::DecodeError>,
+)
+    requires borrowed == part2_has_contiguous_tile_run(parts, tile),
+        if borrowed { result == part2_collect_tile_parts(parts, tile) }
+        else { part2_collected_parts_result(parts, tile, result) },
+    ensures part2_select_tile_parts_result(parts, tile, result),
+{
+    let run = |events| part2_select_tile_parts_run(parts, tile, events);
+    if borrowed {
+        assert forall|events| #[trigger] run(events) == Some((result, events)) by {}
+        part2_cold_pure(result);
+    } else {
+        let fallback = |events| part2_collected_parts_run(parts, tile, events);
+        assert forall|events| #[trigger] run(events) == fallback(events) by {}
+        part2_cold_framed_extensional(fallback, run, result);
+    }
+}
+
+pub(crate) proof fn part2_select_tile_parts_normal(parts: Seq<Part2OwnedTilePart>, tile: u16)
+    ensures part2_select_tile_parts_result(parts, tile, part2_collect_tile_parts(parts, tile)),
+{
+    let borrowed = part2_has_contiguous_tile_run(parts, tile);
+    if !borrowed {
+        part2_collected_parts_normal(parts, tile);
+    }
+    part2_select_tile_parts_join(parts, tile, borrowed, part2_collect_tile_parts(parts, tile));
+}
+
 pub(crate) open spec fn part2_intersecting_tile_count(
     size: Part2SelectionGeometry, explicit: Seq<u16>, region: Seq<u32>, count: u64,
 ) -> Result<usize, crate::DecodeError> {

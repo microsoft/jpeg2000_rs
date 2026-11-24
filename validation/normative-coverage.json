@@ -8505,7 +8505,7 @@
     },
     {
       "id": "part2-complete-native-full-selected-layout-decoding",
-      "topic": "Complete actual decode_layout and decode_layout_selected Result/all decoded image dimensions/origins/component descriptors/coordinates/fraction/sample fields from raw actual CodestreamLayout/request/limits. Actual Part2 admission then tile count/cap65536 or actual selection validation, genuine source-derived cloned tile collection, real raw per-tile metadata/policy/plan/account/byte/reconstruction from empty accumulation and real full/selected image assembly compose in source order. Complete raw owned observations carry clones without opaque allocation identity or copy/result witnesses; no normalized layout, supplied decoded components/plans/callbacks/banks or success/budget premises. All counters/work/selection/error/allocation policy and every loop bound/frame derive internally. Actual public codestream callers use sole bodies. Raw parser/typed final/file/F2/F4/final F8 and hosted/main/publication remain separate.",
+      "topic": "Complete actual decode_layout and decode_layout_selected Result/all decoded image dimensions/origins/component descriptors/coordinates/fraction/sample fields from raw actual CodestreamLayout/request/limits. Actual Part2 admission then tile count/cap65536 or actual selection validation, source-derived borrowed run or owned fallback, real raw per-tile metadata/policy/plan/account/byte/reconstruction from empty accumulation and real full/selected image assembly compose in source order. Complete raw observations carry either collection without opaque allocation identity or copy/result witnesses; no normalized layout, supplied decoded components/plans/callbacks/banks or success/budget premises. All counters/work/selection/error/allocation policy and every loop bound/frame derive internally. Actual public codestream callers use sole bodies. Raw parser/typed final/file/F2/F4/final F8 and hosted/main/publication remain separate.",
       "implementation_refs": [
         {"path": "src/decode/api.rs", "symbol": "decode_codestream"},
         {"path": "src/decode/api.rs", "symbol": "decode_codestream_selected"},
@@ -8642,10 +8642,14 @@
     },
     {
       "id": "part2-complete-native-owned-tile-collection",
-      "topic": "Complete actual same-order owned TilePartPayload copy and ordered per-tile source collection: every raw quantization/progression/MCT/Part2/kernel/nonlinear/registration/length/header/flag/data field derives from actual owners. Public manual Clone APIs retain their existing infallible type and field semantics. Internal collection counts matching parts, reserves once and fallibly duplicates ONLY selected owners, intentionally avoiding allocation for unselected clones. Precise source-qualified capacity and nested copy calls retain typed refusals, every successful value/duplicate order, borrows and arbitrary event tails; no defaults, normalized metadata, allocator availability premise, supplied copies or codec-result bank. Full/selected decoding and PDF trailer recovery compose the reached collection stage. Whole raw-parser/file/F2/F4/final F8, lifetime-enabled replay and publication remain separate.",
+      "topic": "Ordered per-tile collection derives every raw quantization/progression/MCT/Part2/kernel/nonlinear/registration/length/header/flag/data field from actual source owners. The contiguous branch borrows exactly the matching nonempty physical run and consumes no allocation event. For splits and missing matches, the original collector counts matching parts and fallibly duplicates only selected owners; its source-qualified capacity and nested copy responses are unchanged. The complete raw value, duplicate order, and arbitrary tape tails are preserved; no defaults, normalized metadata, supplied copies or codec-result bank. Public Clone semantics are unchanged. Full/selected decoding and PDF trailer recovery pass the reached slice to the same decoder.",
       "implementation_refs": [
         {"path": "src/decode/execution.rs", "symbol": "decode_layout"},
         {"path": "src/decode/execution.rs", "symbol": "decode_layout_selected"},
+        {"path": "src/decode/pdf_trailers.rs", "symbol": "decode_trailer_layout"},
+        {"path": "src/decode/execution.rs", "symbol": "contiguous_tile_run"},
+        {"path": "src/decode/execution.rs", "symbol": "select_tile_parts"},
+        {"path": "src/decode/execution.rs", "symbol": "SelectedTileParts::as_slice"},
         {"path": "src/decode/execution.rs", "symbol": "collect_tile_parts"},
         {"path": "src/codestream/tiles.rs", "symbol": "TilePartPayload::clone"},
         {"path": "src/codestream/tiles.rs", "symbol": "TilePartPayload::try_duplicate"},
@@ -8668,6 +8672,10 @@
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_loop_run"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_run"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_result"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_tile_run_bounds"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_has_contiguous_tile_run"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_select_tile_parts_run"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_select_tile_parts_result"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collection_duplicate_step"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collection_duplicate_tail"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collections_duplicate_requests"},
@@ -8678,7 +8686,8 @@
         {"path": "specs/cold_mct_copy.rs", "symbol": "part2_payload_duplicate_tail"}
       ],
       "contract_refs": [
-        {"path": "src/decode/execution.rs", "symbol": "collect_tile_parts"}
+        {"path": "src/decode/execution.rs", "symbol": "collect_tile_parts"},
+        {"path": "src/decode/execution.rs", "symbol": "select_tile_parts"}
       ],
       "proof_refs": [
         {"path": "src/codestream/tiles.rs", "symbol": "TilePartPayload::clone"},
@@ -8706,10 +8715,16 @@
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_count_matches"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_loop_normal"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_normal"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_tile_run_exact"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_tile_run_value"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_select_tile_parts_join"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_select_tile_parts_normal"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collection_duplicate_advance"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part2_payload_duplicate_advance"}
       ],
       "test_refs": [
+        {"path": "src/decode/tests.rs", "symbol": "contiguous_tile_collection_keeps_source_identity_and_real_refusal_order"},
+        {"path": "src/decode/tests.rs", "symbol": "contiguous_tile_collection_preserves_malformed_part_failures_in_layout"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_owned_tile_part_clone_preserves_every_raw_field_and_independent_nested_buffers"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_ordered_tile_collection_copies_raw_non_normalized_fields_and_retains_duplicate_order"},
         {"path": "src/codestream/tests.rs", "symbol": "collected_payload_copy_refusals_restore_all_raw_nested_owners_and_borrows"},

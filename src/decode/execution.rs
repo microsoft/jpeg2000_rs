@@ -470,6 +470,146 @@ pub(crate) fn collect_tile_parts<'data>(
     Ok(output)
 }
 
+pub(super) enum SelectedTileParts<'a, 'data> {
+    Borrowed(&'a [TilePartPayload<'data>]),
+    Owned(Vec<TilePartPayload<'data>>),
+}
+
+#[cfg(verus_keep_ghost)]
+verus! {
+    pub(super) open spec fn selected_tile_parts_view(value: &SelectedTileParts<'_, '_>)
+        -> Seq<crate::specs::Part2OwnedTilePart> {
+        match value {
+            SelectedTileParts::Borrowed(slice) => codestream::tile_parts_owned_view(slice@),
+            SelectedTileParts::Owned(values) => codestream::tile_parts_owned_view(values@),
+        }
+    }
+
+    pub(super) open spec fn selected_tile_parts_outcome(result: Result<SelectedTileParts<'_, '_>, DecodeError>)
+        -> Result<Seq<crate::specs::Part2OwnedTilePart>, DecodeError> {
+        match result { Ok(value) => Ok(selected_tile_parts_view(&value)), Err(error) => Err(error) }
+    }
+}
+
+impl<'a, 'data> SelectedTileParts<'a, 'data> {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures codestream::tile_parts_owned_view(result@) == selected_tile_parts_view(self),
+    ))]
+    pub(super) fn as_slice(&self) -> &[TilePartPayload<'data>] {
+        match self {
+            Self::Borrowed(slice) => slice,
+            Self::Owned(parts) => parts.as_slice(),
+        }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures match result {
+        Ok(Some((start, end))) => start < end && crate::specs::part2_tile_run_bounds(
+            codestream::tile_parts_owned_view(parts@), tile, parts.len() as int, start as int, end as int),
+        Ok(None) => !crate::specs::part2_has_contiguous_tile_run(codestream::tile_parts_owned_view(parts@), tile),
+        Err(_) => false,
+    },
+))]
+// Return only a nonempty run containing every matching tile part. Part ordinals
+// and counts are interpreted by packet preparation, not by this storage choice.
+fn contiguous_tile_run(
+    parts: &[TilePartPayload<'_>],
+    tile: u16,
+) -> Result<Option<(usize, usize)>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost source = codestream::tile_parts_owned_view(parts@); }
+    let mut start = 0;
+    let mut end = 0;
+    let mut index = 0;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant source == codestream::tile_parts_owned_view(parts@),
+            crate::specs::part2_tile_run_bounds(source, tile, index as int, start as int, end as int),
+            start < end || (start == 0 && end == 0),
+        decreases parts.len() - index,
+    ))]
+    while index < parts.len() {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(index)?;
+        #[cfg(verus_keep_ghost)]
+        proof! { codestream::tile_part_owned_tile_known(&parts[index as int]); }
+        if parts[index].tile_index == tile {
+            if start == end {
+                start = index;
+            } else if end != index {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    if crate::specs::part2_has_contiguous_tile_run(source, tile) {
+                        let (lo, hi) = choose|lo: int, hi: int| lo < hi &&
+                            #[trigger] crate::specs::part2_tile_run_bounds(source, tile, source.len() as int, lo, hi);
+                        assert(source[start as int].tile_index == tile);
+                        assert(source[end as int].tile_index != tile);
+                        assert(source[index as int].tile_index == tile);
+                        assert(lo <= start < end < index < hi);
+                        assert(false);
+                    }
+                }
+                return Ok(None);
+            }
+            end = index + 1;
+        }
+        index += 1;
+    }
+    #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+    crate::deadline::checkpoint()?;
+    if start == end {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if crate::specs::part2_has_contiguous_tile_run(source, tile) {
+                let (lo, hi) = choose|lo: int, hi: int| lo < hi &&
+                    #[trigger] crate::specs::part2_tile_run_bounds(source, tile, source.len() as int, lo, hi);
+                assert(source[lo].tile_index == tile);
+                assert(source[lo].tile_index != tile);
+            }
+        }
+        Ok(None)
+    } else {
+        Ok(Some((start, end)))
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_select_tile_parts_result(
+        codestream::tile_parts_owned_view(parts@), tile, selected_tile_parts_outcome(result)),
+        selected_tile_parts_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            selected_tile_parts_outcome(result) == crate::specs::part2_collect_tile_parts(
+                codestream::tile_parts_owned_view(parts@), tile),
+))]
+pub(super) fn select_tile_parts<'a, 'data>(
+    parts: &'a [TilePartPayload<'data>],
+    tile: u16,
+) -> Result<SelectedTileParts<'a, 'data>, DecodeError> {
+    let bounds = contiguous_tile_run(parts, tile)?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost source = codestream::tile_parts_owned_view(parts@); }
+    match bounds {
+        Some((start, end)) => {
+            let slice = parts.get(start..end).ok_or_else(invalid_decode)?;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(crate::specs::part2_has_contiguous_tile_run(source, tile));
+                assert(codestream::tile_parts_owned_view(slice@) =~= source.subrange(start as int, end as int));
+                crate::specs::part2_tile_run_value(source, tile, start as int, end as int);
+                crate::specs::part2_select_tile_parts_join(source, tile, true, Ok(codestream::tile_parts_owned_view(slice@)));
+            }
+            Ok(SelectedTileParts::Borrowed(slice))
+        }
+        None => {
+            let owned = collect_tile_parts(parts, tile);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::specs::part2_select_tile_parts_join(source, tile, false, collected_tile_parts_outcome(owned));
+            }
+            Ok(SelectedTileParts::Owned(owned?))
+        }
+    }
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part2_layout_decode_result(codestream::decoder_layout_input_view(layout),Some(crate::options::decode_selection_view(requested)),limits,
             crate::image::decoded_image_outcome(result)),
@@ -579,17 +719,17 @@ pub(super) fn decode_layout_selected(
                     crate::specs::part2_tile_decode_run(&source.size,tile_index,selected,source.capabilities,
                         Some(selection.discard_levels),limits,before.prepared,before.counters,before.mct_work,rest),next_tile);
         }
-        let collected = collect_tile_parts(&layout.tile_parts, tile_index);
+        let collected = select_tile_parts(&layout.tile_parts, tile_index);
         #[cfg(verus_keep_ghost)]
         proof! {
-            let child=|events|crate::specs::part2_collected_parts_run(source.parts,tile_index,events);
+            let child=|events|crate::specs::part2_select_tile_parts_run(source.parts,tile_index,events);
             crate::specs::part2_selected_decode_step(&source.size,source.parts,source.capabilities,selection.tiles@,
                 selection.region,selection.discard_levels,limits,selected_tile as nat,before);
             assert forall|tail|root(prefix+tail)==crate::specs::part2_jpip_snapshot_bind(child(tail),after_parts) by {
                 assert(root(prefix+tail)==crate::specs::part2_selected_decode_run(&source.size,source.parts,
                     source.capabilities,selection.tiles@,selection.region,selection.discard_levels,limits,selected_tile as nat,before,tail));
             }
-            match collected_tile_parts_outcome(collected) {
+            match selected_tile_parts_outcome(collected) {
                 Err(error)=>{
                     crate::specs::part2_decode_prefix_error(root,child,after_parts,prefix,error);
                     reveal(crate::specs::part2_layout_decode_result);
@@ -598,10 +738,11 @@ pub(super) fn decode_layout_selected(
             }
         }
         let tile_parts = collected?;
+        let tile_parts = tile_parts.as_slice();
         let decoded_result = decode_tile_parts_at(
             &layout.info.image_size,
             tile_index,
-            &tile_parts,
+            tile_parts,
             &layout.info.profile,
             Some(selection.discard_levels),
             limits,
@@ -1462,16 +1603,16 @@ pub(super) fn decode_layout(
                     crate::specs::part2_tile_decode_run(&source.size,tile_index,selected,source.capabilities,None,limits,
                         before.prepared,before.counters,before.mct_work,rest),next_tile);
         }
-        let collected = collect_tile_parts(&layout.tile_parts, tile_index);
+        let collected = select_tile_parts(&layout.tile_parts, tile_index);
         #[cfg(verus_keep_ghost)]
         proof! {
-            let child=|events|crate::specs::part2_collected_parts_run(source.parts,tile_index,events);
+            let child=|events|crate::specs::part2_select_tile_parts_run(source.parts,tile_index,events);
             crate::specs::part2_full_decode_step(&source.size,source.parts,source.capabilities,limits,tile_count,tile,before);
             assert forall|tail|root(prefix+tail)==crate::specs::part2_jpip_snapshot_bind(child(tail),after_parts) by {
                 assert(root(prefix+tail)==crate::specs::part2_full_decode_run(&source.size,source.parts,source.capabilities,
                     limits,tile_count,tile,before,tail));
             }
-            match collected_tile_parts_outcome(collected) {
+            match selected_tile_parts_outcome(collected) {
                 Err(error)=>{
                     crate::specs::part2_decode_prefix_error(root,child,after_parts,prefix,error);
                     reveal(crate::specs::part2_layout_decode_result);
@@ -1480,10 +1621,11 @@ pub(super) fn decode_layout(
             }
         }
         let tile_parts = collected?;
+        let tile_parts = tile_parts.as_slice();
         let decoded_result = decode_tile_parts_at(
             &layout.info.image_size,
             tile_index,
-            &tile_parts,
+            tile_parts,
             &layout.info.profile,
             None,
             limits,

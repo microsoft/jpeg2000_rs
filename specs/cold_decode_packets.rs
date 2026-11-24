@@ -306,7 +306,7 @@ pub(crate) open spec fn part2_full_decode_run(size: &crate::codestream::ImageSiz
 {
     if tile >= count { part2_assemble_prepared_storage_run(crate::image::assembly_size_view(size), before.prepared, None, crate::limits::resource_decoded_bytes_limit(limits),events) }
     else if tile > u16::MAX as u64 { Some((Err(part1_block_placement_error(true)), events)) }
-    else { part2_jpip_snapshot_bind(part2_collected_parts_run(parts, tile as u16, events),
+    else { part2_jpip_snapshot_bind(part2_select_tile_parts_run(parts, tile as u16, events),
         |selected: Seq<Part2OwnedTilePart>, rest| part2_jpip_snapshot_bind(
             part2_tile_decode_run(size, tile as u16, selected, caps, None, limits, before.prepared, before.counters, before.mct_work, rest),
             |after: Part2DecodedLayoutTile, tail| part2_full_decode_run(size, parts, caps, limits, count, (tile + 1) as u64, after, tail))) }
@@ -315,7 +315,7 @@ pub(crate) proof fn part2_full_decode_step(size: &crate::codestream::ImageSize, 
     limits: &crate::ResourceLimits, count: u64, tile: u64, before: Part2DecodedLayoutTile)
     requires tile<count,tile<=u16::MAX as u64,
     ensures forall|events| #[trigger] part2_full_decode_run(size,parts,caps,limits,count,tile,before,events)
-        == part2_jpip_snapshot_bind(part2_collected_parts_run(parts,tile as u16,events),
+        == part2_jpip_snapshot_bind(part2_select_tile_parts_run(parts,tile as u16,events),
             |selected:Seq<Part2OwnedTilePart>,rest| part2_jpip_snapshot_bind(
                 part2_tile_decode_run(size,tile as u16,selected,caps,None,limits,before.prepared,before.counters,before.mct_work,rest),
                 |after:Part2DecodedLayoutTile,tail|part2_full_decode_run(size,parts,caps,limits,count,(tile+1) as u64,after,tail))),
@@ -336,7 +336,7 @@ pub(crate) proof fn part2_full_decode_normal(size: &crate::codestream::ImageSize
     }else if tile > u16::MAX as u64 { part2_cold_pure::<Part1DecodedImageModel>(result); }
     else {
         let collected = part2_collect_tile_parts(parts, tile as u16);
-        part2_collected_parts_normal(parts, tile as u16);
+        part2_select_tile_parts_normal(parts, tile as u16);
         match collected {
         Err(_) => { part2_cold_pure::<Part1DecodedImageModel>(result); },
         Ok(selected) => {
@@ -358,12 +358,12 @@ pub(crate) proof fn part2_full_decode_normal(size: &crate::codestream::ImageSize
                 |after: Part2DecodedLayoutTile, rest| part2_full_decode_run(size, parts, caps, limits, count, (tile + 1) as u64, after, rest)), result);
         },
         }
-        part2_cold_bind(|events| part2_collected_parts_run(parts, tile as u16, events),
+        part2_cold_bind(|events| part2_select_tile_parts_run(parts, tile as u16, events),
             |selected: Seq<Part2OwnedTilePart>, rest| part2_jpip_snapshot_bind(
                 part2_tile_decode_run(size, tile as u16, selected, caps, None, limits, before.prepared, before.counters, before.mct_work, rest),
                 |after: Part2DecodedLayoutTile, tail| part2_full_decode_run(size, parts, caps, limits, count, (tile + 1) as u64, after, tail)),
             collected, result);
-        part2_decode_eta(|events| part2_jpip_snapshot_bind(part2_collected_parts_run(parts, tile as u16, events),
+        part2_decode_eta(|events| part2_jpip_snapshot_bind(part2_select_tile_parts_run(parts, tile as u16, events),
             |selected: Seq<Part2OwnedTilePart>, rest| part2_jpip_snapshot_bind(
                 part2_tile_decode_run(size, tile as u16, selected, caps, None, limits, before.prepared, before.counters, before.mct_work, rest),
                 |after: Part2DecodedLayoutTile, tail| part2_full_decode_run(size, parts, caps, limits, count, (tile + 1) as u64, after, tail))), result);
@@ -377,7 +377,7 @@ pub(crate) open spec fn part2_selected_decode_run(size: &crate::codestream::Imag
     decreases if index < tiles.len() { tiles.len() - index } else { 0int },
 {
     if index >= tiles.len() { part2_assemble_prepared_storage_run(crate::image::assembly_size_view(size), before.prepared, Some((region, discard)), crate::limits::resource_decoded_bytes_limit(limits),events) }
-    else { part2_jpip_snapshot_bind(part2_collected_parts_run(parts, tiles[index as int], events),
+    else { part2_jpip_snapshot_bind(part2_select_tile_parts_run(parts, tiles[index as int], events),
         |selected: Seq<Part2OwnedTilePart>, rest|
             part2_jpip_snapshot_bind(
                 part2_tile_decode_run(size, tiles[index as int], selected, caps, Some(discard), limits, before.prepared, before.counters, before.mct_work, rest),
@@ -387,7 +387,7 @@ pub(crate) proof fn part2_selected_decode_step(size: &crate::codestream::ImageSi
     tiles:Seq<u16>,region:[u32;4],discard:u8,limits:&crate::ResourceLimits,index:nat,before:Part2DecodedLayoutTile)
     requires index<tiles.len(),
     ensures forall|events| #[trigger] part2_selected_decode_run(size,parts,caps,tiles,region,discard,limits,index,before,events)
-        ==part2_jpip_snapshot_bind(part2_collected_parts_run(parts,tiles[index as int],events),
+        ==part2_jpip_snapshot_bind(part2_select_tile_parts_run(parts,tiles[index as int],events),
             |selected:Seq<Part2OwnedTilePart>,rest|part2_jpip_snapshot_bind(
                 part2_tile_decode_run(size,tiles[index as int],selected,caps,Some(discard),limits,before.prepared,before.counters,before.mct_work,rest),
                 |after:Part2DecodedLayoutTile,tail|part2_selected_decode_run(size,parts,caps,tiles,region,discard,limits,index+1,after,tail))),
@@ -408,7 +408,7 @@ pub(crate) proof fn part2_selected_decode_normal(size: &crate::codestream::Image
     }
     else {
         let collected = part2_collect_tile_parts(parts, tiles[index as int]);
-        part2_collected_parts_normal(parts, tiles[index as int]);
+        part2_select_tile_parts_normal(parts, tiles[index as int]);
         match collected {
         Err(_) => { part2_cold_pure::<Part1DecodedImageModel>(result); },
         Ok(selected) => {
@@ -427,13 +427,13 @@ pub(crate) proof fn part2_selected_decode_normal(size: &crate::codestream::Image
                 |after: Part2DecodedLayoutTile, rest| part2_selected_decode_run(size, parts, caps, tiles, region, discard, limits, index + 1, after, rest)), result);
         },
         }
-        part2_cold_bind(|events| part2_collected_parts_run(parts, tiles[index as int], events),
+        part2_cold_bind(|events| part2_select_tile_parts_run(parts, tiles[index as int], events),
             |selected: Seq<Part2OwnedTilePart>, rest|
                 part2_jpip_snapshot_bind(
                     part2_tile_decode_run(size, tiles[index as int], selected, caps, Some(discard), limits, before.prepared, before.counters, before.mct_work, rest),
                     |after: Part2DecodedLayoutTile, tail| part2_selected_decode_run(size, parts, caps, tiles, region, discard, limits, index + 1, after, tail)),
             collected, result);
-        part2_decode_eta(|events| part2_jpip_snapshot_bind(part2_collected_parts_run(parts, tiles[index as int], events),
+        part2_decode_eta(|events| part2_jpip_snapshot_bind(part2_select_tile_parts_run(parts, tiles[index as int], events),
             |selected: Seq<Part2OwnedTilePart>, rest|
                 part2_jpip_snapshot_bind(
                     part2_tile_decode_run(size, tiles[index as int], selected, caps, Some(discard), limits, before.prepared, before.counters, before.mct_work, rest),

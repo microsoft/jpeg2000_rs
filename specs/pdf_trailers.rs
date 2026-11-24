@@ -688,7 +688,7 @@ pub(crate) open spec fn part2_trailer_selected_run(
     if index >= tiles.len() {
         part2_trailer_assembly_run(crate::image::assembly_size_view(size),before.prepared,region,discard,crate::limits::resource_decoded_bytes_limit(limits),discarded,events)
     } else {
-        part2_jpip_snapshot_bind(part2_collected_parts_run(parts, tiles[index as int], events),
+        part2_jpip_snapshot_bind(part2_select_tile_parts_run(parts, tiles[index as int], events),
             |selected: Seq<Part2OwnedTilePart>, rest| part2_jpip_snapshot_bind(
                 part2_trailer_tile_run(size, tiles[index as int], selected, caps, discard, limits,
                     before.prepared, before.counters, before.mct_work, discarded, rest),
@@ -704,7 +704,7 @@ pub(crate) proof fn part2_trailer_selected_step(
 )
     requires index < tiles.len(),
     ensures forall|events| #[trigger] part2_trailer_selected_run(size, parts, caps, tiles, region, discard, limits, index, before, discarded, events)
-        == part2_jpip_snapshot_bind(part2_collected_parts_run(parts, tiles[index as int], events),
+        == part2_jpip_snapshot_bind(part2_select_tile_parts_run(parts, tiles[index as int], events),
             |selected: Seq<Part2OwnedTilePart>, rest| part2_jpip_snapshot_bind(
             part2_trailer_tile_run(size, tiles[index as int], selected, caps, discard, limits,
                 before.prepared, before.counters, before.mct_work, discarded, rest),
@@ -733,7 +733,7 @@ pub(crate) proof fn part2_trailer_selected_normal(
         part2_decode_eta(|events|part2_trailer_assembly_run(size,before.prepared,region,discard,maximum,discarded,events),result);
     } else {
         let collected = part2_collect_tile_parts(parts, tiles[index as int]);
-        part2_collected_parts_normal(parts, tiles[index as int]);
+        part2_select_tile_parts_normal(parts, tiles[index as int]);
         match collected {
             Err(_) => part2_cold_pure::<Part2TrailerReconstructed>(result),
             Ok(selected) => {
@@ -759,14 +759,14 @@ pub(crate) proof fn part2_trailer_selected_normal(
                     result);
             },
         }
-        part2_cold_bind(|events| part2_collected_parts_run(parts, tiles[index as int], events),
+        part2_cold_bind(|events| part2_select_tile_parts_run(parts, tiles[index as int], events),
             |selected: Seq<Part2OwnedTilePart>, rest| part2_jpip_snapshot_bind(
                 part2_trailer_tile_run(size, tiles[index as int], selected, caps, discard, limits,
                     before.prepared, before.counters, before.mct_work, discarded, rest),
                 |after: (Part2DecodedLayoutTile, u8), tail|
                     part2_trailer_selected_run(size, parts, caps, tiles, region, discard, limits, index + 1, after.0, after.1, tail)),
             collected, result);
-        part2_decode_eta(|events| part2_jpip_snapshot_bind(part2_collected_parts_run(parts, tiles[index as int], events),
+        part2_decode_eta(|events| part2_jpip_snapshot_bind(part2_select_tile_parts_run(parts, tiles[index as int], events),
             |selected: Seq<Part2OwnedTilePart>, rest| part2_jpip_snapshot_bind(
                 part2_trailer_tile_run(size, tiles[index as int], selected, caps, discard, limits,
                     before.prepared, before.counters, before.mct_work, discarded, rest),
