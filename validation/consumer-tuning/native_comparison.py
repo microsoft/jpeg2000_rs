@@ -16,13 +16,13 @@ import sys
 
 from generate_fixtures import jp2_parts, sha
 from measure import measure
-from run import append, capture, configuration_environment
+from run import append, capture, configuration_environment, sha as file_sha
 from summarize import geometric, interval
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 UPSTREAM = "https://github.com/microsoft/jpeg2000_rs"
-RUST = "+1.93.1"
+RUST = "1.93.1"
 ARCH = {"x86_64": (62, "X64"), "aarch64": (183, "ARM64")}
 BACKENDS = ("baseline", "candidate")
 LEGACY = ("noisy-gray-lossless", "smooth-rgb-lossless")
@@ -213,7 +213,37 @@ def timings(stdout, signature):
     return [int(line.split("\t")[1]) for line in lines[1:]]
 
 
-def native_profile(args):
+def reject_cargo_configs(*directories, cargo_home=None):
+    config_dirs = {cargo_home} if cargo_home is not None else set()
+    for directory in directories:
+        directory = directory.resolve()
+        config_dirs.update(root / ".cargo" for root in (directory, *directory.parents))
+    for directory in sorted(config_dirs):
+        for name in ("config", "config.toml"):
+            config = directory / name
+            try:
+                config.lstat()
+            except FileNotFoundError:
+                continue
+            raise ValueError(f"Cargo configuration is not allowed in a comparison build: {config}")
+
+
+def pinned_tool(tool, arch):
+    resolution = capture(["rustup", "which", "--toolchain", RUST, tool])
+    path = Path(resolution["stdout"].strip())
+    if resolution["returncode"] or not path.is_absolute():
+        raise ValueError(f"cannot resolve pinned {tool}: {resolution}")
+    path = path.resolve(strict=True)
+    digest = file_sha(path)
+    version = capture([str(path), "-vV"])
+    if (version["returncode"] or f"release: {RUST}" not in version["stdout"].splitlines()
+            or f"host: {arch}-unknown-linux-gnu" not in version["stdout"].splitlines()
+            or file_sha(path) != digest):
+        raise ValueError(f"expected pinned native {tool}: {version}")
+    return dict(version, sha256=digest)
+
+
+def native_profile(args, *, dependency=False):
     flags = {}
     for index, arg in enumerate(args):
         if arg == "--target" or arg.startswith("--target="):
@@ -222,43 +252,77 @@ def native_profile(args):
             value = args[index + 1] if arg == "-C" else arg[2:]
             key, _, setting = value.partition("=")
             flags[key] = setting
-    return (all(flags.get(key) == value for key, value in {
-        "opt-level": "3", "lto": "thin", "codegen-units": "1", "target-cpu": "native",
-    }.items()) and all(flags.get(key, "off") == "off" for key in ("debug-assertions", "overflow-checks")))
+    if not all(flags.get(key) == value for key, value in {
+        "opt-level": "3", "codegen-units": "1", "target-cpu": "native",
+    }.items()) or not all(flags.get(key, "off") == "off" for key in ("debug-assertions", "overflow-checks")):
+        return False
+    # Cargo emits ThinLTO-ready bitcode for a dependency, and runs ThinLTO
+    # at the final executable's link. Those use distinct rustc flags.
+    if dependency:
+        return flags.get("linker-plugin-lto") == "" and "lto" not in flags
+    return flags.get("lto") == "thin" and "linker-plugin-lto" not in flags
 
 
-def build(label, work, evidence, arch):
+def qualified_compilations(invocations, rust):
+    compiler = rust["command"][0]
+    if file_sha(compiler) != rust["sha256"]:
+        raise ValueError("rustc executable hash changed since preflight")
+    expected = {"native_probe", "jpeg2000_decoder"}
+    actual = {}
+    for path in sorted(invocations.glob("rustc-*.metrics.json")):
+        record = json.loads(path.read_text())
+        args = record["command"]
+        if args[0] != compiler:
+            raise ValueError(f"unexpected rustc executable in {path}: {args[0]}")
+        if "--crate-name" not in args:
+            continue
+        crate = args[args.index("--crate-name") + 1]
+        if crate not in expected:  # Cargo also runs compiler capability queries.
+            continue
+        if (crate in actual or record["returncode"] != 0
+                or not native_profile(args, dependency=crate == "jpeg2000_decoder")):
+            raise ValueError(f"{crate}: unqualified compiler invocation or profile: {path}")
+        actual[crate] = args
+    if actual.keys() != expected:
+        raise ValueError(f"missing actual compiler invocations: {sorted(expected - actual.keys())}")
+    return actual
+
+
+def build(label, work, evidence, arch, rust, cargo):
     package = work / label / "probe"
     package.mkdir()
     (package / "Cargo.toml").write_text(MANIFEST)
     (package / "src").mkdir()
     shutil.copyfile(HERE / "native_probe.rs", package / "src/main.rs")
     prefix = evidence / label
+    source = work / label / "source"
+    cargo_home = package / "cargo-home"
+    cargo_home.mkdir()
     env = configuration_environment("combined", package / "target", prefix / "compiler")
-    # Don't inherit target/allocator/profile overrides or user Cargo configuration.
+    # Only the driver-selected flags and collector survive into the native build.
     env = {key: value for key, value in env.items()
-           if key in {"PATH", "HOME", "RUSTUP_HOME", "RUSTC_WRAPPER", "RUSTFLAGS",
+           if key in {"PATH", "HOME", "RUSTC_WRAPPER", "RUSTFLAGS",
                       "CONSUMER_INVOCATIONS", "CONSUMER_REAL_LINKER", "CARGO_TARGET_DIR",
                       "CARGO_BUILD_JOBS"} or key.startswith("CARGO_PROFILE_RELEASE_")}
-    env.update(CARGO_HOME=str(package / "cargo-home"), CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS="false",
+    env.update(CARGO_HOME=str(cargo_home), RUSTC=rust["command"][0],
+               CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS="false",
                CARGO_PROFILE_RELEASE_OVERFLOW_CHECKS="false", LC_ALL="C", TMPDIR=str(work / "tmp"))
     lock = package / "Cargo.lock"
-    # The final consumer graph is just this package and the no-default-features path crate.
-    cargo = ["cargo", RUST]
-    checked([*cargo, "generate-lockfile", "--offline"], prefix / "resolve", cwd=package, env=env)
+    # Cargo discovers configs from its cwd upward, independently of CARGO_HOME.
+    # Invoke it only from the generated consumer, never from either source checkout.
+    reject_cargo_configs(package, source, cargo_home=cargo_home)
+    cargo_cmd = [cargo["command"][0]]
+    checked([*cargo_cmd, "generate-lockfile", "--offline"], prefix / "resolve", cwd=package, env=env)
     shutil.copyfile(lock, prefix / "Cargo.lock")
     write_json(prefix / "profile.json", {key: value for key, value in env.items()
-                                         if key.startswith("CARGO_PROFILE_") or key == "RUSTFLAGS"})
-    checked([*cargo, "build", "--release", "--locked", "--offline", "--verbose"],
+                                         if key.startswith("CARGO_PROFILE_") or key in
+                                         {"RUSTFLAGS", "RUSTC", "RUSTC_WRAPPER", "CARGO_HOME"}})
+    reject_cargo_configs(package, source, cargo_home=cargo_home)
+    checked([*cargo_cmd, "build", "--release", "--locked", "--offline", "--verbose"],
             prefix / "build", cwd=package, env=env, seconds=1200)
-    clean_source(work / label / "source", prefix / "source-after", dependency=True)
-    final = []
-    for path in (prefix / "compiler").glob("rustc-*.metrics.json"):
-        args = json.loads(path.read_text())["command"]
-        if "--crate-name" in args and args[args.index("--crate-name") + 1] == "native_probe":
-            final.append(args)
-    if len(final) != 1 or not native_profile(final[0]):
-        raise ValueError(f"{label}: incorrect final compiler invocation")
+    reject_cargo_configs(package, source, cargo_home=cargo_home)
+    clean_source(source, prefix / "source-after", dependency=True)
+    actual = qualified_compilations(prefix / "compiler", rust)
     binary = package / "target/release/native-probe"
     data = binary.read_bytes()
     if data[:6] != b"\x7fELF\x02\x01" or struct.unpack_from("<H", data, 18)[0] != ARCH[arch][0]:
@@ -266,7 +330,8 @@ def build(label, work, evidence, arch):
     write_json(prefix / "binary.json", {
         "path": str(binary), "sha256": sha(data), "bytes": len(data),
         "allocator": "std::alloc::System", "elf_machine": ARCH[arch][0],
-        "argv": final[0], "harness_sha256": sha((package / "src/main.rs").read_bytes()),
+        "argv": actual["native_probe"], "decoder_argv": actual["jpeg2000_decoder"],
+        "rustc": rust, "harness_sha256": sha((package / "src/main.rs").read_bytes()),
         "consumer_toml_sha256": sha((package / "Cargo.toml").read_bytes()),
         "consumer_lock_sha256": sha(lock.read_bytes()),
     })
@@ -306,14 +371,13 @@ def run(options):
     evidence.mkdir()
     (work / "tmp").mkdir()
     validate_options(options.baseline, options.candidate, options.pairs, options.arch)
+    reject_cargo_configs(work)
     clean_source(ROOT, evidence / "driver-status")
     checked(["git", "-C", str(ROOT), "remote", "get-url", "origin"], evidence / "driver-origin")
     if text(evidence / "driver-origin") not in {UPSTREAM, UPSTREAM + ".git"}:
         raise ValueError("driver checkout must come from the upstream repository")
-    rust = capture(["rustc", RUST, "-vV"])
-    if (rust["returncode"] or "release: 1.93.1" not in rust["stdout"].splitlines()
-            or f"host: {options.arch}-unknown-linux-gnu" not in rust["stdout"].splitlines()):
-        raise ValueError(f"expected pinned native Rust compiler: {rust}")
+    rust = pinned_tool("rustc", options.arch)
+    cargo = pinned_tool("cargo", options.arch)
     cpus = sorted(os.sched_getaffinity(0))
     if not cpus:
         raise ValueError("no available CPU")
@@ -324,17 +388,17 @@ def run(options):
             "warmups": WARMUPS, "iterations": ITERATIONS, "arch": options.arch,
             "available_cpus": cpus, "binding": pinned, "platform": platform.platform(),
             "driver_head": capture(["git", "-C", str(ROOT), "rev-parse", "HEAD"]),
-            "rustc": rust, "cargo": capture(["cargo", RUST, "-vV"]),
+            "rustc": rust, "cargo": cargo,
             "cc": capture(["cc", "--version"]), "lscpu": capture(["lscpu", "--json"]),
             "cpuinfo": Path("/proc/cpuinfo").read_text(),
-            "rustc_native_cfg": capture(["rustc", RUST, "-Ctarget-cpu=native", "--print", "cfg"]),
+            "rustc_native_cfg": capture([rust["command"][0], "-Ctarget-cpu=native", "--print", "cfg"]),
             "hardware_counters": "unavailable (not collected)", "loadavg_start": os.getloadavg(),
             "run": {key: os.environ[key] for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT",
                                                      "GITHUB_SHA", "ImageVersion") if key in os.environ}}
     write_json(evidence / "metadata.json", host)
     cohort = fixtures(evidence)
     sources(revisions, work, evidence)
-    binaries = {label: build(label, work, evidence, options.arch) for label in BACKENDS}
+    binaries = {label: build(label, work, evidence, options.arch, rust, cargo) for label in BACKENDS}
     run_env = {key: value for key, value in os.environ.items() if key in {"PATH", "HOME"}}
     run_env["LC_ALL"] = "C"
     signatures = {}

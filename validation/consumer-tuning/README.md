@@ -33,6 +33,11 @@ hosted native x86-64 and ARM64; choose 8 or 24 fresh process pairs. Each host
 builds the same direct reconstructed-codestream API consumer twice with Rust
 1.93.1, O3/native/ThinLTO/cgu1, assertions and overflow checks off, and the system
 allocator. The two consumers share a single available CPU and the same inputs.
+Cargo runs from a generated consumer with a fresh `CARGO_HOME`; local
+`.cargo/config` and `.cargo/config.toml` files in its ancestor chain or at the
+decoder source root are refused, never changed. The driver binds the resolved
+Rust 1.93.1 executable and records its version, hash, and actual arguments for
+both the decoder's bitcode build and the consumer's final ThinLTO link.
 Before any timing, all five native output pairs must match bit-for-bit with
 valid image/component geometry and sample representation, nonblank planes,
 and source recovery for lossless cases. Each measured process then does two

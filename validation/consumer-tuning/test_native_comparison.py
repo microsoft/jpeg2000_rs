@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import native_comparison as driver
@@ -116,6 +117,63 @@ class NativeComparisonTests(unittest.TestCase):
         for invalid in (["-Ctarget-cpu=generic"], ["-C", "debug-assertions=yes"],
                         ["--target=aarch64-unknown-linux-gnu"]):
             self.assertFalse(driver.native_profile(argv + invalid))
+
+    def test_ignored_ancestor_cargo_configuration_refused_before_source_setup(self):
+        config_dir = self.scratch / "local" / ".cargo"
+        config_dir.mkdir(parents=True)
+        options = SimpleNamespace(baseline="a" * 40, candidate="b" * 40, pairs=8,
+                                  arch=driver.platform.machine(), output=config_dir.parent / "run",
+                                  qualify_only=True)
+        bodies = {"config.toml": '[build]\nrustc = "/other/rustc"\n',
+                  "config": "[profile.release.package.jpeg2000-decoder]\nopt-level = 1\n"}
+        for name, body in bodies.items():
+            options.output = config_dir.parent / f"run-{name}"
+            config = config_dir / name
+            config.write_text(body)
+            with self.subTest(name=name), patch.object(driver, "clean_source") as clean, \
+                    patch.object(driver, "checked", side_effect=AssertionError("reached command setup")):
+                with self.assertRaisesRegex(ValueError, r"Cargo configuration.*" + str(config)):
+                    driver.run(options)
+                clean.assert_not_called()
+                self.assertEqual(config.read_text(), body)
+            config.unlink()
+
+    def test_accepts_only_bound_compiler_and_qualified_decoder_profile(self):
+        compiler = self.scratch / "rustc"
+        compiler.write_bytes(b"verified executable")
+        rust = {"command": [str(compiler), "-vV"], "sha256": driver.sha(compiler.read_bytes())}
+        base = [str(compiler), "-C", "opt-level=3", "-C", "codegen-units=1", "-Ctarget-cpu=native"]
+        probe = [*base, "--crate-name", "native_probe", "-C", "lto=thin"]
+        decoder = [*base, "--crate-name", "jpeg2000_decoder", "-C", "linker-plugin-lto"]
+        receipts = self.scratch / "receipts"
+        receipts.mkdir()
+        driver.write_json(receipts / "rustc-probe.metrics.json", {"command": probe, "returncode": 0})
+        receipt = receipts / "rustc-decoder.metrics.json"
+        driver.write_json(receipt, {"command": decoder, "returncode": 0})
+        self.assertEqual(driver.qualified_compilations(receipts, rust),
+                         {"native_probe": probe, "jpeg2000_decoder": decoder})
+        for argv, message in ((decoder + ["-Copt-level=1"], "jpeg2000_decoder.*profile"),
+                              (decoder[:-2] + ["-Clto=thin"], "jpeg2000_decoder.*profile"),
+                              (["/other/rustc", *decoder[1:]], "unexpected rustc executable")):
+            with self.subTest(argv=argv), self.assertRaisesRegex(ValueError, message):
+                driver.write_json(receipt, {"command": argv, "returncode": 0})
+                driver.qualified_compilations(receipts, rust)
+        driver.write_json(receipt, {"command": decoder, "returncode": 0})
+        compiler.write_bytes(b"changed after version probe")
+        with self.assertRaisesRegex(ValueError, "rustc executable hash changed"):
+            driver.qualified_compilations(receipts, rust)
+
+    def test_source_config_cannot_participate_in_build(self):
+        source = self.scratch / "baseline" / "source"
+        config = source / ".cargo" / "config.toml"
+        config.parent.mkdir(parents=True)
+        config.write_text('[build]\nrustc-wrapper = "/other/wrapper"\n')
+        with patch.object(driver, "checked") as cargo:
+            with self.assertRaisesRegex(ValueError, r"Cargo configuration.*source/\.cargo/config\.toml"):
+                driver.build("baseline", self.scratch, self.scratch / "evidence", "x86_64",
+                             {"command": ["/pinned/rustc"]}, {"command": ["/pinned/cargo"]})
+            cargo.assert_not_called()
+        self.assertIn("/other/wrapper", config.read_text())
 
     def test_subprocess_failure_preserves_raw_output(self):
         prefix = self.scratch / "refused"
