@@ -38,8 +38,22 @@ are not supported. Native sample export remains limited to 31-bit precision and
 values representable by `int32_t`. Output uses a separate C sample allocation,
 so peak memory is not expected to match the direct Rust API. Build the Rust
 library and `shim.c` together; their private bridge layout is not a stable ABI.
-The updated bridge symbols use a `_v2` suffix so mismatched older C/Rust
+The updated bridge symbols use a `_v3` suffix so mismatched older C/Rust
 halves fail to link rather than interpreting incompatible layouts.
+
+Within one header call, a successful inspection can also return up to four
+leading component descriptors from the same immutable input and default
+inspection limits. The shim still allocates the C image and component array at
+the original points, retains the original plane zero, and inspects any
+remaining or first unprojectable component in the original loop. No descriptor
+is retained across calls. Removed identical Rust parses no longer allocate
+their temporary owners or contribute possible allocation failures; the first
+inspection and all fallback inspections still enforce their original limits.
+When the resolved core has cooperative deadline checkpoints compiled in, the
+prefix is disabled even if no deadline is active, preserving per-component
+checkpoints after the C allocations. This decision uses the core's
+`COOPERATIVE_DEADLINES_ENABLED` constant, not adapter features. Native C/Rust
+interop is not verified by the core's Verus run.
 
 Strict decoding is the default. Calling `opj_decoder_set_strict_mode(codec,
 OPJ_FALSE)` before reading the header opts into the crate's bounded PDF recovery
