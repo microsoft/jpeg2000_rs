@@ -4927,24 +4927,39 @@ pub open spec fn color_component_nominal(
 ) -> Result<u64, crate::DecodeError> {
     match color_component_index(component, x_origin, y_origin, x, y) {
         Err(error) => Err(error),
-        Ok(index) => match component.samples {
-            Part1TypedSampleSequence::Unsigned(samples) => {
-                let maximum = ((1u64 << component.info.precision) - 1) as nat;
-                if component.info.signed || index >= samples.len() || samples[index as int] as nat > maximum {
-                    Err(part2_color_input_error())
-                } else { Ok(samples[index as int]) }
-            },
-            Part1TypedSampleSequence::Signed(samples) => {
-                let level = 1i64 << ((component.info.precision - 1) as u8);
-                if !component.info.signed || index >= samples.len()
-                    || samples[index as int] < -(level as int)
-                    || samples[index as int] >= level {
-                    Err(part2_color_input_error())
-                } else if samples[index as int] > (i64::MAX - level) as int {
-                    Err(part2_composition_error(true))
-                } else { Ok((samples[index as int] + level) as u64) }
-            },
+        Ok(index) => color_nominal_at_index(component, index),
+    }
+}
+
+pub open spec fn color_nominal_at_index(component: Part1TypedComponentModel, index: usize)
+    -> Result<u64, crate::DecodeError>
+{
+    match component.samples {
+        Part1TypedSampleSequence::Unsigned(samples) => {
+            let maximum = ((1u64 << component.info.precision) - 1) as nat;
+            if component.info.signed || index >= samples.len() || samples[index as int] as nat > maximum {
+                Err(part2_color_input_error())
+            } else { Ok(samples[index as int]) }
         },
+        Part1TypedSampleSequence::Signed(samples) => {
+            let level = 1i64 << ((component.info.precision - 1) as u8);
+            if !component.info.signed || index >= samples.len()
+                || samples[index as int] < -(level as int)
+                || samples[index as int] >= level {
+                Err(part2_color_input_error())
+            } else if samples[index as int] > (i64::MAX - level) as int {
+                Err(part2_composition_error(true))
+            } else { Ok((samples[index as int] + level) as u64) }
+        },
+    }
+}
+
+pub open spec fn color_chroma_at_index(component: Part1TypedComponentModel, index: usize)
+    -> Result<i32, crate::DecodeError>
+{
+    match color_nominal_at_index(component, index) {
+        Err(error) => Err(error),
+        Ok(value) => color_normalize_difference(value, component.info.precision),
     }
 }
 
