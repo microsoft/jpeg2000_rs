@@ -12557,6 +12557,9 @@
           "path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets_selected"
         },
         {
+          "path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets_mode"
+        },
+        {
           "path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets"
         },
         {
@@ -12932,6 +12935,9 @@
         },
         {
           "path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets_selected"
+        },
+        {
+          "path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets_mode"
         },
         {
           "path": "src/packet/tile.rs", "symbol": "decode_progression_tile_packets"
@@ -13431,6 +13437,9 @@
           "path": "src/packet/tag_tree.rs", "symbol": "tag_tree_from_dimensions"
         },
         {
+          "path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::decode_legacy_contribution_mode"
+        },
+        {
           "path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::admit_legacy_contribution"
         },
         {
@@ -13532,6 +13541,9 @@
           "path": "src/packet/tag_tree.rs", "symbol": "tag_tree_from_dimensions"
         },
         {
+          "path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::decode_legacy_contribution_mode"
+        },
+        {
           "path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::admit_legacy_contribution"
         },
         {
@@ -13554,6 +13566,9 @@
         },
         {
           "path": "src/packet/precinct.rs", "symbol": "decode_precinct_packet"
+        },
+        {
+          "path": "src/packet/precinct.rs", "symbol": "decode_precinct_packet_mode"
         },
         {
           "path": "src/packet/precinct.rs", "symbol": "decode_precinct_packet_payload_prefix"
@@ -13584,6 +13599,9 @@
         }
       ],
       "spec_refs": [
+        {
+          "path": "specs/terminal_legacy.rs", "symbol": "terminal_legacy_contribution_result"
+        },
         {
           "path": "specs/header.rs",
           "symbol": "part1_packet_reader_error"
@@ -13817,6 +13835,9 @@
           "path": "src/packet/tag_tree.rs", "symbol": "tag_tree_from_dimensions"
         },
         {
+          "path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::decode_legacy_contribution_mode"
+        },
+        {
           "path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::admit_legacy_contribution"
         },
         {
@@ -13904,6 +13925,9 @@
         },
         {
           "path": "src/packet/precinct.rs", "symbol": "decode_precinct_packet"
+        },
+        {
+          "path": "src/packet/precinct.rs", "symbol": "decode_precinct_packet_mode"
         },
         {
           "path": "src/packet/precinct.rs", "symbol": "decode_precinct_packet_payload_prefix"

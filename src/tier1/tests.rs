@@ -1655,6 +1655,119 @@ fn actual_legacy_contribution_replays_retained_bytes_and_accounts_extra_work_exa
 }
 
 #[test]
+#[cfg(not(feature = "cooperative-deadlines"))]
+fn terminal_fresh_prefix_spends_no_snapshot_request_and_keeps_the_live_state() {
+    let limits = ResourceLimits::default();
+    let mut before = legacy_raw_pair_decoder(1);
+    before.bitplane_state = Some(legacy_bitplane_from_plane(&before.plane, 2).unwrap());
+    let mut resumable = before.clone();
+    let mut terminal = before.clone();
+    assert_eq!(
+        crate::allocation::with_refusal(0, || before.decode_legacy_contribution(
+            &[0xaa],
+            1,
+            &limits
+        )),
+        Err(DecodeError::AllocationFailed),
+    );
+    resumable
+        .decode_legacy_contribution(&[0xaa], 1, &limits)
+        .unwrap();
+    assert!(resumable.legacy_segment.take().is_some());
+    crate::allocation::with_refusal(0, || {
+        terminal
+            .decode_legacy_contribution_mode(&[0xaa], 1, &limits, true)
+            .unwrap();
+        assert_eq!(
+            crate::allocation::copy_values(&[1_u8]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(format!("{terminal:?}"), format!("{resumable:?}"));
+}
+
+#[test]
+fn terminal_continuation_keeps_even_virtual_fill_prefix_and_work_boundaries() {
+    let limits = ResourceLimits::default();
+    let bytes = [0, 0xff, 0x7e, 0x96, 0x03, 0x44, 0xaa, 0xff];
+    let mut successes = 0;
+    let mut refusals = 0;
+    for bits in 0..64 {
+        let style = Tier1CodingStyle::from_code_block_style(bits).unwrap();
+        let source = Tier1CodeBlockDecoder::new(2, 3, 5, SubbandOrientation::Hh, style).unwrap();
+        for first in 1..source.maximum_passes as u8 {
+            for split in 0..=bytes.len() {
+                let mut prefix = source.clone();
+                if prefix
+                    .decode_legacy_contribution(&bytes[..split], first, &limits)
+                    .is_err()
+                {
+                    continue;
+                }
+                for count in 1..=source.maximum_passes as u8 - first {
+                    for work in [1, 8, 31, 97, limits.maximum_work_units()] {
+                        let caps = limits.with_maximum_work_units(work).unwrap();
+                        let mut resumable = prefix.clone();
+                        let mut terminal = prefix.clone();
+                        let old =
+                            resumable.decode_legacy_contribution(&bytes[split..], count, &caps);
+                        let new = terminal.decode_legacy_contribution_mode(
+                            &bytes[split..],
+                            count,
+                            &caps,
+                            true,
+                        );
+                        assert_eq!(
+                            new, old,
+                            "style={bits} first={first} split={split} count={count} work={work}"
+                        );
+                        if old.is_ok() {
+                            successes += 1;
+                            if !cfg!(feature = "cooperative-deadlines")
+                                && prefix.legacy_segment.is_none()
+                            {
+                                resumable.legacy_segment = None;
+                            }
+                        } else {
+                            refusals += 1;
+                        }
+                        assert_eq!(format!("{terminal:?}"), format!("{resumable:?}"));
+                    }
+                }
+            }
+        }
+    }
+    assert!(successes > 0 && refusals > 0);
+}
+
+#[test]
+fn terminal_never_substitutes_later_bytes_for_an_invalid_intermediate_prefix() {
+    let limits = ResourceLimits::default();
+    let source =
+        Tier1CodeBlockDecoder::new(1, 1, 2, SubbandOrientation::Hh, Tier1CodingStyle::default())
+            .unwrap();
+    let mut combined = source.clone();
+    assert!(
+        combined
+            .decode_legacy_contribution_mode(&[0xff], 4, &limits, true)
+            .is_ok()
+    );
+    let mut prefix = source;
+    assert_eq!(
+        prefix.decode_legacy_contribution(&[], 1, &limits),
+        Err(invalid_code_block()),
+    );
+    assert_eq!(
+        (
+            prefix.next_pass(),
+            prefix.decoded_bytes(),
+            prefix.legacy_decode_work
+        ),
+        (0, 0, 1)
+    );
+}
+
+#[test]
 fn retained_contribution_late_input_limit_failure_consumes_snapshot_but_not_payload_state() {
     let mut decoder = legacy_raw_pair_decoder(1);
     let before = decoder.clone();

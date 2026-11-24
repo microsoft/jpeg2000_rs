@@ -6397,6 +6397,24 @@ Tests check the reduced allocation requests, source preservation, backing-store
 reuse, different-length fallback and retries. Clock-enabled native decoding
 retains the original restore path and checkpoint cadence.
 
+### Private terminal legacy contributions
+
+Final-image execution may omit the legacy replay baseline and prefix copy
+for a fresh, unterminated single-segment contribution. The resolved precinct
+slot must be unseen and every other layer slot for that precinct already
+seen. The same seen matrix covers progression windows and tile-parts;
+duplicates and omitted packets cannot execute a retired row. Successful
+accounting closes the row, and errors do not publish its working owners.
+
+The final-image allocation tape records the real dense `PacketStaging`
+clone before the ordinary segment decoder's requests. The staged decoder
+is published only on success. Contribution admission, virtual fill, and
+existing replay are unchanged. Nonretired rows remain exact; the
+retired-row relation permits only the missing legacy resume checkpoint.
+At tile finalization, the reconstruction contract receives the same readable
+planes, not a synthetic checkpoint. Borrowed, resumable, and cooperative
+execution retain the original paths.
+
 ### Bounded supplied-coefficient reconstruction
 
 `transform::inverse_quantize_values` and `transform::inverse_quantize_plane`

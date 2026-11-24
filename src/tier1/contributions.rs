@@ -509,15 +509,57 @@ impl Tier1CodeBlockDecoder {
         passes: u8,
         limits: &ResourceLimits,
     ) -> Result<(), DecodeError> {
+        self.decode_legacy_contribution_mode(input, passes, limits, false)
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures
+            crate::specs::terminal_legacy_contribution_result(
+                tier1_decoder_state(old(self)), input@, passes, super::legacy_storage_limits(limits),
+                terminal, (result, tier1_decoder_state(final(self)))),
+            result!=Err(DecodeError::AllocationFailed) ==>
+                (result, tier1_decoder_state(final(self))) == crate::specs::terminal_legacy_normal(
+                    tier1_decoder_state(old(self)), input@, passes, super::legacy_storage_limits(limits), terminal),
+            !terminal ==> crate::specs::part2_legacy_contribution_result(
+                tier1_decoder_state(old(self)), input@, passes, super::legacy_storage_limits(limits),
+                (result,tier1_decoder_state(final(self)))),
+            !terminal && result!=Err(DecodeError::AllocationFailed) ==>
+                (result, tier1_decoder_state(final(self))) == crate::specs::part1_legacy_contribution(
+                    tier1_decoder_state(old(self)), input@, passes,
+                    crate::limits::resource_code_block_pass_limit(limits), crate::limits::resource_code_block_byte_limit(limits),
+                    crate::limits::resource_input_byte_limit(limits), crate::limits::resource_work_limit(limits)),
+    ))]
+    pub(crate) fn decode_legacy_contribution_mode(
+        &mut self,
+        input: &[u8],
+        passes: u8,
+        limits: &ResourceLimits,
+        terminal: bool,
+    ) -> Result<(), DecodeError> {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        let terminal = {
+            let _ = terminal;
+            false
+        };
         #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
         crate::deadline::checkpoint()?;
         #[cfg(verus_keep_ghost)]
         proof! { reveal(crate::specs::part1_legacy_contribution); }
         #[cfg(verus_keep_ghost)]
-        proof_decl! {let ghost before=tier1_decoder_state(self);}
+        proof_decl! {
+            let ghost before = tier1_decoder_state(self);
+            let ghost caps = super::legacy_storage_limits(limits);
+            let ghost admission = crate::specs::part1_legacy_contribution_admission(before, input@, passes, caps.bytes, caps.work);
+        }
         let admitted = self.admit_legacy_contribution(input, passes, limits);
         #[cfg(verus_keep_ghost)]
-        proof! {if admitted.is_err(){crate::specs::part2_legacy_contribution_pure(before,input@,passes,super::legacy_storage_limits(limits));}}
+        proof! {
+            if let Err(error) = admitted {
+                crate::specs::part2_legacy_contribution_pure(before, input@, passes, caps);
+                crate::specs::terminal_legacy_ordinary_observed(
+                    before, input@, passes, caps, terminal, (Err(error), tier1_decoder_state(self)));
+            }
+        }
         let (replay_passes, next_pass, last_pass) = admitted?;
         if self.legacy_segment.is_none()
             && (next_pass == self.maximum_passes
@@ -525,13 +567,42 @@ impl Tier1CodeBlockDecoder {
         {
             let decoded = self.decode_legacy_segment(input, u32::from(passes), limits);
             #[cfg(verus_keep_ghost)]
-            proof! {crate::specs::part2_legacy_contribution_segment_observed(before,input@,passes,super::legacy_storage_limits(limits),replay_passes,next_pass,last_pass,(decoded,tier1_decoder_state(self)));}
+            proof! {
+                let state = tier1_decoder_state(self);
+                crate::specs::part2_legacy_contribution_segment_observed(
+                    before, input@, passes, caps, replay_passes, next_pass, last_pass, (decoded, state));
+                crate::specs::terminal_legacy_ordinary_observed(
+                    before, input@, passes, caps, terminal,
+                    (match decoded { Ok(_) => Ok(()), Err(error) => Err(error) }, state));
+            }
             decoded?;
+            return Ok(());
+        }
+        if terminal && self.legacy_segment.is_none() {
+            let decoded =
+                self.decode_legacy_segment_with_compact(input, replay_passes, limits, false);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                reveal(tier1_decoder_state);
+                crate::specs::terminal_legacy_selected_observed(
+                    before, input@, passes, caps, (decoded, tier1_decoder_state(self)));
+            }
+            decoded?;
+            self.next_pass
+                .checked_sub(1)
+                .ok_or_else(invalid_code_block)?;
+            self.legacy_segment = None;
             return Ok(());
         }
         let decoded = self.decode_legacy_replay(input, replay_passes, limits);
         #[cfg(verus_keep_ghost)]
-        proof! {crate::specs::part2_legacy_contribution_observed(before,input@,passes,super::legacy_storage_limits(limits),replay_passes,next_pass,last_pass,(decoded,tier1_decoder_state(self)));}
+        proof! {
+            let state = tier1_decoder_state(self);
+            crate::specs::part2_legacy_contribution_observed(
+                before, input@, passes, caps, replay_passes, next_pass, last_pass, (decoded, state));
+            crate::specs::terminal_legacy_ordinary_observed(
+                before, input@, passes, caps, terminal, (decoded, state));
+        }
         decoded
     }
 

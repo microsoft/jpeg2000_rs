@@ -1,5 +1,26 @@
 #[cfg(verus_keep_ghost)]
 verus! {
+    pub(super) open spec fn terminal_payload_context_view(
+        state: crate::specs::Part1PacketPrecinctState, data: Seq<u8>, packed: Seq<u8>,
+        parameters: PrecinctPayloadParameters, limits: &crate::ResourceLimits,
+    ) -> crate::specs::Part2PrecinctContributionsContext {
+        crate::specs::Part2PrecinctContributionsContext {
+            state, data, packed, parameters: precinct_payload_parameters_view(parameters),
+            header_limit: crate::limits::resource_packet_header_byte_limit(limits),
+            work: crate::limits::resource_work_limit(limits),
+        }
+    }
+
+    pub(super) open spec fn terminal_payload_header_view(
+        header: PrecinctPayloadHeader<'_>,
+    ) -> crate::specs::Part2PlanePayloadHeader {
+        let h = precinct_payload_header_view(header);
+        crate::specs::Part2PlanePayloadHeader {
+            packet: h.0.packet_data, reader: h.0.reader, contributions: h.1, count: h.2,
+            present: h.0.present, sop: h.0.sop_bytes,
+        }
+    }
+
     pub closed spec fn packet_bit_reader_view(reader: &PacketBitReader<'_>) -> crate::specs::Part1PacketReaderState {
         crate::specs::Part1PacketReaderState {
             input: reader.input@, byte_index: reader.byte_index, current_byte: reader.current_byte,

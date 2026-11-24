@@ -202,6 +202,7 @@ specs/selected_reconstruction.rs
 specs/spatial_geometry.rs
 specs/spatial_grid_composition.rs
 specs/tag_tree.rs
+specs/terminal_legacy.rs
 specs/tile_header_traversal.rs
 specs/tile_part.rs
 src/allocation.rs

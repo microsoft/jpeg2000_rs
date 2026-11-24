@@ -182,6 +182,8 @@ mod cold_decoder_nested;
 pub use cold_decoder_nested::*;
 mod cold_legacy_replay;
 pub use cold_legacy_replay::*;
+mod terminal_legacy;
+pub use terminal_legacy::*;
 mod cold_legacy_packets;
 pub use cold_legacy_packets::*;
 mod cold_bitplane_initial;

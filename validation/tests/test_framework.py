@@ -10068,7 +10068,7 @@ class FrameworkTests(WorkingFiles):
             ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay",
              "self.decode_legacy_segment_with_compact(&segment.input, segment.passes, limits, false)",
              "self.decode_legacy_segment_with_compact(&segment.input, segment.passes, limits, true)"),
-            ("src/packet/body.rs", "decode_legacy_code_block_segment", "decoded?", "let ignored = decoded"),
+            ("src/packet/body.rs", "decode_legacy_code_block_segment_mode", "decoded?", "let ignored = decoded"),
         )
         for relative, symbol, before, after in cases:
             source = framework.ROOT / relative
@@ -10909,6 +10909,43 @@ class FrameworkTests(WorkingFiles):
             ]
             with self.subTest(field=field), self.assertRaisesRegex(ValueError, "precinct singleton storage requires"):
                 framework.validate_normative_coverage(missing)
+
+    def test_inventory_terminal_packet_preserves_selection_private_mode_and_real_copies(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        selected = [entry for entry in coverage["requirements"]
+                    if entry["id"] == "part1-complete-native-grid-progression-composition"]
+        data = dict(coverage, requirements=selected)
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, symbol, old, new in (
+            ("src/packet/tile.rs", "execute_progression_packet",
+             "terminal_precinct_slot(", "private_mode_only("),
+            ("src/packet/tile.rs", "terminal_precinct_slot",
+             "if i != slot && !seen[i]", "if i == slot && !seen[i]"),
+            ("src/packet/tile.rs", "decode_progression_tile_packets_selected",
+             "        false,", "        true,"),
+            ("src/packet/precinct.rs", "decode_precinct_packet_payload_after_headers",
+             "if parameters.terminal && decode_tier1", "if parameters.terminal"),
+            ("specs/terminal_legacy.rs", "terminal_body_mode_run",
+             "crate::tier1::HtRefinementCopyRole::PacketStaging",
+             "crate::tier1::HtRefinementCopyRole::LegacySnapshot"),
+            ("specs/terminal_legacy.rs", "terminal_legacy_contribution_run",
+             "terminal_legacy_segment_run(admitted.1, input, (admitted.0->Ok_0).0, caps, calls)",
+             "part2_legacy_contribution_run(before, input, passes, caps, calls)"),
+        ):
+            path = framework.ROOT / relative
+            original = path.read_text()
+            body = (framework._coverage_spec_function_body(original, symbol) if relative.startswith("specs/")
+                    else framework._coverage_function_body(original, framework._coverage_function_header(original, symbol)))
+            self.assertIn(old, body)
+            changed = original.replace(body, body.replace(old, new, 1), 1)
+
+            def altered(target, *args, **kwargs):
+                return changed if target == path else read_text(target, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, old=old), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "terminal packet mode requires actual admission, copy and tape"):
+                framework.validate_normative_coverage(data)
 
     def test_inventory_remaining_plane_roles_require_real_children_partial_state_and_exact_tail(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())

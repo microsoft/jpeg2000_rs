@@ -7197,7 +7197,13 @@ _LEGACY_SNAPSHOT_NATIVE_ORDER = {
         "self.decode_legacy_segment_with_compact(&segment.input,segment.passes,limits,false)", "part2_legacy_replay_segment_observed(", "decoded?", "self.commit_legacy_replay(segment)",
     ),
     ("src/packet/body.rs", "decode_legacy_code_block_segment"): (
+        "decode_legacy_code_block_segment_mode(decoder,contribution,body,limits,segment_index,offset,decoded_passes,false,)",
+    ),
+    ("src/packet/body.rs", "decode_legacy_code_block_segment_mode"): (
         "contribution.segment(*segment_index)?", "usize::try_from(segment.data_length)", "checked_add(segment_length)", "if end>body.len()",
+        "let decoded=if terminal{",
+        "decoder.decode_legacy_contribution_mode(&body[*offset..end],segment.passes,limits,true)",
+        "}else{",
         "decoder.decode_legacy_contribution(&body[*offset..end],segment.passes,limits)", "part2_legacy_packet_step_observed(", "decoded?",
         "*decoded_passes=decoded_passes.checked_add", "*offset=end", "*segment_index=segment_index.checked_add",
     ),
@@ -7378,7 +7384,7 @@ _PRECINCT_CONTRIBUTION_NATIVE_ORDER = {
         "decode_precinct_packet_payload_prefix(", "let contributions_result = if precinct.states.is_empty()", "Ok(Vec::new())",
         "crate::allocation::none_values(precinct.states.len())", "part2_precinct_contributions_observed(context,response)",
         "part2_plane_payload_capacity_then(", "let mut contributions = contributions_result?",
-        "decode_precinct_contribution_headers(", "decode_precinct_packet_payload_after_headers(", "part2_plane_payload_observed(",
+        "decode_precinct_contribution_headers(", "decode_precinct_packet_payload_after_headers(", "terminal_payload_mode_publish(",
     ),
     "decode_jpip_precinct_packet_inner": (
         "set_progression_context_layer(", "template.try_duplicate()", "part2_jpip_inline_copy_observed(",
@@ -8448,9 +8454,72 @@ _PREPARATION_NATIVE_ORDER = {
         "usize::try_from(params.grid.packet_count)", "crate::allocation::filled_values(false, seen_length)",
         "part2_preparation_observed(context,response)", "let seen=reserved?", "Ok(ProgressionTileProgress",
     ),
-    ("src/packet/tile.rs", "decode_progression_tile_packets_selected"): (
+    ("src/packet/tile.rs", "decode_progression_tile_packets_mode"): (
         "prepare_progression_tile_input(", "let input = prepared?", "progression_tile_progress_new(&params)",
         "part2_packet_progress_error(", "let mut progress = progress_result?", "run_progression_tile_packets(",
+    ),
+}
+_TERMINAL_PACKET_EDGES = {
+    ("src/packet/tile.rs", "decode_progression_tile_packets_selected"): (
+        "decode_progression_tile_packets_mode(tile_parts,grid,precincts,maximum_resolution_counts,limits,false,)",
+    ),
+    ("src/packet/tile.rs", "decode_progression_tile_packets_final"): (
+        'if cfg!(feature = "cooperative-deadlines") {',
+        "let output=decode_progression_tile_packets_selected(",
+        "return Ok((output?,precincts));",
+        "decode_progression_tile_packets_mode(tile_parts,grid,slice,maximum_resolution_counts,limits,true,)",
+        "Ok((packets?,precincts))",
+    ),
+    ("src/packet/tile.rs", "terminal_precinct_slot"): (
+        "if layer.checked_add(1)!=Some(layers){return false;}",
+        "precinct.checked_mul(layer_count)",
+        "if start>len||layer_count>len-start{return false;}",
+        "if slot!=start+layer_index||seen[slot]{return false;}",
+        "while i<end{if i!=slot&&!seen[i]{",
+    ),
+    ("src/packet/tile.rs", "execute_progression_packet"): (
+        "let (index,seen_index)=slot?;",
+        "if !crate::refinement::progression_emit_allowed(seen){return Ok(());}",
+        "let terminal=params.final_image&&terminal_precinct_slot(&p.seen,index,seen_index,coordinate.layer,params.grid.layers,);",
+        "decode_progression_precinct_packet(params,part,p,coordinate,expected,precinct,terminal,)",
+        "account_progression_packet(p,decoded,tile_bytes,packed_bytes,expected,seen_index)",
+    ),
+    ("src/packet/precinct.rs", "decode_precinct_packet_payload_after_headers"): (
+        "preflight_packet_body_ranges(&contributions,data,&mut preflight,(offset,0))?;",
+        "let executed=if parameters.terminal&&decode_tier1{",
+        "execute_terminal_packet_body_contributions(&mut precinct.decoders,&contributions,data,&mut execution,(offset,0),limits,)",
+        "}else{",
+        "execute_packet_body_contributions(&mut precinct.decoders,&contributions,data,&mut execution,(offset,0),decode_tier1,limits,)",
+        "executed?;",
+    ),
+    ("src/packet/body.rs", "decode_terminal_code_block_body"): (
+        "if contribution.high_throughput||contribution.segment_count()!=1{",
+        "decode_code_block_contribution_body(decoder, contribution, body, limits)",
+        "let duplicated=decoder.try_duplicate(crate::tier1::HtRefinementCopyRole::PacketStaging);",
+        "let mut staged=duplicated?;",
+        "decode_terminal_single_legacy_body(&mut staged,contribution,body,limits)",
+        "let decoded=decoded?;",
+        "*decoder=staged;",
+    ),
+    ("specs/terminal_legacy.rs", "terminal_seen_extends"): (
+        "before.len()==after.len()", "0<=i<before.len()&&#[trigger]before[i]==>#[trigger]after[i]",
+    ),
+    ("specs/terminal_legacy.rs", "terminal_decoder_live"): (
+        "Tier1DecoderState { legacy_segment: None, ..state }",
+    ),
+    ("specs/terminal_legacy.rs", "terminal_body_mode_run"): (
+        "part2_ht_duplicate_run(before,crate::tier1::HtRefinementCopyRole::PacketStaging,calls)",
+        "terminal_body_after_copy(before,header,body,part2_legacy_caps(pass_limit,byte_limit,input_limit,work),copy,rest)",
+        "part2_plane_body_transaction_run(before,header,body,pass_limit,byte_limit,input_limit,work,calls)",
+    ),
+    ("specs/terminal_legacy.rs", "terminal_legacy_contribution_run"): (
+        "part1_legacy_contribution_admission(before,input,passes,caps.bytes,caps.work)",
+        "if terminal&&terminal_legacy_selected(admitted){",
+        "terminal_legacy_segment_run(admitted.1,input,(admitted.0->Ok_0).0,caps,calls)",
+        "}else{part2_legacy_contribution_run(before,input,passes,caps,calls)}",
+    ),
+    ("specs/terminal_legacy.rs", "terminal_precinct_mode_frame"): (
+        "if terminal && decode {", "terminal_precinct_run(", "} else {", "part2_plane_precinct_result(",
     ),
 }
 _WAVELET_PLANE_GUARDS = {
@@ -11091,8 +11160,8 @@ _COEFFICIENT_EXTRACTION_GUARDS = {
         "part2_extraction_place_run(effect.1,plan.subbands,precincts,plan.placements[index as int],reversible,maximum,calls)",
     ),
     ("specs/cold_decode_packets.rs", "part2_planned_decode_run"): (
-        "part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
-        "part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest)",
+        "terminal_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
+        "part2_final_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest)",
     ),
 }
 _COEFFICIENT_EXTRACTION_PROOF_GUARDS = {
@@ -11194,11 +11263,14 @@ _PACKED_STORAGE_GUARDS = {
         "part2_packet_run(parts, grid, precincts, selection, limits, prefix + tail) == Some((result, tail))",
     ),
     ("specs/cold_decode_packets.rs", "part2_planned_decode_run"): (
-        "part2_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
-        "|decoded: (crate::packet::TilePacketDecode, Seq<Part1PacketPrecinctState>), rest| part2_planned_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest)",
+        "terminal_packet_value_run(parts, plan.grid, plan.precincts, selection, limits, events)",
+        "|decoded: (crate::packet::TilePacketDecode, Seq<Seq<Tier1RawPlane>>), rest| part2_final_extraction_run(plan,first,size,standard,limits,prepared,work,decoded.1,rest)",
     ),
     ("specs/cold_decode_packets.rs", "part2_planned_extraction_run"): (
-        "part2_extraction_tile_calls_run(prepared,plan.components,part2_precinct_decoder_planes(precincts),first.component_coding_styles",
+        "part2_final_extraction_run(plan,first,size,standard,limits,prepared,work,part2_precinct_decoder_planes(precincts),events)",
+    ),
+    ("specs/cold_decode_packets.rs", "part2_final_extraction_run"): (
+        "part2_extraction_tile_calls_run(prepared,plan.components,planes,first.component_coding_styles",
         "|effect:Part2ExtractionTileEffect,rest|Some((match effect.0{Err(error)=>Err(error),Ok(())=>Ok(Part2DecodedTileComponents {prepared:effect.1,mct_work:effect.2})},rest))",
     ),
     ("specs/cold_decode_packets.rs", "part2_tile_decode_run"): (
@@ -18255,6 +18327,14 @@ def validate_normative_coverage(
                 required_models, _ = _coverage_cold_links({(reference["path"], reference["symbol"])})
                 if not required_models.issubset({(ref["path"], ref["symbol"]) for ref in entry["spec_refs"]}):
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; missing complete cold run links")
+            terminal_frame_guard = {
+                ("src/packet/precinct.rs", "decode_precinct_packet"): "",
+                ("src/packet/precinct.rs", "decode_precinct_packet_payload"): "parameters.terminal",
+                ("src/packet/precinct.rs", "decode_precinct_packet_payload_after_headers"): "parameters.terminal",
+                ("src/packet/tile.rs", "decode_progression_precinct_packet"): "terminal",
+                ("src/packet/tile.rs", "execute_progression_packet"): "params.final_image",
+                ("src/packet/tile.rs", "run_progression_tile_packets"): "params.final_image",
+            }.get((reference["path"], reference["symbol"]))
             if storage_contract:
                 model, arguments = storage_contract
                 relation_prefix = named_prefix
@@ -18262,6 +18342,23 @@ def validate_normative_coverage(
                     relation_prefix + r"crate::specs::(?P<model>" + re.escape(model)
                     + r")\s*\(\s*(?P<state>" + arguments + r")\s*,?\s*\)", contract,
                 )
+                if terminal_frame_guard is not None:
+                    prefix = relation_prefix
+                    if terminal_frame_guard:
+                        prefix += r"[\s\S]*?,\s*!\s*" + re.escape(terminal_frame_guard) + r"\s*==>\s*"
+                    old_model, result, state, geometric_inputs = (
+                        _PACKET_HEADER_CONTRACTS.get((reference["path"], reference["symbol"]))
+                        or _PACKET_PROGRESSION_CONTRACTS[(reference["path"], reference["symbol"])]
+                    )
+                    inputs = _coverage_cold_relation((old_model, "", None, geometric_inputs))[1].removesuffix(r"\s*,\s*")
+                    relation = re.search(
+                        prefix + r"crate::specs::terminal_exact_observed\s*\(\s*"
+                        + r"(?P<state>\(\s*" + result + r"\s*,\s*" + state + r"\s*\))\s*,\s*"
+                        + r"\|effect\s*:\s*(?:crate::specs::Part1PrecinctPayloadResult|\(Result<\(\),DecodeError>,crate::specs::Part1TilePacketExecution\))\|\s*"
+                        + r"crate::specs::(?P<model>" + re.escape(model) + r")\s*\(\s*"
+                        + inputs + r"\s*,\s*effect\s*\)\s*\)",
+                        contract,
+                    )
                 copy_phase = (reference["path"], reference["symbol"]) == (
                     "src/jpip/automatic_phases.rs", "decode_automatic_precinct")
                 exact_copy_phase_requires = copy_phase and re.search(
@@ -18430,6 +18527,22 @@ def validate_normative_coverage(
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid recovery relation")
                 scalar_result = relation
                 expected_result_model = model
+            if (reference["path"], reference["symbol"]) == (
+                    "src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_contribution_mode"):
+                state_result = re.search(
+                    named_prefix + r"crate::specs::(?P<model>terminal_legacy_contribution_result)\s*\(\s*"
+                    r"tier1_decoder_state\(old\(self\)\)\s*,\s*input@\s*,\s*passes\s*,\s*"
+                    r"super::legacy_storage_limits\(limits\)\s*,\s*terminal\s*,\s*"
+                    r"\(\s*\1\s*,\s*(?P<state>tier1_decoder_state\(final\(self\)\))\s*\)\s*\)", contract,
+                )
+                expected_result_model = "terminal_legacy_contribution_result"
+                ordinary = (
+                    "!terminal==>crate::specs::part2_legacy_contribution_result("
+                    "tier1_decoder_state(old(self)),input@,passes,super::legacy_storage_limits(limits),"
+                    "(result,tier1_decoder_state(final(self))))"
+                )
+                if state_result is None or ordinary not in "".join(contract.split()):
+                    raise ValueError("terminal legacy dispatcher requires exact private and resumable result contracts")
             final_parameters = set(re.findall(
                 r"\bfinal\(\s*(\w+(?:\.\w+)?)\s*\)" if bundle else r"\bfinal\(\s*(\w+)\s*\)",
                 state_result["state"],
@@ -19107,6 +19220,17 @@ def validate_normative_coverage(
             if any(position < 0 for position in positions) or positions != sorted(positions):
                 raise ValueError("packed-header fresh storage requires unchanged real constructor/admission/copy/owner/error order")
     if "part1-complete-native-grid-progression-composition" in ids:
+        for (relative, symbol), edges in _TERMINAL_PACKET_EDGES.items():
+            path = (ROOT / relative).resolve()
+            body = (_coverage_function_body(source_text(path), function_header(path, symbol))
+                    if relative.startswith("src/") else _coverage_spec_function_body(source_text(path), symbol))
+            tail = "".join(re.sub(r"(?m)^\s*//[^\n]*", "", body).split()) if body is not None else ""
+            for edge in edges:
+                token = "".join(edge.split())
+                position = tail.find(token)
+                if position < 0:
+                    raise ValueError(f"terminal packet mode requires actual admission, copy and tape: {symbol}")
+                tail = tail[position + len(token):]
         preparation_entry = next(item for item in coverage["requirements"] if item["id"] == "part1-complete-native-grid-progression-composition")
         for (relative, symbol), fragments in _PREPARATION_STORAGE_GUARDS.items():
             path = (ROOT / relative).resolve()

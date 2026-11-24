@@ -2903,6 +2903,156 @@ fn literal_progression_tile(
 }
 
 #[test]
+fn final_progression_executes_the_real_unterminated_legacy_slot() {
+    let limits = ResourceLimits::default();
+    let grid = packet_grid_new_with_component_resolutions(1, 1, vec![1], vec![1], &limits).unwrap();
+    let make_precinct = || {
+        let mut precinct = literal_packet_precinct();
+        precinct.decoders[0] = Tier1CodeBlockDecoder::new(
+            1,
+            1,
+            3,
+            SubbandOrientation::Ll,
+            Tier1CodingStyle::default(),
+        )
+        .unwrap();
+        precinct
+    };
+    let part = |data| {
+        let mut style = coding_style(false, false);
+        style.layers = 1;
+        TilePartPayload::uniform_for_packet_decoding(
+            7,
+            0,
+            1,
+            1,
+            style,
+            crate::codestream::RoiShifts::none(),
+            data,
+        )
+        .unwrap()
+    };
+    let parts = [part(&[0xe1, 0xff])];
+    // Packed-header owner, seen map, and contribution slots precede the
+    // real dense PacketStaging copy on both the ordinary and final paths.
+    let mut refused = vec![make_precinct()];
+    let before = format!("{:?}", refused[0].decoders[0]);
+    assert_eq!(
+        crate::allocation::with_refusal(3, || {
+            decode_progression_tile_packets(&parts, &grid, &mut refused, &limits)
+        }),
+        Err(DecodeError::AllocationFailed),
+    );
+    assert_eq!(format!("{:?}", refused[0].decoders[0]), before);
+    let final_precincts = vec![make_precinct()];
+    assert_eq!(
+        crate::allocation::with_refusal(3, || {
+            super::tile::decode_progression_tile_packets_final(
+                &parts,
+                &grid,
+                final_precincts,
+                None,
+                &limits,
+            )
+        })
+        .err(),
+        Some(DecodeError::AllocationFailed),
+    );
+    let mut borrowed = vec![make_precinct()];
+    let expected = decode_progression_tile_packets(&parts, &grid, &mut borrowed, &limits).unwrap();
+    let (actual, terminal) = super::tile::decode_progression_tile_packets_final(
+        &parts,
+        &grid,
+        vec![make_precinct()],
+        None,
+        &limits,
+    )
+    .unwrap();
+    assert_eq!(expected, actual);
+    let live = |p: &PacketPrecinctDecoder| format!("{:?}", p.decoders[0].plane());
+    assert_eq!(live(&terminal[0]), live(&borrowed[0]));
+    assert_eq!(
+        terminal[0].states[0].total_passes(),
+        borrowed[0].states[0].total_passes()
+    );
+    let terminal_decoder = format!("{:?}", terminal[0].decoders[0]);
+    let borrowed_decoder = format!("{:?}", borrowed[0].decoders[0]);
+    assert!(borrowed_decoder.contains("legacy_segment: Some("));
+    if cfg!(feature = "cooperative-deadlines") {
+        assert_eq!(terminal_decoder, borrowed_decoder);
+    } else {
+        assert!(terminal_decoder.contains("legacy_segment: None"));
+    }
+
+    let trailing = [part(&[0xe1, 0xff, 0x55])];
+    assert_eq!(
+        super::tile::decode_progression_tile_packets_final(
+            &trailing,
+            &grid,
+            vec![make_precinct()],
+            None,
+            &limits,
+        )
+        .err(),
+        Some(packet_reader_error(2, MalformedKind::TrailingData)),
+    );
+}
+
+#[test]
+fn final_progression_keeps_the_first_invalid_legacy_prefix_before_later_packets() {
+    let limits = ResourceLimits::default();
+    let grid = packet_grid_new_with_component_resolutions(2, 1, vec![1], vec![1], &limits).unwrap();
+    let fresh = || {
+        let mut precinct = literal_packet_precinct();
+        precinct.decoders[0] = Tier1CodeBlockDecoder::new(
+            1,
+            1,
+            3,
+            SubbandOrientation::Ll,
+            Tier1CodingStyle::default(),
+        )
+        .unwrap();
+        precinct
+    };
+    let make_part = |data, index| {
+        let mut style = coding_style(false, false);
+        style.layers = 2;
+        TilePartPayload::uniform_for_packet_decoding(
+            7,
+            index,
+            2,
+            1,
+            style,
+            crate::codestream::RoiShifts::none(),
+            data,
+        )
+        .unwrap()
+    };
+    // First inclusion with one pass and zero bytes. The later tile-part
+    // cannot turn that rejected prefix into an admitted contribution.
+    let parts = [make_part(&[0xe0], 0), make_part(&[0xff], 1)];
+    let mut resumable = vec![fresh()];
+    let before = format!("{:?}", resumable[0].decoders[0]);
+    let expected = decode_progression_tile_packets(&parts, &grid, &mut resumable, &limits);
+    assert_eq!(
+        expected,
+        Err(packet_reader_error(1, MalformedKind::InvalidPacketHeader))
+    );
+    assert_eq!(format!("{:?}", resumable[0].decoders[0]), before);
+    assert_eq!(
+        super::tile::decode_progression_tile_packets_final(
+            &parts,
+            &grid,
+            vec![fresh()],
+            None,
+            &limits
+        )
+        .err(),
+        expected.err(),
+    );
+}
+
+#[test]
 fn full_selected_progression_derives_literal_headers_and_skips_only_higher_resolution_coefficients()
 {
     let limits = ResourceLimits::default();
@@ -3016,6 +3166,7 @@ fn actual_progression_work_guard_follows_real_next_and_restart_duplicate_effects
     let mut precincts = [literal_ht_progression_precinct(0)];
     let input = prepare_progression_tile_input(&parts, &grid, &precincts, None, &limits).unwrap();
     let params = ProgressionTileParameters {
+        final_image: false,
         tile_parts: &parts,
         grid: &grid,
         input: &input,
@@ -3059,6 +3210,7 @@ fn physical_tile_boundary_does_not_spend_a_discarded_coordinate_before_restart()
     let mut precincts = [literal_ht_progression_precinct(0)];
     let input = prepare_progression_tile_input(&parts, &grid, &precincts, None, &limits).unwrap();
     let params = ProgressionTileParameters {
+        final_image: false,
         tile_parts: &parts,
         grid: &grid,
         input: &input,
@@ -3089,6 +3241,7 @@ fn actual_progression_accounting_keeps_every_ordered_overflow_and_new_offset_err
     let precincts = [literal_ht_progression_precinct(0)];
     let input = prepare_progression_tile_input(&parts, &grid, &precincts, None, &limits).unwrap();
     let params = ProgressionTileParameters {
+        final_image: false,
         tile_parts: &parts,
         grid: &grid,
         input: &input,
@@ -3348,6 +3501,7 @@ fn preparation_storage_empty_geometry_and_iterator_errors_consume_no_later_reque
     let parts = [literal_progression_tile(&[], 1, 0, 0, 1)];
     let input = prepare_progression_tile_input(&parts, &grid, &[], None, &limits).unwrap();
     let params = ProgressionTileParameters {
+        final_image: false,
         tile_parts: &parts,
         grid: &grid,
         input: &input,
@@ -3365,6 +3519,7 @@ fn preparation_storage_empty_geometry_and_iterator_errors_consume_no_later_reque
     let prepared =
         prepare_progression_tile_input(&invalid, &positive, &precincts, None, &limits).unwrap();
     let bad = ProgressionTileParameters {
+        final_image: false,
         tile_parts: &invalid,
         grid: &positive,
         input: &prepared,
@@ -3380,6 +3535,7 @@ fn preparation_storage_empty_geometry_and_iterator_errors_consume_no_later_reque
     let admitted =
         prepare_progression_tile_input(&costly, &positive, &precincts, None, &tight).unwrap();
     let limited = ProgressionTileParameters {
+        final_image: false,
         tile_parts: &costly,
         grid: &positive,
         input: &admitted,
@@ -4086,6 +4242,7 @@ fn actual_progression_constructor_charges_duplicate_windows_and_next_suppresses_
 
 fn literal_payload_parameters() -> PrecinctPayloadParameters {
     PrecinctPayloadParameters {
+        terminal: false,
         error_offset: 21,
         packed_offset: 0,
         expected_packet_length: None,
