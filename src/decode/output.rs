@@ -1056,6 +1056,20 @@ pub(super) fn map_palette_component(
         }
     }
     let mut unsigned_samples = unsigned_capacity?;
+    // Precision was admitted above. Keep empty columns work-free and compute
+    // the modulus once, after the active sample reservation.
+    let modulus = if sample_count == 0 {
+        0
+    } else {
+        palette_modulus(precision)?
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if sample_count != 0 {
+            assert(2 <= modulus <= 274877906944) by(bit_vector)
+                requires 0 < precision <= 38, modulus == 1u64 << precision;
+        }
+    }
     let mut sample_index = 0_usize;
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -1074,6 +1088,7 @@ pub(super) fn map_palette_component(
             column < crate::jp2::palette_view(palette).1.len(),
             *descriptor == crate::jp2::palette_view(palette).1[column as int],
             precision == descriptor.precision, 0 < precision <= 38,
+            sample_count != 0 ==> modulus == 1u64 << precision && 2 <= modulus <= 274877906944,
             crate::specs::part2_palette_samples(
                 crate::image::typed_component_view(source).samples, crate::jp2::palette_view(palette), column, sample_index as nat,
             ) == Ok(if descriptor.signed {
@@ -1134,12 +1149,6 @@ pub(super) fn map_palette_component(
         }
         let value = value_status?;
         if descriptor.signed {
-            let modulus = palette_modulus(precision)?;
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(2 <= modulus <= 274877906944) by(bit_vector)
-                    requires 0 < precision <= 38, modulus == 1u64 << precision;
-            }
             let half = i64::try_from(modulus.checked_div(2).ok_or_else(arithmetic_overflow)?)
                 .map_err(|_| arithmetic_overflow())?;
             let minimum = 0_i64.checked_sub(half).ok_or_else(arithmetic_overflow)?;
@@ -1162,12 +1171,6 @@ pub(super) fn map_palette_component(
             }
             signed_samples.push(value);
         } else {
-            let modulus = palette_modulus(precision)?;
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(2 <= modulus <= 274877906944) by(bit_vector)
-                    requires 0 < precision <= 38, modulus == 1u64 << precision;
-            }
             let maximum = modulus.checked_sub(1).ok_or_else(arithmetic_overflow)?;
             #[cfg(verus_keep_ghost)]
             proof! {

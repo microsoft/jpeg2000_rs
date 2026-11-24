@@ -5113,6 +5113,8 @@ class FrameworkTests(WorkingFiles):
              "descriptor.signed && sample_count != 0", "descriptor.signed"),
             ("part2-complete-native-palette-component", "src/decode/output.rs",
              "crate::allocation::inspection_capacity_outcome(unsigned_capacity)", "Ok(())"),
+            ("part2-complete-native-palette-component", "src/decode/output.rs",
+             "palette_modulus(precision)?", "palette_modulus(1)?"),
             ("part2-complete-native-palette-component", "specs/cold_typed_storage.rs",
              "Part2TypedCapacityContext::Palette {source,..}=>part2_typed_sample_count(source.0.samples),",
              "Part2TypedCapacityContext::Palette {source,..}=>part2_typed_sample_count(source.0.samples)+1,"),

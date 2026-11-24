@@ -5123,6 +5123,45 @@ fn palette_storage_mapped_samples_keep_preflight_lookup_priority_empty_and_exact
             );
         });
     }
+
+    // A second sample outside a signed 38-bit column's range must still fail
+    // after the active reservation; the following unsigned column can read the
+    // exact same indices successfully with its different range.
+    let half = 1_i64 << 37;
+    let palette = jp2::Palette::for_test(
+        2,
+        vec![
+            jp2::PaletteColumn {
+                precision: 38,
+                signed: true,
+            },
+            jp2::PaletteColumn {
+                precision: 38,
+                signed: false,
+            },
+        ],
+        vec![-half, 2 * half - 1, half, half],
+    );
+    let source = TypedComponent::from_parts(2, 1, info, TypedSamples::Signed(vec![0, 1]));
+    assert_eq!(
+        crate::allocation::with_refusal(0, || map_palette_component(&source, &palette, 0)),
+        Err(DecodeError::AllocationFailed)
+    );
+    assert_eq!(
+        map_palette_component(&source, &palette, 0),
+        Err(invalid_jp2_output())
+    );
+    crate::allocation::with_refusal(1, || {
+        let mapped = map_palette_component(&source, &palette, 1).unwrap();
+        assert_eq!(
+            mapped.samples(),
+            &TypedSamples::Unsigned(vec![(2 * half - 1) as u64, half as u64])
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
 }
 
 #[test]
