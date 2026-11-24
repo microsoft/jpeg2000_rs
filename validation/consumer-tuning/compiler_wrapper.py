@@ -9,8 +9,12 @@ import uuid
 
 from measure import measure
 
-mode = "link" if Path(sys.argv[0]).name.startswith("linker") else "rustc"
-command = ([os.environ["CONSUMER_REAL_LINKER"]] if mode == "link" else []) + sys.argv[1:]
+if Path(sys.argv[0]).name.startswith("linker"):
+    mode, command = "link", [os.environ["CONSUMER_REAL_LINKER"], *sys.argv[1:]]
+elif sys.argv[1:2] == ["--cc"]:
+    mode, command = "cc", sys.argv[2:]
+else:
+    mode, command = "rustc", sys.argv[1:]
 prefix = Path(os.environ["CONSUMER_INVOCATIONS"]) / (mode + "-" + uuid.uuid4().hex)
 metrics = measure(command, prefix, preserve_jobserver=mode == "rustc")
 Path(str(prefix) + ".environment.json").write_text(json.dumps({

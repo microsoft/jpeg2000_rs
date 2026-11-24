@@ -30,8 +30,8 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def capture(command):
-    result = subprocess.run(command, capture_output=True, text=True)
+def capture(command, *, env=None):
+    result = subprocess.run(command, capture_output=True, text=True, env=env)
     return {"command": list(map(str, command)), "returncode": result.returncode,
             "stdout": result.stdout, "stderr": result.stderr}
 

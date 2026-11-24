@@ -77,6 +77,38 @@ python3 validation/consumer-tuning/native_comparison.py \
   --output target/native-smoke --qualify-only
 ```
 
+## Focused matched public CAPI / OpenJPEG comparison
+
+Use `consumer_benchmark_scope=matched-capi` with the same `native_baseline`,
+`native_candidate` and `native_pairs` dispatch fields (8 or 24 rounds). The
+separate opt-in job uses the same C public `opj_*` lifecycle, memory stream,
+single pinned CPU and system allocator for both Rust revisions and upstream
+OpenJPEG 2.5.4. Rust 1.93.1 emits linker-plugin LTO bitcode for the decoder and
+CAPI static library; the C sources are compiled at O3/native/ThinLTO and the
+final Clang++/LLD link requests `--lto-O3`. The artifacts retain actual compiler
+and linker invocations, hashes, raw status/callbacks and unmodified S32 dumps.
+
+The two reversible HT and two lossless legacy cases are the intended exact
+cross-library subset. Colour metadata, resolution counts and informational
+callbacks are recorded verbatim; differing internal work is not a reason to
+alter either decoder. The irreversible HT case has no cross-library pixel
+criterion. The authored gray+alpha palette is checked against its first-party
+oracle on Root only; palette/CDEF equivalence is not claimed. The mixed 38-bit
+palette must remain an intentional Root CAPI refusal. All seven capture output
+or actual refusal before any timing. Only the exact comparable cases can
+produce ratios; timing uses two warmups and 16 fixed full lifecycles per fresh
+child, with balanced pairwise order and per-case bootstrap intervals. This is
+not a PDFium executable, a substitute for the unavailable external integration
+manifest, or authority to adopt a change.
+
+For an untimed run from a clean checkout, supply a compatible LLVM bin directory
+(Clang, LLD and LLVM archiver) and CMake:
+
+```sh
+python3 validation/consumer-tuning/matched_capi.py --qualify-only \
+  --llvm-bin "$LLVM_BIN" --cmake "$CMAKE" --output target/matched-capi/smoke
+```
+
 ## Reproduce
 
 On **native** Linux ARM64 or x86-64, from the repository root:

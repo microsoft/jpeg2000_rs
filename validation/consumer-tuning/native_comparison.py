@@ -77,43 +77,43 @@ def text(prefix):
     return Path(str(prefix) + ".stdout").read_text().strip()
 
 
-def clean_source(path, prefix, *, dependency=False):
+def clean_source(path, prefix, *, dependency=False, env=None):
     command = ["git", "-C", str(path), "status", "--porcelain", "--untracked-files=all"]
     if dependency:
         command.append("--ignored")
-    checked(command, prefix)
+    checked(command, prefix, env=env)
     if text(prefix):
         raise ValueError(f"dirty source: see {prefix}.stdout")
 
 
-def require_upstream_commit(mirror, revision, prefix):
+def require_upstream_commit(mirror, revision, prefix, *, env=None):
     git = ["git", "--git-dir", str(mirror)]
-    checked([*git, "cat-file", "-t", revision], prefix / "object")
+    checked([*git, "cat-file", "-t", revision], prefix / "object", env=env)
     if text(prefix / "object") != "commit":
         raise ValueError(f"not a commit: {revision}")
     checked([*git, "for-each-ref", "--format=%(refname)", "--contains", revision, "refs/heads/"],
-            prefix / "upstream-branches")
+            prefix / "upstream-branches", env=env)
     if not text(prefix / "upstream-branches"):
         raise ValueError(f"commit not reachable from an upstream branch: {revision}")
 
 
-def sources(revisions, work, evidence):
+def sources(revisions, work, evidence, *, env=None):
     mirror = work / "upstream.git"
     # Exact SHA fetch alone may resolve objects in GitHub's shared fork network.
     # A fresh clone and upstream branch reachability avoid local/fork-only/PR refs.
     checked(["git", "clone", "--bare", "--no-tags", UPSTREAM + ".git", str(mirror)],
-            evidence / "upstream-clone", seconds=600)
+            evidence / "upstream-clone", seconds=600, env=env)
     for label, revision in revisions.items():
-        require_upstream_commit(mirror, revision, evidence / label)
+        require_upstream_commit(mirror, revision, evidence / label, env=env)
     for label, revision in revisions.items():
         source = work / label / "source"
         source.parent.mkdir()
         git = ["git", "--git-dir", str(mirror)]
         checked([*git, "worktree", "add", "--detach", str(source), revision],
-                evidence / label / "checkout")
-        clean_source(source, evidence / label / "source-before", dependency=True)
+                evidence / label / "checkout", env=env)
+        clean_source(source, evidence / label / "source-before", dependency=True, env=env)
         checked(["git", "-C", str(source), "rev-parse", "HEAD", "HEAD^{tree}"],
-                evidence / label / "revision")
+                evidence / label / "revision", env=env)
         commit, tree = text(evidence / label / "revision").splitlines()
         if commit != revision:
             raise ValueError("checked out a different revision")
@@ -244,14 +244,16 @@ def reject_cargo_configs(*directories, cargo_home=None):
             raise ValueError(f"Cargo configuration is not allowed in a comparison build: {config}")
 
 
-def pinned_tool(tool, arch):
-    resolution = capture(["rustup", "which", "--toolchain", RUST, tool])
+def pinned_tool(tool, arch, *, env=None):
+    command = ["rustup", "which", "--toolchain", RUST, tool]
+    resolution = capture(command) if env is None else capture(command, env=env)
     path = Path(resolution["stdout"].strip())
     if resolution["returncode"] or not path.is_absolute():
         raise ValueError(f"cannot resolve pinned {tool}: {resolution}")
     path = path.resolve(strict=True)
     digest = file_sha(path)
-    version = capture([str(path), "-vV"])
+    command = [str(path), "-vV"]
+    version = capture(command) if env is None else capture(command, env=env)
     if (version["returncode"] or f"release: {RUST}" not in version["stdout"].splitlines()
             or f"host: {arch}-unknown-linux-gnu" not in version["stdout"].splitlines()
             or file_sha(path) != digest):
@@ -259,7 +261,7 @@ def pinned_tool(tool, arch):
     return dict(version, sha256=digest)
 
 
-def native_profile(args, *, dependency=False):
+def native_profile(args, *, dependency=False, explicit_checks=False):
     flags = {}
     for index, arg in enumerate(args):
         if arg == "--target" or arg.startswith("--target="):
@@ -270,7 +272,8 @@ def native_profile(args, *, dependency=False):
             flags[key] = setting
     if not all(flags.get(key) == value for key, value in {
         "opt-level": "3", "codegen-units": "1", "target-cpu": "native",
-    }.items()) or not all(flags.get(key, "off") == "off" for key in ("debug-assertions", "overflow-checks")):
+    }.items()) or not all(flags.get(key, None if explicit_checks else "off") == "off"
+                         for key in ("debug-assertions", "overflow-checks")):
         return False
     # Cargo emits ThinLTO-ready bitcode for a dependency, and runs ThinLTO
     # at the final executable's link. Those use distinct rustc flags.
@@ -279,11 +282,12 @@ def native_profile(args, *, dependency=False):
     return flags.get("lto") == "thin" and "linker-plugin-lto" not in flags
 
 
-def qualified_compilations(invocations, rust):
+def qualified_compilations(invocations, rust, *, capi=False):
     compiler = rust["command"][0]
     if file_sha(compiler) != rust["sha256"]:
         raise ValueError("rustc executable hash changed since preflight")
-    expected = {"native_probe", "jpeg2000_decoder"}
+    consumer = "jpeg2000_openjpeg_compat" if capi else "native_probe"
+    expected = {consumer, "jpeg2000_decoder"}
     actual = {}
     for path in sorted(invocations.glob("rustc-*.metrics.json")):
         record = json.loads(path.read_text())
@@ -296,8 +300,13 @@ def qualified_compilations(invocations, rust):
         if crate not in expected:  # Cargo also runs compiler capability queries.
             continue
         if (crate in actual or record["returncode"] != 0
-                or not native_profile(args, dependency=crate == "jpeg2000_decoder")):
+                or not native_profile(args, dependency=capi or crate == "jpeg2000_decoder",
+                                      explicit_checks=capi)):
             raise ValueError(f"{crate}: unqualified compiler invocation or profile: {path}")
+        if capi:
+            types = {args[i + 1] for i, arg in enumerate(args) if arg == "--crate-type"}
+            if types != ({"staticlib", "rlib"} if crate == consumer else {"lib"}):
+                raise ValueError(f"{crate}: unexpected CAPI build role: {path}")
         actual[crate] = args
     if actual.keys() != expected:
         raise ValueError(f"missing actual compiler invocations: {sorted(expected - actual.keys())}")

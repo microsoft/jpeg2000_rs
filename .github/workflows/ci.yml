@@ -33,19 +33,20 @@ on:
           - pdfium
           - zune-acceptance
           - native-comparison
+          - matched-capi
       consumer_evidence_run:
         description: Prior actual-zune run for fixed-corpus artifact execution
         required: false
         type: string
         default: ''
       native_baseline:
-        description: Same-repository baseline commit (40 lowercase hex; native-comparison only)
+        description: Same-repository baseline commit (40 lowercase hex; native comparisons)
         type: string
       native_candidate:
-        description: Same-repository candidate commit (40 lowercase hex; native-comparison only)
+        description: Same-repository candidate commit (40 lowercase hex; native comparisons)
         type: string
       native_pairs:
-        description: Paired fresh processes per case (native-comparison only)
+        description: Paired fresh processes per case (native comparisons)
         type: choice
         default: '8'
         options:
@@ -138,6 +139,76 @@ jobs:
         with:
           name: native-comparison-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/native-comparison/evidence
+          retention-days: 30
+          if-no-files-found: warn
+
+  matched-capi-comparison:
+    name: Focused matched CAPI / OpenJPEG (${{ matrix.arch }})
+    if: github.event_name == 'workflow_dispatch' && inputs.consumer_benchmark && inputs.consumer_benchmark_scope == 'matched-capi'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: x86_64
+            llvm_arch: X64
+            llvm_sha: b3b7f2801d15d50736acea3c73982994d025b01c2f035b91ae3b49d1b575732b
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+            llvm_arch: ARM64
+            llvm_sha: 65ce0b329514e5643407db2d02a5bd34bf33d159055dafa82825c8385bd01993
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.13'
+      - name: Validate opt-in inputs and driver guards
+        env:
+          BASELINE: ${{ inputs.native_baseline }}
+          CANDIDATE: ${{ inputs.native_candidate }}
+          PAIRS: ${{ inputs.native_pairs }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          python3 validation/consumer-tuning/matched_capi.py \
+            --baseline "$BASELINE" --candidate "$CANDIDATE" --pairs "$PAIRS" --arch "$ARCH" \
+            --llvm-bin target/matched-capi/llvm/bin --output target/matched-capi/run --validate-inputs
+          python3 validation/consumer-tuning/generate_fixtures.py
+          python3 -m unittest discover -s validation/consumer-tuning -p 'test_*.py' -v
+      - name: Provision isolated compatible LLVM and pinned Rust
+        env:
+          LLVM_ARCH: ${{ matrix.llvm_arch }}
+          LLVM_SHA: ${{ matrix.llvm_sha }}
+        run: |
+          rustup toolchain install 1.93.1 --profile minimal
+          mkdir -p target/matched-capi/llvm
+          archive="target/matched-capi/llvm.tar.xz"
+          curl --fail --location --retry 3 \
+            "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/LLVM-21.1.8-Linux-${LLVM_ARCH}.tar.xz" \
+            --output "$archive"
+          printf '%s  %s\n' "$LLVM_SHA" "$archive" | sha256sum --check
+          tar -xJf "$archive" -C target/matched-capi/llvm --strip-components=1 --exclude='*.a'
+          rm -- "$archive"
+      - name: Qualify public S32 output, then measure exact cases only
+        env:
+          BASELINE: ${{ inputs.native_baseline }}
+          CANDIDATE: ${{ inputs.native_candidate }}
+          PAIRS: ${{ inputs.native_pairs }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          python3 validation/consumer-tuning/matched_capi.py \
+            --baseline "$BASELINE" --candidate "$CANDIDATE" --pairs "$PAIRS" --arch "$ARCH" \
+            --llvm-bin target/matched-capi/llvm/bin --cmake "$(command -v cmake)" \
+            --output target/matched-capi/run
+      - name: Preserve raw CAPI qualification, profile and process evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: matched-capi-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/matched-capi/run/evidence
           retention-days: 30
           if-no-files-found: warn
 
