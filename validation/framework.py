@@ -12209,7 +12209,8 @@ def validate_normative_coverage(
                     raise ValueError("collected payload storage must filter before duplicating owners")
             for relative, symbol, required in (
                 ("src/decode/execution.rs", "select_tile_parts", (
-                    "let bounds = contiguous_tile_run(parts, tile)?",
+                    "let bounds = if parts.len() == 1 { None } else { contiguous_tile_run(parts, tile)? };",
+                    "match bounds",
                     "let slice = parts.get(start..end).ok_or_else(invalid_decode)?",
                     "part2_tile_run_value(source, tile, start as int, end as int)",
                     "Ok(SelectedTileParts::Borrowed(slice))",
@@ -12246,8 +12247,11 @@ def validate_normative_coverage(
                     "let parts = collected?; let parts = parts.as_slice()",
                     "decode_trailer_tile(&layout.info.image_size, tile, parts,",
                 )),
+                ("specs/decoder_input.rs", "part2_borrow_tile_run", (
+                    "parts.len() != 1 && part2_has_contiguous_tile_run(parts, tile)",
+                )),
                 ("specs/decoder_input.rs", "part2_select_tile_parts_run", (
-                    "if part2_has_contiguous_tile_run(parts, tile) { Some((part2_collect_tile_parts(parts, tile), events)) }",
+                    "if part2_borrow_tile_run(parts, tile) { Some((part2_collect_tile_parts(parts, tile), events)) }",
                     "else { part2_collected_parts_run(parts, tile, events) }",
                 )),
                 ("specs/pdf_trailers.rs", "part2_trailer_selected_run", (

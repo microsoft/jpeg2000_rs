@@ -9617,6 +9617,12 @@ class FrameworkTests(WorkingFiles):
         self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
         read_text = Path.read_text
         for relative, before, after in (
+            ("src/decode/execution.rs", "if parts.len() == 1 {\n        None",
+             "if parts.len() <= 2 {\n        None"),
+            ("src/decode/execution.rs", "if parts.len() == 1 {\n        None",
+             "if parts.len() == 1 {\n        contiguous_tile_run(parts, tile)?"),
+            ("specs/decoder_input.rs", "parts.len() != 1 && part2_has_contiguous_tile_run(parts, tile)",
+             "part2_has_contiguous_tile_run(parts, tile)"),
             ("src/decode/execution.rs", "parts.get(start..end)", "parts.get(0..end)"),
             ("src/decode/execution.rs", "else if end != index", "else if end == index"),
             ("src/decode/execution.rs", "Self::Borrowed(slice) => slice", "Self::Borrowed(slice) => &slice[..0]"),

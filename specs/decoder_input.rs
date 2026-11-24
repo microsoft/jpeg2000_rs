@@ -473,10 +473,14 @@ pub(crate) proof fn part2_tile_run_value(
     assert(parts.subrange(start, start) =~= Seq::empty());
 }
 
+pub(crate) open spec fn part2_borrow_tile_run(parts: Seq<Part2OwnedTilePart>, tile: u16) -> bool {
+    parts.len() != 1 && part2_has_contiguous_tile_run(parts, tile)
+}
+
 pub(crate) open spec fn part2_select_tile_parts_run(
     parts: Seq<Part2OwnedTilePart>, tile: u16, events: Seq<Part2JpipSnapshotEvent>,
 ) -> Part2ColdRun<Seq<Part2OwnedTilePart>> {
-    if part2_has_contiguous_tile_run(parts, tile) {
+    if part2_borrow_tile_run(parts, tile) {
         Some((part2_collect_tile_parts(parts, tile), events))
     } else {
         part2_collected_parts_run(parts, tile, events)
@@ -493,7 +497,7 @@ pub(crate) proof fn part2_select_tile_parts_join(
     parts: Seq<Part2OwnedTilePart>, tile: u16, borrowed: bool,
     result: Result<Seq<Part2OwnedTilePart>, crate::DecodeError>,
 )
-    requires borrowed == part2_has_contiguous_tile_run(parts, tile),
+    requires borrowed == part2_borrow_tile_run(parts, tile),
         if borrowed { result == part2_collect_tile_parts(parts, tile) }
         else { part2_collected_parts_result(parts, tile, result) },
     ensures part2_select_tile_parts_result(parts, tile, result),
@@ -512,7 +516,7 @@ pub(crate) proof fn part2_select_tile_parts_join(
 pub(crate) proof fn part2_select_tile_parts_normal(parts: Seq<Part2OwnedTilePart>, tile: u16)
     ensures part2_select_tile_parts_result(parts, tile, part2_collect_tile_parts(parts, tile)),
 {
-    let borrowed = part2_has_contiguous_tile_run(parts, tile);
+    let borrowed = part2_borrow_tile_run(parts, tile);
     if !borrowed {
         part2_collected_parts_normal(parts, tile);
     }

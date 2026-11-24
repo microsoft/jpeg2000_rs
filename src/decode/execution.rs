@@ -584,7 +584,12 @@ pub(super) fn select_tile_parts<'a, 'data>(
     parts: &'a [TilePartPayload<'data>],
     tile: u16,
 ) -> Result<SelectedTileParts<'a, 'data>, DecodeError> {
-    let bounds = contiguous_tile_run(parts, tile)?;
+    // Keep the original collector for one physical part, with no repeated tile scans to amortize.
+    let bounds = if parts.len() == 1 {
+        None
+    } else {
+        contiguous_tile_run(parts, tile)?
+    };
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost source = codestream::tile_parts_owned_view(parts@); }
     match bounds {

@@ -2311,11 +2311,7 @@ fn actual_codec_output_is_identical_for_source_parts_and_independent_complete_ow
         let copied = collect_tile_parts(&layout.tile_parts, 0).unwrap();
         assert_eq!(copied, layout.tile_parts);
         let selected = select_tile_parts(&layout.tile_parts, 0).unwrap();
-        assert!(matches!(selected, SelectedTileParts::Borrowed(_)));
-        assert!(core::ptr::eq(
-            selected.as_slice(),
-            layout.tile_parts.as_slice()
-        ));
+        assert_eq!(selected.as_slice(), copied.as_slice());
         for discard in [None, Some(0), Some(1), Some(2), Some(u8::MAX)] {
             for limit in &limits {
                 for initial in [(0, 0, 0), (1, 2, 3), (u64::MAX, 0, 0), (0, 0, u64::MAX)] {
@@ -2389,6 +2385,27 @@ fn actual_codec_output_is_identical_for_source_parts_and_independent_complete_ow
 }
 
 #[test]
+fn single_physical_tile_part_retains_original_collection_refusals() {
+    let bytes = two_tile_codestream();
+    let layout = parse_layout(&bytes, &ResourceLimits::HARDENED).unwrap();
+    let source = &layout.tile_parts[1..];
+    let expected = collect_tile_parts(source, 1).unwrap();
+    for after in [0, 1] {
+        crate::allocation::with_refusal(after, || {
+            assert!(select_tile_parts(source, 0).unwrap().as_slice().is_empty());
+            assert!(matches!(
+                select_tile_parts(source, 1),
+                Err(DecodeError::AllocationFailed)
+            ));
+            let retry = select_tile_parts(source, 1).unwrap();
+            assert!(matches!(retry, SelectedTileParts::Owned(_)));
+            assert_eq!(retry.as_slice(), expected.as_slice());
+        });
+    }
+    assert_eq!(source, expected.as_slice());
+}
+
+#[test]
 fn contiguous_tile_collection_keeps_source_identity_and_real_refusal_order() {
     let bytes = two_tile_codestream();
     let layout = parse_layout(&bytes, &ResourceLimits::HARDENED).unwrap();
@@ -2457,16 +2474,18 @@ fn contiguous_tile_collection_preserves_malformed_part_failures_in_layout() {
 fn contiguous_tile_collection_checks_deadline_and_restores_retry() {
     let bytes = two_tile_codestream();
     let layout = parse_layout(&bytes, &ResourceLimits::HARDENED).unwrap();
-    let failure = crate::with_decode_deadline(
-        std::time::Instant::now() + std::time::Duration::from_millis(20),
-        || {
-            std::thread::sleep(std::time::Duration::from_millis(40));
-            let selected = select_tile_parts(&layout.tile_parts, 1);
-            assert!(matches!(selected, Err(DecodeError::DeadlineExceeded)));
-            selected.map(|_| ())
-        },
-    );
-    assert_eq!(failure, Err(DecodeError::DeadlineExceeded));
+    for source in [&layout.tile_parts[..], &layout.tile_parts[1..]] {
+        let failure = crate::with_decode_deadline(
+            std::time::Instant::now() + std::time::Duration::from_millis(20),
+            || {
+                std::thread::sleep(std::time::Duration::from_millis(40));
+                let selected = select_tile_parts(source, 1);
+                assert!(matches!(selected, Err(DecodeError::DeadlineExceeded)));
+                selected.map(|_| ())
+            },
+        );
+        assert_eq!(failure, Err(DecodeError::DeadlineExceeded));
+    }
     let selected = select_tile_parts(&layout.tile_parts, 1).unwrap();
     assert!(core::ptr::eq(selected.as_slice(), &layout.tile_parts[1..]));
 }

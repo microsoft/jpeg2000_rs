@@ -8642,7 +8642,7 @@
     },
     {
       "id": "part2-complete-native-owned-tile-collection",
-      "topic": "Ordered per-tile collection derives every raw quantization/progression/MCT/Part2/kernel/nonlinear/registration/length/header/flag/data field from actual source owners. The contiguous branch borrows exactly the matching nonempty physical run and consumes no allocation event. For splits and missing matches, the original collector counts matching parts and fallibly duplicates only selected owners; its source-qualified capacity and nested copy responses are unchanged. The complete raw value, duplicate order, and arbitrary tape tails are preserved; no defaults, normalized metadata, supplied copies or codec-result bank. Public Clone semantics are unchanged. Full/selected decoding and PDF trailer recovery pass the reached slice to the same decoder.",
+      "topic": "Ordered per-tile collection derives every raw quantization/progression/MCT/Part2/kernel/nonlinear/registration/length/header/flag/data field from actual source owners. In a layout of more than one physical part, the contiguous branch borrows exactly the matching nonempty physical run and consumes no allocation event. For single-part layouts, splits, and missing matches, the original collector counts matching parts and fallibly duplicates only selected owners; its source-qualified capacity and nested copy responses are unchanged. The complete raw value, duplicate order, and arbitrary tape tails are preserved; no defaults, normalized metadata, supplied copies or codec-result bank. Public Clone semantics are unchanged. Full/selected decoding and PDF trailer recovery pass the reached slice to the same decoder.",
       "implementation_refs": [
         {"path": "src/decode/execution.rs", "symbol": "decode_layout"},
         {"path": "src/decode/execution.rs", "symbol": "decode_layout_selected"},
@@ -8674,6 +8674,7 @@
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_result"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_tile_run_bounds"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_has_contiguous_tile_run"},
+        {"path": "specs/decoder_input.rs", "symbol": "part2_borrow_tile_run"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_select_tile_parts_run"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_select_tile_parts_result"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collection_duplicate_step"},
@@ -8723,6 +8724,7 @@
         {"path": "specs/cold_mct_copy.rs", "symbol": "part2_payload_duplicate_advance"}
       ],
       "test_refs": [
+        {"path": "src/decode/tests.rs", "symbol": "single_physical_tile_part_retains_original_collection_refusals"},
         {"path": "src/decode/tests.rs", "symbol": "contiguous_tile_collection_keeps_source_identity_and_real_refusal_order"},
         {"path": "src/decode/tests.rs", "symbol": "contiguous_tile_collection_preserves_malformed_part_failures_in_layout"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_owned_tile_part_clone_preserves_every_raw_field_and_independent_nested_buffers"},
