@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "license": "MIT; repository LICENSE",
+  "origin": "First-party synthetic unsigned 8-bit P5/P6 sources from validation/numerical.py (varied pattern), encoded by generate_native_ht.py. No external images or PDF data.",
+  "local_study_relation": "The three encoded hashes match the HT extension entries of the historical local performance-021 / 446-449 cohort. No other entries of that cohort are included.",
+  "encoder": {
+    "project": "OpenJPH",
+    "version": "0.33.0",
+    "revision": "8ca3abdd3b185cd737e70c0d443171205b3e6f15",
+    "build_recipe": "validation/build-openjph.sh (Release, static, SIMD and TIFF disabled)",
+    "compiler": "GCC 11.4.0, x86-64, -O3 -DNDEBUG",
+    "executable_sha256": "7ecd314d26a72b8ac7609a1d44eeb786cf7cf066113fc3d552b9a723dcb8f909"
+  },
+  "fixtures": [
+    {
+      "id": "ht-gray8-lossless",
+      "width": 512,
+      "height": 512,
+      "channels": 1,
+      "lossless": true,
+      "bytes": 261576,
+      "sha256": "6083bff30b90473dfee92cbbdcb25d72c3bce01b17ecf8bdaa245b7b32c820fb",
+      "pnm_sha256": "2dc4225f621af5bfa05510494377eeb55a6aca5228d5d87f85afa01f6f95dafa",
+      "source_samples_sha256": "8a79df8c85e9dbf926273dea0a9ea6b523f53f75c4a85884abc8b0c75bd71aee",
+      "encoder_flags": ["-num_decomps", "5", "-reversible", "true", "-tile_size", "{512,512}", "-colour_trans", "false"]
+    },
+    {
+      "id": "ht-large-rgb",
+      "width": 768,
+      "height": 768,
+      "channels": 3,
+      "lossless": true,
+      "bytes": 1888005,
+      "sha256": "77b8cbeb371f119e3898c32664779b480813ef3114750d18462f9c2a9aafe07d",
+      "pnm_sha256": "d755343cb616c036e3e0939458a46af50d8a06336e4d511e1fa775f90c6881fb",
+      "source_samples_sha256": "c8ae8985d79a8f9f73d3c3d3ca2b86104bd61205c3e5f79e0f596362e2190108",
+      "encoder_flags": ["-num_decomps", "5", "-reversible", "true", "-tile_size", "{768,768}", "-colour_trans", "true"]
+    },
+    {
+      "id": "ht-rgb8-lossy",
+      "width": 512,
+      "height": 512,
+      "channels": 3,
+      "lossless": false,
+      "bytes": 662999,
+      "sha256": "6e6a748136c37c4225dea2b020a374e6a3470697fb175dba883b8ed890e50ea3",
+      "pnm_sha256": "8856f2dda3661a9e9e89b78e627b633080defa9ebc30e55d01ab8d4b81218ed7",
+      "source_samples_sha256": "11105c6c499f7c3184183da8dc11aba9ea2fd2f29520a96841a7e07edd7cb4ce",
+      "encoder_flags": ["-num_decomps", "5", "-reversible", "false", "-tile_size", "{512,512}", "-qstep", "0.01", "-colour_trans", "true"]
+    }
+  ]
+}
