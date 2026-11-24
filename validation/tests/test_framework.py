@@ -10262,6 +10262,51 @@ class FrameworkTests(WorkingFiles):
         with self.assertRaisesRegex(ValueError, "not used by claimed implementation"):
             framework.validate_normative_coverage(coverage)
 
+    def test_inventory_horizontal_q16_binds_actual_scaled_guard_and_lift_routes(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        data = dict(coverage, requirements=[
+            item for item in coverage["requirements"] if item["id"] == framework._NINE_SEVEN_SEQUENCE
+        ])
+        self.assertEqual(len(data["requirements"]), 1)
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        waves = "src/transform/wavelets.rs"
+        for relative, symbol, before, after in (
+            ("src/transform/levels.rs", "inverse_row_pair",
+             "inverse_fixed_line::<true>(low_row, high_row, low_first)",
+             "inverse_9_7(low_row, high_row, low_first)"),
+            (waves, "inverse_fixed_line", "nine_seven_scale(false)", "nine_seven_scale(true)"),
+            (waves, "inverse_fixed_line", "super::rowwise::bounded(&output)?",
+             "true /* super::rowwise::bounded(&output)? */"),
+            (waves, "inverse_fixed_line", "inverse_nine_seven_lifts::<false>(&mut output, low_pass_first)?;",
+             "inverse_nine_seven_lifts::<true>(&mut output, low_pass_first)?;"),
+            (waves, "inverse_nine_seven_lifts", "while stage < 4", "while stage < 3"),
+            (waves, "inverse_lifting_value", "    if BOUNDED {\n", "    if !BOUNDED {\n"),
+            (waves, "inverse_lifting_value", "inverse_lifting_neighbors(samples[index], left, right, step)",
+             "Ok(samples[index])"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = framework._coverage_function_body(
+                original, framework._coverage_function_header(original, symbol),
+            )
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(symbol=symbol, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "horizontal Q16|not used by claimed implementation"):
+                framework.validate_normative_coverage(data)
+
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["implementation_refs"].remove(
+            {"path": waves, "symbol": "fixed_97_bounded"}
+        )
+        with self.assertRaisesRegex(ValueError, "horizontal Q16 requires the linked executing"):
+            framework.validate_normative_coverage(missing)
+
     def test_inventory_wavelet_planes_require_actual_prior_rows_matrix_tail_and_first_normal(self):
         coverage=json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         data=dict(coverage,requirements=[e for e in coverage["requirements"] if e["id"]=="part1-complete-standard-wavelet-planes"])

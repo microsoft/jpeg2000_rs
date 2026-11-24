@@ -17260,6 +17260,7 @@
       ],
       "id": "part1-irreversible-numerical-model",
       "implementation_refs": [
+        {"path": "src/transform/wavelets.rs", "symbol": "inverse_fixed_line"},
         {"path": "src/transform/wavelets.rs", "symbol": "inverse_nine_seven_lifts"},
         {"path": "src/transform/quantization.rs", "symbol": "quantize_magnitude_sample"},
         {
@@ -21230,6 +21231,7 @@
       ],
       "id": "part1-complete-five-three-sequence",
       "implementation_refs": [
+        {"path": "src/transform/wavelets.rs", "symbol": "inverse_lift_impl"},
         {"path": "src/transform/wavelets.rs", "symbol": "inverse_lifting_neighbors"},
         {
           "path": "src/transform/levels.rs",
@@ -21312,6 +21314,7 @@
           "path": "src/transform/wavelets.rs",
           "symbol": "inverse_9_7"
         },
+        {"path": "src/transform/wavelets.rs", "symbol": "inverse_fixed_line"},
         {
           "path": "src/transform/wavelets.rs",
           "symbol": "scale_parity"
@@ -21323,6 +21326,16 @@
       ],
       "id": "part1-complete-nine-seven-sequence",
       "implementation_refs": [
+        {"path": "src/transform/levels.rs", "symbol": "inverse_rows"},
+        {"path": "src/transform/rowwise.rs", "symbol": "bounded"},
+        {"path": "src/transform/wavelets.rs", "symbol": "inverse_fixed_line"},
+        {"path": "src/transform/wavelets.rs", "symbol": "inverse_nine_seven_lifts"},
+        {"path": "src/transform/wavelets.rs", "symbol": "inverse_lift_impl"},
+        {"path": "src/transform/wavelets.rs", "symbol": "inverse_lifting_value"},
+        {"path": "src/transform/wavelets.rs", "symbol": "fixed_97_bounded"},
+        {"path": "src/transform/wavelets.rs", "symbol": "inverse_lifting_neighbors"},
+        {"path": "src/transform/wavelets.rs", "symbol": "scale_parity"},
+        {"path": "src/transform/wavelets.rs", "symbol": "fixed_mul"},
         {
           "path": "src/transform/levels.rs",
           "symbol": "inverse_row_pair"
@@ -21341,6 +21354,9 @@
           "path": "proofs/production_impl/mod.rs",
           "symbol": "production_scaling_error_persists"
         },
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "fixed_stage_bound_grows"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_neighbors_bound"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_product_bound"},
         {
           "path": "proofs/production_impl/mod.rs",
           "symbol": "production_nine_seven_error_persists"
@@ -21356,6 +21372,13 @@
           "path": "specs/mod.rs",
           "symbol": "part1_inverse_nine_seven"
         },
+        {"path": "specs/mod.rs", "symbol": "part1_lifting_prefix"},
+        {"path": "specs/mod.rs", "symbol": "part1_lifting_sample"},
+        {"path": "specs/mod.rs", "symbol": "part1_fixed_product"},
+        {"path": "specs/rowwise_wavelet.rs", "symbol": "rowwise_bounded"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "fixed_stage_bounded"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_bound"},
+        {"path": "specs/rowwise_fixed_wavelet.rs", "symbol": "rowwise_fixed_neighbors"},
         {
           "path": "specs/mod.rs",
           "symbol": "part1_scaling_prefix"
@@ -21372,6 +21395,7 @@
           "path": "src/transform/tests.rs",
           "symbol": "complete_nine_seven_sequences_match_independent_wide_reference"
         },
+        {"path": "src/transform/tests.rs", "symbol": "horizontal_nine_seven_scaled_bound_and_roi_match_wide_reference"},
         {
           "path": "src/transform/tests.rs",
           "symbol": "complete_scaling_lifting_and_column_store_states_match_independent_arithmetic"
@@ -21380,7 +21404,7 @@
         {"path": "src/decode/tests.rs", "symbol": "sarah_engineering_nine_seven_coded_singleton_matches_actual_reference_pixels"},
         {"path": "src/image/mct_wavelet.rs", "symbol": "sarah_engineering_nine_seven_spectral_consumer_retains_raw_operator_units"}
       ],
-      "topic": "Whole input-relative fixed-point 9/7 sequences with both scaling passes, four lifting passes, geometry, typed errors and complete partial buffers. Retained-assertion odd high-only singleton uses arithmetic half consistently across raw spatial/spectral consumers. Actual encoded singleton-tile regression expects the independent compressed-stream decoder's samples, not old native output or lossy input. No compensating coded multiplier; independent universal real-valued conformance remains separate."
+      "topic": "Whole input-relative fixed-point 9/7 sequences with both scaling passes, four lifting passes, geometry, typed errors and complete partial buffers. Standard horizontal rows check actual scaled coefficients to select stage-bounded lifting or the original checked fallback; standalone sequences and scalar columns retain the checked route. Retained-assertion odd high-only singleton uses arithmetic half consistently across raw spatial/spectral consumers. Actual encoded singleton-tile regression expects the independent compressed-stream decoder's samples, not old native output or lossy input. No compensating coded multiplier; independent universal real-valued conformance remains separate."
     },
     {
       "contract_refs": [
