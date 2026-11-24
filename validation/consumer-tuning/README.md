@@ -362,3 +362,33 @@ without changing the original observations:
 python3 validation/consumer-tuning/summarize.py PATH_TO_EXTRACTED_RESULTS \
   --output target/consumer-tuning/recomputed-summary.json
 ```
+### Requested sYCC (#480)
+
+The manual `ci.yml` scope `native-requested-sycc` runs the frozen
+`9279e2b` / `d6e5f45` comparison on native x86-64 and ARM64 Linux.
+Enable `consumer_benchmark` and choose 8 or 24 `native_pairs`. Both exact
+revisions must be reachable from branches in the upstream repository.
+The job builds only the Rust probe and its decoder dependency.
+
+`native-sycc/` contains eight first-party synthetic JP2 files under the
+repository MIT license. They were generated from integer sample patterns,
+using OpenJPEG to encode their codestreams and explicitly authored JP2
+color/CDEF boxes and CRG markers. No encoder runs in this job.
+`native-sycc-cohort.json` pins those bytes, the original counter-free probe,
+and the original 14 requested-sYCC selections plus their 14 native controls.
+Its expected dump hashes include all sample bytes and metadata. The requested
+output was independently checked using widened-integer registered coordinate,
+sample normalization and fixed-point matrix calculations on the native planes.
+Eligibility labels preserve the earlier diagnostic observations; this probe
+does not trace or time an internal route.
+
+The gate requires both revisions' complete dumps to match each other and
+the frozen digests for all 28 cases. Only then are alternating fresh-process
+pairs measured, with one available CPU and identical native Rust 1.93.1
+O3/ThinLTO/one-codegen-unit builds. Each child runs 32 complete public API
+decode/drop lifecycles with zero in-process warmups. Wall time divided by 32
+includes amortized startup/input read; percentiles are across process means,
+not individual-decode tails. Ratios are Rust baseline over Rust candidate,
+reported separately per case, without a C++ comparator or pooled historical data.
+Use `native_sycc.py --qualify-only --output target/<fresh-name>` for untimed
+local output qualification on a supported Linux host.

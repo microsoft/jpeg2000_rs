@@ -304,12 +304,13 @@ def qualified_compilations(invocations, rust):
     return actual
 
 
-def build(label, work, evidence, arch, rust, cargo):
+def build(label, work, evidence, arch, rust, cargo, *,
+          probe_source=HERE / "native_probe.rs", manifest=MANIFEST):
     package = work / label / "probe"
     package.mkdir()
-    (package / "Cargo.toml").write_text(MANIFEST)
+    (package / "Cargo.toml").write_text(manifest)
     (package / "src").mkdir()
-    shutil.copyfile(HERE / "native_probe.rs", package / "src/main.rs")
+    shutil.copyfile(probe_source, package / "src/main.rs")
     prefix = evidence / label
     source = work / label / "source"
     cargo_home = package / "cargo-home"
@@ -378,6 +379,13 @@ def summarize(rows, cohort, pairs):
     return result
 
 
+def native_affinity():
+    cpus = sorted(os.sched_getaffinity(0))
+    if not cpus:
+        raise ValueError("no available CPU")
+    return cpus, ["/usr/bin/taskset", "-c", str(cpus[0])]
+
+
 def run(options):
     work = options.output.resolve()
     if not work.is_relative_to(ROOT / "target"):
@@ -394,10 +402,7 @@ def run(options):
         raise ValueError("driver checkout must come from the upstream repository")
     rust = pinned_tool("rustc", options.arch)
     cargo = pinned_tool("cargo", options.arch)
-    cpus = sorted(os.sched_getaffinity(0))
-    if not cpus:
-        raise ValueError("no available CPU")
-    pinned = ["/usr/bin/taskset", "-c", str(cpus[0])]
+    cpus, pinned = native_affinity()
     revisions = dict(zip(BACKENDS, (options.baseline, options.candidate), strict=True))
     host = {"schema": 1, "scope": SCOPE, "mode": "qualification-only" if options.qualify_only else "paired",
             "revisions": revisions, "pairs": options.pairs, "case_shuffle_seed": SEED,

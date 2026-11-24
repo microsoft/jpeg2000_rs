@@ -1,0 +1,277 @@
+{
+  "license": "MIT",
+  "provenance": {
+    "baseline": "9279e2bad720511c2187a3602eda361ebf037287",
+    "candidate": "d6e5f458ca6a840a94d59464d3bce400225589ac",
+    "source_manifest_sha256": "b4c718bfe5677db5d683573ed96ccc342dffc4a60e5c1cecc215cabba6d49da5",
+    "standalone_literal_and_oracle_receipt_sha256": "2aa7966b777ee60c637ac752aa4388250a6c43aa86fe52a9ae671da9d96f6902",
+    "first_party_generator_sha256": "016eda9f76c94c93352a0d420c413ce7ee40ed88f86a66e796b5ac04d975129c",
+    "independent_integer_oracle_source_sha256": "4e61fd8f163d90b8232b2d0e550ab7b68c09e78de97e226b5b336921e3caf3d1",
+    "probe_sha256": "53d58fe6d44d1583f06be20864890f52d1072d059f001ce7fc6d628c25a225a6"
+  },
+  "fixtures": {
+    "444": "b19ca614e7990b0cde4bef68e1a2c4e53173035ca170e0be371555fbcdfa1acc",
+    "422": "861daeb8d5dd77015d4b4aff142017184969b5d9b67abe2df5a5cf28c81c4461",
+    "420": "9d2c07821b4d994611b2d19f77dedec5d8d27a9803cf30a10f058322368390ae",
+    "odd": "183c0bd63ba34670a38b50eca1020ad13e1126118d9430a14bf81a110eec1983",
+    "odd-422": "f4e5c0a799b35eed6beb18ec1e03138194963ce11e67c23d8de04b6645674e2e",
+    "crg": "d11e02367d06b0ba1d0537be6b97cd05a5b658ff17dae079dbf9bc095aa117f3",
+    "crg-distinct": "a6c8af7d36c67360ee3bad3fa5efd1a68519c720a4fa1fb3075ae48568934774",
+    "signed-alpha": "c744e10a6682e20efc15114fd1b4e886732379e2ea151234356c27b6042eb480"
+  },
+  "cases": [
+    {
+      "id": "444",
+      "fixture": "444",
+      "discard": 0,
+      "roi": null,
+      "outputs": {
+        "requested-sycc": {
+          "sha256": "78975891fd3b33965e83a9ee9fe5f5d15f05d45d2c3a69ee9d082a434062d1d7",
+          "bytes": 368673
+        },
+        "native-off": {
+          "sha256": "8647a6fdeaa991f8bb02d10135aa215f0ffa309dcc4bfb24bf15b852d06ecec6",
+          "bytes": 1474967
+        }
+      },
+      "expected_route": "generic-fallback"
+    },
+    {
+      "id": "422",
+      "fixture": "422",
+      "discard": 0,
+      "roi": null,
+      "outputs": {
+        "requested-sycc": {
+          "sha256": "3917cb805acedf947d0035416c00daec3dacb3040b34da2c0f480c849ab0de0a",
+          "bytes": 368673
+        },
+        "native-off": {
+          "sha256": "04b27261015bd700fa4fa5fc6a075d8455d65cac13a11a38eff8c95849f7c41f",
+          "bytes": 983447
+        }
+      },
+      "expected_route": "row-plan"
+    },
+    {
+      "id": "420",
+      "fixture": "420",
+      "discard": 0,
+      "roi": null,
+      "outputs": {
+        "requested-sycc": {
+          "sha256": "d05c7bc3ca666458342db7de1d1365a82b4e31fd4fbeac448f4c7bbd58b4594e",
+          "bytes": 368673
+        },
+        "native-off": {
+          "sha256": "a60f1094407752104b4cb034608aef3696f98d3bdb8fe96da5d4e1f6641c6c48",
+          "bytes": 737685
+        }
+      },
+      "expected_route": "row-plan"
+    },
+    {
+      "id": "odd",
+      "fixture": "odd",
+      "discard": 0,
+      "roi": null,
+      "outputs": {
+        "requested-sycc": {
+          "sha256": "a0af1ac0af1ae214475d337ac0b7d79701abc2e4ccaa9fcf4c8dc3e6a4bc9529",
+          "bytes": 371751
+        },
+        "native-off": {
+          "sha256": "aacf8558979f0c7e7e062664f6d3485c1149079222dbc9c1044dcc843d3b5076",
+          "bytes": 741789
+        }
+      },
+      "expected_route": "row-plan"
+    },
+    {
+      "id": "odd-422",
+      "fixture": "odd-422",
+      "discard": 0,
+      "roi": null,
+      "outputs": {
+        "requested-sycc": {
+          "sha256": "47f258d228c012b85bc1feabc8d711847831b50ef459c8eceb86bc2e7c124908",
+          "bytes": 367899
+        },
+        "native-off": {
+          "sha256": "45def286c2c07b6c6a9d0f9bbabdb0b6a90556b4afd74103b870ee18cff4d9bf",
+          "bytes": 979855
+        }
+      },
+      "expected_route": "row-plan"
+    },
+    {
+      "id": "crg",
+      "fixture": "crg",
+      "discard": 0,
+      "roi": null,
+      "outputs": {
+        "requested-sycc": {
+          "sha256": "3fc26d317d776da1e281e5d9b83142b08aa2f9f9b9467086e9476d63f2d0f102",
+          "bytes": 371751
+        },
+        "native-off": {
+          "sha256": "5c9ec7a7595f87bdc4cbd323a36f67ea21fe77495a3ca7b8b49fdd4cd8a19370",
+          "bytes": 741805
+        }
+      },
+      "expected_route": "row-plan"
+    },
+    {
+      "id": "crg-distinct",
+      "fixture": "crg-distinct",
+      "discard": 0,
+      "roi": null,
+      "outputs": {
+        "requested-sycc": {
+          "sha256": "1e84fe9fd1d7d2ff4b7ba0ee234c23d3abe062e8eb5a734cde2f9244a981a4fc",
+          "bytes": 371751
+        },
+        "native-off": {
+          "sha256": "79a6739da69b9f507eeddd5c9f1ac3ef66c8f858b096fadfbe8b75b086c397fb",
+          "bytes": 741805
+        }
+      },
+      "expected_route": "generic-fallback"
+    },
+    {
+      "id": "signed-alpha",
+      "fixture": "signed-alpha",
+      "discard": 0,
+      "roi": null,
+      "outputs": {
+        "requested-sycc": {
+          "sha256": "e0d7925a2083422b0d5bdf4cf53adc31aa97401439562446fbf5f496db630644",
+          "bytes": 491608
+        },
+        "native-off": {
+          "sha256": "7c17843b6fa8ce43f4609c11a4c4e4f288300905584468af1b0ae224dd8fb62a",
+          "bytes": 1229609
+        }
+      },
+      "expected_route": "row-plan"
+    },
+    {
+      "id": "odd-crop",
+      "fixture": "odd",
+      "discard": 0,
+      "roi": [
+        15,
+        21,
+        99,
+        65
+      ],
+      "outputs": {
+        "requested-sycc": {
+          "sha256": "c141c425156810dc84129dd7b487c6284bad5468114b0e12e349297da811a137",
+          "bytes": 38641
+        },
+        "native-off": {
+          "sha256": "794fe288f7ac2b886f448f3dc1e3e0dfb051b4368555d910bca9d3e729e2e084",
+          "bytes": 76969
+        }
+      },
+      "expected_route": "row-plan"
+    },
+    {
+      "id": "crg-crop",
+      "fixture": "crg",
+      "discard": 0,
+      "roi": [
+        15,
+        21,
+        99,
+        65
+      ],
+      "outputs": {
+        "requested-sycc": {
+          "sha256": "f0d83dfe752a875b3f0b6d59c397287a0e63aadece16be61e01a220eaa50c682",
+          "bytes": 38641
+        },
+        "native-off": {
+          "sha256": "5c3277b58a0b1ef0339577cbbc941da6fdca8ea4caa53a1ce3c2451bcf1d2564",
+          "bytes": 76985
+        }
+      },
+      "expected_route": "row-plan"
+    },
+    {
+      "id": "420-reduce1",
+      "fixture": "420",
+      "discard": 1,
+      "roi": null,
+      "outputs": {
+        "requested-sycc": {
+          "sha256": "5ee1b378b6d23e67963becf370ac1387ec91daae65c3adbb467f27cdd8b7bdc5",
+          "bytes": 92192
+        },
+        "native-off": {
+          "sha256": "cda82ddcacc9d506bda3d821e36075655a0c9a1b02d97bc22dccdc409be8160b",
+          "bytes": 184721
+        }
+      },
+      "expected_route": "row-plan"
+    },
+    {
+      "id": "odd-reduce2",
+      "fixture": "odd",
+      "discard": 2,
+      "roi": null,
+      "outputs": {
+        "requested-sycc": {
+          "sha256": "7847cf0d89fb65fdfecff0310811c65441ad465b07c203fadf1d79c31f796a99",
+          "bytes": 23071
+        },
+        "native-off": {
+          "sha256": "8cd968cf4448f02b215f2ab2dc74545bc21fa38514e723f028cb1279ef3d205d",
+          "bytes": 46479
+        }
+      },
+      "expected_route": "row-plan"
+    },
+    {
+      "id": "crg-crop-reduce1",
+      "fixture": "crg",
+      "discard": 1,
+      "roi": [
+        15,
+        21,
+        99,
+        65
+      ],
+      "outputs": {
+        "requested-sycc": {
+          "sha256": "0d2371d4cc81737558e69f3f3a4610ef2942a63295f18239a574035349d1fe7a",
+          "bytes": 9439
+        },
+        "native-off": {
+          "sha256": "6399d5d349f3c61b0c6cf2f2abdd6d52d4ac84c1eafb2c2843d5060c41723ce1",
+          "bytes": 19360
+        }
+      },
+      "expected_route": "row-plan"
+    },
+    {
+      "id": "signed-alpha-reduce1",
+      "fixture": "signed-alpha",
+      "discard": 1,
+      "roi": null,
+      "outputs": {
+        "requested-sycc": {
+          "sha256": "6d7120ceea411d1020e80eded1a2b6815661ff894efc04d22a664782d3b70026",
+          "bytes": 122967
+        },
+        "native-off": {
+          "sha256": "9227e557954efe57f0befa441b1c2370235acf884de554b2a00cd53f0124c8ea",
+          "bytes": 308004
+        }
+      },
+      "expected_route": "row-plan"
+    }
+  ]
+}
