@@ -59,6 +59,8 @@ class NativeComparisonTests(unittest.TestCase):
         manifest = json.loads((self.scratch / "fixture-manifest.json").read_text())
         self.assertEqual([row["group"] for row in cohort].count("ht-target"), 3)
         self.assertEqual([row["group"] for row in cohort].count("legacy-control"), 2)
+        self.assertEqual({row["id"] for row in cohort if row["group"] == "palette-target"},
+                         {"palette-gray-alpha", "palette-mixed38"})
         self.assertEqual(manifest["fixtures"], cohort)
         self.assertEqual(manifest["ht_manifest_sha256"], driver.sha(driver.COHORT.read_bytes()))
         self.assertIn("MIT", manifest["ht_provenance"]["license"])
@@ -67,6 +69,46 @@ class NativeComparisonTests(unittest.TestCase):
             self.assertEqual(driver.checked_bytes(payload, row), payload)
             with self.assertRaisesRegex(ValueError, "corrupt or changed input"):
                 driver.checked_bytes(payload[:-1] + bytes([payload[-1] ^ 1]), row)
+
+    def test_palette_fixture_admits_authored_mappings(self):
+        for fixture in driver.fixtures(self.scratch):
+            if fixture["group"] != "palette-target":
+                continue
+            data = (self.scratch / fixture["path"]).read_bytes()
+            raw, _, _ = driver.jp2_parts(data)
+            self.assertEqual(driver.sha(raw), fixture["index_codestream_sha256"])
+            self.assertEqual(fixture["api"], "decode_jp2")
+            tag = data.index(b"pclr")
+            entries, columns = struct.unpack_from(">HB", data, tag + 4)
+            self.assertEqual((entries, columns), (256, fixture["channels"]))
+            descriptors = data[tag + 7:tag + 7 + columns]
+            if fixture["id"] == "palette-gray-alpha":
+                self.assertEqual(descriptors, b"\x07\x07")
+                cdef = data.index(b"cdef")
+                self.assertEqual(struct.unpack_from(">7H", data, cdef + 4), (2, 0, 0, 1, 1, 1, 0))
+            else:
+                self.assertEqual(descriptors, bytes((0x80 | 37, 37, 4)))
+            cmap = data.index(b"cmap")
+            self.assertEqual(data[cmap + 4:cmap + 4 + columns * 4],
+                             b"".join(struct.pack(">HBB", 0, 1, col) for col in range(columns)))
+
+    def test_palette_oracle_rejects_equal_but_wrong_decoders(self):
+        palette = driver.native_palette
+        widths = ((8, False), (8, False))
+        definitions = (((0, 1),), ((1, 0),))
+        expectation = palette.typed_oracle(2, 1, b"\x00\x01", widths, definitions, [(0, 255), (1, 254)])
+        words = [2, 2, 1, 0, 0, 2,
+                 2, 1, 8, 0, 1, 1, 0, 0, 0, 2, 1, 0, 1, 0, 1,
+                 2, 1, 8, 0, 1, 1, 0, 0, 0, 2, 1, 1, 0, 255, 254]
+        fixture = dict(id="palette", api="decode_jp2", expected_native=expectation)
+        data = struct.pack("<36Q", *words)
+        self.assertEqual(driver.qualify(dict.fromkeys(driver.BACKENDS, data), fixture)["oracle"],
+                         "authored-palette")
+        for offset in (6, 29, 32, 35):  # geometry, signed storage tag, alpha role, last sample
+            changed = words.copy()
+            changed[offset] ^= 1
+            with self.subTest(offset=offset), self.assertRaisesRegex(ValueError, "authored oracle"):
+                driver.qualify(dict.fromkeys(driver.BACKENDS, struct.pack("<36Q", *changed)), fixture)
 
     def test_native_output_full_bits_and_shape(self):
         fixture = dict(id="lossy", width=2, height=1, channels=1, lossless=False)

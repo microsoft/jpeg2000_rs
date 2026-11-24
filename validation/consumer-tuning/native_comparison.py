@@ -16,6 +16,7 @@ import sys
 
 from generate_fixtures import jp2_parts, sha
 from measure import measure
+import native_palette
 from run import append, capture, configuration_environment, sha as file_sha
 from summarize import geometric, interval
 
@@ -28,7 +29,7 @@ BACKENDS = ("baseline", "candidate")
 LEGACY = ("noisy-gray-lossless", "smooth-rgb-lossless")
 ADD_LEVEL_SHIFT_U8 = bytes(value ^ 128 for value in range(256))
 COHORT = HERE / "native-ht-cohort.json"
-SCOPE = "focused-direct-rust-3ht-2legacy"
+SCOPE = "focused-direct-rust-3ht-2legacy-2palette"
 SEED = 20261121
 ITERATIONS = 3
 WARMUPS = 2
@@ -139,19 +140,22 @@ def fixtures(output):
     selected = []
     for row in ht["fixtures"]:
         name = row["id"]
-        record = dict(row, group="ht-target")
+        record = dict(row, group="ht-target", format="j2k", api="decode_codestream_reconstructed")
         selected.append((record, checked_bytes((HERE / "native-ht" / f"{name}.j2k").read_bytes(), record)))
     for name in LEGACY:
         boxed = checked_bytes((HERE / "frozen" / f"{name}.jp2").read_bytes(), legacy[name + "-jp2"])
-        row = dict(legacy[name + "-j2k"], group="legacy-control", lossless=True)
+        row = dict(legacy[name + "-j2k"], group="legacy-control", lossless=True,
+                   api="decode_codestream_reconstructed")
         selected.append((row, checked_bytes(jp2_parts(boxed)[0], row)))
+    index = legacy[native_palette.SOURCE]
+    selected.extend(native_palette.generate((HERE / "frozen" / index["path"]).read_bytes(), index))
     result = []
     for row, data in selected:
-        path = output / f"{row['id']}.j2k"
+        path = output / f"{row['id']}.{row['format']}"
         path.write_bytes(data)
         result.append(dict(row, path=path.name))
     write_json(output / "fixture-manifest.json", {
-        "scope": SCOPE, "api": "decode_codestream_reconstructed",
+        "scope": SCOPE,
         "ht_provenance": ht, "ht_manifest_sha256": sha(COHORT.read_bytes()),
         "legacy_provenance": provenance, "fixtures": result,
     })
@@ -160,6 +164,11 @@ def fixtures(output):
 
 def native_signature(data, fixture):
     """Check all geometry, representation and length; return hashes over every native bit."""
+    if fixture.get("api") == "decode_jp2":
+        expected = fixture["expected_native"]
+        if len(data) != expected["native_bytes"] or sha(data) != expected["native_sha256"]:
+            raise ValueError(f"{fixture['id']}: typed palette output differs from authored oracle")
+        return signature(data)
     width, height, count = (fixture[key] for key in ("width", "height", "channels"))
     pixels = width * height
     expected_size = 8 * (6 + count * (10 + pixels))
@@ -192,6 +201,10 @@ def native_signature(data, fixture):
             interleaved[channel::count] = plane
         if sha(interleaved) != fixture["source_samples_sha256"]:
             raise ValueError("native lossless output differs from first-party source samples")
+    return signature(data)
+
+
+def signature(data):
     fingerprint = 14695981039346656037
     for (word,) in struct.iter_unpack("<Q", data):
         fingerprint = ((fingerprint ^ word) * 1099511628211) & ((1 << 64) - 1)
@@ -202,7 +215,10 @@ def qualify(dumps, fixture):
     signatures = {label: native_signature(dumps[label], fixture) for label in BACKENDS}
     if dumps["baseline"] != dumps["candidate"]:
         raise ValueError(f"{fixture['id']}: native baseline/candidate output differs")
-    return dict(signatures["baseline"], fixture=fixture["id"], status="accepted-bit-exact")
+    api = fixture.get("api", "decode_codestream_reconstructed")
+    return dict(signatures["baseline"], fixture=fixture["id"], status="accepted-bit-exact",
+                api=api, oracle=("authored-palette" if api == "decode_jp2"
+                                            else "raw-native"))
 
 
 def timings(stdout, signature):
@@ -404,11 +420,12 @@ def run(options):
     signatures = {}
     for fixture in cohort:
         name, path = fixture["id"], evidence / fixture["path"]
+        operation = "dump-jp2" if fixture["api"] == "decode_jp2" else "dump"
         dumps = {}
         for label in BACKENDS:
             checked_bytes(path.read_bytes(), fixture)
             prefix = evidence / "qualify" / name / label
-            checked([*pinned, str(binaries[label]), "dump", str(path)], prefix, env=run_env)
+            checked([*pinned, str(binaries[label]), operation, str(path)], prefix, env=run_env)
             dumps[label] = Path(str(prefix) + ".stdout").read_bytes()
         signatures[name] = qualify(dumps, fixture)
         append(evidence / "qualification.jsonl", signatures[name])
@@ -422,10 +439,11 @@ def run(options):
         rng.shuffle(order)
         for case_index, fixture in enumerate(order):
             name, path = fixture["id"], evidence / fixture["path"]
+            operation = "bench-jp2" if fixture["api"] == "decode_jp2" else "bench"
             for position, label in enumerate(BACKENDS if pair % 2 == 0 else BACKENDS[::-1]):
                 checked_bytes(path.read_bytes(), fixture)
                 prefix = evidence / "processes" / f"pair-{pair:02d}" / name / label
-                metrics = checked([*pinned, str(binaries[label]), "bench", str(path)], prefix, env=run_env)
+                metrics = checked([*pinned, str(binaries[label]), operation, str(path)], prefix, env=run_env)
                 row = {"fixture": name, "input_sha256": fixture["sha256"], "backend": label,
                        "pair": pair, "case_index": case_index, "position": position, "metrics": metrics,
                        "decode_ns": timings(text(prefix), signatures[name])}

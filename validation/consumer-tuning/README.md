@@ -30,7 +30,7 @@ gh workflow run ci.yml --ref perf/native-candidate-comparison \
 Both distinct commits must be reachable from branches of `microsoft/jpeg2000_rs`
 (not fork-only objects or synthetic PR merge refs). The job runs separately on
 hosted native x86-64 and ARM64; choose 8 or 24 fresh process pairs. Each host
-builds the same direct reconstructed-codestream API consumer twice with Rust
+builds the same direct Rust API consumer twice with Rust
 1.93.1, O3/native/ThinLTO/cgu1, assertions and overflow checks off, and the system
 allocator. The two consumers share a single available CPU and the same inputs.
 Cargo runs from a generated consumer with a fresh `CARGO_HOME`; local
@@ -38,16 +38,24 @@ Cargo runs from a generated consumer with a fresh `CARGO_HOME`; local
 decoder source root are refused, never changed. The driver binds the resolved
 Rust 1.93.1 executable and records its version, hash, and actual arguments for
 both the decoder's bitcode build and the consumer's final ThinLTO link.
-Before any timing, all five native output pairs must match bit-for-bit with
+Before any timing, all native output pairs must match bit-for-bit with
 valid image/component geometry and sample representation, nonblank planes,
 and source recovery for lossless cases. Each measured process then does two
 warm-ups and three fixed in-memory decode-and-drop iterations; order is seeded
 by round and backend order reverses in alternate pairs. A refusal or mismatch
 fails the run; raw evidence up to the failure remains available.
 
-The **focused** input set is three MIT, synthetic HT codestreams (reversible
+The **focused** input set includes three MIT, synthetic HT codestreams (reversible
 gray, reversible RGB MCT, irreversible RGB MCT) plus two unchanged MIT legacy
-controls (noisy gray and smooth RGB, both lossless). See
+controls (noisy gray and smooth RGB, both lossless). Those five cases still use
+`decode_codestream_reconstructed` and their original input bytes. The two
+additional `decode_jp2` targets exercise nonempty 256-row palette tables on the
+same 1024² first-party gray indices: gray plus CDEF opacity and mixed
+signed-38/unsigned-38/unsigned-5. `native_palette.py` regenerates both boxed
+files and checks the original local #479 hashes, without an encoder or new
+dependencies. Each palette dump must match an independent oracle over the
+authored indices, table, native sample tags, geometry and channel definitions
+before either build can be timed. See
 [`native-ht-cohort.json`](native-ht-cohort.json) for encoder, recipe and hashes.
 To reproduce the HT encoded files, use `validation/build-openjph.sh` with an
 owned output directory, then pass its `ojph_compress` and a fresh output directory
