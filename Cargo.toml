@@ -30,6 +30,7 @@ include = [
     "specs/**/*.rs",
     "specs/AUDIT_REFERENCE.md",
     "proofs/**/*.rs",
+    "!tools/pdfium-qualification/**",
 ]
 
 [features]
