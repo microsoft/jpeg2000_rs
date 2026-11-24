@@ -207,6 +207,23 @@ impl CoefficientState {
     }
 }
 
+const fn zero_context_table() -> [u8; 128] {
+    let mut table = [0; 128];
+    let mut index = 0;
+    while index < table.len() {
+        table[index] = crate::refinement::tier1_zero_context(
+            (index & 3) as u16,
+            ((index >> 2) & 3) as u16,
+            ((index >> 4) & 3) as u16,
+            index & 64 != 0,
+        );
+        index += 1;
+    }
+    table
+}
+
+const ZERO_CONTEXTS: [u8; 128] = zero_context_table();
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part1_legacy_zero_context(summary, orientation),
 ))]
@@ -216,13 +233,11 @@ pub fn zero_coding_context(summary: NeighborSummary, orientation: SubbandOrienta
     } else {
         (summary.horizontal_significant, summary.vertical_significant)
     };
-    let diagonal = summary.diagonal_significant;
-    crate::refinement::tier1_zero_context(
-        u16::from(horizontal),
-        u16::from(vertical),
-        u16::from(diagonal),
-        matches!(orientation, SubbandOrientation::Hh),
-    )
+    let index = usize::from(horizontal.min(2))
+        | (usize::from(vertical.min(2)) << 2)
+        | (usize::from(summary.diagonal_significant.min(3)) << 4)
+        | (usize::from(matches!(orientation, SubbandOrientation::Hh)) << 6);
+    ZERO_CONTEXTS[index & 127]
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

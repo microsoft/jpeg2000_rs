@@ -7987,6 +7987,41 @@ fn neighbor_summaries_match_all_local_sign_states_and_stripe_boundaries() {
 }
 
 #[test]
+fn zero_context_lookup_preserves_all_count_classes_and_orientations() {
+    for horizontal in [0, 1, 2, 3, 4, u8::MAX] {
+        for vertical in [0, 1, 2, 3, 4, u8::MAX] {
+            for diagonal in [0, 1, 2, 3, 4, u8::MAX] {
+                for orientation in [
+                    SubbandOrientation::Ll,
+                    SubbandOrientation::Lh,
+                    SubbandOrientation::Hl,
+                    SubbandOrientation::Hh,
+                ] {
+                    let summary = NeighborSummary {
+                        horizontal_significant: horizontal,
+                        vertical_significant: vertical,
+                        diagonal_significant: diagonal,
+                        ..NeighborSummary::default()
+                    };
+                    let (h, v) = if matches!(orientation, SubbandOrientation::Hl) {
+                        (vertical, horizontal)
+                    } else {
+                        (horizontal, vertical)
+                    };
+                    let expected = crate::refinement::tier1_zero_context(
+                        u16::from(h),
+                        u16::from(v),
+                        u16::from(diagonal),
+                        matches!(orientation, SubbandOrientation::Hh),
+                    );
+                    assert_eq!(zero_coding_context(summary, orientation), expected);
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn forms_tier_one_contexts_from_neighbors() {
     let summary = NeighborSummary {
         horizontal_significant: 1,
