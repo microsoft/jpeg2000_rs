@@ -11022,11 +11022,21 @@ _PREPARED_COMPONENT_PROOFS = {("specs/cold_extraction_tile.rs", name) for name i
 )}
 _COEFFICIENT_EXTRACTION_GUARDS = {
     ("specs/pdf_trailers.rs", "part2_trailer_assembly_run"): (
-        "part2_assemble_prepared_storage_run(size,prepared,Some((region,discard)),maximum,events)",
+        "part2_owned_prepared_selected_run(size,prepared,region,discard,maximum,single_tile,events)",
         "part2_trailer_reported(Ok(image),discarded)",
     ),
     ("specs/pdf_trailers.rs", "part2_trailer_selected_run"): (
-        "part2_trailer_assembly_run(crate::image::assembly_size_view(size),before.prepared,region,discard,crate::limits::resource_decoded_bytes_limit(limits),discarded,events)",
+        "part2_trailer_assembly_run(crate::image::assembly_size_view(size),before.prepared,region,discard,crate::limits::resource_decoded_bytes_limit(limits),discarded,tiles.len()==1,events)",
+    ),
+    ("specs/cold_prepare_copies.rs", "part2_owned_prepared_selected_run"): (
+        "part2_owned_assembly_eligible(size,source,region,discard,maximum,single_tile)",
+        "part2_owned_assembly_storage_run(size,source,region,maximum,events)",
+        "part2_assemble_prepared_storage_run(size,source,Some((region,discard)),maximum,events)",
+    ),
+    ("specs/cold_image_storage.rs", "part2_owned_assembly_storage_run"): (
+        "AssemblyCalls {context: actual, calls}", "actual != context",
+        "part2_assembly_owner_run(context, calls)", "if rest.len() == 0",
+        "part2_owned_assembly_image(size, tiles, region, tiles.len())", "events.drop_first()",
     ),
     ("specs/cold_prepare_copies.rs", "part2_prepared_views_run"): (
         "if source.len()==0", "PreparedViewsCapacity {source:actual,elements,succeeded}",
@@ -11109,8 +11119,36 @@ _COEFFICIENT_EXTRACTION_PROOF_GUARDS = {
 }
 _COEFFICIENT_EXTRACTION_NATIVE_ORDER = {
     ("src/decode/pdf_trailers.rs", "decode_trailer_layout"): (
-        "let assembled = assemble_prepared_components(", "part2_trailer_assembly_observed(",
+        "let single_tile = selection.tiles.len() == 1",
+        "let assembled = super::reconstruction::assemble_owned_prepared_selected(",
+        "prepared, selection.region, selection.discard_levels, limits, single_tile,",
+        "part2_trailer_assembly_observed(",
         "part2_cold_prefix_result(", "let image = assembled?",
+    ),
+    ("src/decode/reconstruction.rs", "assemble_owned_prepared_selected"): (
+        "crate::image::has_owned_full_cover(", "crate::image::assemble_owned_full_cover(",
+        "assemble_prepared_components(size, &prepared, Some((region, discard)), limits)",
+        "part2_owned_prepared_selected_observed(",
+    ),
+    ("src/image/assembly.rs", "has_owned_full_cover"): (
+        "if !single_tile", "discard != 0", "prepared.len() != usize::from(size.components)",
+        "prepared.is_empty()", "region[0] != size.x_origin", "region[1] != size.y_origin",
+        "u64::from(region[2]) != u64::from(size.x_origin) + u64::from(size.width)",
+        "u64::from(region[3]) != u64::from(size.y_origin) + u64::from(size.height)",
+        "assembly_selected_header(region, discard).is_err()", "while component < size.components",
+        "owned_plane_charge(size, tile, region, maximum, component, bytes)",
+    ),
+    ("src/image/assembly.rs", "owned_plane_charge"): (
+        "assembly_component_dimensions(size, component, [0, 0], Some((region, 1)))",
+        "checked_area(dimensions.1, dimensions.2)", "charge_assembly_bytes(count, &mut charged, maximum)",
+        "assembly_component_crop(size, dimensions, true)", "tile.component != component",
+        "tile.x != 0", "tile.y != 0", "tile.width != dimensions.1", "tile.height != dimensions.2",
+        "crop != (0, 0, tile.width, tile.height)", "tile.samples.len() != count",
+    ),
+    ("src/image/assembly.rs", "assemble_owned_full_cover"): (
+        "assembly_selected_header(region, 0)", "empty_with_capacity(prepared.len())",
+        "part2_owned_assembly_capacity_observed(", "let mut components = reserved?",
+        "prepared.into_iter()", "remaining.next()", "samples: tile.into_samples()", "components.push(decoded)",
     ),
     ("src/decode/reconstruction.rs", "prepared_tile_views"): (
         "let reserved = if prepared.is_empty()", "Ok(Vec::new())", "empty_with_capacity(prepared.len())",
@@ -19068,6 +19106,10 @@ def validate_normative_coverage(
             positions = [compact.find("".join(fragment.split())) for fragment in fragments]
             if any(position < 0 for position in positions) or positions != sorted(positions):
                 raise ValueError("coefficient extraction requires original real fresh reserve/admission/numerical error order")
+            if (relative, symbol) == ("src/image/assembly.rs", "assemble_owned_full_cover"):
+                owner_calls = re.findall(r"crate::allocation::(\w+)\(", compact)
+                if owner_calls != ["empty_with_capacity", "inspection_capacity_outcome"]:
+                    raise ValueError("coefficient extraction requires only the actual owned assembly component-table request")
         if not _PREPARE_COPY_TESTS.issubset({(r["path"],r["symbol"]) for r in coefficient_entry["test_refs"]}):
             raise ValueError("prepare copies require bounded raw/empty/first/later/restore/error/component/public controls")
         for (relative,symbol),fragments in _PREPARE_COPY_GUARDS.items():

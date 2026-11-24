@@ -1,6 +1,327 @@
 //! Reached image assembly metadata storage before component traversal.
 use super::*;
 verus! {
+
+// A selected plane with this shape is already the complete row-major output.
+pub(crate) open spec fn part2_owned_assembly_plane(
+    size: Part1AssemblySize, tile: Part1AssemblyTile, region: [u32; 4],
+    maximum: u64, component: u16, bytes: u64,
+) -> Option<u64> {
+    let context = Part2AssemblyPlaneContext {
+        image: (0, 0, 0, 0, Seq::empty()), bytes, size, tiles: Seq::empty(), component,
+        extent: (0, 0), selection: Some((region, 1u32)), maximum,
+    };
+    match part2_assembly_plane_preflight(context) {
+        (Ok((dimensions, count, Some(crop))), charged) =>
+            if tile.0 == component && tile.1 == 0 && tile.2 == 0
+                && tile.3 == dimensions.1 && tile.4 == dimensions.2
+                && crop == (0, 0, tile.3, tile.4)
+                && tile.6.len() == count { Some(charged) } else { None },
+        _ => None,
+    }
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn part2_owned_assembly_prefix(
+    size: Part1AssemblySize, tiles: Seq<Part1AssemblyTile>, region: [u32; 4],
+    maximum: u64, completed: nat,
+) -> Option<u64>
+    decreases completed,
+{
+    if completed == 0 { Some(0) } else {
+        match part2_owned_assembly_prefix(size, tiles, region, maximum, (completed - 1) as nat) {
+            Some(bytes) => part2_owned_assembly_plane(size, tiles[completed - 1], region, maximum, (completed - 1) as u16, bytes),
+            None => None,
+        }
+    }
+}
+
+pub(crate) open spec fn part2_owned_assembly_eligible(
+    size: Part1AssemblySize, tiles: Seq<Part1AssemblyTile>, region: [u32; 4],
+    discard: u8, maximum: u64, single_tile: bool,
+) -> bool {
+    single_tile && discard == 0 && tiles.len() == size.4 && size.4 != 0
+        && region[0] == size.2 && region[1] == size.3
+        && region[2] as int == size.2 as int + size.0
+        && region[3] as int == size.3 as int + size.1
+        && part1_assembly_selected_header(region, discard).is_ok()
+        && part2_owned_assembly_prefix(size, tiles, region, maximum, tiles.len()).is_some()
+}
+
+pub(crate) open spec fn part2_owned_assembly_components(
+    size: Part1AssemblySize, tiles: Seq<Part1AssemblyTile>, completed: nat,
+) -> Seq<Part1DecodedComponentModel> {
+    Seq::new(completed, |i: int| (tiles[i].3, tiles[i].4,
+        part1_image_size_component(size.4, size.5, i as u16).get_Ok_0(),
+        tiles[i].5, tiles[i].6))
+}
+
+pub(crate) open spec fn part2_owned_assembly_image(
+    size: Part1AssemblySize, tiles: Seq<Part1AssemblyTile>, region: [u32; 4],
+    completed: nat,
+) -> Part1DecodedImageModel {
+    let (scale, x, y, width, height) = part1_assembly_selected_header(region, 0).get_Ok_0();
+    (width, height, x, y, part2_owned_assembly_components(size, tiles, completed))
+}
+
+spec fn full_cover_plane(tile: Part1AssemblyTile, written: int) -> Part1AssemblyPlane {
+    (tile.3, tile.4, Some(tile.5),
+        Seq::new(tile.6.len(), |i: int| if i < written { tile.6[i] } else { 0i64 }),
+        Seq::new(tile.6.len(), |i: int| i < written))
+}
+
+proof fn full_cover_row(tile: Part1AssemblyTile, y: u32, written: nat)
+    requires tile.1 == 0, tile.2 == 0, y < tile.4, written <= tile.3,
+        part1_transform_area(tile.3, tile.4) == Ok(tile.6.len() as usize),
+        tile.6.len() <= usize::MAX,
+    ensures part1_assembly_row_prefix(full_cover_plane(tile, y as int * tile.3 as int),
+        tile, 0, y, Some((0u32, 0u32)), written)
+        == (Ok(()), full_cover_plane(tile, y as int * tile.3 as int + written as int)),
+    decreases written,
+{
+    if written > 0 {
+        full_cover_row(tile, y, (written - 1) as nat);
+        let x = (written - 1) as u32;
+        let index = y as int * tile.3 as int + x as int;
+        assert(tile.6.len() == tile.3 as int * tile.4 as int);
+        assert(0 <= index < tile.6.len()) by {
+            crate::proofs::production_impl::production_composition_index_bounds(tile.3, tile.4, x, y);
+            assert(0 <= y as int * tile.3 as int) by (nonlinear_arith)
+                requires y >= 0, tile.3 >= 0, {}
+        }
+        let before = full_cover_plane(tile, index);
+        let after = full_cover_plane(tile, index + 1);
+        assert(before.3.update(index, tile.6[index]) =~= after.3);
+        assert(before.4.update(index, true) =~= after.4);
+        assert(part1_assembly_pixel(before, tile, x, y, Some((0u32, 0u32))) == (Ok(()), after));
+    }
+}
+
+proof fn full_cover_rectangle(tile: Part1AssemblyTile, rows: nat)
+    requires tile.1 == 0, tile.2 == 0, rows <= tile.4,
+        part1_transform_area(tile.3, tile.4) == Ok(tile.6.len() as usize),
+        tile.6.len() <= usize::MAX,
+    ensures part1_assembly_rectangle_prefix(full_cover_plane(tile, 0),
+        tile, (0, 0, tile.3, tile.4), Some((0u32, 0u32)), rows)
+        == (Ok(()), full_cover_plane(tile, rows as int * tile.3 as int)),
+    decreases rows,
+{
+    reveal_with_fuel(part1_assembly_rectangle_prefix, 1);
+    if rows > 0 {
+        full_cover_rectangle(tile, (rows - 1) as nat);
+        let y = (rows - 1) as u32;
+        full_cover_row(tile, y, tile.3 as nat);
+        assert((rows - 1) as nat as int == y as int);
+        assert(part1_assembly_rectangle_prefix(full_cover_plane(tile, 0),
+            tile, (0, 0, tile.3, tile.4), Some((0u32, 0u32)), rows)
+            == part1_assembly_row_prefix(full_cover_plane(tile, y as int * tile.3 as int),
+                tile, 0, y, Some((0u32, 0u32)), tile.3 as nat));
+        assert(y as int * tile.3 as int + tile.3 as int == rows as int * tile.3 as int)
+            by (nonlinear_arith) requires y as int + 1 == rows as int, {}
+    } else {
+        assert(0int * tile.3 as int == 0) by (nonlinear_arith);
+    }
+}
+
+proof fn full_cover_placement(tiles: Seq<Part1AssemblyTile>, component: u16, completed: nat)
+    requires component < tiles.len(), completed <= tiles.len(),
+        forall |i: int| 0 <= i < tiles.len() ==> (#[trigger] tiles[i]).0 as int == i,
+        tiles[component as int].1 == 0, tiles[component as int].2 == 0,
+        tiles[component as int].3 > 0, tiles[component as int].4 > 0,
+        part1_transform_area(tiles[component as int].3, tiles[component as int].4)
+            == Ok(tiles[component as int].6.len() as usize),
+        tiles[component as int].6.len() <= usize::MAX,
+    ensures {
+        let tile = tiles[component as int];
+        let before = full_cover_plane(tile, 0);
+        part1_assembly_tiles_prefix((before.0, before.1, None, before.3, before.4),
+            tiles, component, Some((0, 0, tile.3, tile.4)), completed)
+            == (Ok(()), if completed <= component {
+                (before.0, before.1, None, before.3, before.4)
+            } else { full_cover_plane(tile, tile.6.len() as int) })
+    },
+    decreases completed,
+{
+    reveal_with_fuel(part1_assembly_tiles_prefix, 1);
+    reveal(part1_assembly_tile_step);
+    if completed > 0 {
+        full_cover_placement(tiles, component, (completed - 1) as nat);
+        assert(tiles[completed - 1].0 as int == completed - 1);
+        if completed - 1 == component {
+            let tile = tiles[component as int];
+            full_cover_rectangle(tile, tile.4 as nat);
+            assert(tile.4 as int * tile.3 as int == tile.6.len() as int) by (nonlinear_arith)
+                requires tile.6.len() as int == tile.3 as int * tile.4 as int, {}
+        }
+    }
+}
+
+proof fn full_cover_ids(
+    size: Part1AssemblySize, tiles: Seq<Part1AssemblyTile>, region: [u32; 4],
+    maximum: u64, completed: nat,
+)
+    requires completed <= size.4, completed <= tiles.len(),
+        part2_owned_assembly_prefix(size, tiles, region, maximum, completed).is_some(),
+    ensures forall |i: int| 0 <= i < completed ==> (#[trigger] tiles[i]).0 as int == i,
+    decreases completed,
+{
+    reveal_with_fuel(part2_owned_assembly_prefix, 1);
+    if completed > 0 {
+        full_cover_ids(size, tiles, region, maximum, (completed - 1) as nat);
+    }
+}
+
+proof fn full_cover_components(
+    size: Part1AssemblySize, tiles: Seq<Part1AssemblyTile>, region: [u32; 4],
+    maximum: u64, completed: nat,
+)
+    requires completed <= size.4, completed <= tiles.len(),
+        part1_assembly_selected_header(region, 0).is_ok(),
+        part2_owned_assembly_prefix(size, tiles, region, maximum, completed).is_some(),
+        forall |i: int| 0 <= i < tiles.len() ==> (#[trigger] tiles[i]).0 as int == i,
+    ensures part1_assembly_components_prefix(part2_owned_assembly_image(size, tiles, region, 0),
+        0, size, tiles, (0, 0), Some((region, 1)), maximum, completed)
+        == (Ok(()), part2_owned_assembly_image(size, tiles, region, completed),
+            part2_owned_assembly_prefix(size, tiles, region, maximum, completed).get_Some_0()),
+    decreases completed,
+{
+    reveal_with_fuel(part2_owned_assembly_prefix, 1);
+    reveal_with_fuel(part1_assembly_components_prefix, 1);
+    if completed > 0 {
+        let i = (completed - 1) as nat;
+        let component = i as u16;
+        full_cover_components(size, tiles, region, maximum, i);
+        let before = part2_owned_assembly_image(size, tiles, region, i);
+        let charge = part2_owned_assembly_prefix(size, tiles, region, maximum, i).get_Some_0();
+        let tile = tiles[i as int];
+        let plane = full_cover_plane(tile, 0);
+        let result = full_cover_plane(tile, tile.6.len() as int);
+        let initial = (plane.0, plane.1, None, plane.3, plane.4);
+        let crop = Some((0u32, 0u32, tile.3, tile.4));
+        let selection = Some((region, 1u32));
+        let dimensions = part1_assembly_component_dimensions(size, component, (0, 0), selection).get_Ok_0();
+        let count = part1_transform_area(dimensions.1, dimensions.2).get_Ok_0();
+        let charged = part1_accumulate_decoded_bytes(count as nat, charge, maximum);
+        let context = Part2AssemblyPlaneContext {
+            image: before, bytes: charge, size, tiles, component, extent: (0, 0), selection, maximum,
+        };
+        assert(part2_assembly_plane_preflight(context) == (Ok((dimensions, count, crop)), charged.1));
+        assert(initial.3 =~= Seq::new(count as nat, |i: int| 0i64));
+        assert(initial.4 =~= Seq::new(count as nat, |i: int| false));
+        full_cover_placement(tiles, component, tiles.len());
+        assert(part1_collect_assembly_tiles(initial, tiles, component, crop) == (Ok(()), result));
+        assert(result.3 =~= tile.6);
+        assert(part2_owned_assembly_components(size, tiles, completed) =~=
+            before.4.push(part2_owned_assembly_components(size, tiles, completed)[i as int]));
+        assert(part1_assembly_append_plane(before, charge, size, tiles, component, (0, 0), selection, maximum)
+            == (Ok(()), part2_owned_assembly_image(size, tiles, region, completed), charged.1));
+    } else {
+        assert(part2_owned_assembly_image(size, tiles, region, 0).4 =~= Seq::empty());
+    }
+}
+
+pub(crate) proof fn part2_owned_assembly_value(
+    size: Part1AssemblySize, tiles: Seq<Part1AssemblyTile>, region: [u32; 4], maximum: u64,
+)
+    requires part2_owned_assembly_eligible(size, tiles, region, 0, maximum, true),
+    ensures part1_assemble_selected_image(size, tiles, region, 0, maximum)
+        == Ok(part2_owned_assembly_image(size, tiles, region, tiles.len())),
+{
+    full_cover_ids(size, tiles, region, maximum, tiles.len());
+    full_cover_components(size, tiles, region, maximum, tiles.len());
+    assert(part2_owned_assembly_image(size, tiles, region, 0).4 =~= Seq::empty());
+    assert((1u32 << 0u8) == 1u32) by (bit_vector);
+    assert(part1_assembly_selected_header(region, 0).get_Ok_0().0 == 1u32);
+}
+
+pub(crate) proof fn part2_owned_assembly_refusal_persists(
+    size: Part1AssemblySize, tiles: Seq<Part1AssemblyTile>, region: [u32; 4],
+    maximum: u64, failed: nat, completed: nat,
+)
+    requires failed <= completed, part2_owned_assembly_prefix(size, tiles, region, maximum, failed).is_none(),
+    ensures part2_owned_assembly_prefix(size, tiles, region, maximum, completed).is_none(),
+    decreases completed,
+{
+    reveal_with_fuel(part2_owned_assembly_prefix, 1);
+    if failed < completed {
+        part2_owned_assembly_refusal_persists(size, tiles, region, maximum, failed, (completed - 1) as nat);
+    }
+}
+
+pub(crate) proof fn part2_owned_assembly_info(
+    size: Part1AssemblySize, tiles: Seq<Part1AssemblyTile>, region: [u32; 4],
+    maximum: u64, completed: nat, component: u16,
+)
+    requires component < completed <= size.4,
+        part2_owned_assembly_prefix(size, tiles, region, maximum, completed).is_some(),
+    ensures part1_image_size_component(size.4, size.5, component).is_ok(),
+    decreases completed,
+{
+    reveal_with_fuel(part2_owned_assembly_prefix, 1);
+    if (component as nat) + 1 < completed {
+        part2_owned_assembly_info(size, tiles, region, maximum, (completed - 1) as nat, component);
+    }
+}
+
+pub(crate) open spec fn part2_owned_assembly_storage_run(
+    size: Part1AssemblySize, tiles: Seq<Part1AssemblyTile>, region: [u32; 4], maximum: u64,
+    events: Seq<Part2JpipSnapshotEvent>,
+) -> Part2ColdRun<Part1DecodedImageModel> {
+    let context = Part2AssemblyOwnerContext {size, tiles, selection: Some((region, 0)), maximum};
+    if events.len() == 0 { None } else { match events[0] {
+        Part2JpipSnapshotEvent::AssemblyCalls {context: actual, calls} => if actual != context { None } else {
+            match part2_assembly_owner_run(context, calls) {
+                Some((response, rest)) if rest.len() == 0 => Some((match response {
+                    Ok(()) => Ok(part2_owned_assembly_image(size, tiles, region, tiles.len())),
+                    Err(error) => Err(error),
+                }, events.drop_first())),
+                _ => None,
+            }
+        },
+        _ => None,
+    }}
+}
+
+pub(crate) open spec fn part2_owned_assembly_storage_result(
+    size: Part1AssemblySize, tiles: Seq<Part1AssemblyTile>, region: [u32; 4], maximum: u64,
+    result: Result<Part1DecodedImageModel, crate::DecodeError>,
+) -> bool {
+    part2_cold_framed(|events|part2_owned_assembly_storage_run(size,tiles,region,maximum,events),result)
+}
+
+pub(crate) proof fn part2_owned_assembly_capacity_observed(
+    size: Part1AssemblySize, tiles: Seq<Part1AssemblyTile>, region: [u32; 4], maximum: u64,
+    response: Result<(), crate::DecodeError>,
+)
+    requires part2_owned_assembly_eligible(size, tiles, region, 0, maximum, true),
+        response == Ok(()) || response == Err(crate::DecodeError::AllocationFailed),
+    ensures part2_owned_assembly_storage_result(size, tiles, region, maximum, match response {
+        Ok(()) => Ok(part2_owned_assembly_image(size, tiles, region, tiles.len())),
+        Err(error) => Err(error),
+    }),
+{
+    let context = Part2AssemblyOwnerContext {size, tiles, selection: Some((region, 0)), maximum};
+    let calls = seq![Part2Tier1StorageEvent::AssemblyOwnerCapacity {
+        context, elements: size.4 as nat, succeeded: response.is_ok(),
+    }];
+    let prefix = seq![Part2JpipSnapshotEvent::AssemblyCalls {context, calls}];
+    let result = match response {
+        Ok(()) => Ok(part2_owned_assembly_image(size, tiles, region, tiles.len())),
+        Err(error) => Err(error),
+    };
+    let run = |events|part2_owned_assembly_storage_run(size,tiles,region,maximum,events);
+    assert(calls.drop_first() =~= Seq::<Part2Tier1StorageEvent>::empty());
+    if response == Ok(()) {
+        assert(part2_assembly_owner_run(context, calls) == Some((Ok(()), Seq::empty())));
+    } else {
+        assert(part2_assembly_owner_run(context, calls) == Some((Err(crate::DecodeError::AllocationFailed), Seq::empty())));
+    }
+    assert forall |tail: Seq<Part2JpipSnapshotEvent>| run(prefix + tail) == Some((result, tail)) by {
+        assert((prefix + tail).drop_first() =~= tail);
+    }
+    assert(part2_cold_prefix(run, prefix, result));
+}
+
 pub struct Part2AssemblyOwnerContext {
     pub size:Part1AssemblySize,pub tiles:Seq<Part1AssemblyTile>,pub selection:Option<([u32;4],u8)>,pub maximum:u64,
 }
