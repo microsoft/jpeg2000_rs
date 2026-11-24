@@ -25,6 +25,15 @@ use vstd::prelude::*;
 pub(super) mod fused;
 
 impl PreparedTileComponent {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result@ == prepared_component_view(self).6,
+    ))]
+    pub(crate) fn into_samples(self) -> Vec<i64> {
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(prepared_component_view); }
+        self.samples
+    }
+
     pub const fn component(&self) -> u16 {
         self.component
     }
@@ -1374,6 +1383,47 @@ pub(super) fn assemble_prepared_components(
             crate::limits::resource_decoded_bytes_limit(limits),crate::image::decoded_image_outcome(assembled));
     }
     assembled
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_owned_prepared_selected_result(crate::image::assembly_size_view(size),
+        prepared_components_view(prepared@), region, discard, crate::limits::resource_decoded_bytes_limit(limits),
+        single_tile, crate::image::decoded_image_outcome(result)),
+    crate::image::decoded_image_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+        crate::image::decoded_image_outcome(result) == crate::specs::part2_assemble_prepared(
+            crate::image::assembly_size_view(size), prepared_components_view(prepared@), Some((region, discard)),
+            crate::limits::resource_decoded_bytes_limit(limits)),
+))]
+pub(super) fn assemble_owned_prepared_selected(
+    size: &ImageSize,
+    prepared: Vec<PreparedTileComponent>,
+    region: [u32; 4],
+    discard: u8,
+    limits: &ResourceLimits,
+    single_tile: bool,
+) -> Result<DecodedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost source = prepared_components_view(prepared@); }
+    let maximum = limits.maximum_decoded_bytes();
+    let result = if crate::image::has_owned_full_cover(
+        size,
+        &prepared,
+        region,
+        discard,
+        maximum,
+        single_tile,
+    )? {
+        crate::image::assemble_owned_full_cover(size, prepared, region, maximum)
+    } else {
+        // Ineligible shapes follow the original error and allocation ordering.
+        assemble_prepared_components(size, &prepared, Some((region, discard)), limits)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_owned_prepared_selected_observed(crate::image::assembly_size_view(size),
+            source, region, discard, maximum, single_tile, crate::image::decoded_image_outcome(result));
+    }
+    result
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

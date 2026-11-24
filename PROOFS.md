@@ -73,6 +73,21 @@ Use the [supported build profiles](SUPPORTED.md#build-and-runtime-profiles) and
 when reporting this API. Native `--all-features` tests exercise it, but are not
 an all-feature Verus proof. Full source-function coverage remains `not-measured`.
 
+## Consuming full-cover native assembly
+
+The legacy PDF/trailer terminal handoff can transfer its prepared `Vec<i64>`
+planes without copying. The checked dispatch requires a single selected tile,
+the entire image at discard level zero, and one ordered plane per component.
+It reuses registered component geometry and aggregate decoded-byte admission.
+If any check fails, the original borrowed assembly still determines the
+result, including its coverage checks and ordered allocation failures.
+The [assembly model](specs/cold_image_storage.rs) proves that the checked
+row-major rectangle writes every output index exactly once and yields the
+same samples and fraction tag. The owned storage trace contains only the
+retained component-table reservation, with no sample, visited, view-table or
+per-plane publication requests. Typed conversion and the strict and ordinary
+selected decoder handoffs are unchanged.
+
 ## Source-proved bounded compact legacy candidate
 
 The issue-447 candidate in [`compact_legacy.rs`](src/tier1/compact_legacy.rs)

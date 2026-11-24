@@ -185,6 +185,7 @@ pub use assembly::assemble_image;
 pub(crate) use assembly::assemble_selected_image;
 #[cfg(test)]
 use assembly::charge_assembly_bytes;
+pub(crate) use assembly::{assemble_owned_full_cover, has_owned_full_cover};
 #[cfg(test)]
 use component_transform::apply_component_pixel;
 pub(crate) use component_transform::inverse_component_values;

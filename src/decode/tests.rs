@@ -9862,6 +9862,138 @@ fn wavelet_plane_storage_actual_standard_component_first_later_planes_and_restor
 }
 
 #[test]
+fn owned_exact_cover_moves_native_planes_and_retains_general_errors() {
+    use super::reconstruction::assemble_owned_prepared_selected;
+    use crate::codestream::ComponentInfo;
+
+    let mut component_info = [ComponentInfo::default(); 64];
+    component_info[0] = ComponentInfo {
+        precision: 38,
+        signed: true,
+        x_subsampling: 1,
+        y_subsampling: 1,
+        ..ComponentInfo::default()
+    };
+    component_info[1] = ComponentInfo {
+        precision: 24,
+        signed: false,
+        x_subsampling: 2,
+        y_subsampling: 2,
+        ..ComponentInfo::default()
+    };
+    let size = ImageSize {
+        width: 5,
+        height: 3,
+        x_origin: 3,
+        y_origin: 5,
+        components: 2,
+        uniform_bit_depth: None,
+        uniform_signed: None,
+        tile_width: 8,
+        tile_height: 8,
+        tile_x_origin: 0,
+        tile_y_origin: 0,
+        tiles_across: 1,
+        tiles_down: 1,
+        component_info,
+    };
+    let full = [3, 5, 8, 8];
+    let make_planes = || {
+        let mut first = Vec::with_capacity(31);
+        first.extend((-7_i64..=7).map(|sample| sample * (1 << 34)));
+        vec![
+            PreparedTileComponent {
+                component: 0,
+                x: 0,
+                y: 0,
+                width: 5,
+                height: 3,
+                fraction_bits: 0,
+                samples: first,
+            },
+            PreparedTileComponent {
+                component: 1,
+                x: 0,
+                y: 0,
+                width: 2,
+                height: 1,
+                fraction_bits: 16,
+                samples: vec![-0x8001, 0x18000],
+            },
+        ]
+    };
+    let limits = ResourceLimits::default()
+        .with_maximum_decoded_bytes(17 * 8)
+        .unwrap();
+    let planes = make_planes();
+    let owners = [planes[0].samples.as_ptr(), planes[1].samples.as_ptr()];
+    let expected = assemble_prepared_components(&size, &planes, Some((full, 0)), &limits).unwrap();
+    let moved = crate::allocation::with_refusal(1, || {
+        assemble_owned_prepared_selected(&size, planes, full, 0, &limits, true)
+    })
+    .unwrap();
+    assert_eq!(moved, expected);
+    assert_eq!(moved.components()[0].samples().as_ptr(), owners[0]);
+    assert_eq!(moved.components()[1].samples().as_ptr(), owners[1]);
+    assert_eq!(
+        crate::allocation::with_refusal(0, || {
+            assemble_owned_prepared_selected(&size, make_planes(), full, 0, &limits, true)
+        }),
+        Err(DecodeError::AllocationFailed)
+    );
+
+    for (region, discard, single, mutation) in [
+        (full, 0, false, 0),
+        ([4, 5, 8, 8], 0, true, 0),
+        (full, 1, true, 0),
+        (full, 0, true, 1), // Missing final sample.
+        (full, 0, true, 2), // Duplicate ID instead of complete component coverage.
+        (full, 0, true, 3), // No plane for component 1.
+    ] {
+        for failure in [None, Some(0), Some(2)] {
+            let mut planes = make_planes();
+            match mutation {
+                1 => {
+                    planes[1].samples.pop();
+                }
+                2 => planes[1].component = 0,
+                3 => {
+                    planes.pop();
+                }
+                _ => {}
+            }
+            let borrowed =
+                || assemble_prepared_components(&size, &planes, Some((region, discard)), &limits);
+            let expected = if let Some(after) = failure {
+                crate::allocation::with_refusal(after, borrowed)
+            } else {
+                borrowed()
+            };
+            let owned = || {
+                assemble_owned_prepared_selected(&size, planes, region, discard, &limits, single)
+            };
+            let actual = if let Some(after) = failure {
+                crate::allocation::with_refusal(after, owned)
+            } else {
+                owned()
+            };
+            assert_eq!(
+                actual, expected,
+                "{region:?}/{discard}/{single}/{mutation}/{failure:?}"
+            );
+        }
+    }
+    let short_cap = limits.with_maximum_decoded_bytes(17 * 8 - 1).unwrap();
+    let planes = make_planes();
+    let expected = assemble_prepared_components(&size, &planes, Some((full, 0)), &short_cap);
+    assert!(matches!(expected, Err(DecodeError::LimitExceeded { .. })));
+    assert_eq!(
+        assemble_owned_prepared_selected(&size, planes, full, 0, &short_cap, true),
+        expected
+    );
+}
+
+#[test]
 fn prepare_copy_storage_raw_ll_plane_empty_prior_owner_and_error_order() {
     use super::reconstruction::{copy_prepare_plane, reconstruct_prepare_working};
     let limits = ResourceLimits::default();

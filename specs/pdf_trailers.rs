@@ -664,17 +664,17 @@ pub(crate) open spec fn part2_trailer_selected_value(
 }
 
 pub(crate) open spec fn part2_trailer_assembly_run(size:Part1AssemblySize,prepared:Seq<Part1AssemblyTile>,region:[u32;4],discard:u8,maximum:u64,discarded:u8,
-    events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2TrailerReconstructed> {
-    part2_jpip_snapshot_bind(part2_assemble_prepared_storage_run(size,prepared,Some((region,discard)),maximum,events),
+    single_tile:bool,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2TrailerReconstructed> {
+    part2_jpip_snapshot_bind(part2_owned_prepared_selected_run(size,prepared,region,discard,maximum,single_tile,events),
         |image:Part1DecodedImageModel,rest|Some((part2_trailer_reported(Ok(image),discarded),rest)))
 }
 pub(crate) proof fn part2_trailer_assembly_observed(size:Part1AssemblySize,prepared:Seq<Part1AssemblyTile>,region:[u32;4],discard:u8,maximum:u64,discarded:u8,
-    result:Result<Part1DecodedImageModel,crate::DecodeError>)
-    requires part2_assemble_prepared_storage_result(size,prepared,Some((region,discard)),maximum,result),
-    ensures part2_cold_framed(|events|part2_trailer_assembly_run(size,prepared,region,discard,maximum,discarded,events),part2_trailer_reported(result,discarded)),
+    single_tile:bool,result:Result<Part1DecodedImageModel,crate::DecodeError>)
+    requires part2_owned_prepared_selected_result(size,prepared,region,discard,maximum,single_tile,result),
+    ensures part2_cold_framed(|events|part2_trailer_assembly_run(size,prepared,region,discard,maximum,discarded,single_tile,events),part2_trailer_reported(result,discarded)),
 {
     if let Ok(image)=result{part2_cold_pure(part2_trailer_reported(Ok(image),discarded));}
-    part2_cold_bind(|events|part2_assemble_prepared_storage_run(size,prepared,Some((region,discard)),maximum,events),
+    part2_cold_bind(|events|part2_owned_prepared_selected_run(size,prepared,region,discard,maximum,single_tile,events),
         |image:Part1DecodedImageModel,rest|Some((part2_trailer_reported(Ok(image),discarded),rest)),result,part2_trailer_reported(result,discarded));
 }
 #[verifier::opaque]
@@ -686,7 +686,7 @@ pub(crate) open spec fn part2_trailer_selected_run(
     decreases if index < tiles.len() { (tiles.len() - index) as nat } else { 0nat },
 {
     if index >= tiles.len() {
-        part2_trailer_assembly_run(crate::image::assembly_size_view(size),before.prepared,region,discard,crate::limits::resource_decoded_bytes_limit(limits),discarded,events)
+        part2_trailer_assembly_run(crate::image::assembly_size_view(size),before.prepared,region,discard,crate::limits::resource_decoded_bytes_limit(limits),discarded,tiles.len()==1,events)
     } else {
         part2_jpip_snapshot_bind(part2_collected_parts_run(parts, tiles[index as int], events),
             |selected: Seq<Part2OwnedTilePart>, rest| part2_jpip_snapshot_bind(
@@ -728,9 +728,10 @@ pub(crate) proof fn part2_trailer_selected_normal(
     let result = part2_trailer_selected_value(size, parts, caps, tiles, region, discard, limits, index, before, discarded);
     if index >= tiles.len() {
         let size=crate::image::assembly_size_view(size);let maximum=crate::limits::resource_decoded_bytes_limit(limits);
-        part2_assemble_prepared_storage_normal(size,before.prepared,Some((region,discard)),maximum);
-        part2_trailer_assembly_observed(size,before.prepared,region,discard,maximum,discarded,part2_assemble_prepared(size,before.prepared,Some((region,discard)),maximum));
-        part2_decode_eta(|events|part2_trailer_assembly_run(size,before.prepared,region,discard,maximum,discarded,events),result);
+        let single_tile=tiles.len()==1;
+        part2_owned_prepared_selected_normal(size,before.prepared,region,discard,maximum,single_tile);
+        part2_trailer_assembly_observed(size,before.prepared,region,discard,maximum,discarded,single_tile,part2_assemble_prepared(size,before.prepared,Some((region,discard)),maximum));
+        part2_decode_eta(|events|part2_trailer_assembly_run(size,before.prepared,region,discard,maximum,discarded,single_tile,events),result);
     } else {
         let collected = part2_collect_tile_parts(parts, tiles[index as int]);
         part2_collected_parts_normal(parts, tiles[index as int]);

@@ -11,9 +11,191 @@ use super::{
     decoded_components_view, decoded_image_outcome,
 };
 use crate::codestream::ImageSize;
+use crate::decode::PreparedTileComponent;
+#[cfg(verus_keep_ghost)]
+use crate::decode::{prepared_component_view, prepared_components_view};
 use crate::{DecodeError, Resource, ResourceLimits};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part2_owned_assembly_plane(
+        assembly_size_view(size), assembly_tile_view(tile), region, maximum, component, bytes),
+))]
+fn owned_plane_charge(
+    size: &ImageSize,
+    tile: TileComponent<'_>,
+    region: [u32; 4],
+    maximum: u64,
+    component: u16,
+    bytes: u64,
+) -> Option<u64> {
+    let dimensions =
+        assembly_component_dimensions(size, component, [0, 0], Some((region, 1))).ok()?;
+    let count = checked_area(dimensions.1, dimensions.2).ok()?;
+    let mut charged = bytes;
+    charge_assembly_bytes(count, &mut charged, maximum).ok()?;
+    let crop = assembly_component_crop(size, dimensions, true).ok()??;
+    if tile.component != component
+        || tile.x != 0
+        || tile.y != 0
+        || tile.width != dimensions.1
+        || tile.height != dimensions.2
+        || crop != (0, 0, tile.width, tile.height)
+        || tile.samples.len() != count
+    {
+        return None;
+    }
+    Some(charged)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result.is_ok() && result.get_Ok_0() == crate::specs::part2_owned_assembly_eligible(
+        assembly_size_view(size), prepared_components_view(prepared@), region, discard, maximum, single_tile),
+))]
+pub(crate) fn has_owned_full_cover(
+    size: &ImageSize,
+    prepared: &[PreparedTileComponent],
+    region: [u32; 4],
+    discard: u8,
+    maximum: u64,
+    single_tile: bool,
+) -> Result<bool, DecodeError> {
+    #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+    crate::deadline::checkpoint()?;
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(assembly_size_view); }
+    if !single_tile
+        || discard != 0
+        || prepared.len() != usize::from(size.components)
+        || prepared.is_empty()
+        || region[0] != size.x_origin
+        || region[1] != size.y_origin
+        || u64::from(region[2]) != u64::from(size.x_origin) + u64::from(size.width)
+        || u64::from(region[3]) != u64::from(size.y_origin) + u64::from(size.height)
+        || assembly_selected_header(region, discard).is_err()
+    {
+        return Ok(false);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost model = assembly_size_view(size);
+        let ghost source = prepared_components_view(prepared@);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal_with_fuel(crate::specs::part2_owned_assembly_prefix, 1); }
+    let mut bytes = 0;
+    let mut component = 0_u16;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant component <= size.components, source.len() == size.components,
+            model == assembly_size_view(size), source == prepared_components_view(prepared@),
+            crate::specs::part2_owned_assembly_prefix(model, source, region, maximum, component as nat) == Some(bytes),
+        decreases size.components - component,
+    ))]
+    while component < size.components {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(usize::from(component))?;
+        let tile = prepared[usize::from(component)].as_tile_component();
+        let charge = owned_plane_charge(size, tile, region, maximum, component, bytes);
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal_with_fuel(crate::specs::part2_owned_assembly_prefix, 1); }
+        match charge {
+            Some(charged) => bytes = charged,
+            None => {
+                #[cfg(verus_keep_ghost)]
+                proof! { crate::specs::part2_owned_assembly_refusal_persists(model, source, region,
+                maximum, component as nat + 1, source.len()); }
+                return Ok(false);
+            }
+        }
+        component += 1;
+    }
+    Ok(true)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires crate::specs::part2_owned_assembly_eligible(assembly_size_view(size),
+        prepared_components_view(prepared@), region, 0, _maximum, true),
+    ensures crate::specs::part2_owned_assembly_storage_result(assembly_size_view(size),
+        prepared_components_view(prepared@), region, _maximum, decoded_image_outcome(result)),
+        decoded_image_outcome(result) != Err(DecodeError::AllocationFailed) ==>
+            decoded_image_outcome(result) == crate::specs::part1_assemble_selected_image(
+                assembly_size_view(size), prepared_components_view(prepared@), region, 0, _maximum),
+))]
+pub(crate) fn assemble_owned_full_cover(
+    size: &ImageSize,
+    prepared: Vec<PreparedTileComponent>,
+    region: [u32; 4],
+    _maximum: u64,
+) -> Result<DecodedImage, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(assembly_size_view); reveal(super::decoded_image_view); }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost model = assembly_size_view(size);
+        let ghost input = prepared@;
+        let ghost source = prepared_components_view(input);
+    }
+    let (_, x_origin, y_origin, width, height) = assembly_selected_header(region, 0)?;
+    let reserved = crate::allocation::empty_with_capacity(prepared.len());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_owned_assembly_value(model, source, region, _maximum);
+        crate::specs::part2_owned_assembly_capacity_observed(model, source, region, _maximum,
+            crate::allocation::inspection_capacity_outcome(reserved));
+    }
+    let mut components = reserved?;
+    let mut remaining = prepared.into_iter();
+    let mut component = 0_u16;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant component <= size.components,
+            model == assembly_size_view(size), source == prepared_components_view(input),
+            source.len() == size.components,
+            crate::specs::part2_owned_assembly_eligible(model, source, region, 0, _maximum, true),
+            vstd::std_specs::iter::IteratorSpec::remaining(&remaining) == input.skip(component as int),
+            decoded_components_view(components@) == crate::specs::part2_owned_assembly_components(
+                model, source, component as nat),
+        decreases size.components - component,
+    ))]
+    while component < size.components {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint()?;
+        let tile = remaining.next().ok_or_else(invalid_image)?;
+        let (width, height, fraction_bits) = {
+            let source = tile.as_tile_component();
+            (source.width, source.height, source.fraction_bits)
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! { crate::specs::part2_owned_assembly_info(model, source, region, _maximum,
+        source.len(), component); }
+        let info = crate::codestream::image_component_info(size, component)?;
+        let decoded = DecodedComponent {
+            width,
+            height,
+            info,
+            fraction_bits,
+            samples: tile.into_samples(),
+        };
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost before = components@; }
+        components.push(decoded);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(decoded_components_view(components@) =~= decoded_components_view(before).push(
+                decoded_component_view(components@[component as int])));
+            assert(crate::specs::part2_owned_assembly_components(model, source, component as nat + 1)
+                =~= decoded_components_view(components@));
+        }
+        component += 1;
+    }
+    Ok(DecodedImage {
+        width,
+        height,
+        x_origin,
+        y_origin,
+        components,
+    })
+}
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part2_assembly_storage_result(crate::specs::Part2AssemblyOwnerContext {
