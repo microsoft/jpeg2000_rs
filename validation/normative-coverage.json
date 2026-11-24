@@ -15958,6 +15958,8 @@
         {"path": "src/color/conversion.rs", "symbol": "convert_color_channel"},
         {"path": "src/color/conversion.rs", "symbol": "convert_alpha_channel"},
         {"path": "src/color/conversion.rs", "symbol": "convert_sycc_pixel"},
+        {"path": "src/color/conversion.rs", "symbol": "convert_sycc_row_pixel"},
+        {"path": "src/color/conversion.rs", "symbol": "plan_sycc_rows"},
         {"path": "src/color/admission.rs", "symbol": "validate_components"},
         {"path": "src/color/admission.rs", "symbol": "validate_component_index"}
       ],
@@ -15982,6 +15984,8 @@
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_channels_error"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_alphas_error"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_sycc_error"},
+        {"path": "src/color/conversion.rs", "symbol": "sycc_row_indices"},
+        {"path": "src/color/conversion.rs", "symbol": "sycc_pixel_routing"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_validation_error"}
       ],
       "spec_refs": [
@@ -16024,7 +16028,9 @@
         {"path": "src/color/tests.rs", "symbol": "color_storage_layout_first_later_alpha_refusal_and_association_priority_restore"},
         {"path": "src/color/tests.rs", "symbol": "complete_color_conversion_matches_independent_registered_planes_and_metadata"},
         {"path": "src/color/tests.rs", "symbol": "complete_color_admission_matches_wide_checked_count_and_limit_model"},
-        {"path": "src/color/tests.rs", "symbol": "complete_color_conversion_preserves_format_metadata_budget_and_sample_error_priority"}
+        {"path": "src/color/tests.rs", "symbol": "complete_color_conversion_preserves_format_metadata_budget_and_sample_error_priority"},
+        {"path": "src/color/tests.rs", "symbol": "sycc_registered_rows_restart_at_edges_and_keep_signed38_rounding"},
+        {"path": "src/color/tests.rs", "symbol": "sycc_row_plan_leaves_late_sample_and_owner_refusals_in_place"}
       ],
       "topic": "Complete actual typed JP2 color converter: format and CDEF selection, component validation, exact output admission, all raster/color/alpha samples and metadata, and every typed first failure"
     },
@@ -18184,6 +18190,10 @@
       ],
       "id": "part2-pinned-color-normalization",
       "implementation_refs": [
+        {
+          "path": "src/color/normalization.rs",
+          "symbol": "nominal_at_index"
+        },
         {
           "path": "src/color/normalization.rs",
           "symbol": "nominal_component_at"
