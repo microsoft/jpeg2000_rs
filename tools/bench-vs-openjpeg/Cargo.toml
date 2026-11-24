@@ -1,0 +1,11 @@
+[package]
+name = "bench-vs-openjpeg"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88.0"
+publish = false
+
+[workspace]
+
+[dependencies]
+jpeg2000-decoder = { path = "../..", default-features = false }
