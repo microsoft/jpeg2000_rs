@@ -1,0 +1,45 @@
+{
+  "total": 115,
+  "consumers": {
+    "BaseShim": {
+      "tests": 17,
+      "failures": 0
+    },
+    "BaseFfi": {
+      "tests": 6,
+      "failures": 0
+    },
+    "Pr485Shim": {
+      "tests": 17,
+      "failures": 0
+    },
+    "Pr485Ffi": {
+      "tests": 6,
+      "failures": 0
+    },
+    "Pr486Shim": {
+      "tests": 17,
+      "failures": 0
+    },
+    "Pr486Ffi": {
+      "tests": 6,
+      "failures": 0
+    },
+    "Pr488Shim": {
+      "tests": 17,
+      "failures": 0
+    },
+    "Pr488Ffi": {
+      "tests": 6,
+      "failures": 0
+    },
+    "Pr489Shim": {
+      "tests": 17,
+      "failures": 0
+    },
+    "Pr489Ffi": {
+      "tests": 6,
+      "failures": 0
+    }
+  }
+}

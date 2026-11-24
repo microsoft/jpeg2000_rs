@@ -15,8 +15,11 @@ def main():
     parser.add_argument("--crate", required=True, type=Path)
     parser.add_argument("--clang", required=True, type=Path)
     parser.add_argument("--rust", required=True, type=Path)
+    parser.add_argument("--prefix", default="", help="Optional alphanumeric name for per-revision Shim/Ffi outputs")
     parser.add_argument("--prepared", action="store_true", help="Exact disposable copy of the original evaluator only")
     args = parser.parse_args()
+    if args.prefix and not args.prefix.isalnum():
+        raise SystemExit("Build prefix must be alphanumeric.")
     root, crate, clang, rust = (p.resolve() for p in (args.pdfium, args.crate, args.clang, args.rust))
     if not args.prepared:
         sha = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
@@ -64,7 +67,8 @@ pdf_eval_jpx_lenient = true
             text += f'pdf_eval_jpeg2000_compat_root = "{crate}/adapters/openjpeg-capi"\n'
         if ffi:
             text += "pdf_enable_rust_jpeg2000_pdf_recovery = false\n"
-        subprocess.run([str(root / "buildtools/linux64/gn"), "gen", str(root / "out" / name),
+        output_name = name if name == "Openjpeg" else args.prefix + name
+        subprocess.run([str(root / "buildtools/linux64/gn"), "gen", str(root / "out" / output_name),
                         "--args=" + text], cwd=root, check=True)
     print("Configured Openjpeg/Shim/Ffi; audit actual commands and equal crate archives before timing.")
 

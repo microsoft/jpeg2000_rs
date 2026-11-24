@@ -13,10 +13,11 @@ def main():
     parser.add_argument("--work", required=True, type=Path)
     parser.add_argument("--crate", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--prefix", default="")
     args = parser.parse_args()
     result = {}
     for backend, name in (("openjpeg", "Openjpeg"), ("shim", "Shim"), ("ffi", "Ffi")):
-        out = args.work.resolve() / "out" / name
+        out = args.work.resolve() / "out" / (name if backend == "openjpeg" else args.prefix + name)
         commands = subprocess.check_output([str(args.work / "third_party/ninja/ninja"), "-C", str(out),
                                             "-t", "commands", "jp2_eval"]).decode("latin1")
         count = 0
@@ -45,6 +46,12 @@ def main():
                     assert wanted in flags, (backend, name, wanted)
             row["core_archive_sha256"] = hashlib.sha256(
                 (out / "obj/third_party/jpeg2000_decoder/libjpeg2000_decoder.rlib").read_bytes()).hexdigest()
+            if backend == "shim":
+                c_line = next(line for line in commands.splitlines() if "/shim.c -o" in line)
+                tokens = shlex.split(c_line)
+                source = (out / tokens[tokens.index("-c") + 1]).resolve()
+                assert source == (args.crate / "adapters/openjpeg-capi/shim.c").resolve(), "Mixed C/Rust shim source revisions."
+                row["same_revision_c_shim_sha256"] = hashlib.sha256(source.read_bytes()).hexdigest()
         result[backend] = row
     assert result["shim"]["core_archive_sha256"] == result["ffi"]["core_archive_sha256"]
     result["crate_source"] = subprocess.check_output(["git", "-C", str(args.crate), "rev-parse", "HEAD"], text=True).strip()
