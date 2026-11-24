@@ -1,0 +1,1369 @@
+diff --git a/.gitignore b/.gitignore
+index 7d32143ac..cd5c4c332 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -77,3 +77,4 @@
+ *.xcodeproj
+ *~
+ 
++/third_party/jpeg2000_decoder/upstream/
+diff --git a/BUILD.gn b/BUILD.gn
+index 42715bddb..43b39b2aa 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -7,6 +7,17 @@ import("//build/config/gclient_args.gni")
+ import("//testing/test.gni")
+ import("pdfium.gni")
+ 
++executable("jp2_eval") {
++  sources = [ "jp2_eval.cpp" ]
++  configs += [ ":pdfium_core_config" ]
++  cflags = [ "-Wno-missing-field-initializers" ]
++  deps = [
++    ":pdfium",
++    "core/fxcodec",
++    "core/fxcrt",
++  ]
++}
++
+ group("default") {
+   testonly = true
+   deps = [ ":pdfium" ]
+@@ -50,6 +61,10 @@ config("pdfium_common_config") {
+     defines += [ "PDF_ENABLE_RUST_JPEG" ]
+   }
+ 
++  if (pdf_enable_rust_jpeg2000) {
++    defines += [ "PDF_ENABLE_RUST_JPEG2000" ]
++  }
++
+   if (pdf_enable_rust_png) {
+     defines += [ "PDF_ENABLE_RUST_PNG" ]
+   }
+diff --git a/DEPS b/DEPS
+index 42270b345..baa5e6eb8 100644
+--- a/DEPS
++++ b/DEPS
+@@ -57,6 +57,7 @@ vars = {
+   #   "checkout_rust": True,
+   # }
+   'checkout_rust': False,
++  'checkout_jpeg2000_decoder': False,
+ 
+   'checkout_skia': 'checkout_configuration != "minimal"',
+ 
+@@ -279,6 +280,7 @@ vars = {
+ # If you need to add a new host, and the new host is not in Chromium's DEPS
+ # file's allowed_hosts list, contact Chrome infrastructure team.
+ allowed_hosts = [
++  'github.com',
+   'chromium.googlesource.com',
+   'pdfium.googlesource.com',
+   'skia.googlesource.com',
+@@ -288,6 +290,11 @@ allowed_hosts = [
+ ]
+ 
+ deps = {
++  'third_party/jpeg2000_decoder/upstream': {
++    'url': 'https://github.com/microsoft/jpeg2000_rs.git@712cab95366940bf16c2344d350b909a8009059c',
++    'condition': 'checkout_rust and checkout_jpeg2000_decoder',
++  },
++
+   'base/allocator/partition_allocator':
+     Var('chromium_git') +
+         '/chromium/src/base/allocator/partition_allocator.git@' +
+diff --git a/README.md b/README.md
+index daa08494f..c936fa13f 100644
+--- a/README.md
++++ b/README.md
+@@ -106,6 +106,14 @@ like `pdfium_test` are not built by default. To build these, add the argument
+ 
+ By default, the entire project builds with C++20.
+ 
++The experimental OpenJPEG compatibility backend keeps PDFium's existing
++JPX decoder and substitutes a Rust-backed library at link time. Set
++`checkout_rust` and `checkout_jpeg2000_decoder` in the `.gclient` solution,
++then set `enable_rust = true` and `pdf_use_openjpeg_compat = true` in GN.
++The shim replaces the bundled OpenJPEG library only; the system OpenJPEG
++option is mutually exclusive. The supported decode subset is documented in
++the crate's `adapters/openjpeg-capi/README.md`.
++
+ By default, PDFium expects to build with a clang compiler that provides
+ additional chrome plugins. To build against a vanilla one lacking these,
+ one must set
+diff --git a/core/fpdfapi/page/BUILD.gn b/core/fpdfapi/page/BUILD.gn
+index c9fdf2b85..5fec016c9 100644
+--- a/core/fpdfapi/page/BUILD.gn
++++ b/core/fpdfapi/page/BUILD.gn
+@@ -6,6 +6,9 @@ import("../../../pdfium.gni")
+ import("../../../testing/test.gni")
+ 
+ source_set("page") {
++  if (pdf_eval_jpx_lenient) {
++    defines = [ "PDF_EVAL_JPX_LENIENT" ]
++  }
+   sources = [
+     "cpdf_allstates.cpp",
+     "cpdf_allstates.h",
+diff --git a/core/fpdfapi/page/cpdf_dib.cpp b/core/fpdfapi/page/cpdf_dib.cpp
+index 792862dec..73688e711 100644
+--- a/core/fpdfapi/page/cpdf_dib.cpp
++++ b/core/fpdfapi/page/cpdf_dib.cpp
+@@ -664,10 +664,15 @@ bool CPDF_DIB::CreateDCTDecoder(pdfium::span<const uint8_t> src_span,
+ 
+ RetainPtr<CFX_DIBitmap> CPDF_DIB::LoadJpxBitmap(
+     uint8_t resolution_levels_to_skip) {
++#if defined(PDF_EVAL_JPX_LENIENT)
++  constexpr bool kStrictMode = false;
++#else
++  constexpr bool kStrictMode = true;
++#endif
+   std::unique_ptr<CJPX_Decoder> decoder =
+       CJPX_Decoder::Create(stream_acc_->GetSpan(),
+                            ColorSpaceOptionFromColorSpace(color_space_.Get()),
+-                           resolution_levels_to_skip, /*strict_mode=*/true);
++                           resolution_levels_to_skip, kStrictMode);
+   if (!decoder) {
+     return nullptr;
+   }
+diff --git a/core/fxcodec/BUILD.gn b/core/fxcodec/BUILD.gn
+index 77d827d84..ae8d73d03 100644
+--- a/core/fxcodec/BUILD.gn
++++ b/core/fxcodec/BUILD.gn
+@@ -5,11 +5,13 @@
+ import("../../pdfium.gni")
+ import("../../testing/test.gni")
+ 
+-if (pdf_enable_rust_bmp || pdf_enable_rust_jpeg || pdf_enable_rust_png) {
++if (pdf_enable_rust_bmp || pdf_enable_rust_jpeg || pdf_enable_rust_jpeg2000 ||
++    pdf_enable_rust_png) {
+   import("//build/rust/rust_static_library.gni")
+ }
+ 
+-if (pdf_enable_rust_bmp || pdf_enable_rust_jpeg || pdf_enable_rust_png) {
++if (pdf_enable_rust_bmp || pdf_enable_rust_jpeg || pdf_enable_rust_jpeg2000 ||
++    pdf_enable_rust_png) {
+   config("pdfium_rust_ffi_config") {
+     include_dirs = [ "$target_gen_dir/../.." ]
+   }
+@@ -45,6 +47,21 @@ if (pdf_enable_rust_jpeg) {
+   }
+ }
+ 
++if (pdf_enable_rust_jpeg2000) {
++  rust_static_library("rust_jpx_ffi") {
++    crate_name = "rust_jpx_ffi"
++    allow_unsafe = true
++    crate_root = "jpx/rust_jpx_ffi.rs"
++    sources = [ crate_root ]
++    cxx_bindings = [ crate_root ]
++    public_configs = [ ":pdfium_rust_ffi_config" ]
++    deps = [
++      "../../third_party/jpeg2000_decoder:lib",
++      "//build/rust:cxx_cppdeps",
++    ]
++  }
++}
++
+ if (pdf_enable_rust_png) {
+   rust_static_library("pdfium_rust_png_ffi") {
+     crate_name = "pdfium_rust_png_ffi"
+@@ -117,10 +134,7 @@ source_set("fxcodec") {
+     "jbig2/jbig2_trd_proc.h",
+     "jpeg/jpegmodule.cpp",
+     "jpeg/jpegmodule.h",
+-    "jpx/cjpx_decoder.cpp",
+     "jpx/cjpx_decoder.h",
+-    "jpx/jpx_decode_utils.cpp",
+-    "jpx/jpx_decode_utils.h",
+     "scanlinedecoder.cpp",
+     "scanlinedecoder.h",
+   ]
+@@ -130,7 +144,6 @@ source_set("fxcodec") {
+   ]
+   public_deps = [
+     "../../third_party:fx_lcms2",
+-    "../../third_party:libopenjpeg2",
+     "../fxcrt",
+   ]
+   deps = [
+@@ -139,6 +152,24 @@ source_set("fxcodec") {
+     "../fxge",
+   ]
+   defines = []
++  if (pdf_enable_rust_jpeg2000) {
++    sources += [ "jpx/rust_jpx_decoder.cpp" ]
++    public_configs = [ "../../third_party:fx_libopenjpeg_config" ]
++    if (pdf_enable_rust_jpeg2000_pdf_recovery) {
++      defines += [ "PDF_ENABLE_RUST_JPEG2000_PDF_RECOVERY" ]
++    }
++    deps += [
++      ":rust_jpx_ffi",
++      "//build/rust:cxx_cppdeps",
++    ]
++  } else {
++    sources += [
++      "jpx/cjpx_decoder.cpp",
++      "jpx/jpx_decode_utils.cpp",
++      "jpx/jpx_decode_utils.h",
++    ]
++    public_deps += [ "../../third_party:libopenjpeg2" ]
++  }
+   if (pdf_enable_brotli) {
+     sources += [
+       "brotli/brotli_decoder.cpp",
+@@ -265,17 +296,20 @@ pdfium_unittest_source_set("unittests") {
+     "jbig2/jbig2_bit_stream_unittest.cpp",
+     "jbig2/jbig2_image_unittest.cpp",
+     "jpeg/jpegmodule_unittest.cpp",
+-    "jpx/jpx_unittest.cpp",
++    "jpx/jpx_decoder_unittest.cpp",
+   ]
+   deps = [
+     ":fxcodec",
+     "../../testing:path_service",
+     "../../testing:test_support",
+-    "../../third_party:libopenjpeg2",
+     "../fpdfapi/parser",
+     "../fxge",
+   ]
+   pdfium_root_dir = "../../"
++  if (!pdf_enable_rust_jpeg2000) {
++    sources += [ "jpx/jpx_unittest.cpp" ]
++    deps += [ "../../third_party:libopenjpeg2" ]
++  }
+ 
+   if (pdf_enable_xfa) {
+     sources += [
+diff --git a/core/fxcodec/jpx/cjpx_decoder.h b/core/fxcodec/jpx/cjpx_decoder.h
+index ea2bfd828..300b84567 100644
+--- a/core/fxcodec/jpx/cjpx_decoder.h
++++ b/core/fxcodec/jpx/cjpx_decoder.h
+@@ -49,10 +49,12 @@ class CJPX_Decoder {
+       uint8_t resolution_levels_to_skip,
+       bool strict_mode);
+ 
++#if !defined(PDF_ENABLE_RUST_JPEG2000)
+   static void Sycc420ToRgbForTesting(opj_image_t* img);
+   static void Sycc422ToRgbForTesting(opj_image_t* img);
+   static void Sycc444ToRgbForTesting(opj_image_t* img);
+   static void ColorSyccToRgbForTesting(opj_image_t* img);
++#endif
+ 
+   ~CJPX_Decoder();
+ 
+@@ -76,6 +78,11 @@ class CJPX_Decoder {
+               uint32_t component_count);
+ 
+  private:
++#if defined(PDF_ENABLE_RUST_JPEG2000)
++  struct RustState;
++  explicit CJPX_Decoder(std::unique_ptr<RustState> state);
++  std::unique_ptr<RustState> rust_state_;
++#else
+   struct CodecDeleter {
+     inline void operator()(opj_codec_t* ptr) const { opj_destroy_codec(ptr); }
+   };
+@@ -104,6 +111,7 @@ class CJPX_Decoder {
+   std::unique_ptr<opj_stream_t, StreamDeleter> stream_;
+   std::unique_ptr<opj_image_t, ImageDeleter> image_;
+   opj_dparameters_t parameters_ = {};
++#endif
+ };
+ 
+ }  // namespace fxcodec
+diff --git a/core/fxcodec/jpx/jpx_decoder_unittest.cpp b/core/fxcodec/jpx/jpx_decoder_unittest.cpp
+new file mode 100644
+index 000000000..2fe95f54f
+--- /dev/null
++++ b/core/fxcodec/jpx/jpx_decoder_unittest.cpp
+@@ -0,0 +1,113 @@
++// Copyright 2026 The PDFium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "core/fxcodec/jpx/cjpx_decoder.h"
++
++#include <array>
++
++#include "core/fxcrt/span.h"
++#include "testing/gtest/include/gtest/gtest.h"
++#include "testing/utils/file_util.h"
++#include "testing/utils/path_service.h"
++
++namespace fxcodec {
++namespace {
++
++TEST(JpxDecoderTest, DecodesRgbIntoPitchedBgrRows) {
++  const auto src =
++      GetFileContents(PathService::GetTestFilePath("RGB.jp2").c_str());
++  auto decoder = CJPX_Decoder::Create(
++      src, CJPX_Decoder::ColorSpaceOption::kNone, 0, /*strict_mode=*/true);
++  ASSERT_TRUE(decoder);
++  ASSERT_TRUE(decoder->StartDecode());
++  auto info = decoder->GetInfo();
++  ASSERT_EQ(info.width, 4u);
++  ASSERT_EQ(info.height, 4u);
++  ASSERT_EQ(info.channels, 3u);
++  EXPECT_EQ(info.colorspace, OPJ_CLRSPC_SRGB);
++
++  constexpr size_t kPitch = 16;
++  std::array<uint8_t, kPitch * 4> rgb = {};
++  std::array<uint8_t, kPitch * 4> bgr = {};
++  EXPECT_FALSE(decoder->Decode(rgb, 8, /*swap_rgb=*/false, 3));
++  ASSERT_TRUE(decoder->Decode(rgb, kPitch, /*swap_rgb=*/false, 3));
++  ASSERT_TRUE(decoder->Decode(bgr, kPitch, /*swap_rgb=*/true, 3));
++  EXPECT_NE(rgb, bgr);
++  for (size_t y = 0; y < 4; ++y) {
++    for (size_t x = 0; x < 12; x += 3) {
++      const size_t p = y * kPitch + x;
++      EXPECT_EQ(rgb[p], bgr[p + 2]);
++      EXPECT_EQ(rgb[p + 1], bgr[p + 1]);
++      EXPECT_EQ(rgb[p + 2], bgr[p]);
++    }
++    for (size_t x = 12; x < kPitch; ++x) {
++      EXPECT_EQ(bgr[y * kPitch + x], 0xff);
++    }
++  }
++}
++
++TEST(JpxDecoderTest, RejectsEmptyAndShortInput) {
++  const auto src =
++      GetFileContents(PathService::GetTestFilePath("RGB.jp2").c_str());
++  ASSERT_GT(src.size(), 12u);
++  for (size_t size = 0; size < 12; ++size) {
++    EXPECT_FALSE(CJPX_Decoder::Create(pdfium::span(src).first(size),
++                                      CJPX_Decoder::ColorSpaceOption::kNone, 0,
++                                      /*strict_mode=*/true));
++  }
++}
++
++TEST(JpxDecoderTest, RejectsTruncatedImageData) {
++  const auto src =
++      GetFileContents(PathService::GetTestFilePath("RGB.jp2").c_str());
++  ASSERT_GT(src.size(), 16u);
++  auto decoder = CJPX_Decoder::Create(pdfium::span(src).first(src.size() - 16),
++                                      CJPX_Decoder::ColorSpaceOption::kNone, 0,
++                                      /*strict_mode=*/true);
++  EXPECT_FALSE(decoder && decoder->StartDecode());
++}
++
++class JpxSyccDecoderTest : public testing::TestWithParam<const char*> {};
++
++TEST_P(JpxSyccDecoderTest, ConvertsToFullSizeRgb) {
++  SCOPED_TRACE(GetParam());
++  const auto src =
++      GetFileContents(PathService::GetTestFilePath(GetParam()).c_str());
++  auto decoder = CJPX_Decoder::Create(
++      src, CJPX_Decoder::ColorSpaceOption::kNone, 0, /*strict_mode=*/true);
++  ASSERT_TRUE(decoder);
++  ASSERT_TRUE(decoder->StartDecode());
++  const auto info = decoder->GetInfo();
++  ASSERT_EQ(info.width, 5u);
++  ASSERT_EQ(info.height, 3u);
++  ASSERT_EQ(info.channels, 3u);
++  EXPECT_EQ(info.colorspace, OPJ_CLRSPC_SRGB);
++
++  constexpr size_t kPitch = 16;
++  std::array<uint8_t, kPitch * 3> rgb = {};
++  ASSERT_TRUE(decoder->Decode(rgb, kPitch, /*swap_rgb=*/false, 3));
++  // Lossless fixtures use Y = 25 + 40*y + 25*x and alternate chroma
++  // samples (128, 128) and (144, 112) across each chroma row.
++  for (size_t y = 0; y < 3; ++y) {
++    for (size_t x : {0u, 4u}) {
++      const int luma = 25 + y * 40 + x * 25;
++      for (size_t c = 0; c < 3; ++c) {
++        EXPECT_NEAR(rgb[y * kPitch + 3 * x + c], luma, 1);
++      }
++    }
++    // Column 3 maps to a non-neutral sample in all three layouts.
++    const size_t p = y * kPitch + 3 * 3;
++    EXPECT_LT(rgb[p], rgb[p + 1]);
++    EXPECT_LT(rgb[p + 1], rgb[p + 2]);
++  }
++}
++
++INSTANTIATE_TEST_SUITE_P(SamplingLayouts,
++                         JpxSyccDecoderTest,
++                         testing::Values("jpx_sycc420.jp2",
++                                         "jpx_sycc422.jp2",
++                                         "jpx_sycc444.jp2"));
++
++}  // namespace
++}  // namespace fxcodec
+diff --git a/core/fxcodec/jpx/rust_jpx_decoder.cpp b/core/fxcodec/jpx/rust_jpx_decoder.cpp
+new file mode 100644
+index 000000000..ca2e698ce
+--- /dev/null
++++ b/core/fxcodec/jpx/rust_jpx_decoder.cpp
+@@ -0,0 +1,106 @@
++// Copyright 2026 The PDFium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "core/fxcodec/jpx/cjpx_decoder.h"
++
++#include <stdio.h>
++
++#include <string>
++#include <utility>
++
++#include "core/fxcodec/jpx/rust_jpx_ffi.rs.h"
++#include "core/fxcrt/ptr_util.h"
++
++namespace fxcodec {
++
++namespace {
++
++void LogDecodeFailure(const char* stage, rust::Str error) {
++#if !defined(NDEBUG)
++  fprintf(stderr, "Rust JPX %s failed: %s\n", stage,
++          std::string(error).c_str());
++#endif
++}
++
++}  // namespace
++
++struct CJPX_Decoder::RustState {
++  rust::Box<rust_jpx::Decoder> decoder;
++  pdfium::raw_span<const uint8_t> source;
++  uint8_t discard_levels;
++  bool indexed;
++  bool strict;
++};
++
++CJPX_Decoder::CJPX_Decoder(std::unique_ptr<RustState> state)
++    : rust_state_(std::move(state)) {}
++
++CJPX_Decoder::~CJPX_Decoder() = default;
++
++std::unique_ptr<CJPX_Decoder> CJPX_Decoder::Create(
++    pdfium::span<const uint8_t> source,
++    ColorSpaceOption option,
++    uint8_t discard_levels,
++    bool strict) {
++  if (discard_levels > kMaxResolutionsToSkip) {
++    return nullptr;
++  }
++  auto decoder = rust_jpx::create();
++  if (!decoder->inspect({source.data(), source.size()}, strict)) {
++#if defined(PDF_ENABLE_RUST_JPEG2000_PDF_RECOVERY)
++    if (!strict || option == ColorSpaceOption::kIndexed ||
++        !decoder->inspect({source.data(), source.size()}, false)) {
++      LogDecodeFailure("inspection", decoder->error());
++      return nullptr;
++    }
++    strict = false;
++#else
++    LogDecodeFailure("inspection", decoder->error());
++    return nullptr;
++#endif
++  }
++  return pdfium::WrapUnique(new CJPX_Decoder(std::make_unique<RustState>(
++      RustState{std::move(decoder), source, discard_levels,
++                option == ColorSpaceOption::kIndexed, strict})));
++}
++
++CJPX_Decoder::JpxImageInfo CJPX_Decoder::GetInfo() const {
++  const auto info = rust_state_->decoder->info();
++  COLOR_SPACE colorspace = OPJ_CLRSPC_UNKNOWN;
++  switch (info.colorspace) {
++    case rust_jpx::ColorSpace::Unknown:
++      break;
++    case rust_jpx::ColorSpace::Gray:
++      colorspace = OPJ_CLRSPC_GRAY;
++      break;
++    case rust_jpx::ColorSpace::Rgb:
++      colorspace = OPJ_CLRSPC_SRGB;
++      break;
++    case rust_jpx::ColorSpace::Cmyk:
++      colorspace = OPJ_CLRSPC_CMYK;
++      break;
++  }
++  return {info.width, info.height, info.channels, colorspace};
++}
++
++bool CJPX_Decoder::StartDecode() {
++  const auto source = rust_state_->source;
++  if (!rust_state_->decoder->decode(
++          {source.data(), source.size()}, rust_state_->discard_levels,
++          rust_state_->indexed, rust_state_->strict)) {
++    LogDecodeFailure("decoding", rust_state_->decoder->error());
++    return false;
++  }
++  return true;
++}
++
++bool CJPX_Decoder::Decode(pdfium::span<uint8_t> dest,
++                          uint32_t pitch,
++                          bool swap_rgb,
++                          uint32_t components) {
++  return rust_state_->decoder->write_pixels({dest.data(), dest.size()}, pitch,
++                                           swap_rgb, components);
++}
++
++}  // namespace fxcodec
+diff --git a/core/fxcodec/jpx/rust_jpx_ffi.rs b/core/fxcodec/jpx/rust_jpx_ffi.rs
+new file mode 100644
+index 000000000..9032ec5af
+--- /dev/null
++++ b/core/fxcodec/jpx/rust_jpx_ffi.rs
+@@ -0,0 +1,285 @@
++// Copyright 2026 The PDFium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++use jpeg2000_decoder::jp2::{self, BoxType, ColorMethod};
++use jpeg2000_decoder::{
++    codestream, convert_jp2_color, decode_codestream_selected, decode_jp2_selected,
++    decode_jph_selected, decode_jpx_codestream_selected, decode_pdf_compatible, DecodeOptions,
++    DecodeSelection, TypedImage, TypedSamples,
++};
++
++#[cxx::bridge(namespace = "fxcodec::rust_jpx")]
++mod ffi {
++    enum ColorSpace {
++        Unknown,
++        Gray,
++        Rgb,
++        Cmyk,
++    }
++
++    struct ImageInfo {
++        width: u32,
++        height: u32,
++        channels: u32,
++        colorspace: ColorSpace,
++    }
++
++    extern "Rust" {
++        type Decoder;
++        fn create() -> Box<Decoder>;
++        fn inspect(self: &mut Decoder, src: &[u8], strict: bool) -> bool;
++        fn decode(self: &mut Decoder, src: &[u8], discard: u8, indexed: bool, strict: bool)
++            -> bool;
++        fn info(self: &Decoder) -> ImageInfo;
++        fn error(self: &Decoder) -> &str;
++        fn write_pixels(
++            self: &Decoder,
++            dest: &mut [u8],
++            pitch: usize,
++            swap_rgb: bool,
++            components: usize,
++        ) -> bool;
++    }
++}
++
++use ffi::{ColorSpace, ImageInfo};
++
++struct Decoder {
++    info: ImageInfo,
++    pixels: Vec<u8>,
++    error: String,
++}
++
++fn create() -> Box<Decoder> {
++    Box::new(Decoder {
++        info: ImageInfo { width: 0, height: 0, channels: 0, colorspace: ColorSpace::Unknown },
++        pixels: Vec::new(),
++        error: String::new(),
++    })
++}
++
++fn is_boxed(src: &[u8]) -> bool {
++    src.starts_with(b"\x00\x00\x00\x0cjP  \x0d\x0a\x87\x0a")
++}
++
++fn sample_to_byte(value: i128, precision: u8, signed: bool) -> u8 {
++    let value = if signed { value + (1i128 << (precision - 1)) } else { value };
++    let rounded = if precision <= 8 {
++        value << (8 - precision)
++    } else {
++        (value + (1i128 << (precision - 9))) >> (precision - 8)
++    };
++    rounded.clamp(0, 255) as u8
++}
++
++fn allocate_pixels(width: u32, height: u32, count: usize) -> Result<(usize, Vec<u8>), String> {
++    let area = (width as usize).checked_mul(height as usize).ok_or("JPX image size overflow")?;
++    let size = area.checked_mul(count).ok_or("JPX output size overflow")?;
++    let mut pixels = Vec::new();
++    pixels.try_reserve_exact(size).map_err(|e| e.to_string())?;
++    Ok((area, pixels))
++}
++
++fn pack(image: &TypedImage) -> Result<Vec<u8>, String> {
++    let (area, mut pixels) =
++        allocate_pixels(image.width(), image.height(), image.components().len())?;
++    for channel in image.components() {
++        let info = channel.info();
++        if channel.width() != image.width()
++            || channel.height() != image.height()
++            || !(1..=64).contains(&info.precision)
++        {
++            return Err("unsupported JPX component geometry or precision".into());
++        }
++        match channel.samples() {
++            TypedSamples::Signed(values) if values.len() == area => pixels
++                .extend(values.iter().map(|&v| sample_to_byte(v.into(), info.precision, true))),
++            TypedSamples::Unsigned(values) if values.len() == area => pixels
++                .extend(values.iter().map(|&v| sample_to_byte(v.into(), info.precision, false))),
++            _ => return Err("unexpected JPX component sample count".into()),
++        }
++    }
++    Ok(pixels)
++}
++
++impl Decoder {
++    fn info(&self) -> ImageInfo {
++        ImageInfo { ..self.info }
++    }
++
++    fn error(&self) -> &str {
++        &self.error
++    }
++
++    fn inspect(&mut self, src: &[u8], strict: bool) -> bool {
++        let options = DecodeOptions::default();
++        let result = if !strict {
++            jpeg2000_decoder::inspect_pdf_compatible(src, &options)
++        } else if is_boxed(src) {
++            jp2::parse(src, options.limits())
++                .and_then(|file| codestream::parse(file.codestream(0)?.data(), options.limits()))
++        } else {
++            codestream::parse(src, options.limits())
++        };
++        match result {
++            Ok(info) => {
++                let size = info.image_size;
++                self.info.width = size.width;
++                self.info.height = size.height;
++                self.info.channels = size.components.into();
++                true
++            }
++            Err(error) => {
++                self.error = format!("{error:?}");
++                false
++            }
++        }
++    }
++
++    fn decode(&mut self, src: &[u8], discard: u8, indexed: bool, strict: bool) -> bool {
++        match decode_image(src, discard, indexed, strict) {
++            Ok((info, pixels)) => {
++                self.info = info;
++                self.pixels = pixels;
++                true
++            }
++            Err(error) => {
++                self.error = error;
++                false
++            }
++        }
++    }
++
++    fn write_pixels(
++        &self,
++        dest: &mut [u8],
++        pitch: usize,
++        swap_rgb: bool,
++        components: usize,
++    ) -> bool {
++        let channels = self.info.channels as usize;
++        let count = if components == 3 && channels == 4 { 4 } else { components };
++        let (width, height) = (self.info.width as usize, self.info.height as usize);
++        let (Some(row_bytes), Some(area), Some(output_size)) =
++            (width.checked_mul(count), width.checked_mul(height), pitch.checked_mul(height))
++        else {
++            return false;
++        };
++        if count == 0
++            || count > channels
++            || (swap_rgb && count < 3)
++            || row_bytes > pitch
++            || output_size > dest.len()
++            || area == 0
++            || area.checked_mul(channels) != Some(self.pixels.len())
++        {
++            return false;
++        }
++        let dest = &mut dest[..output_size];
++        dest.fill(0xff);
++        for (y, row) in dest.chunks_exact_mut(pitch).enumerate() {
++            for (x, pixel) in row[..row_bytes].chunks_exact_mut(count).enumerate() {
++                for (i, dst) in pixel.iter_mut().enumerate() {
++                    let channel = if swap_rgb && (i == 0 || i == 2) { 2 - i } else { i };
++                    *dst = self.pixels[channel * area + y * width + x];
++                }
++            }
++        }
++        true
++    }
++}
++
++fn decode_image(
++    src: &[u8],
++    discard: u8,
++    indexed: bool,
++    strict: bool,
++) -> Result<(ImageInfo, Vec<u8>), String> {
++    let options = DecodeOptions::default();
++    let selection = DecodeSelection::default().with_discard_levels(discard);
++    let error = |e| format!("{e:?}");
++    let recovered = if !strict && !indexed {
++        Some(decode_pdf_compatible(src, &options, &selection).map_err(error)?)
++    } else {
++        None
++    };
++    let discarded_eol =
++        recovered.as_ref().map_or(0, |result| result.recovery.discarded_pdf_eol_bytes);
++    let metadata_end =
++        src.len().checked_sub(discarded_eol.into()).ok_or("invalid recovery length")?;
++    let container = if is_boxed(src) {
++        Some(jp2::parse(&src[..metadata_end], options.limits()).map_err(error)?)
++    } else {
++        None
++    };
++    let mut colorspace = ColorSpace::Unknown;
++    let image = if let Some(result) = recovered {
++        Ok(result.image)
++    } else if let Some(file) = &container {
++        if file.codestream_count() != 1 {
++            return Err("PDF JPXDecode requires one codestream".into());
++        }
++        if indexed {
++            decode_codestream_selected(
++                file.codestream(0).map_err(error)?.data(),
++                &options,
++                &selection,
++            )
++        } else if file.file_type.brand == BoxType::JPH_BRAND {
++            decode_jph_selected(src, &options, &selection)
++        } else if file.file_type.brand == BoxType::JPX_BRAND {
++            decode_jpx_codestream_selected(src, 0, &options, &selection)
++        } else {
++            decode_jp2_selected(src, &options, &selection)
++        }
++    } else {
++        decode_codestream_selected(src, &options, &selection)
++    }
++    .map_err(error)?;
++
++    if let Some(file) = container.as_ref().filter(|_| !indexed) {
++        match file.header.color.method {
++            ColorMethod::Enumerated { color_space: 16 } => colorspace = ColorSpace::Rgb,
++            ColorMethod::Enumerated { color_space: 17 } => colorspace = ColorSpace::Gray,
++            ColorMethod::Enumerated { color_space: 12 } => colorspace = ColorSpace::Cmyk,
++            ColorMethod::Enumerated { color_space: 18 } => {
++                let rgb = convert_jp2_color(&image, &file.header.color, options.limits())
++                    .map_err(error)?;
++                let (area, mut pixels) =
++                    allocate_pixels(rgb.width(), rgb.height(), rgb.channels().len())?;
++                for channel in rgb.channels() {
++                    if channel.samples().len() != area {
++                        return Err("unexpected JPX converted sample count".into());
++                    }
++                    pixels.extend(
++                        channel
++                            .samples()
++                            .iter()
++                            .map(|&v| sample_to_byte(v.into(), rgb.precision(), false)),
++                    );
++                }
++                return Ok((
++                    ImageInfo {
++                        width: rgb.width(),
++                        height: rgb.height(),
++                        channels: rgb.channels().len() as u32,
++                        colorspace: ColorSpace::Rgb,
++                    },
++                    pixels,
++                ));
++            }
++            _ => {}
++        }
++    }
++    if image.components().len() <= 2 {
++        colorspace = ColorSpace::Gray;
++    }
++    let info = ImageInfo {
++        width: image.width(),
++        height: image.height(),
++        channels: image.components().len() as u32,
++        colorspace,
++    };
++    Ok((info, pack(&image)?))
++}
+diff --git a/jp2_eval.cpp b/jp2_eval.cpp
+new file mode 100644
+index 000000000..18a8e62ec
+--- /dev/null
++++ b/jp2_eval.cpp
+@@ -0,0 +1,171 @@
++#include <algorithm>
++#include <chrono>
++#include <cstdio>
++#include <cstdlib>
++#include <fstream>
++#include <iterator>
++#include <string>
++#include <vector>
++
++#include "core/fxcodec/jpx/cjpx_decoder.h"
++#include "public/fpdfview.h"
++
++namespace {
++
++struct Result {
++  std::string status;
++  uint32_t width = 0;
++  uint32_t height = 0;
++  uint32_t channels = 0;
++  int color = 0;
++  std::vector<uint8_t> pixels;
++};
++
++Result Image(const std::vector<uint8_t>& input,
++             bool strict,
++             uint8_t reduce,
++             bool indexed) {
++  auto decoder = CJPX_Decoder::Create(
++      input, indexed ? CJPX_Decoder::ColorSpaceOption::kIndexed
++                     : CJPX_Decoder::ColorSpaceOption::kNormal,
++      reduce, strict);
++  if (!decoder) {
++    return {"header_error"};
++  }
++  if (!decoder->StartDecode()) {
++    return {"decode_error"};
++  }
++  auto info = decoder->GetInfo();
++  Result result{"output_limit", info.width, info.height, info.channels,
++                static_cast<int>(info.colorspace)};
++  uint64_t row = static_cast<uint64_t>(info.width) * info.channels;
++  uint64_t pitch = (row + 3) & ~uint64_t{3};
++  if (!info.width || !info.height || !info.channels || info.channels > 16 ||
++      pitch > UINT32_MAX || pitch * info.height > 512 * 1024 * 1024) {
++    return result;
++  }
++  std::vector<uint8_t> padded(pitch * info.height);
++  if (!decoder->Decode(padded, static_cast<uint32_t>(pitch), false,
++                       info.channels)) {
++    result.status = "pack_error";
++    return result;
++  }
++  result.pixels.reserve(row * info.height);
++  for (uint32_t y = 0; y < info.height; ++y) {
++    auto begin = padded.begin() + y * pitch;
++    result.pixels.insert(result.pixels.end(), begin, begin + row);
++  }
++  result.status = "ok";
++  return result;
++}
++
++Result Pdf(const std::vector<uint8_t>& input) {
++  FPDF_DOCUMENT doc = FPDF_LoadMemDocument64(input.data(), input.size(), nullptr);
++  if (!doc) {
++    return {"document_error"};
++  }
++  Result result{"ok"};
++  int count = FPDF_GetPageCount(doc);
++  for (int i = 0; i < count; ++i) {
++    FPDF_PAGE page = FPDF_LoadPage(doc, i);
++    if (!page) {
++      result.status = "page_error";
++      break;
++    }
++    int w = static_cast<int>(FPDF_GetPageWidthF(page) + 0.5f);
++    int h = static_cast<int>(FPDF_GetPageHeightF(page) + 0.5f);
++    if (w <= 0 || h <= 0 || static_cast<uint64_t>(w) * h > 32000000) {
++      FPDF_ClosePage(page);
++      result.status = "output_limit";
++      break;
++    }
++    FPDF_BITMAP bitmap = FPDFBitmap_Create(w, h, 1);
++    if (!bitmap) {
++      FPDF_ClosePage(page);
++      result.status = "bitmap_error";
++      break;
++    }
++    FPDFBitmap_FillRect(bitmap, 0, 0, w, h, 0xffffffff);
++    FPDF_RenderPageBitmap(bitmap, page, 0, 0, w, h, 0, FPDF_ANNOT);
++    auto* data = static_cast<uint8_t*>(FPDFBitmap_GetBuffer(bitmap));
++    int stride = FPDFBitmap_GetStride(bitmap);
++    for (int y = 0; y < h; ++y) {
++      result.pixels.insert(result.pixels.end(), data + y * stride,
++                           data + y * stride + w * 4);
++    }
++    result.width = static_cast<uint32_t>(w);
++    result.height += static_cast<uint32_t>(h);
++    result.channels = 4;
++    result.color = count;
++    FPDFBitmap_Destroy(bitmap);
++    FPDF_ClosePage(page);
++  }
++  FPDF_CloseDocument(doc);
++  return result;
++}
++
++}  // namespace
++
++int main(int argc, char** argv) {
++  if (argc != 8) {
++    std::fprintf(stderr, "mode input output strict reduce indexed repetitions\n");
++    return 2;
++  }
++  std::ifstream file(argv[2], std::ios::binary);
++  if (!file) {
++    std::perror(argv[2]);
++    return 2;
++  }
++  std::vector<uint8_t> input((std::istreambuf_iterator<char>(file)), {});
++  bool pdf = std::string(argv[1]) == "pdf";
++  if (pdf) {
++    FPDF_LIBRARY_CONFIG config{};
++    config.version = 2;
++    FPDF_InitLibraryWithConfig(&config);
++  }
++  bool strict = std::atoi(argv[4]) != 0;
++  uint8_t reduce = static_cast<uint8_t>(std::atoi(argv[5]));
++  bool indexed = std::atoi(argv[6]) != 0;
++  int runs = std::atoi(argv[7]);
++  auto decode = [&]() {
++    return pdf ? Pdf(input) : Image(input, strict, reduce, indexed);
++  };
++  Result result = decode();
++  std::vector<double> times;
++  if (result.status == "ok") {
++    std::ofstream output(argv[3], std::ios::binary);
++    output.write(reinterpret_cast<const char*>(result.pixels.data()),
++                 result.pixels.size());
++    if (!output) {
++      std::fprintf(stderr, "Cannot write pixels\n");
++      return 2;
++    }
++    for (int i = 0; runs && i < 3; ++i) {
++      if (decode().status != "ok") {
++        std::fprintf(stderr, "Warmup failed\n");
++        return 2;
++      }
++    }
++    for (int i = 0; i < runs; ++i) {
++      auto start = std::chrono::steady_clock::now();
++      auto repeated = decode();
++      double us = std::chrono::duration<double, std::micro>(
++                      std::chrono::steady_clock::now() - start).count();
++      if (repeated.status != "ok" || repeated.pixels != result.pixels) {
++        std::fprintf(stderr, "Non-repeatable decode\n");
++        return 2;
++      }
++      times.push_back(us);
++    }
++  }
++  std::sort(times.begin(), times.end());
++  double p50 = times.empty() ? 0 : times[times.size() / 2];
++  double p90 = times.empty() ? 0 : times[times.size() * 9 / 10];
++  std::printf("%s\t%u\t%u\t%u\t%d\t%.3f\t%.3f\t%zu\n",
++              result.status.c_str(), result.width, result.height,
++              result.channels, result.color, p50, p90, times.size());
++  if (pdf) {
++    FPDF_DestroyLibrary();
++  }
++  return 0;
++}
+diff --git a/jpeg2000_eval_sources.py b/jpeg2000_eval_sources.py
+new file mode 100644
+index 000000000..1905b4d3a
+--- /dev/null
++++ b/jpeg2000_eval_sources.py
+@@ -0,0 +1,7 @@
++from pathlib import Path
++import sys
++
++root = Path(sys.argv[1])
++if not root.is_dir():
++    raise ValueError(f"Missing decoder source directory: {root}")
++print("\n".join(str(path) for path in sorted((root / "src").rglob("*.rs"))))
+diff --git a/pdfium.gni b/pdfium.gni
+index 41b3672b1..a607770d0 100644
+--- a/pdfium.gni
++++ b/pdfium.gni
+@@ -86,6 +86,15 @@ declare_args() {
+   # Don't build against bundled libopenjpeg2.
+   use_system_libopenjpeg2 = false
+ 
++  # Experimental source-compatible Rust replacement for bundled OpenJPEG.
++  pdf_use_openjpeg_compat = false
++
++  pdf_enable_rust_jpeg2000 = false
++  pdf_enable_rust_jpeg2000_pdf_recovery = false
++  pdf_eval_jpx_lenient = false
++  pdf_eval_jpeg2000_core_root = ""
++  pdf_eval_jpeg2000_compat_root = ""
++
+   # Don't build against bundled libpng.
+   use_system_libpng = false
+ 
+@@ -99,6 +108,13 @@ declare_args() {
+ assert(!pdf_is_complete_lib || !is_component_build,
+        "pdf_is_complete_lib=true requires is_component_build=false")
+ 
++assert(!pdf_use_openjpeg_compat || (enable_rust && !use_system_libopenjpeg2),
++       "The OpenJPEG shim requires Rust and replaces bundled OpenJPEG")
++assert(!pdf_enable_rust_jpeg2000 ||
++           (enable_rust && enable_rust_cxx && !pdf_use_openjpeg_compat &&
++            !use_system_libopenjpeg2),
++       "The direct bridge requires Rust/CXX and replaces the other JPX backends")
++
+ assert(pdf_use_agg || pdf_use_skia,
+        "At least one of pdf_use_agg or pdf_use_skia must be true")
+ 
+diff --git a/testing/resources/jpx_sycc420.jp2 b/testing/resources/jpx_sycc420.jp2
+new file mode 100644
+index 0000000000000000000000000000000000000000..db0bfb1407f7d6a48d92cd3050f5c84a00c44d5b
+GIT binary patch
+literal 242
+zcmZQzVBpCLP*C9IYUg5LU=T?wsVvAUFj4@r8KAT-kj?;d#WFKeihwjT5VJBcv$F$f
+z1_u7*{G1|2FjELfE(I!1{_p=kkU<|T#tI}s8ejmG&&<xq$j-zBME`>rcz|kv2C=X(
+zF#eBWU~zExpTeNZ!023*npl#WqL5Un;9roM=M~`Uu27a*RGgWgr(mRKs%P?l0t3kD
+q3=FzJjg!xBabWj6l5EKsbFjl;@(;Pzr}c-Qv+=TmNIstU|2F|N5;8{s
+
+literal 0
+HcmV?d00001
+
+diff --git a/testing/resources/jpx_sycc422.jp2 b/testing/resources/jpx_sycc422.jp2
+new file mode 100644
+index 0000000000000000000000000000000000000000..731c1b2b8e8f3acd9cced412d5f2ba3dd3284bff
+GIT binary patch
+literal 242
+zcmZQzVBpCLP*C9IYUg5LU=T?wsVvAUFj4@r8KAT-kj?;d#WFKeihwjT5VJBcv$F$f
+z1_u7*{G1|2FjELfE(I!1{_p=kkU<|T#tI}s8ejmG&&<xq$j$^p|AQEKfNFpSv9K^O
+z{*Pf`ad7yb!l25)=v<VVSdyBekW{JQUyz#T72xWwP?lO$oSC1eV5DcNXYzjn1IXzN
+q47xy#lh1E)VD~(dY{?jNu)|>T54qN-^@pFc@$1C{NdZIs|2F|M*D^-{
+
+literal 0
+HcmV?d00001
+
+diff --git a/testing/resources/jpx_sycc444.jp2 b/testing/resources/jpx_sycc444.jp2
+new file mode 100644
+index 0000000000000000000000000000000000000000..9d2bfe30d9729b1055f673291d98de0ad9c54cd1
+GIT binary patch
+literal 244
+zcmZQzVBpCLP*C9IYUg5LU=T?wsVvAUFj4@r8KAT-kj?;d#WFKeihwjT5VJBcv$F$f
+z1_u7*{G1|2FjELfE(a=3{_p=kkU<|T#tI}s8ejmG&&<xq2togY7<hncfCjO!Ffjg)
+zVPJ7^_@Ba{%E0Jcl$uzQnxc?Yso-Cbn&%bZ>aI|hT2!2wpQm7?XR2rNe*y!@=?p*{
+r8UIf{zr}&w^GLEKW6Z%0gULVSTA$V*e$K(Ke6bWr3249B_5UUSp>Q;s
+
+literal 0
+HcmV?d00001
+
+diff --git a/third_party/BUILD.gn b/third_party/BUILD.gn
+index 1a1b380fe..4bb84db99 100644
+--- a/third_party/BUILD.gn
++++ b/third_party/BUILD.gn
+@@ -395,6 +395,8 @@ if (use_system_libopenjpeg2) {
+ group("libopenjpeg2") {
+   if (use_system_libopenjpeg2) {
+     public_configs = [ ":libopenjpeg2_from_pkgconfig" ]
++  } else if (pdf_use_openjpeg_compat) {
++    public_deps = [ ":fx_openjpeg_compat" ]
+   } else {
+     public_deps = [ ":fx_libopenjpeg" ]
+   }
+@@ -416,6 +418,27 @@ config("fx_libopenjpeg_config") {
+   include_dirs = [ "libopenjpeg" ]
+ }
+ 
++if (pdf_use_openjpeg_compat) {
++  source_set("fx_openjpeg_compat") {
++    sources = [
++      "jpeg2000_decoder/upstream/adapters/openjpeg-capi/shim.c",
++      "libopenjpeg/opj_malloc.cc",
++    ]
++    if (pdf_eval_jpeg2000_compat_root != "") {
++      sources = []
++      sources = [
++        "$pdf_eval_jpeg2000_compat_root/shim.c",
++        "libopenjpeg/opj_malloc.cc",
++      ]
++    }
++    configs -= [ "//build/config/compiler:chromium_code" ]
++    configs += [ "//build/config/compiler:no_chromium_code" ]
++    include_dirs = [ "libopenjpeg/src" ]
++    public_configs = [ ":fx_libopenjpeg_config" ]
++    deps = [ "jpeg2000_decoder:compat" ]
++  }
++}
++
+ source_set("fx_libopenjpeg") {
+   configs -= [ "//build/config/compiler:chromium_code" ]
+   configs += [
+diff --git a/third_party/jpeg2000_decoder/BUILD.gn b/third_party/jpeg2000_decoder/BUILD.gn
+new file mode 100644
+index 000000000..a6facead3
+--- /dev/null
++++ b/third_party/jpeg2000_decoder/BUILD.gn
+@@ -0,0 +1,243 @@
++# Copyright 2026 The PDFium Authors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++import("//build/rust/rust_static_library.gni")
++import("../../pdfium.gni")
++
++rust_static_library("lib") {
++  crate_name = "jpeg2000_decoder"
++  crate_root = "upstream/src/lib.rs"
++  edition = "2024"
++  sources = [
++    "upstream/src/allocation.rs",
++    "upstream/src/codestream.rs",
++    "upstream/src/codestream/coding_markers.rs",
++    "upstream/src/codestream/coding_style.rs",
++    "upstream/src/codestream/decoder_input_proof_support.rs",
++    "upstream/src/codestream/decomposition.rs",
++    "upstream/src/codestream/extensions.rs",
++    "upstream/src/codestream/extensions_copy.rs",
++    "upstream/src/codestream/geometry.rs",
++    "upstream/src/codestream/image_header.rs",
++    "upstream/src/codestream/layout.rs",
++    "upstream/src/codestream/main_header_result_tests.rs",
++    "upstream/src/codestream/mct.rs",
++    "upstream/src/codestream/mct_copy.rs",
++    "upstream/src/codestream/mct_markers.rs",
++    "upstream/src/codestream/mct_parameter_clone_tests.rs",
++    "upstream/src/codestream/mct_resolution.rs",
++    "upstream/src/codestream/owned_tile_inheritance_tests.rs",
++    "upstream/src/codestream/packet_headers.rs",
++    "upstream/src/codestream/part2_transforms.rs",
++    "upstream/src/codestream/persistent_tile_configuration.rs",
++    "upstream/src/codestream/persistent_tile_configuration_proof_support.rs",
++    "upstream/src/codestream/persistent_tile_configuration_tests.rs",
++    "upstream/src/codestream/profile.rs",
++    "upstream/src/codestream/profile_result_tests.rs",
++    "upstream/src/codestream/proof_support.rs",
++    "upstream/src/codestream/quantization.rs",
++    "upstream/src/codestream/raw_layout_result_tests.rs",
++    "upstream/src/codestream/reader.rs",
++    "upstream/src/codestream/recovery_framing.rs",
++    "upstream/src/codestream/tests.rs",
++    "upstream/src/codestream/tile_header_traversal.rs",
++    "upstream/src/codestream/tile_header_traversal_proof_support.rs",
++    "upstream/src/codestream/tile_header_traversal_tests.rs",
++    "upstream/src/codestream/tile_part_proof_support.rs",
++    "upstream/src/codestream/tile_part_tests.rs",
++    "upstream/src/codestream/tiles.rs",
++    "upstream/src/color.rs",
++    "upstream/src/color/admission.rs",
++    "upstream/src/color/compatible.rs",
++    "upstream/src/color/conversion.rs",
++    "upstream/src/color/crop.rs",
++    "upstream/src/color/esrgb.rs",
++    "upstream/src/color/esrgb_image.rs",
++    "upstream/src/color/geometry.rs",
++    "upstream/src/color/normalization.rs",
++    "upstream/src/color/output.rs",
++    "upstream/src/color/proof_support.rs",
++    "upstream/src/color/tests.rs",
++    "upstream/src/deadline.rs",
++    "upstream/src/decode.rs",
++    "upstream/src/decode/api.rs",
++    "upstream/src/decode/arithmetic.rs",
++    "upstream/src/decode/code_blocks.rs",
++    "upstream/src/decode/color_compatible.rs",
++    "upstream/src/decode/color_profile.rs",
++    "upstream/src/decode/container_image_result_tests.rs",
++    "upstream/src/decode/execution.rs",
++    "upstream/src/decode/geometry.rs",
++    "upstream/src/decode/jpx_source_result_tests.rs",
++    "upstream/src/decode/output.rs",
++    "upstream/src/decode/pdf_compat.rs",
++    "upstream/src/decode/pdf_dimensions.rs",
++    "upstream/src/decode/pdf_present_tile.rs",
++    "upstream/src/decode/pdf_trailers.rs",
++    "upstream/src/decode/planning.rs",
++    "upstream/src/decode/proof_support.rs",
++    "upstream/src/decode/raw_typed_result_tests.rs",
++    "upstream/src/decode/reconstruction.rs",
++    "upstream/src/decode/selection.rs",
++    "upstream/src/decode/spatial.rs",
++    "upstream/src/decode/tests.rs",
++    "upstream/src/error.rs",
++    "upstream/src/image.rs",
++    "upstream/src/image/arithmetic.rs",
++    "upstream/src/image/assembly.rs",
++    "upstream/src/image/component_transform.rs",
++    "upstream/src/image/layout.rs",
++    "upstream/src/image/mct.rs",
++    "upstream/src/image/mct_decorrelation.rs",
++    "upstream/src/image/mct_dependency.rs",
++    "upstream/src/image/mct_wavelet.rs",
++    "upstream/src/image/nonlinear.rs",
++    "upstream/src/image/nonlinear_math.rs",
++    "upstream/src/image/proof_support.rs",
++    "upstream/src/image/samples.rs",
++    "upstream/src/image/tests.rs",
++    "upstream/src/incremental.rs",
++    "upstream/src/incremental/framing.rs",
++    "upstream/src/incremental/tests.rs",
++    "upstream/src/jp2.rs",
++    "upstream/src/jp2/box_reader.rs",
++    "upstream/src/jp2/clone_support.rs",
++    "upstream/src/jp2/color.rs",
++    "upstream/src/jp2/composition.rs",
++    "upstream/src/jp2/container.rs",
++    "upstream/src/jp2/headers.rs",
++    "upstream/src/jp2/metadata.rs",
++    "upstream/src/jp2/proof_support.rs",
++    "upstream/src/jp2/tests.rs",
++    "upstream/src/jpip.rs",
++    "upstream/src/jpip/automatic_headers.rs",
++    "upstream/src/jpip/automatic_phases.rs",
++    "upstream/src/jpip/byte_io.rs",
++    "upstream/src/jpip/cache.rs",
++    "upstream/src/jpip/cache_entry_result_tests.rs",
++    "upstream/src/jpip/cache_insert_result_tests.rs",
++    "upstream/src/jpip/cache_layout_result_tests.rs",
++    "upstream/src/jpip/cache_proof_support.rs",
++    "upstream/src/jpip/cache_view_result_tests.rs",
++    "upstream/src/jpip/mapping.rs",
++    "upstream/src/jpip/message.rs",
++    "upstream/src/jpip/message_result_tests.rs",
++    "upstream/src/jpip/normalization_result_tests.rs",
++    "upstream/src/jpip/plan_proof_support.rs",
++    "upstream/src/jpip/planned_packet_result_tests.rs",
++    "upstream/src/jpip/precinct.rs",
++    "upstream/src/jpip/progression.rs",
++    "upstream/src/jpip/progression_proof_support.rs",
++    "upstream/src/jpip/progressive_availability_result_tests.rs",
++    "upstream/src/jpip/progressive_result_tests.rs",
++    "upstream/src/jpip/proof_support.rs",
++    "upstream/src/jpip/range_proof_support.rs",
++    "upstream/src/jpip/range_result_tests.rs",
++    "upstream/src/jpip/ranges.rs",
++    "upstream/src/jpip/reconstruction.rs",
++    "upstream/src/jpip/response_result_tests.rs",
++    "upstream/src/jpip/snapshot_header_proof_support.rs",
++    "upstream/src/jpip/tests.rs",
++    "upstream/src/jpip/transcode_availability_result_tests.rs",
++    "upstream/src/jpip/transcode_result_tests.rs",
++    "upstream/src/jpip/transition_proof_support.rs",
++    "upstream/src/jpip/transition_result_tests.rs",
++    "upstream/src/jpx.rs",
++    "upstream/src/jpx/channels.rs",
++    "upstream/src/jpx/chroma.rs",
++    "upstream/src/jpx/compositing.rs",
++    "upstream/src/jpx/inspection.rs",
++    "upstream/src/jpx/layer_decode.rs",
++    "upstream/src/jpx/opacity.rs",
++    "upstream/src/jpx/proof_support.rs",
++    "upstream/src/jpx/registration.rs",
++    "upstream/src/jpx/render.rs",
++    "upstream/src/jpx/resources.rs",
++    "upstream/src/jpx/tests.rs",
++    "upstream/src/jpx/timeline.rs",
++    "upstream/src/lib.rs",
++    "upstream/src/limits.rs",
++    "upstream/src/magnitude.rs",
++    "upstream/src/mq.rs",
++    "upstream/src/options.rs",
++    "upstream/src/packet.rs",
++    "upstream/src/packet/bit_reader.rs",
++    "upstream/src/packet/body.rs",
++    "upstream/src/packet/contributions.rs",
++    "upstream/src/packet/errors.rs",
++    "upstream/src/packet/multi_packet.rs",
++    "upstream/src/packet/precinct.rs",
++    "upstream/src/packet/progression.rs",
++    "upstream/src/packet/spatial.rs",
++    "upstream/src/packet/proof_support.rs",
++    "upstream/src/packet/tag_tree.rs",
++    "upstream/src/packet/tests.rs",
++    "upstream/src/packet/tile.rs",
++    "upstream/src/pdf_mq.rs",
++    "upstream/src/pdf_tile_count.rs",
++    "upstream/src/recovery.rs",
++    "upstream/src/recovery/tests.rs",
++    "upstream/src/refinement.rs",
++    "upstream/src/refinement/composition.rs",
++    "upstream/src/refinement/geometry.rs",
++    "upstream/src/refinement/headers.rs",
++    "upstream/src/refinement/jpip.rs",
++    "upstream/src/refinement/packet.rs",
++    "upstream/src/refinement/reconstruction.rs",
++    "upstream/src/refinement/tier1.rs",
++    "upstream/src/tier1.rs",
++    "upstream/src/tier1/coding.rs",
++    "upstream/src/tier1/contributions.rs",
++    "upstream/src/tier1/ht_cleanup.rs",
++    "upstream/src/tier1/ht_cleanup_readers.rs",
++    "upstream/src/tier1/ht_contributions.rs",
++    "upstream/src/tier1/ht_metadata.rs",
++    "upstream/src/tier1/ht_refinement.rs",
++    "upstream/src/tier1/ht_refinement_readers.rs",
++    "upstream/src/tier1/ht_segments.rs",
++    "upstream/src/tier1/legacy_passes.rs",
++    "upstream/src/tier1/legacy_segments.rs",
++    "upstream/src/tier1/proof_support.rs",
++    "upstream/src/tier1/raw.rs",
++    "upstream/src/tier1/state.rs",
++    "upstream/src/tier1/tests.rs",
++    "upstream/src/tier1_ht_tables.rs",
++    "upstream/src/transform.rs",
++    "upstream/src/transform/arbitrary.rs",
++    "upstream/src/transform/arithmetic.rs",
++    "upstream/src/transform/coefficients.rs",
++    "upstream/src/transform/geometry.rs",
++    "upstream/src/transform/levels.rs",
++    "upstream/src/transform/output.rs",
++    "upstream/src/transform/proof_support.rs",
++    "upstream/src/transform/quantization.rs",
++    "upstream/src/transform/tests.rs",
++    "upstream/src/transform/wavelets.rs",
++  ]
++  rustflags = [ "-Aunexpected_cfgs" ]
++  inputs = [ "upstream/README.md" ]
++  if (pdf_eval_jpeg2000_core_root != "") {
++    crate_root = "$pdf_eval_jpeg2000_core_root/src/lib.rs"
++    sources = []
++    sources = exec_script("//jpeg2000_eval_sources.py",
++                          [ pdf_eval_jpeg2000_core_root ],
++                          "list lines")
++    inputs = []
++    inputs = [ "$pdf_eval_jpeg2000_core_root/README.md" ]
++  }
++}
++
++rust_static_library("compat") {
++  crate_name = "jpeg2000_openjpeg_compat"
++  crate_root = "upstream/adapters/openjpeg-capi/src/lib.rs"
++  edition = "2024"
++  allow_unsafe = true
++  sources = [ crate_root ]
++  if (pdf_eval_jpeg2000_compat_root != "") {
++    crate_root = "$pdf_eval_jpeg2000_compat_root/src/lib.rs"
++    sources = []
++    sources = [ crate_root ]
++  }
++  deps = [ ":lib" ]
++}
+diff --git a/third_party/jpeg2000_decoder/README.chromium b/third_party/jpeg2000_decoder/README.chromium
+new file mode 100644
+index 000000000..fc217f23c
+--- /dev/null
++++ b/third_party/jpeg2000_decoder/README.chromium
+@@ -0,0 +1,14 @@
++Name: jpeg2000-decoder
++URL: https://github.com/microsoft/jpeg2000_rs
++Version: 0.3.0
++Revision: 712cab95366940bf16c2344d350b909a8009059c
++License: MIT
++License File: upstream/LICENSE
++Security Critical: yes
++Shipped: no
++
++Description:
++Experimental Rust JPEG 2000 decoder and OpenJPEG decode compatibility adapter.
++
++Local Modifications:
++None.

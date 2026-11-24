@@ -1,0 +1,28 @@
+{
+  "result": "PASS",
+  "images": 310,
+  "image_configurations": 2480,
+  "pdfs": 41,
+  "requests": 2521,
+  "outcomes": 7563,
+  "all_three_original_backend_signatures_exact": true,
+  "independent_references": 10,
+  "no_replacement_gate": true,
+  "exact_materialization": {
+    "result": "PASS",
+    "image_requests": 310,
+    "pdfs": 41,
+    "exact_configurations": 2521,
+    "portable_cohort_sha256": "b69ec989c2741b39f751c672241581b17bb1504d20340728e1ed15318c109987"
+  },
+  "public_hayro_sources_verified": 208,
+  "public_pdfium_resources_verified": 13,
+  "public_consumer_patch_applies": true,
+  "portable_gn_configurations_passed": [
+    "Openjpeg",
+    "Shim",
+    "Ffi"
+  ],
+  "no_current_performance_pr_qualification_claimed": true,
+  "merge_authorization_granted": false
+}

@@ -1,0 +1,280 @@
+# Latest-main PDFium JPEG2000 validation
+
+Date: 2026-11-23. This supersedes the earlier acceptance and performance
+headlines, without changing their historical measurements.
+
+## Snapshot and optimization
+
+- Decoder: `microsoft/jpeg2000_rs` main at
+  [`a99ab056b20b48a58a3eda23a89e4f3f6ec042b8`](https://github.com/microsoft/jpeg2000_rs/commit/a99ab056b20b48a58a3eda23a89e4f3f6ec042b8),
+  including the merged HT, JPX, POC and tolerance-disposition work. This is a
+  source-pinned main comparison, not another measurement of released v0.2.2.
+- Reference: PDFium's bundled, patched OpenJPEG 2.5.4, including its NEON
+  inverse-wavelet acceleration.
+- PDFium integration base: `fde5c34ad6305392ced34e7cd7128fc1e1334c66`.
+  Same real PDFium JPX decoder, renderer, allocator and output harness for all
+  three backends. Direct FFI retains its earlier Rust/CXX bridge unchanged;
+  its source SHA-256 is
+  `79d36dd730f8a701239d55323da607c4c269514125d9696280d361f62d94e62d`.
+- Linux AArch64, 32-core Neoverse-N2; matched Clang 24 / Chromium Rust
+  1.101.0-nightly toolchain.
+- **Timed binaries are fully optimized, not merely labelled release.**
+  Actual compilation commands verify C/C++ `-O3 -mcpu=native -flto=thin`,
+  `NDEBUG`, Rust `opt-level=3`, `target-cpu=native`, `codegen-units=1`,
+  disabled debug assertions/overflow checks and linker-plugin LTO. Final
+  linking explicitly uses **`--lto-O3`**, overriding Chromium's lower
+  default. OpenJPEG IR confirms `neoverse-n2`.
+- The latest shim and FFI core decoder archives are **byte-identical**:
+  SHA-256 `3f4f084bff7702491c518203ac8c48e45bc8c4d25902041ebf0b55ce3e83beb9`.
+  No fast-math, PGO, optional decoder features or proof instrumentation.
+  This verifies the selected maximum static optimization settings; it does
+  not claim that profile-guided tuning could never improve performance.
+- Fresh dated build directories preserve previous binaries and results.
+  No decoder/product changes were made for this rerun.
+
+See the machine-readable [build audit](build-audit.json).
+
+## Frozen corpus and execution
+
+All SHA-256 hashes still match the original [manifest](../manifest.json):
+310 image cases, 267 distinct encoded payloads, and 41 PDFs.
+The images comprise 208 conformance/edge inputs, 16 ordinary synthetic images,
+4 HTJ2K streams, 14 validation cases, 13 PDFium JPX assets and 55 extracted
+PDF images. The PDFs comprise 21 existing regressions plus 20 image wrappers.
+These deliberately difficult and duplicated inputs are not a production
+document failure-rate sample.
+
+Replayed **2,521 configurations / 7,563 process invocations**: strict and
+lenient image decoding at reductions 0/1/2; strict and lenient indexed
+decoding at reduction 0; and all 41 PDFs with a genuinely lenient JPX call
+site. Every OpenJPEG control status and successful pixel hash reproduces the
+mode-appropriate historical result. No process crashes or timeouts.
+
+The primary comparison below is **lenient versus lenient**, including
+OpenJPEG. PDFium's real page-rendering call site was also rebuilt to request
+non-strict decoding; a standalone harness argument alone would not do that.
+
+## Acceptance
+
+Full-resolution images, normal color interpretation:
+
+| Backend | v0.2.2 lenient | After shim PR #452 | Latest main lenient |
+|---|---:|---:|---:|
+| OpenJPEG | 281/310 | 281/310 | **281/310** |
+| OpenJPEG-compatible Rust shim | 228/310 | 261/310 | **270/310** |
+| Direct Rust FFI | 259/310 | Not remeasured at that checkpoint | **268/310** |
+
+| Group | Cases | OpenJPEG | Shim | Direct FFI |
+|---|---:|---:|---:|---:|
+| Conformance/edge | 208 | 189 | 178 | 176 |
+| Ordinary synthetic | 16 | 16 | 16 | 16 |
+| HTJ2K | 4 | 4 | 4 | 4 |
+| Validation cases | 14 | 5 | 5 | 5 |
+| PDFium assets | 13 | 13 | 13 | 13 |
+| Extracted PDF images, normal flag | 55 | 54 | 54 | 54 |
+| **Total** | **310** | **281** | **270** | **268** |
+
+For the shim versus OpenJPEG: 270 shared successes, 11 OpenJPEG-only,
+zero shim-only, and 29 shared rejections. Shim acceptance improves by **9**
+from the PR checkpoint and **42** from v0.2.2, with no acceptance losses.
+
+Using each extracted image's actual indexed/non-indexed PDF setting, all three
+backends accept the **same 54/55**. This particular real-PDF image-admission
+set has no remaining Rust/OpenJPEG acceptance gap.
+
+Strict controls accept OpenJPEG 277, shim 257 and FFI 256. Neither Rust
+integration loses any strict-successful full-resolution normal-color image
+when switched to lenient mode: the old HT/JPX lenient-routing limitation is gone.
+
+### Previously reported issues
+
+| Issue | Replayed cases | Latest result |
+|---|---:|---|
+| [#455: HT routing](https://github.com/microsoft/jpeg2000_rs/issues/455) | 4 | All accepted; all four image and wrapped-PDF rasters match OpenJPEG exactly |
+| [#454: single-image JPX](https://github.com/microsoft/jpeg2000_rs/issues/454) | 2 | Both accepted through shim and FFI; exact OpenJPEG pixels |
+| [#453: multipart POC](https://github.com/microsoft/jpeg2000_rs/issues/453) | 1 | Accepted; exact OpenJPEG and independent-reference pixels |
+| [#456: tolerance adjudication](https://github.com/microsoft/jpeg2000_rs/issues/456) | 13 | Two ordinary-format fixes accepted; eleven intentional refusals retained |
+
+The two #456 gains are the authoritative leading IHDR case and POC endpoints
+whose declared volume intersects the real packet grid. The latter is not
+arbitrary damaged-input clamping. Both Rust outputs match the full independent
+128x96 RGB reference; OpenJPEG **does not** match that reference for the POC
+endpoint case.
+
+Thus all reported scopes are accounted for. Closing #456 did **not** promise
+blanket acceptance of all thirteen controls.
+
+### The eleven remaining OpenJPEG-only cases
+
+These are exactly the upstream
+[documented dispositions](https://github.com/microsoft/jpeg2000_rs/blob/a99ab056b20b48a58a3eda23a89e4f3f6ec042b8/SUPPORTED.md#openjpeg-tolerance-dispositions):
+
+| Input under `conformance/` | Shim stage | Retained policy |
+|---|---|---|
+| `jp2_box_longer_than_file.jp2` | Header | No guessed codestream-box length |
+| `jp2_trailing_box_longer_than_file.jp2` | Header | Unknown boxes must still have valid framing |
+| `palette_cmap_outside_jp2h.jp2` | Header | No relocation or inference of the missing header mapping |
+| `tile_parts_bytes_after_eoc.j2k` | Header | No arbitrary trailing-byte discard |
+| `tile_parts_truncated_end.j2k` | Header | No arbitrary tile-part length rewrite |
+| `tile_parts_truncated_in_packet_body.j2k` | Header | No invented entropy bytes |
+| `tile_parts_truncated_layers.j2k` | Header | No unspecified partial-quality image |
+| `errors_too_few_exponents.j2k` | Header | Required quantization exponents remain mandatory |
+| `code_blocks_missing_bitplanes_exceed.j2k` | Decode | Packet bitplane declarations must fit available magnitude planes |
+| `mct_one_component_ignored.j2k` | Decode | No silent disabling of an invalid three-component transform |
+| `palette_out_of_range_indices.jp2` | Decode | No guessed/clamped palette entries |
+
+These are observed compatibility differences, not eleven unresolved
+ordinary-format bugs. Wider recovery would require a separately defined policy
+and output contract.
+
+### Shim versus direct FFI
+
+The two integrations still are not strict supersets:
+
+- Shim alone accepts four native subsampled/raw-YCbCr layout cases:
+  `codestream_subsampling_all_components.j2k`,
+  `codestream_subsampling_all_odd.j2k`,
+  `codestream_subsampling_with_offset.j2k`, and `mct_raw_ycbcr_guess.j2k`.
+  The old direct bridge rejects non-full-size component planes.
+- FFI alone accepts `codestream_precision_mixed.j2k` and `jp2_bpcc.jp2`;
+  its per-component packer handles 5/5/5/1-bit precision. PDFium's shared
+  OpenJPEG/shim C++ packer rejects both.
+- Consequently there are 266 shared successes, 4 shim-only and 2 FFI-only.
+  These six adapter/consumer cases are not new regressions or evidence of
+  different underlying core archives.
+
+## Pixels and regression checks
+
+Pixels here are PDFium's packed 8-bit image components or BGRA page rasters,
+not a claim of native high-bit-depth component-plane equality.
+
+- **All 1,954 previously successful PR-era image configurations retain their
+  exact output bytes.** Another 46 configurations gain acceptance; 480 remain
+  rejected. No image acceptance losses or prior-success pixel changes.
+- Across primary shared successes: shim/OpenJPEG **242/270 exact**, with 28
+  differing outputs; FFI/OpenJPEG **234/266 exact**, with 32 differing outputs.
+- Shim/FFI are **261/266 exact**. Four differences are sYCC conversion
+  rounding (peak 2); the fifth is the known reversed-CDEF/sYCC interpretation
+  case (peak 255). These five are pre-existing, not introduced by latest main.
+- All 54 accepted contextual PDF images are byte-identical between Rust
+  integrations; 51 match OpenJPEG exactly, three have small reconstruction
+  differences.
+- **All 41 PDF rasters are identical between shim and FFI.** Against OpenJPEG,
+  19/21 existing regression PDFs, 8/16 ordinary synthetic wrappers and 4/4 HT
+  wrappers are exact. The eight lossy synthetic differences peak at 1.
+- The two remaining original-PDF differences are unchanged:
+  `FRC_10_8.2.4_View_C.pdf` peaks at 2 (3,939 different samples; MAE 0.005729);
+  `action/123.pdf` peaks at 5 (642,275 different samples; MAE 0.328837).
+- Relative to the genuinely lenient PR checkpoint, 37/41 PDF rasters are
+  unchanged. The other four are the HT wrappers: omitted/white images are now
+  correctly rendered, matching OpenJPEG exactly.
+
+A PDF render API returning success is **not** proof that every embedded image
+decoded. The malformed payload rejected by all three backends remains a shared
+omission; it is not counted as repaired or used for timing.
+
+Large pre-existing CDEF/alpha and palette/CDEF raster differences remain.
+Independent references still show peak errors 255 and 207 for the alpha-not-last
+and reordered-CDEF cases in both Rust integrations. Reversed-CDEF/sYCC peaks at
+255 through the shim but only 1 through direct FFI (OpenJPEG also peaks at 1).
+OpenJPEG is not an infallible pixel oracle: the multipart POC case agrees with
+it, but the POC tile-override and newly accepted endpoint case agree with the
+independent reference where OpenJPEG differs. See
+[independent-reference adjudication](reference-adjudication.json) and the
+complete [per-configuration table](functionality.tsv).
+
+## Performance
+
+Fresh results are measured in lenient mode for **all three backends**; old
+strict-mode timings are not relabelled or treated as a pure version-speedup
+baseline. Same CPU 2, three warmups per process, seven timed repetitions per
+image or five per PDF, three rounds with rotating backend order.
+Encoded-input loading, startup and output-file writes are outside timing.
+Image timing includes inspection, decoding, adapter conversion/packing,
+canonical output construction and codec destruction. PDF timing includes fresh
+document/page loading and 72-DPI BGRA rendering.
+
+Selection is the historical 62-workload set plus the three recovered original
+PDFs, **65 workloads total**: 16 ordinary images, 4 HT images, 6 distinct
+embedded payloads and 39 PDFs. Every selected PDF's known JPX payloads pass
+contextual preflight on all three backends. `bug_557223.pdf` is excluded for its
+shared malformed image, and `bug_1986.pdf` has no extracted timable JPX image.
+Every timed output must reproduce the corresponding functional hash.
+
+All **195 timing trios / 585 processes** completed successfully, with repeatable
+pixels and no rejected-image/blank-render speedups.
+
+| Workload group | Cases | Shim / OpenJPEG time | FFI / OpenJPEG time | Shim extra time vs FFI |
+|---|---:|---:|---:|---:|
+| Ordinary synthetic images | 16 | **9.76x** | **9.65x** | **+0.26%** |
+| HTJ2K images | 4 | **12.84x** | **12.75x** | **+0.48%** |
+| Distinct embedded images | 6 | **9.04x** | **8.87x** | **+1.28%** |
+| Existing healthy regression PDFs | 19 | **2.70x** | **2.66x** | **+1.65%** |
+| Ordinary synthetic wrapped PDFs | 16 | **6.71x** | **6.65x** | **+0.60%** |
+| HT wrapped PDFs | 4 | **9.68x** | **9.64x** | **+0.29%** |
+
+These are medians of per-workload paired ratios, after taking each workload's
+median over three rounds. The adapter column is the independently aggregated
+shim/FFI ratio, not the division of the two aggregate OpenJPEG columns.
+Every timed Rust output is exact with its other integration.
+
+Typical inter-round ratio spans are larger than the tiny adapter effects:
+the median per-file shim/FFI maximum-to-minimum span is 0.90% for ordinary
+images, 0.94% for HT and 2.49% for original PDFs. These are descriptive
+variability measures, not confidence intervals.
+**Bypassing the shim does not meaningfully close the OpenJPEG performance gap.**
+
+Representative median absolute latencies (milliseconds):
+
+| Workload | OpenJPEG | Shim | Direct FFI |
+|---|---:|---:|---:|
+| 1024 RGB noise, lossless JP2 | 323.57 | 1028.13 | 1025.29 |
+| 1024 RGB noise, lossy JP2 | 39.57 | 390.37 | 390.74 |
+| 1024 RGB noise, lossless HT | 32.64 | 430.73 | 428.62 |
+| Existing `action/123.pdf` | 58.55 | 515.92 | 510.60 |
+| Recovered `bug_1258634.pdf` | 2.35 | 5.92 | 5.87 |
+| Recovered `FRC_10_8.2.4_View_C.pdf` | 59.59 | 80.22 | 80.64 |
+
+Absolute medians and paired-ratio medians need not divide identically.
+The existing-PDF median also hides substantial variation: shim/OpenJPEG spans
+1.33x to 40.15x across the 19 documents; `bug_453723.pdf` is the high outlier
+(11.68 ms versus 469.16 ms).
+
+For the unchanged historical subset of **16** existing PDFs, fresh lenient
+ratios are 3.01x shim/OpenJPEG and 2.97x FFI/OpenJPEG, with +2.53% median
+shim-versus-FFI time. Expanding to 19 recovered/healthy PDFs changes the sample;
+neither this subset nor the new ordinary-image median is a controlled pure
+version speedup against the older strict-mode measurements.
+
+Per-file data: [timing table](performance.tsv),
+[raw interleaved timing records](performance.json),
+[selection/methodology](benchmark-selection.json).
+Shared-host scheduling/frequency noise remains; tiny adapter differences
+should not be interpreted as statistically established language-boundary costs.
+
+## Supplementary validation and scope
+
+- Latest core, Rust **1.88.0 MSRV**, `cargo test --all-targets --locked --offline`:
+  **1,382 library tests + 6 example tests passed**.
+- Latest C adapter: **20 generated regression cases passed** with the C shim
+  and harness instrumented by ASan, UBSan and leak detection. Rust is a release
+  static library in that supplemental test, not sanitizer-instrumented Rust.
+- PDFium targeted suites: **17 OpenJPEG + 17 shim + 6 FFI tests passed**.
+- The executable frozen-corpus runner is [run_validation.py](run_validation.py);
+  full results are [functionality.json](functionality.json) and
+  [summary.json](summary.json).
+- No claim of exhaustive production-document coverage, full official-vector
+  qualification, or a fresh formal-verification/package-audit run.
+
+Reproduction with these retained source trees/build directories:
+
+```sh
+python3 ../audit_build.py --latest
+python3 run_validation.py functional
+python3 run_validation.py performance
+python3 run_validation.py summarize
+python3 run_validation.py adjudicate
+```
+
+Do not run competing builds/tests during timing. All generated evidence is in
+dated evaluation/session storage; the user's product worktrees are not edited.

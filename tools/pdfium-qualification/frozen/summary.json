@@ -1,0 +1,1011 @@
+{
+  "source_commit": "a99ab056b20b48a58a3eda23a89e4f3f6ec042b8",
+  "functionality": {
+    "strict-reduce0-indexed0": {
+      "all": {
+        "cases": 310,
+        "accepted": {
+          "openjpeg": 277,
+          "shim": 257,
+          "ffi": 256
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 231,
+            "not_both_accepted": 53,
+            "pixels_differ": 26
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 224,
+            "not_both_accepted": 56,
+            "pixels_differ": 30
+          },
+          "shim_vs_ffi": {
+            "exact": 248,
+            "not_both_accepted": 57,
+            "pixels_differ": 5
+          }
+        }
+      },
+      "conformance": {
+        "cases": 208,
+        "accepted": {
+          "openjpeg": 185,
+          "shim": 173,
+          "ffi": 172
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 156,
+            "not_both_accepted": 35,
+            "pixels_differ": 17
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 149,
+            "not_both_accepted": 38,
+            "pixels_differ": 21
+          },
+          "shim_vs_ffi": {
+            "exact": 164,
+            "not_both_accepted": 39,
+            "pixels_differ": 5
+          }
+        }
+      },
+      "synthetic": {
+        "cases": 16,
+        "accepted": {
+          "openjpeg": 16,
+          "shim": 16,
+          "ffi": 16
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 8,
+            "pixels_differ": 8
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 8,
+            "pixels_differ": 8
+          },
+          "shim_vs_ffi": {
+            "exact": 16
+          }
+        }
+      },
+      "ht": {
+        "cases": 4,
+        "accepted": {
+          "openjpeg": 4,
+          "shim": 4,
+          "ffi": 4
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 4
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 4
+          },
+          "shim_vs_ffi": {
+            "exact": 4
+          }
+        }
+      },
+      "validation": {
+        "cases": 14,
+        "accepted": {
+          "openjpeg": 5,
+          "shim": 4,
+          "ffi": 4
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 4,
+            "not_both_accepted": 10
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 4,
+            "not_both_accepted": 10
+          },
+          "shim_vs_ffi": {
+            "exact": 4,
+            "not_both_accepted": 10
+          }
+        }
+      },
+      "pdfium": {
+        "cases": 13,
+        "accepted": {
+          "openjpeg": 13,
+          "shim": 13,
+          "ffi": 13
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 13
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 13
+          },
+          "shim_vs_ffi": {
+            "exact": 13
+          }
+        }
+      },
+      "embedded": {
+        "cases": 55,
+        "accepted": {
+          "openjpeg": 54,
+          "shim": 47,
+          "ffi": 47
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 46,
+            "not_both_accepted": 8,
+            "pixels_differ": 1
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 46,
+            "not_both_accepted": 8,
+            "pixels_differ": 1
+          },
+          "shim_vs_ffi": {
+            "exact": 47,
+            "not_both_accepted": 8
+          }
+        }
+      }
+    },
+    "lenient-reduce0-indexed0": {
+      "all": {
+        "cases": 310,
+        "accepted": {
+          "openjpeg": 281,
+          "shim": 270,
+          "ffi": 268
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 242,
+            "not_both_accepted": 40,
+            "pixels_differ": 28
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 234,
+            "not_both_accepted": 44,
+            "pixels_differ": 32
+          },
+          "shim_vs_ffi": {
+            "exact": 261,
+            "not_both_accepted": 44,
+            "pixels_differ": 5
+          }
+        }
+      },
+      "conformance": {
+        "cases": 208,
+        "accepted": {
+          "openjpeg": 189,
+          "shim": 178,
+          "ffi": 176
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 161,
+            "not_both_accepted": 30,
+            "pixels_differ": 17
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 153,
+            "not_both_accepted": 34,
+            "pixels_differ": 21
+          },
+          "shim_vs_ffi": {
+            "exact": 169,
+            "not_both_accepted": 34,
+            "pixels_differ": 5
+          }
+        }
+      },
+      "synthetic": {
+        "cases": 16,
+        "accepted": {
+          "openjpeg": 16,
+          "shim": 16,
+          "ffi": 16
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 8,
+            "pixels_differ": 8
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 8,
+            "pixels_differ": 8
+          },
+          "shim_vs_ffi": {
+            "exact": 16
+          }
+        }
+      },
+      "ht": {
+        "cases": 4,
+        "accepted": {
+          "openjpeg": 4,
+          "shim": 4,
+          "ffi": 4
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 4
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 4
+          },
+          "shim_vs_ffi": {
+            "exact": 4
+          }
+        }
+      },
+      "validation": {
+        "cases": 14,
+        "accepted": {
+          "openjpeg": 5,
+          "shim": 5,
+          "ffi": 5
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 5,
+            "not_both_accepted": 9
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 5,
+            "not_both_accepted": 9
+          },
+          "shim_vs_ffi": {
+            "exact": 5,
+            "not_both_accepted": 9
+          }
+        }
+      },
+      "pdfium": {
+        "cases": 13,
+        "accepted": {
+          "openjpeg": 13,
+          "shim": 13,
+          "ffi": 13
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 13
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 13
+          },
+          "shim_vs_ffi": {
+            "exact": 13
+          }
+        }
+      },
+      "embedded": {
+        "cases": 55,
+        "accepted": {
+          "openjpeg": 54,
+          "shim": 54,
+          "ffi": 54
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 51,
+            "pixels_differ": 3,
+            "not_both_accepted": 1
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 51,
+            "pixels_differ": 3,
+            "not_both_accepted": 1
+          },
+          "shim_vs_ffi": {
+            "exact": 54,
+            "not_both_accepted": 1
+          }
+        }
+      }
+    },
+    "lenient-reduce0-indexed1": {
+      "all": {
+        "cases": 310,
+        "accepted": {
+          "openjpeg": 281,
+          "shim": 271,
+          "ffi": 256
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 247,
+            "not_both_accepted": 39,
+            "pixels_differ": 24
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 229,
+            "not_both_accepted": 56,
+            "pixels_differ": 25
+          },
+          "shim_vs_ffi": {
+            "exact": 251,
+            "not_both_accepted": 56,
+            "pixels_differ": 3
+          }
+        }
+      },
+      "conformance": {
+        "cases": 208,
+        "accepted": {
+          "openjpeg": 189,
+          "shim": 179,
+          "ffi": 171
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 166,
+            "not_both_accepted": 29,
+            "pixels_differ": 13
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 153,
+            "not_both_accepted": 39,
+            "pixels_differ": 16
+          },
+          "shim_vs_ffi": {
+            "exact": 166,
+            "not_both_accepted": 39,
+            "pixels_differ": 3
+          }
+        }
+      },
+      "synthetic": {
+        "cases": 16,
+        "accepted": {
+          "openjpeg": 16,
+          "shim": 16,
+          "ffi": 16
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 8,
+            "pixels_differ": 8
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 8,
+            "pixels_differ": 8
+          },
+          "shim_vs_ffi": {
+            "exact": 16
+          }
+        }
+      },
+      "ht": {
+        "cases": 4,
+        "accepted": {
+          "openjpeg": 4,
+          "shim": 4,
+          "ffi": 4
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 4
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 4
+          },
+          "shim_vs_ffi": {
+            "exact": 4
+          }
+        }
+      },
+      "validation": {
+        "cases": 14,
+        "accepted": {
+          "openjpeg": 5,
+          "shim": 5,
+          "ffi": 5
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 5,
+            "not_both_accepted": 9
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 5,
+            "not_both_accepted": 9
+          },
+          "shim_vs_ffi": {
+            "exact": 5,
+            "not_both_accepted": 9
+          }
+        }
+      },
+      "pdfium": {
+        "cases": 13,
+        "accepted": {
+          "openjpeg": 13,
+          "shim": 13,
+          "ffi": 13
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 13
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 13
+          },
+          "shim_vs_ffi": {
+            "exact": 13
+          }
+        }
+      },
+      "embedded": {
+        "cases": 55,
+        "accepted": {
+          "openjpeg": 54,
+          "shim": 54,
+          "ffi": 47
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 51,
+            "pixels_differ": 3,
+            "not_both_accepted": 1
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 46,
+            "not_both_accepted": 8,
+            "pixels_differ": 1
+          },
+          "shim_vs_ffi": {
+            "exact": 47,
+            "not_both_accepted": 8
+          }
+        }
+      }
+    },
+    "lenient-reduce1-indexed0": {
+      "all": {
+        "cases": 310,
+        "accepted": {
+          "openjpeg": 258,
+          "shim": 247,
+          "ffi": 245
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 219,
+            "not_both_accepted": 63,
+            "pixels_differ": 28
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 211,
+            "not_both_accepted": 67,
+            "pixels_differ": 32
+          },
+          "shim_vs_ffi": {
+            "exact": 238,
+            "not_both_accepted": 67,
+            "pixels_differ": 5
+          }
+        }
+      },
+      "conformance": {
+        "cases": 208,
+        "accepted": {
+          "openjpeg": 183,
+          "shim": 172,
+          "ffi": 170
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 155,
+            "not_both_accepted": 36,
+            "pixels_differ": 17
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 147,
+            "not_both_accepted": 40,
+            "pixels_differ": 21
+          },
+          "shim_vs_ffi": {
+            "exact": 163,
+            "not_both_accepted": 40,
+            "pixels_differ": 5
+          }
+        }
+      },
+      "synthetic": {
+        "cases": 16,
+        "accepted": {
+          "openjpeg": 16,
+          "shim": 16,
+          "ffi": 16
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 8,
+            "pixels_differ": 8
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 8,
+            "pixels_differ": 8
+          },
+          "shim_vs_ffi": {
+            "exact": 16
+          }
+        }
+      },
+      "ht": {
+        "cases": 4,
+        "accepted": {
+          "openjpeg": 4,
+          "shim": 4,
+          "ffi": 4
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 4
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 4
+          },
+          "shim_vs_ffi": {
+            "exact": 4
+          }
+        }
+      },
+      "validation": {
+        "cases": 14,
+        "accepted": {
+          "openjpeg": 0,
+          "shim": 0,
+          "ffi": 0
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "not_both_accepted": 14
+          },
+          "openjpeg_vs_ffi": {
+            "not_both_accepted": 14
+          },
+          "shim_vs_ffi": {
+            "not_both_accepted": 14
+          }
+        }
+      },
+      "pdfium": {
+        "cases": 13,
+        "accepted": {
+          "openjpeg": 7,
+          "shim": 7,
+          "ffi": 7
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 7,
+            "not_both_accepted": 6
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 7,
+            "not_both_accepted": 6
+          },
+          "shim_vs_ffi": {
+            "exact": 7,
+            "not_both_accepted": 6
+          }
+        }
+      },
+      "embedded": {
+        "cases": 55,
+        "accepted": {
+          "openjpeg": 48,
+          "shim": 48,
+          "ffi": 48
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 45,
+            "pixels_differ": 3,
+            "not_both_accepted": 7
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 45,
+            "pixels_differ": 3,
+            "not_both_accepted": 7
+          },
+          "shim_vs_ffi": {
+            "exact": 48,
+            "not_both_accepted": 7
+          }
+        }
+      }
+    },
+    "lenient-reduce2-indexed0": {
+      "all": {
+        "cases": 310,
+        "accepted": {
+          "openjpeg": 248,
+          "shim": 237,
+          "ffi": 235
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 210,
+            "not_both_accepted": 73,
+            "pixels_differ": 27
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 202,
+            "not_both_accepted": 77,
+            "pixels_differ": 31
+          },
+          "shim_vs_ffi": {
+            "exact": 228,
+            "not_both_accepted": 77,
+            "pixels_differ": 5
+          }
+        }
+      },
+      "conformance": {
+        "cases": 208,
+        "accepted": {
+          "openjpeg": 173,
+          "shim": 162,
+          "ffi": 160
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 146,
+            "not_both_accepted": 46,
+            "pixels_differ": 16
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 138,
+            "not_both_accepted": 50,
+            "pixels_differ": 20
+          },
+          "shim_vs_ffi": {
+            "exact": 153,
+            "not_both_accepted": 50,
+            "pixels_differ": 5
+          }
+        }
+      },
+      "synthetic": {
+        "cases": 16,
+        "accepted": {
+          "openjpeg": 16,
+          "shim": 16,
+          "ffi": 16
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 8,
+            "pixels_differ": 8
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 8,
+            "pixels_differ": 8
+          },
+          "shim_vs_ffi": {
+            "exact": 16
+          }
+        }
+      },
+      "ht": {
+        "cases": 4,
+        "accepted": {
+          "openjpeg": 4,
+          "shim": 4,
+          "ffi": 4
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 4
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 4
+          },
+          "shim_vs_ffi": {
+            "exact": 4
+          }
+        }
+      },
+      "validation": {
+        "cases": 14,
+        "accepted": {
+          "openjpeg": 0,
+          "shim": 0,
+          "ffi": 0
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "not_both_accepted": 14
+          },
+          "openjpeg_vs_ffi": {
+            "not_both_accepted": 14
+          },
+          "shim_vs_ffi": {
+            "not_both_accepted": 14
+          }
+        }
+      },
+      "pdfium": {
+        "cases": 13,
+        "accepted": {
+          "openjpeg": 7,
+          "shim": 7,
+          "ffi": 7
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 7,
+            "not_both_accepted": 6
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 7,
+            "not_both_accepted": 6
+          },
+          "shim_vs_ffi": {
+            "exact": 7,
+            "not_both_accepted": 6
+          }
+        }
+      },
+      "embedded": {
+        "cases": 55,
+        "accepted": {
+          "openjpeg": 48,
+          "shim": 48,
+          "ffi": 48
+        },
+        "comparisons": {
+          "openjpeg_vs_shim": {
+            "exact": 45,
+            "pixels_differ": 3,
+            "not_both_accepted": 7
+          },
+          "openjpeg_vs_ffi": {
+            "exact": 45,
+            "pixels_differ": 3,
+            "not_both_accepted": 7
+          },
+          "shim_vs_ffi": {
+            "exact": 48,
+            "not_both_accepted": 7
+          }
+        }
+      }
+    }
+  },
+  "contextual_embedded": {
+    "cases": 55,
+    "accepted": {
+      "openjpeg": 54,
+      "shim": 54,
+      "ffi": 54
+    },
+    "comparisons": {
+      "openjpeg_vs_shim": {
+        "exact": 51,
+        "pixels_differ": 3,
+        "not_both_accepted": 1
+      },
+      "openjpeg_vs_ffi": {
+        "exact": 51,
+        "pixels_differ": 3,
+        "not_both_accepted": 1
+      },
+      "shim_vs_ffi": {
+        "exact": 54,
+        "not_both_accepted": 1
+      }
+    }
+  },
+  "pdfs": {
+    "existing": {
+      "cases": 21,
+      "accepted": {
+        "openjpeg": 21,
+        "shim": 21,
+        "ffi": 21
+      },
+      "comparisons": {
+        "openjpeg_vs_shim": {
+          "pixels_differ": 2,
+          "exact": 19
+        },
+        "openjpeg_vs_ffi": {
+          "pixels_differ": 2,
+          "exact": 19
+        },
+        "shim_vs_ffi": {
+          "exact": 21
+        }
+      }
+    },
+    "synthetic": {
+      "cases": 16,
+      "accepted": {
+        "openjpeg": 16,
+        "shim": 16,
+        "ffi": 16
+      },
+      "comparisons": {
+        "openjpeg_vs_shim": {
+          "exact": 8,
+          "pixels_differ": 8
+        },
+        "openjpeg_vs_ffi": {
+          "exact": 8,
+          "pixels_differ": 8
+        },
+        "shim_vs_ffi": {
+          "exact": 16
+        }
+      }
+    },
+    "ht": {
+      "cases": 4,
+      "accepted": {
+        "openjpeg": 4,
+        "shim": 4,
+        "ffi": 4
+      },
+      "comparisons": {
+        "openjpeg_vs_shim": {
+          "exact": 4
+        },
+        "openjpeg_vs_ffi": {
+          "exact": 4
+        },
+        "shim_vs_ffi": {
+          "exact": 4
+        }
+      }
+    }
+  },
+  "gained_vs_pr452": [
+    "conformance/jp2_duplicate_ihdr.jp2",
+    "conformance/jp2_jpx_brand_rreq.jp2",
+    "conformance/packets_poc_clamped_values.j2k",
+    "conformance/packets_poc_tile_parts.j2k",
+    "ht/1024-L-noise-lossless.j2k",
+    "ht/1024-RGB-noise-lossless.j2k",
+    "ht/256-L-smooth-lossless.j2k",
+    "ht/256-RGB-noise-lossless.j2k",
+    "validation/jpx-minimal.jpx"
+  ],
+  "lost_vs_pr452": [],
+  "openjpeg_only": [
+    {
+      "id": "conformance/code_blocks_missing_bitplanes_exceed.j2k",
+      "status": "decode_error"
+    },
+    {
+      "id": "conformance/errors_too_few_exponents.j2k",
+      "status": "header_error"
+    },
+    {
+      "id": "conformance/jp2_box_longer_than_file.jp2",
+      "status": "header_error"
+    },
+    {
+      "id": "conformance/jp2_trailing_box_longer_than_file.jp2",
+      "status": "header_error"
+    },
+    {
+      "id": "conformance/mct_one_component_ignored.j2k",
+      "status": "decode_error"
+    },
+    {
+      "id": "conformance/palette_cmap_outside_jp2h.jp2",
+      "status": "header_error"
+    },
+    {
+      "id": "conformance/palette_out_of_range_indices.jp2",
+      "status": "decode_error"
+    },
+    {
+      "id": "conformance/tile_parts_bytes_after_eoc.j2k",
+      "status": "header_error"
+    },
+    {
+      "id": "conformance/tile_parts_truncated_end.j2k",
+      "status": "header_error"
+    },
+    {
+      "id": "conformance/tile_parts_truncated_in_packet_body.j2k",
+      "status": "header_error"
+    },
+    {
+      "id": "conformance/tile_parts_truncated_layers.j2k",
+      "status": "header_error"
+    }
+  ],
+  "shim_only": [],
+  "regressions_vs_pr452": {
+    "image_unchanged": 1954,
+    "image_both_reject": 480,
+    "image_gained": 46,
+    "pdf_unchanged": 37,
+    "pdf_pixels_changed": 4
+  },
+  "strict_only_successes": {
+    "openjpeg": [],
+    "shim": [],
+    "ffi": []
+  },
+  "performance": {
+    "embedded": {
+      "cases": 6,
+      "shim_over_openjpeg": 9.03745487274833,
+      "ffi_over_openjpeg": 8.874093174473924,
+      "shim_over_ffi": 1.0127680426357502,
+      "shim_over_openjpeg_min": 5.412600039330429,
+      "shim_over_openjpeg_max": 12.627218750816276,
+      "exact_rust_pixels": 6,
+      "median_shim_over_ffi_round_span_pct": 2.084554262700511
+    },
+    "ht": {
+      "cases": 4,
+      "shim_over_openjpeg": 12.83919760968291,
+      "ffi_over_openjpeg": 12.750930012529581,
+      "shim_over_ffi": 1.0047561539498857,
+      "shim_over_openjpeg_min": 9.963908062741567,
+      "shim_over_openjpeg_max": 13.595619652344139,
+      "exact_rust_pixels": 4,
+      "median_shim_over_ffi_round_span_pct": 0.9352158037759906
+    },
+    "pdf": {
+      "cases": 19,
+      "shim_over_openjpeg": 2.701784925637658,
+      "ffi_over_openjpeg": 2.6579905821083,
+      "shim_over_ffi": 1.0164764855918413,
+      "shim_over_openjpeg_min": 1.3293800287214999,
+      "shim_over_openjpeg_max": 40.152621758611836,
+      "exact_rust_pixels": 19,
+      "median_shim_over_ffi_round_span_pct": 2.4850148501375013
+    },
+    "synthetic": {
+      "cases": 16,
+      "shim_over_openjpeg": 9.758785576290702,
+      "ffi_over_openjpeg": 9.646641336109443,
+      "shim_over_ffi": 1.0026184542457863,
+      "shim_over_openjpeg_min": 3.0849783432229008,
+      "shim_over_openjpeg_max": 13.620504382222723,
+      "exact_rust_pixels": 16,
+      "median_shim_over_ffi_round_span_pct": 0.8971449300019585
+    },
+    "wrapped-ht": {
+      "cases": 4,
+      "shim_over_openjpeg": 9.677230047665542,
+      "ffi_over_openjpeg": 9.638893041576559,
+      "shim_over_ffi": 1.0029316909672268,
+      "shim_over_openjpeg_min": 5.041657151529679,
+      "shim_over_openjpeg_max": 10.886182504585332,
+      "exact_rust_pixels": 4,
+      "median_shim_over_ffi_round_span_pct": 0.8216238203126558
+    },
+    "wrapped-synthetic": {
+      "cases": 16,
+      "shim_over_openjpeg": 6.714018580051966,
+      "ffi_over_openjpeg": 6.647370856643281,
+      "shim_over_ffi": 1.005956008174504,
+      "shim_over_openjpeg_min": 2.9556531053437882,
+      "shim_over_openjpeg_max": 10.272877839695465,
+      "exact_rust_pixels": 16,
+      "median_shim_over_ffi_round_span_pct": 1.3325231831822548
+    }
+  },
+  "timing_trios": 195
+}

@@ -1,0 +1,11 @@
+{
+  "original_manifest_sha256": "c0d27b6b9f217e63bda40d36c4cc05da7b69c712c2a18cd2f1cf74a1dacec828",
+  "historical_crate": "a99ab056b20b48a58a3eda23a89e4f3f6ec042b8",
+  "original_integration": "fde5c34ad6305392ced34e7cd7128fc1e1334c66",
+  "public_pdfium": "68f43efa71ac66ba843ba286bb76d075aa1c49df",
+  "public_pdfium_tests": "2bcc4fdc9abe4c4c115c82c486ac4c46f1d474c5",
+  "public_hayro": "e7ada1354dff4041cdeed3d8ba56fe01b6186132",
+  "projection": "Only machine-local input/output paths and temporary process text removed; exact logical corpus/configuration/outcome/timing identities retained.",
+  "generated_fixtures": "Original first-party synthetic noise/gradient, HT encodings thereof, and crate-generated validation samples are copied byte-for-byte; never re-encode to approximate the frozen hashes.",
+  "pypdf": "7.1.1"
+}
