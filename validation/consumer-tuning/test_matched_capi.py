@@ -1,7 +1,9 @@
+import json
 from pathlib import Path
 import struct
 import subprocess
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -144,6 +146,80 @@ class MatchedCapiTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "missing or extra"):
             gate.summarize(rows + [dict(rows[0], backend="openjpeg")],
                            {"pdf-single-tile": gate.native.BACKENDS}, 2)
+
+    def test_run_timing_preserves_case_phase_and_backend_keys(self):
+        with tempfile.TemporaryDirectory(dir=gate.ROOT / "target") as directory:
+            scratch = Path(directory)
+            output = scratch / "run"
+            binary_paths = {}
+            for label in gate.BACKENDS:
+                binary = scratch / label
+                binary.write_bytes(label.encode())
+                binary_paths[label] = (binary, gate.file_sha(binary), "same-libc")
+            triple, root = "three-backend", "root-only"
+
+            def fixture(evidence, name, **fields):
+                payload = name.encode()
+                path = evidence / f"{name}.j2k"
+                path.write_bytes(payload)
+                return [dict(id=name, path=path.name, format="j2k", bytes=len(payload), sha256=gate.sha(payload),
+                             width=2, height=1, channels=1, lossless=True,
+                             source_samples_sha256=gate.sha(b"\x00\xff"), **fields)]
+
+            stages = {"full": "1 1 1", "header": "1 0 0"}
+            durations = {"baseline": 40, "candidate": 20, "openjpeg": 60}
+            children = []
+
+            def checked(argv, prefix, **_):
+                prefix.parent.mkdir(parents=True, exist_ok=True)
+                if prefix.name == "driver-origin":
+                    prefix.with_suffix(".stdout").write_text(gate.native.UPSTREAM)
+                    return
+                binary, _, path, mode, phase, count, *capture = argv[3:]
+                label, case, count = binary.name, path.stem, int(count)
+                line = f"status {stages[phase]} 0 0 {int(label == 'openjpeg')} 1 0 0 {path.stat().st_size}\n"
+                if capture:
+                    capture[0].write_bytes(dump() if phase == "full" else dump()[:struct.calcsize("<21I")] + bytes(4))
+                    prefix.with_suffix(".stderr").write_bytes(b"")
+                else:
+                    children.append((prefix, case, phase, label))
+                    self.assertEqual(mode, "strict" if case == triple else "compatible")
+                    line = line * gate.WARMUPS + (line + f"sample {durations[label]}\n") * count
+                prefix.with_suffix(".stdout").write_text(line)
+                return {"user_s": 0.1, "system_s": 0.0, "max_process_rss_kib": 100}
+
+            options = SimpleNamespace(output=output, baseline=gate.BASELINE, candidate=gate.CANDIDATE,
+                                      arch="x86_64", pairs=2, entrypaths=True, qualify_only=False)
+            with patch.multiple(gate.native, checked=checked, clean_source=lambda *a, **k: None,
+                                sources=lambda *a, **k: None, fixtures=lambda dest: fixture(dest, triple)), \
+                    patch.multiple(gate, CASES={triple: None}, validate=lambda _: None,
+                                   capture=lambda *a, **k: {}, tools=lambda *a: {},
+                                   build_openjpeg=lambda *a: (None,), source_receipt=lambda *a: None,
+                                   build_root=lambda *a: (None, None), link=lambda label, *a: binary_paths[label]), \
+                    patch.object(entry, "fixtures", side_effect=lambda dest: fixture(
+                        dest, root, mode="compatible", header_phase=True,
+                        cpp_block_reason="Root comparison only", iterations=2)):
+                gate.run(options)
+
+            evidence = output / "evidence"
+            rows = [json.loads(line) for line in (evidence / "samples.jsonl").read_text().splitlines()]
+            self.assertCountEqual(
+                [(r["fixture"], r["phase"], r["backend"], r["pair"]) for r in rows],
+                [(case_key, phase, label, pair)
+                 for case_key, phase, labels in ((triple, "full", gate.BACKENDS),
+                                                  (root, "full", gate.native.BACKENDS),
+                                                  (root + "/header", "header", gate.native.BACKENDS))
+                 for label in labels for pair in range(2)],
+            )
+            for row, (prefix, case, phase, label) in zip(rows, children, strict=True):
+                self.assertEqual(prefix, evidence / "processes" / f"pair-{row['pair']:02d}" / row["fixture"] / label)
+                self.assertEqual((row["case"], row["phase"], row["backend"]), (case, phase, label))
+                count = gate.ITERATIONS if case == triple else 2
+                self.assertEqual(row["decode_ns"], [durations[label]] * count)
+            summary = json.loads((evidence / "summary.json").read_text())["fixtures"]
+            self.assertIn("candidate_over_openjpeg", summary[triple]["ratios"])
+            for case_key in (root, root + "/header"):
+                self.assertEqual(set(summary[case_key]["ratios"]), {"candidate_over_baseline"})
 
     def test_pdf_cases_are_boxed_compatible_and_keep_negative_controls(self):
         with tempfile.TemporaryDirectory(dir=gate.ROOT / "target") as dest:

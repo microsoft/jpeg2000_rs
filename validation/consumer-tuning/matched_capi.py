@@ -563,9 +563,10 @@ def run(options):
             for position, label in enumerate(schedule(pair, labels)):
                 prefix = evidence / "processes" / f"pair-{pair:02d}" / key / label
                 metrics = native.checked(invocation(fixture, label, phase, iterations), prefix, env=env)
-                for key in ("user_s", "system_s", "max_process_rss_kib"):
-                    if type(metrics.get(key)) not in (int, float) or not math.isfinite(metrics[key]) or metrics[key] < 0:
-                        raise ValueError(f"missing or malformed GNU time field: {key}")
+                for metric_key in ("user_s", "system_s", "max_process_rss_kib"):
+                    value = metrics.get(metric_key)
+                    if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+                        raise ValueError(f"missing or malformed GNU time field: {metric_key}")
                 if metrics["max_process_rss_kib"] == 0:
                     raise ValueError("GNU time reported no resident-set measurement")
                 expected = qualification[key]["backends"][label]["status_line"]
