@@ -54,9 +54,9 @@ class RequestedSyccTests(unittest.TestCase):
             "crg-crop-reduce1:requested-sycc": "row-plan", "crg-crop-reduce1:native-off": "native-off",
         })
         base = self.evidence / "qualification"
-        self.assertEqual((base / "crg-crop-reduce1:requested-sycc/baseline.stdout").read_text(),
+        self.assertEqual((base / "crg-crop-reduce1/requested-sycc/baseline.stdout").read_text(),
                          "color-dump:1:1:15:21:99:65\n")
-        self.assertEqual((base / "crg-crop-reduce1:native-off/candidate.stdout").read_text(),
+        self.assertEqual((base / "crg-crop-reduce1/native-off/candidate.stdout").read_text(),
                          "native-dump:1:1:15:21:99:65\n")
 
     def prepare_command(self, pinned, binary, case, evidence, *, dump):
@@ -110,3 +110,32 @@ class RequestedSyccTests(unittest.TestCase):
             self.assertEqual(result["baseline_over_candidate"], 2)
             self.assertEqual(result["per_backend"]["candidate"]["p99_process_mean_ns"], 10)
             self.assertEqual(result["per_backend"]["baseline"]["median_voluntary_context_switches"], 2)
+
+    def test_preflight_and_timing_emit_upload_portable_paths_with_original_case_ids(self):
+        cases = self.controls()
+        binaries = self.fake_children(cases)
+        qualified = self.qualify(binaries, cases)
+        with patch.object(sycc, "command", side_effect=self.prepare_command):
+            sycc.pair(binaries, cases, qualified, self.evidence, [], None, 2)
+
+        rejected = set('":<>|*?\r\n')
+        for path in self.evidence.rglob("*"):
+            relative = path.relative_to(self.evidence)
+            self.assertTrue(all(not rejected.intersection(part) for part in relative.parts), relative)
+
+        preflights = [json.loads(line) for line in
+                      (self.evidence / "qualification.jsonl").read_text().splitlines()]
+        samples = [json.loads(line) for line in
+                   (self.evidence / "samples.jsonl").read_text().splitlines()]
+        self.assertEqual({row["case"]: (row["mode"], row["expected_route"]) for row in preflights}, {
+            "444:requested-sycc": ("requested-sycc", "generic-fallback"),
+            "444:native-off": ("native-off", "native-off"),
+            "crg-crop-reduce1:requested-sycc": ("requested-sycc", "row-plan"),
+            "crg-crop-reduce1:native-off": ("native-off", "native-off"),
+        })
+        self.assertEqual(
+            {(row["case"], row["mode"], row["pair"], row["backend"]) for row in samples},
+            {(case["id"], case["mode"], index, label) for case in cases
+             for index in range(2) for label in sycc.native.BACKENDS},
+        )
+        self.assertEqual(len(list((self.evidence / "processes").rglob("*.metrics.json"))), len(samples))
