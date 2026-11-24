@@ -75,6 +75,13 @@ class SelectedPartsTests(unittest.TestCase):
         for row, ns in zip(selected.summaries(rows, 2), (10, 20, 30), strict=True):
             self.assertEqual(row["baseline_over_candidate"], 2)
             self.assertEqual(row["per_backend"]["candidate"]["p99_batch_mean_ns"], ns)
+        # Inspect the paths actually written by preflight and paired children.
+        paths = [path.relative_to(self.evidence) for path in self.evidence.rglob("*")]
+        self.assertIn(Path("qualification/self-check/baseline.stdout"), paths)
+        self.assertIn(Path("processes/pair-01/interleaved-roi/candidate.metrics.json"), paths)
+        for path in paths:
+            for component in path.parts:
+                self.assertNotRegex(component, r'[":<>|*?\r\n]', str(path))
 
     def test_rejects_matching_but_wrong_pixels_and_wrong_fixed_count(self):
         with patch.object(selected, "command", side_effect=self.child_argv):
