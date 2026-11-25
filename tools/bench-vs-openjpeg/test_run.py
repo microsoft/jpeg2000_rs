@@ -2,6 +2,7 @@ import struct
 import unittest
 
 from run import check_source, compare_dumps, read_dump, sha
+from profile_baseline import parse_report
 
 
 def dump(width, height, values, signed=0):
@@ -10,6 +11,21 @@ def dump(width, height, values, signed=0):
 
 
 class ComparisonTests(unittest.TestCase):
+    def test_perf_padding_and_extra_ipc_column_do_not_drop_samples(self):
+        result = parse_report(
+            "# Overhead;Symbol;IPC\n"
+            " 11.36% ;[.] jpeg2000_decoder::mq::MqDecoder::decode ;- -\n"
+            " 1.44%  ;[.] _ZN16jpeg2000_decoder9transform7rowwise9lift_rows ;- -\n"
+        )
+        self.assertEqual(result, {"MQ": 11.36, "DWT": 1.44})
+
+    def test_component_transform_is_not_misclassified_as_wavelet_transform(self):
+        result = parse_report(
+            " 0.73% ;[.] jpeg2000_decoder::image::component_transform::inverse_component_values ;- -\n"
+            " 2.00% ;[.] opj_idwt53_v ;- -\n"
+        )
+        self.assertEqual(result, {"MCT": 0.73, "DWT": 2.0})
+
     def test_lossy_difference_statistics(self):
         result = compare_dumps(dump(2, 1, [5, 9]), dump(2, 1, [4, 12]))
         self.assertEqual((result["samples"], result["differing_samples"],

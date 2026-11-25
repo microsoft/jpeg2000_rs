@@ -138,7 +138,7 @@ def prepare(output):
 def build(output, config, options, source):
     work = output / config
     work.mkdir()
-    env = dict(os.environ, OPJ_NUM_THREADS="1")
+    env = dict(os.environ, OPJ_NUM_THREADS="1", BENCH_OPENJPEG_THREADS="1")
     env.pop("RUSTFLAGS", None)
     env.pop("CARGO_ENCODED_RUSTFLAGS", None)
     for key in ("CARGO_PROFILE_RELEASE_LTO", "CARGO_PROFILE_RELEASE_CODEGEN_UNITS"):
@@ -207,7 +207,7 @@ def summarize(rows, output):
         writer.writeheader()
         writer.writerows(summaries)
     lines = ["# Matched in-memory smoke baseline", "",
-             "Synthetic subset only; no natural/large A/B, C/D/F/G or x86 claim.", "",
+             "Synthetic subset only; no complete A-G or cross-target qualification.", "",
              "| Configuration | Case | Class | Rust median (IQR), ms | OpenJPEG typed median (IQR), ms | Ratio |",
              "|---|---|---|---|---|---|"]
     ratios = {}
@@ -242,6 +242,7 @@ def main():
     parser.add_argument("--warmups", type=int, default=3)
     parser.add_argument("--reduce", type=int, default=0)
     parser.add_argument("--window", default="-", help="absolute x,y,width,height, or -")
+    parser.add_argument("--reuse-builds", type=Path, help="reuse hash-checked builds from a completed baseline")
     options = parser.parse_args()
     if options.rounds < 2 or options.iterations < 2 or options.minimum_ms < 0 or options.warmups < 0:
         parser.error("requires >=2 rounds, >=2 iterations, and nonnegative time/warmups")
@@ -257,6 +258,9 @@ def main():
     cases = [case for case in prepare(output) if re.search(options.case, case["id"])]
     if not cases:
         parser.error("case selector matched no fixtures")
+    if options.reduce or options.window != "-":
+        for case in cases:
+            case["corpus_class"] = "F"
     source = options.openjpeg_source
     if source is None:
         source = output / "openjpeg-source"
@@ -282,7 +286,23 @@ def main():
         writer = csv.DictWriter(stream, fieldnames=["config", "case", "class", "backend", "mode", "round", "sample", "ns"])
         writer.writeheader()
         for config in configs:
-            binaries, env = build(output, config, options, source)
+            if options.reuse_builds:
+                previous = options.reuse_builds.resolve()
+                if not (previous / "COMPLETE.json").exists():
+                    raise ValueError("cannot reuse an incomplete build matrix")
+                metadata = json.loads((previous / config / "build.json").read_text())
+                binaries = {"rust": previous / config / "cargo/release/bench-vs-openjpeg",
+                            "openjpeg": previous / config / "bench-openjpeg"}
+                if any(sha(path.read_bytes()) != metadata[key] for path, key in [
+                        (binaries["rust"], "rust_binary_sha256"),
+                        (binaries["openjpeg"], "c_binary_sha256")]):
+                    raise ValueError("reused binary hash differs")
+                env = dict(os.environ, OPJ_NUM_THREADS="1", BENCH_OPENJPEG_THREADS="1")
+                (output / config).mkdir()
+                write_json(output / config / "build-reference.json",
+                           {"baseline": str(previous), "metadata": metadata})
+            else:
+                binaries, env = build(output, config, options, source)
             for case in cases:
                 work = output / config / case["id"]
                 dump = {}

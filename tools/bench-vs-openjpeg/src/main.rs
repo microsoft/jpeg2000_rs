@@ -83,9 +83,9 @@ fn run() -> Result<(), Box<dyn Error>> {
     let mut total = Duration::ZERO;
     while times.len() < iterations || total < minimum {
         let start = Instant::now();
-        let image = decode()?;
+        let image = black_box(decode()?);
         let elapsed = start.elapsed();
-        drop(black_box(image));
+        drop(image);
         total += elapsed;
         times.push(elapsed.as_nanos());
     }

@@ -61,6 +61,25 @@ static uint64_t number(const char *text) {
     return value;
 }
 
+static void window_values(const char *text, int *window) {
+    for (unsigned i = 0; i < 4; ++i) {
+        const char *start = text;
+        uint64_t value = 0;
+        while (*text >= '0' && *text <= '9') {
+            value = value * 10 + (unsigned)(*text++ - '0');
+            if (value > INT32_MAX) fail("invalid window");
+        }
+        if (text == start || (i < 3 ? *text != ',' : *text != '\0'))
+            fail("invalid window");
+        window[i] = (int)value;
+        if (i < 3) ++text;
+    }
+    if (window[2] <= 0 || window[3] <= 0 ||
+        (int64_t)window[0] + window[2] > INT32_MAX ||
+        (int64_t)window[1] + window[3] > INT32_MAX)
+        fail("invalid window");
+}
+
 static uint64_t now(void) {
     struct timespec value;
     if (clock_gettime(CLOCK_MONOTONIC, &value)) fail("clock_gettime");
@@ -120,6 +139,11 @@ static void destroy(Output output) {
     opj_image_destroy(output.image);
 }
 
+static void retain(Output output) {
+    /* Make all output stores observable before stopping the timer. */
+    __asm__ __volatile__("" : : "g"(output.image), "g"(output.planes) : "memory");
+}
+
 static void word(uint64_t value) {
     unsigned char bytes[8];
     for (unsigned i = 0; i < 8; ++i) bytes[i] = (unsigned char)(value >> (8 * i));
@@ -153,13 +177,7 @@ int main(int argc, char **argv) {
         fail("invalid reduction/iteration/duration");
     int window[4], *area = NULL;
     if (strcmp(argv[4], "-")) {
-        char tail;
-        if (sscanf(argv[4], "%d,%d,%d,%d%c", &window[0], &window[1],
-                &window[2], &window[3], &tail) != 4 ||
-            window[0] < 0 || window[1] < 0 || window[2] <= 0 || window[3] <= 0 ||
-            (int64_t)window[0] + window[2] > INT32_MAX ||
-            (int64_t)window[1] + window[3] > INT32_MAX)
-            fail("invalid window");
+        window_values(argv[4], window);
         area = window;
     }
     int threads = 1;
@@ -182,8 +200,11 @@ int main(int argc, char **argv) {
         dump(output);
         destroy(output);
     } else {
-        for (uint64_t i = 0; i < warmups; ++i)
-            destroy(decode(input, (unsigned)reduce, area, !native, threads));
+        for (uint64_t i = 0; i < warmups; ++i) {
+            Output output = decode(input, (unsigned)reduce, area, !native, threads);
+            retain(output);
+            destroy(output);
+        }
         uint64_t count = 0, total = 0, capacity = 64;
         uint64_t *times = malloc(capacity * sizeof(*times));
         if (!times) fail("timing allocation");
@@ -197,6 +218,7 @@ int main(int argc, char **argv) {
             }
             uint64_t start = now();
             Output output = decode(input, (unsigned)reduce, area, !native, threads);
+            retain(output);
             uint64_t elapsed = now() - start;
             destroy(output);
             total += elapsed;

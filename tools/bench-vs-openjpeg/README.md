@@ -15,6 +15,8 @@ Rust's native typed output is already its primary output.
 Both intervals include setup, header parsing, entropy, transforms, output
 allocation/conversion, and decoder-internal cleanup. File reads, result
 destruction, output comparison/serialization, and CSV writes are excluded.
+Both drivers consume the completed output through an optimization barrier before
+the end timestamp; the C barrier requires GCC or Clang.
 Codec and stream objects are new per iteration; compressed bytes are read once.
 All runs explicitly select one thread. The Rust API has no thread-count option;
 `BENCH_OPENJPEG_THREADS` is only for separately labeled C-only diagnostics.
@@ -79,17 +81,60 @@ The source/encoding recipes are in
 [`validation/consumer-tuning`](../../validation/consumer-tuning/README.md).
 Do not promote this subset's class geometric means to full A-G qualification.
 
+To rerun the available baseline, both committed isolated experiments, separate
+profiles/counters, and reduced/windowed checks sequentially with one command:
+
+```sh
+bash tools/bench-vs-openjpeg/evaluate.sh /absolute/fresh/evaluation \
+  /absolute/openjpeg-2.5.4 /absolute/c2-worktree /absolute/c12-worktree 3 \
+  /absolute/original-numerical-299
+```
+
+The last argument is optional; omitting it does not qualify #299. Set `PERF`
+when the profiler is not on PATH. This command does not claim missing corpus,
+x86-64-v3, multithreading or proof qualification.
+
 For user-space hardware counters and profiles, use a separate counting run:
 
 ```sh
 perf stat -e cycles:u,instructions:u,branch-misses:u \
   taskset -c 3 /path/to/driver INPUT typed 0 - 1 0 0
-perf record -e cycles:u -F 199 --call-graph dwarf -o /path/to/profile.data -- \
+perf record -e cycles:u -c 5000000 --call-graph dwarf -o /path/to/profile.data -- \
   taskset -c 3 /path/to/driver INPUT typed 0 - 15 2000 3
 ```
 
 These process counters include startup/input I/O; do not label them isolated
 decode-stage counts. Instrumented profiling is separate from timing.
+
+For the complete available baseline's separate attribution/counter collection:
+
+```sh
+python3 tools/bench-vs-openjpeg/profile_baseline.py \
+  --baseline /absolute/evidence --output /absolute/fresh/profiles --cpu 3
+```
+
+It uses a fixed user-cycle sample period so OpenJPEG's short-lived single-worker
+threads are sampled, rather than relying on per-thread adaptive frequency.
+Stage buckets are approximate leaf-symbol attribution, not isolated stage
+timers; unknown symbols stay unknown. Unsupported LLC counters remain explicit.
+Process profiles include startup and destruction, unlike timed decode intervals.
+
+An isolated prototype can be compared without changing the baseline or stacking
+other candidates:
+
+```sh
+python3 tools/bench-vs-openjpeg/compare.py --baseline /absolute/evidence \
+  --candidate-source /absolute/clean/committed/prototype \
+  --output /absolute/fresh/candidate-results --cpu 3
+```
+
+This builds the same consumer against the prototype, checks every output bit,
+and repeats paired controls in generic and consumer profiles. Optional
+`--numerical-299 DIRECTORY` checks the six original supplied controls and writes
+per-image before/after differences. Supply those rights-cleared original inputs;
+they are not silently replaced with similar generated images.
+`--reuse-builds /absolute/evidence` on the main runner reuses hash-checked
+binaries for additional reduced/windowed requests, not cached decoded images.
 
 ```sh
 python3 -m unittest discover -s tools/bench-vs-openjpeg -p 'test_*.py' -v
