@@ -12261,8 +12261,8 @@ def validate_normative_coverage(
             for relative, symbol, required in (
                 ("src/decode/tile_part_index.rs", "prepare_tile_part_index", (
                     "if selected_count <= 1", "return Ok(None)",
-                    "reserve_index_values::<TilePartIndexEntry>(parts, slots, false, slots)",
-                    "reserve_index_values::<usize>(parts, slots, true, parts.len())",
+                    "let reserved: Result<Vec<TilePartIndexEntry>, DecodeError> = reserve_index_values(parts, slots, false, slots)",
+                    "let reserved: Result<Vec<usize>, DecodeError> = reserve_index_values(parts, slots, true, parts.len())",
                     "checkpoint_periodic(entries.len())?", "checkpoint_periodic(next.len())?",
                     "while position > 0", "position -= 1", "checkpoint_periodic(position)?",
                     "if tile < entries.len()", "next[position] = entry.head",

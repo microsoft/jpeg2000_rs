@@ -9639,8 +9639,8 @@ class FrameworkTests(WorkingFiles):
         mutations = (
             ("src/decode/tile_part_index.rs", r"if selected_count <= 1", "if selected_count < 1"),
             ("src/decode/tile_part_index.rs",
-             r"reserve_index_values::<usize>\(parts,\s*slots,\s*true,\s*parts\.len\(\)\)",
-             "reserve_index_values::<usize>(parts, slots, true, slots)"),
+             r"reserve_index_values\(parts,\s*slots,\s*true,\s*parts\.len\(\)\)",
+             "reserve_index_values(parts, slots, true, slots)"),
             ("src/decode/tile_part_index.rs", r"position -= 1", "position = 0"),
             ("src/decode/tile_part_index.rs", r"next\[position\] = entry\.head",
              "next[position] = parts.len()"),

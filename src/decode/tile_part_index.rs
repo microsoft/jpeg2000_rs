@@ -102,7 +102,8 @@ pub(super) fn prepare_tile_part_index(
         let ghost source = codestream::tile_parts_owned_view(parts@);
         let ghost mut prefix = Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
     }
-    let reserved = reserve_index_values::<TilePartIndexEntry>(parts, slots, false, slots);
+    let reserved: Result<Vec<TilePartIndexEntry>, DecodeError> =
+        reserve_index_values(parts, slots, false, slots);
     #[cfg(verus_keep_ghost)]
     proof! {
         let root = |events| crate::specs::part2_prepare_tile_index_run(source, slots as nat, selected_count as nat, events);
@@ -114,7 +115,8 @@ pub(super) fn prepare_tile_part_index(
         }
     }
     let mut entries = reserved?;
-    let reserved = reserve_index_values::<usize>(parts, slots, true, parts.len());
+    let reserved: Result<Vec<usize>, DecodeError> =
+        reserve_index_values(parts, slots, true, parts.len());
     #[cfg(verus_keep_ghost)]
     proof! {
         let root = |events| crate::specs::part2_prepare_tile_index_run(source, slots as nat, selected_count as nat, events);
