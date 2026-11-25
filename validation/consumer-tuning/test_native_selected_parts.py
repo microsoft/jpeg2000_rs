@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -111,3 +112,46 @@ class SelectedPartsTests(unittest.TestCase):
         staged.write_bytes(staged.read_bytes()[:-1] + b"\x00")
         with self.assertRaisesRegex(ValueError, "fixture hash"):
             selected.command([], "probe", "preflight", ("grouped", "full"), self.evidence)
+
+    def test_run_binds_integrated_pair_and_rejects_unlisted_pair_before_sources(self):
+        baseline = "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e"
+        candidate = "9e2881fc6e057ecaa9b1b003a7519f9e28bbee1b"
+        options = SimpleNamespace(
+            baseline=baseline, candidate=candidate, pairs=8, arch="x86_64",
+            output=self.evidence / "integrated", qualify_only=True,
+        )
+        tool = {"command": [sys.executable], "returncode": 0}
+
+        def build(label, work, evidence, *args, **kwargs):
+            folder = evidence / label
+            folder.mkdir()
+            (folder / "binary.json").write_text(json.dumps({
+                "harness_sha256": selected.PROBE_SHA,
+                "decoder_argv": ['feature="default"'], "argv": [],
+            }))
+            return label
+
+        with patch.object(selected.native, "reject_cargo_configs"), \
+                patch.object(selected.native, "clean_source"), \
+                patch.object(selected.native, "checked"), \
+                patch.object(selected.native, "text", return_value=selected.native.UPSTREAM), \
+                patch.object(selected.native, "pinned_tool", return_value=tool), \
+                patch.object(selected.native, "native_affinity", return_value=([0], [])), \
+                patch.object(selected, "capture", return_value={}), \
+                patch.object(selected.native, "sources") as sources, \
+                patch.object(selected.native, "build", side_effect=build), \
+                patch.object(selected, "qualify"):
+            selected.run(options)
+        evidence = options.output / "evidence"
+        sources.assert_called_once_with(
+            {"baseline": baseline, "candidate": candidate}, options.output, evidence,
+        )
+        self.assertEqual(json.loads((evidence / "metadata.json").read_text())["revisions"],
+                         {"baseline": baseline, "candidate": candidate})
+        options.candidate = "1" * 40
+        options.output = self.evidence / "unlisted"
+        with patch.object(selected.native, "sources") as sources, \
+                self.assertRaisesRegex(ValueError, "frozen #481"):
+            selected.run(options)
+        sources.assert_not_called()
+        self.assertFalse(options.output.exists())

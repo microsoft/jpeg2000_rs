@@ -3,6 +3,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -139,3 +140,37 @@ class RequestedSyccTests(unittest.TestCase):
              for index in range(2) for label in sycc.native.BACKENDS},
         )
         self.assertEqual(len(list((self.evidence / "processes").rglob("*.metrics.json"))), len(samples))
+
+    def test_run_binds_integrated_pair_and_rejects_unlisted_pair_before_sources(self):
+        baseline = "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e"
+        candidate = "590ca79a111f701308665038a83915434d551e80"
+        options = SimpleNamespace(
+            baseline=baseline, candidate=candidate, pairs=8, arch="x86_64",
+            output=self.evidence / "integrated", qualify_only=True,
+        )
+        tool = {"command": [sys.executable], "returncode": 0}
+        with patch.object(sycc.native, "reject_cargo_configs"), \
+                patch.object(sycc.native, "clean_source"), \
+                patch.object(sycc.native, "checked"), \
+                patch.object(sycc.native, "text", return_value=sycc.native.UPSTREAM), \
+                patch.object(sycc.native, "pinned_tool", return_value=tool), \
+                patch.object(sycc.native, "native_affinity", return_value=([0], [])), \
+                patch.object(sycc, "capture", return_value={}), \
+                patch.object(sycc.native, "sources") as sources, \
+                patch.object(sycc.native, "build", side_effect=lambda label, *a, **k: label), \
+                patch.object(sycc, "qualify") as qualify:
+            sycc.run(options)
+        evidence = options.output / "evidence"
+        sources.assert_called_once_with(
+            {"baseline": baseline, "candidate": candidate}, options.output, evidence,
+        )
+        self.assertEqual(json.loads((evidence / "metadata.json").read_text())["revisions"],
+                         {"baseline": baseline, "candidate": candidate})
+        self.assertEqual(len(qualify.call_args.args[1]), 28)
+        options.candidate = "1" * 40
+        options.output = self.evidence / "unlisted"
+        with patch.object(sycc.native, "sources") as sources, \
+                self.assertRaisesRegex(ValueError, "frozen #480"):
+            sycc.run(options)
+        sources.assert_not_called()
+        self.assertFalse(options.output.exists())

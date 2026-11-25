@@ -19,6 +19,11 @@ from summarize import geometric, interval
 
 BASELINE = "9279e2bad720511c2187a3602eda361ebf037287"
 CANDIDATE = "e21eb47936be4c6310a38498df5ab255a2648cbf"
+REVISION_PAIRS = {
+    (BASELINE, CANDIDATE),
+    ("f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+     "9e2881fc6e057ecaa9b1b003a7519f9e28bbee1b"),
+}
 SCOPE = "selected-parts-481"
 PROBE = native.HERE / "native-selected-parts-probe.rs"
 PROBE_SHA = "d8646e85db9c851ac093f3bd097aa92a70b25606ccdc2e1b641db16d6c2002be"
@@ -146,7 +151,7 @@ def summaries(rows, pairs):
 
 def run(options):
     native.validate_options(options.baseline, options.candidate, options.pairs, options.arch)
-    if (options.baseline, options.candidate) != (BASELINE, CANDIDATE) or options.pairs not in (8, 24):
+    if (options.baseline, options.candidate) not in REVISION_PAIRS or options.pairs not in (8, 24):
         raise ValueError("selected parts requires the frozen #481 revisions and 8 or 24 pairs")
     work = options.output.resolve()
     if not work.is_relative_to(native.ROOT / "target"):
@@ -163,7 +168,7 @@ def run(options):
     rust = native.pinned_tool("rustc", options.arch)
     cargo = native.pinned_tool("cargo", options.arch)
     cpus, pinned = native.native_affinity()
-    revisions = dict(zip(native.BACKENDS, (BASELINE, CANDIDATE), strict=True))
+    revisions = dict(zip(native.BACKENDS, (options.baseline, options.candidate), strict=True))
     env = {key: os.environ[key] for key in ("PATH", "HOME") if key in os.environ}
     env["LC_ALL"] = "C"
     note = {
@@ -199,7 +204,7 @@ def run(options):
         rows = pair(binaries, qualified, evidence, pinned, env, options.pairs)
         native.write_json(evidence / "summary.json", {
             **note, "qualified_checks": len(qualified), "loadavg_start": loadavg, "loadavg_end": os.getloadavg(),
-            "ratio": "9279 / e21; bootstrap over matched process pairs, no exclusions",
+            "ratio": "baseline / candidate; bootstrap over matched process pairs, no exclusions",
             "results": summaries(rows, options.pairs),
         })
 

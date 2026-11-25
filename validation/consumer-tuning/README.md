@@ -370,6 +370,13 @@ Enable `consumer_benchmark` and choose 8 or 24 `native_pairs`. Both exact
 revisions must be reachable from branches in the upstream repository.
 The job builds only the Rust probe and its decoder dependency.
 
+The original pair remains the default. The integrated qualification pair
+`f4b2b7b29d38fa31bd74263913462bb67d6e5e4e` /
+`590ca79a111f701308665038a83915434d551e80` is also accepted when explicitly
+supplied as `native_baseline` / `native_candidate`. Other pairs are refused.
+The frozen cohort, oracles, compiler, upstream-source checks and timing
+protocol are unchanged; accepting a pair for qualification is not adoption.
+
 `native-sycc/` contains eight first-party synthetic JP2 files under the
 repository MIT license. They were generated from integer sample patterns,
 using OpenJPEG to encode their codestreams and explicitly authored JP2
@@ -400,6 +407,13 @@ The opt-in `ci.yml` scope `native-selected-parts` compares the pinned
 `9279e2b` and `e21eb47` Rust revisions on native x86-64 and ARM64 Linux.
 Set `consumer_benchmark=true` and choose 8 or 24 `native_pairs`. The same
 upstream reachability and compiler checks apply as for `native-comparison`.
+
+The original pair remains the default. Explicit inputs may instead select
+`f4b2b7b29d38fa31bd74263913462bb67d6e5e4e` /
+`9e2881fc6e057ecaa9b1b003a7519f9e28bbee1b`. Other pairs are refused.
+Source builds and revision receipts bind the selected inputs, not the
+historical default constants. Fixtures, literal oracles, work and compiler
+checks remain unchanged, and both revisions must still be upstream-reachable.
 
 Both revisions must match an independent literal oracle for every public
 `decode_codestream_selected` field, on both [fixtures](native-selected-parts/)

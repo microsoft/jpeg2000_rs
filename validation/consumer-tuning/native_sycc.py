@@ -22,6 +22,11 @@ PROBE = HERE / "native-sycc-probe.rs"
 COHORT_SHA = "b2aa62d8a4459f49ee47e43266047d3d242dea50af8863fc0f37599b2348662b"
 BASELINE = "9279e2bad720511c2187a3602eda361ebf037287"
 CANDIDATE = "d6e5f458ca6a840a94d59464d3bce400225589ac"
+REVISION_PAIRS = {
+    (BASELINE, CANDIDATE),
+    ("f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+     "590ca79a111f701308665038a83915434d551e80"),
+}
 MODES = {"requested-sycc": "color", "native-off": "native"}
 SCOPE = "requested-sycc-480"
 ITERATIONS = 32
@@ -30,8 +35,8 @@ TIMEOUT = 120
 
 def validate_options(options):
     native.validate_options(options.baseline, options.candidate, options.pairs, options.arch)
-    if (options.baseline, options.candidate) != (BASELINE, CANDIDATE):
-        raise ValueError("requested-sYCC requires the frozen #480 baseline and candidate")
+    if (options.baseline, options.candidate) not in REVISION_PAIRS:
+        raise ValueError("requested-sYCC requires a frozen #480 baseline and candidate pair")
     if options.pairs not in (8, 24):
         raise ValueError("requested-sYCC requires 8 or 24 pairs")
 
