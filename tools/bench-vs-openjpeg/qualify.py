@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import sys
 
 from run import capture, check_source, compare_dumps, load_corpus, sha, write_json
@@ -20,6 +21,7 @@ def main():
     parser.add_argument("--cpu", type=int, default=min(os.sched_getaffinity(0)))
     parser.add_argument("--reduce", type=int, default=0)
     parser.add_argument("--window", default="-")
+    parser.add_argument("--case", default=".")
     parser.add_argument("--maximum-address-space", type=int, default=8 * 1024**3)
     options = parser.parse_args()
     if options.cpu not in os.sched_getaffinity(0) or not 0 <= options.reduce <= 16:
@@ -30,12 +32,15 @@ def main():
     if destination.exists() or destination.parent != options.manifest.resolve().parent:
         parser.error("qualified manifest must be fresh and beside its source manifest")
     document = load_corpus(options.manifest)
+    cases = [case for case in document["cases"] if re.search(options.case, case["id"])]
+    if not cases:
+        parser.error("case selector matched no inputs")
     output = options.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     env = dict(os.environ, OPJ_NUM_THREADS="0", BENCH_OPENJPEG_THREADS="1")
     binaries = {"rust": options.rust.resolve(), "openjpeg": options.openjpeg.resolve()}
     records, accepted = [], []
-    for case in document["cases"]:
+    for case in cases:
         row = dict(id=case["id"], corpus_class=case["corpus_class"], input_sha256=case["sha256"],
                    processes={})
         dumps = {}
@@ -71,6 +76,7 @@ def main():
         "source_manifest_sha256": document["source_manifest_sha256"],
         "binary_sha256": {key: sha(path.read_bytes()) for key, path in binaries.items()},
         "request": {"reduce": options.reduce, "window": options.window},
+        "case_selector": options.case,
         "maximum_address_space": options.maximum_address_space,
         "total": len(records), "accepted": len(accepted), "all_passed": all_passed,
         "records": records,

@@ -130,6 +130,19 @@ recorded decoder revision, such as a newer merged main. It cannot be combined
 with `--reuse-builds`: an old executable must never be relabelled as new source.
 The original frozen control and new-main measurements remain separate.
 
+The expanded A-D matrix plus all three 8K streams at discard 1/2/3 and a
+512-square window can be generated, fully inventoried and measured sequentially:
+
+```sh
+bash tools/bench-vs-openjpeg/expanded.sh FRESH_OUTPUT OPENJPEG_254_SOURCE \
+  OPENJPEG_254_ENCODER CLEAN_DECODER_WORKTREE CPU PHOTO_CACHE
+```
+
+Its initial short build-check is explicitly not speed evidence. Any preflight
+failure stops the command after saving the complete inventory, rather than
+silently benchmarking only surviving files. Full protocol measurements then
+use the exact hash-checked binaries for every request.
+
 To rerun the available baseline, both committed isolated experiments, separate
 profiles/counters, and reduced/windowed checks sequentially with one command:
 

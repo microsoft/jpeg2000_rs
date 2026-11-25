@@ -367,15 +367,22 @@ def main():
     dirty = subprocess.check_output(["git", "-C", source, "status", "--porcelain"], text=True).strip()
     if revision != OPENJPEG or dirty:
         raise ValueError("requires clean pinned OpenJPEG 2.5.4 source")
+    decoder_tree = subprocess.check_output(
+        ["git", "-C", options.decoder_source or ROOT, "rev-parse", "HEAD:src"],
+        text=True).strip()
+    if options.reuse_builds:
+        original_environment = json.loads(
+            (options.reuse_builds.resolve() / "environment.json").read_text())
+        if original_environment["architecture"] != platform.machine():
+            raise ValueError("reused binaries are not from this native architecture")
+        decoder_tree = original_environment["decoder_src_tree"]
     write_json(output / "environment.json", {
         "argv": sys.argv, "architecture": platform.machine(), "platform": platform.platform(),
         "affinity": sorted(os.sched_getaffinity(0)), "cpu": options.cpu,
         "openjpeg_revision": revision,
         "rustc": subprocess.check_output(["rustc", "-vV"], text=True),
         "cc": subprocess.check_output([os.getenv("CC", "cc"), "--version"], text=True),
-        "decoder_src_tree": subprocess.check_output(
-            ["git", "-C", options.decoder_source or ROOT, "rev-parse", "HEAD:src"],
-            text=True).strip(),
+        "decoder_src_tree": decoder_tree,
         "timing": "decode through output creation; input read, destruction, dump and CSV excluded",
         "runner_sha256": sha(Path(__file__).read_bytes()),
         "maximum_address_space": options.maximum_address_space,

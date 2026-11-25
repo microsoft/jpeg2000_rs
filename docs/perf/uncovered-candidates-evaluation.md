@@ -687,4 +687,22 @@ bindings. Eleven focused Python tests pass. No new decoder runtime, model,
 proof, package default, release branch or acceptance tolerance changed.
 A selected-case end-to-end smoke builds and records the actual clean
 `f4b2b7b` decoder source separately; its shortened iterations are not speed
-evidence. Full current-main timing is the next step.
+evidence. The full current-main A-D matrix is now running on all 65 relevant
+cases in generic/consumer/native configurations, with the original 15-iteration
+AND two-second, three-warmup, reversed-process protocol. The 8K streams are
+reserved for separately bound discard/window requests, not mislabeled as
+windowed-decoding measurements when decoded fully.
+
+The expanded one-command flow is
+[`expanded.sh`](../../tools/bench-vs-openjpeg/expanded.sh). It prepares and
+inventories the whole corpus, records actual source/binary identity, then runs
+A-D and all three 8K streams at discard 1/2/3 and a 512-square window. Reused
+builds retain their original recorded source identity; no current source label
+is inferred from whatever checkout happens to host the script.
+
+External class-G rights metadata was also inspected before acquisition:
+`openjpeg-data` conformance's COPYRIGHT grants JPEG-2000 conformance-testing use
+with the notice retained, but is not an unrestricted MIT data license.
+Nonregression files have several distinct origins; its PngSuite subdirectory
+has an explicit permissive grant, not a blanket grant over every bug attachment.
+These metadata findings are not a claim that external vectors were executed.
