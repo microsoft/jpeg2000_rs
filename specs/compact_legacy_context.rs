@@ -1,6 +1,23 @@
 //! Cached bytes yield the existing checked neighbor summary, in its actual order.
 use super::*;
 verus! {
+pub(crate) proof fn compact_mask_context(sig:u8,neg:u8,orientation:crate::tier1::SubbandOrientation)
+    ensures (sig==0)==(
+        compact_flag_summary(sig,neg).horizontal_significant as nat
+            +compact_flag_summary(sig,neg).vertical_significant as nat
+            +compact_flag_summary(sig,neg).diagonal_significant as nat==0),
+        part1_legacy_zero_context(compact_flag_summary(sig,neg),orientation)
+            ==part1_legacy_zero_context(compact_flag_summary(sig,0),orientation),
+{
+    assert((sig & 0x18u8==0)==((((sig>>3)&1u8)+((sig>>4)&1u8))==0)) by(bit_vector);
+    assert((sig & 0x42u8==0)==((((sig>>1)&1u8)+((sig>>6)&1u8))==0)) by(bit_vector);
+    assert((sig & 0xa5u8==0)==(((sig&1u8)+((sig>>2)&1u8)+((sig>>5)&1u8)+((sig>>7)&1u8))==0)) by(bit_vector);
+    assert((sig==0)==(sig & 0x18u8==0 && sig & 0x42u8==0 && sig & 0xa5u8==0)) by(bit_vector);
+    assert(((sig>>3)&1u8)<=1 && ((sig>>4)&1u8)<=1
+        && ((sig>>1)&1u8)<=1 && ((sig>>6)&1u8)<=1
+        && (sig&1u8)<=1 && ((sig>>2)&1u8)<=1
+        && ((sig>>5)&1u8)<=1 && ((sig>>7)&1u8)<=1) by(bit_vector);
+}
 pub(crate) open spec fn compact_neighbor_kind(d:u32)->u8 {
     if d==3 || d==4{0u8}else if d==1 || d==6{1u8}else{2u8}
 }

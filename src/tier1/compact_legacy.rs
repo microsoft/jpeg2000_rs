@@ -30,6 +30,7 @@ const DIRECTIONS: [(i32, i32); 8] = [
     (1, 1),
 ];
 
+#[cfg(test)]
 const ZERO_NORMAL: [u8; 256] = [
     0, 1, 3, 3, 1, 2, 3, 3, 5, 6, 7, 7, 6, 6, 7, 7, 5, 6, 7, 7, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
     1, 2, 3, 3, 2, 2, 3, 3, 6, 6, 7, 7, 6, 6, 7, 7, 6, 6, 7, 7, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
@@ -40,6 +41,7 @@ const ZERO_NORMAL: [u8; 256] = [
     3, 3, 4, 4, 3, 3, 4, 4, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
     3, 3, 4, 4, 3, 3, 4, 4, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
 ];
+#[cfg(test)]
 const ZERO_HL: [u8; 256] = [
     0, 1, 5, 6, 1, 2, 6, 6, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 4, 4, 7, 7, 4, 4, 7, 7,
     1, 2, 6, 6, 2, 2, 6, 6, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 4, 4, 7, 7, 4, 4, 7, 7,
@@ -50,6 +52,7 @@ const ZERO_HL: [u8; 256] = [
     6, 6, 8, 8, 6, 6, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8,
     6, 6, 8, 8, 6, 6, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8,
 ];
+#[cfg(test)]
 const ZERO_HH: [u8; 256] = [
     0, 3, 1, 4, 3, 6, 4, 7, 1, 4, 2, 5, 4, 7, 5, 7, 1, 4, 2, 5, 4, 7, 5, 7, 2, 5, 2, 5, 5, 7, 5, 7,
     3, 6, 4, 7, 6, 8, 7, 8, 4, 7, 5, 7, 7, 8, 7, 8, 4, 7, 5, 7, 7, 8, 7, 8, 5, 7, 5, 7, 7, 8, 7, 8,
@@ -67,12 +70,7 @@ const ZERO_HH: [u8; 256] = [
 ))]
 #[inline]
 fn cached_zero_context(sig: u8, orientation: SubbandOrientation) -> u8 {
-    let table = match orientation {
-        SubbandOrientation::Hl => &ZERO_HL,
-        SubbandOrientation::Hh => &ZERO_HH,
-        _ => &ZERO_NORMAL,
-    };
-    table[usize::from(sig)]
+    super::state::zero_coding_context(word_flag_summary(sig, 0), orientation)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -109,6 +107,15 @@ mod cached_context_tests {
                             SubbandOrientation::Lh,
                             SubbandOrientation::Hh,
                         ] {
+                            let table = match orientation {
+                                SubbandOrientation::Hl => &ZERO_HL,
+                                SubbandOrientation::Hh => &ZERO_HH,
+                                _ => &ZERO_NORMAL,
+                            };
+                            assert_eq!(
+                                cached_zero_context(mask, orientation),
+                                table[usize::from(mask)]
+                            );
                             assert_eq!(
                                 cached_zero_context(mask, orientation),
                                 zero_coding_context(summary, orientation),
@@ -636,6 +643,14 @@ impl CompactPlane {
             crate::specs::compact_index(self.width,self.height,self.entries@,coordinate.0,coordinate.1);
         }
         let (x, y) = coordinate;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::compact_cached_summary(self.width,self.height,self.entries@,x,y,causal);
+            let mask=if causal && y%4==3{0x1fu8}else{0xffu8};
+            crate::specs::compact_mask_context(
+                ((self.entries@[(y*self.width+x) as int]>>41) as u8)&mask,
+                ((self.entries@[(y*self.width+x) as int]>>49) as u8)&mask,orientation);
+        }
         stats.coefficients_scanned += 1;
         let index = y * self.width + x;
         if self.entries[index] & SIG == 0 {
@@ -759,6 +774,14 @@ impl CompactPlane {
             crate::specs::compact_index(self.width,self.height,self.entries@,coordinate.0,coordinate.1);
         }
         let (x, y) = coordinate;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::compact_cached_summary(self.width,self.height,self.entries@,x,y,causal);
+            let mask=if causal && y%4==3{0x1fu8}else{0xffu8};
+            crate::specs::compact_mask_context(
+                ((self.entries@[(y*self.width+x) as int]>>41) as u8)&mask,
+                ((self.entries@[(y*self.width+x) as int]>>49) as u8)&mask,orientation);
+        }
         let index = y * self.width + x;
         if self.entries[index] & SIG == 0 && !state.significance_visited[index] {
             let sig = significance_mask(self.entries[index], y, causal);
@@ -833,6 +856,11 @@ impl CompactPlane {
         proof! {
             crate::specs::compact_index(self.width,self.height,self.entries@,x,y);
             reveal(crate::specs::part1_legacy_cleanup_candidate);reveal(super::legacy_bitplane_view);
+            crate::specs::compact_cached_summary(self.width,self.height,self.entries@,x,y,causal);
+            let mask=if causal && y%4==3{0x1fu8}else{0xffu8};
+            crate::specs::compact_mask_context(
+                ((self.entries@[(y*self.width+x) as int]>>41) as u8)&mask,
+                ((self.entries@[(y*self.width+x) as int]>>49) as u8)&mask,SubbandOrientation::Ll);
         }
         self.entries[y * self.width + x] & SIG == 0
             && !state.significance_visited[y * self.width + x]
