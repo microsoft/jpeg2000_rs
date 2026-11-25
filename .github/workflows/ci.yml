@@ -33,6 +33,7 @@ on:
           - pdfium
           - zune-acceptance
           - native-comparison
+          - uncovered-evaluation
       consumer_evidence_run:
         description: Prior actual-zune run for fixed-corpus artifact execution
         required: false
@@ -56,6 +57,77 @@ permissions:
   contents: read
 
 jobs:
+  uncovered-evaluation:
+    name: Optional uncovered evaluation (native x86-64)
+    if: github.event_name == 'workflow_dispatch' && inputs.consumer_benchmark && inputs.consumer_benchmark_scope == 'uncovered-evaluation'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: evaluation
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: decoder
+          ref: f4b2b7b29d38fa31bd74263913462bb67d6e5e4e
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.12'
+      - name: Pin compiler and image preparation
+        run: |
+          rustup toolchain install 1.93.1 --profile minimal
+          python3 -m pip install -r evaluation/tools/bench-vs-openjpeg/requirements-corpus.txt
+          python3 -m unittest discover -s evaluation/tools/bench-vs-openjpeg -p 'test_*.py' -v
+      - name: Build pinned reference encoder
+        env:
+          WORK: ${{ runner.temp }}/uncovered-evaluation
+        run: |
+          mkdir -p "$WORK"
+          git clone --depth 1 --branch v2.5.4 https://github.com/uclouvain/openjpeg.git "$RUNNER_TEMP/openjpeg254"
+          test "$(git -C "$RUNNER_TEMP/openjpeg254" rev-parse HEAD)" = 6c4a29b00211eb0430fa0e5e890f1ce5c80f409f
+          cmake -S "$RUNNER_TEMP/openjpeg254" -B "$RUNNER_TEMP/encoder254" \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DBUILD_CODEC=ON \
+            -DBUILD_TESTING=OFF -DBUILD_JPIP=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            "-DCMAKE_C_FLAGS_RELEASE=-O3 -DNDEBUG -ffp-contract=off -march=x86-64" \
+            -DCMAKE_DISABLE_FIND_PACKAGE_PNG=TRUE -DCMAKE_DISABLE_FIND_PACKAGE_TIFF=TRUE \
+            -DCMAKE_DISABLE_FIND_PACKAGE_LCMS2=TRUE -DCMAKE_DISABLE_FIND_PACKAGE_LCMS=TRUE
+          cmake --build "$RUNNER_TEMP/encoder254" --parallel 2 --target opj_compress
+      - name: Prepare canonical x86 corpus and measure declared small-image scope
+        env:
+          WORK: ${{ runner.temp }}/uncovered-evaluation
+          RUSTUP_TOOLCHAIN: 1.93.1
+        run: |
+          TOOL="$GITHUB_WORKSPACE/evaluation/tools/bench-vs-openjpeg"
+          test "$(git -C decoder rev-parse HEAD)" = f4b2b7b29d38fa31bd74263913462bb67d6e5e4e
+          python3 "$TOOL/corpus.py" --output "$WORK/corpus" --assets "$WORK/assets" \
+            --encoder "$RUNNER_TEMP/encoder254/bin/opj_compress"
+          CPU=$(python3 -c 'import os; print(min(os.sched_getaffinity(0)))')
+          python3 "$TOOL/run.py" --output "$WORK/timings" \
+            --openjpeg-source "$RUNNER_TEMP/openjpeg254" --decoder-source "$GITHUB_WORKSPACE/decoder" \
+            --corpus-manifest "$WORK/corpus/manifest.json" \
+            --configs generic,consumer,x86-64-v3,native --case '^(?!roi8k|day-large)' --cpu "$CPU"
+          objdump -d -C "$WORK/timings/x86-64-v3/cargo/release/bench-vs-openjpeg" \
+            > "$WORK/x86-64-v3-final.asm"
+          echo "This hosted scope excludes large/8K cases; canonical input hashes must match before cross-host pooling." \
+            > "$WORK/SCOPE.txt"
+      - name: Collect raw observations, canonical inputs and disassembly
+        if: always()
+        env:
+          WORK: ${{ runner.temp }}/uncovered-evaluation
+        run: |
+          python3 evaluation/tools/bench-vs-openjpeg/collect.py \
+            --work "$WORK" --output "$RUNNER_TEMP/uncovered-evidence"
+      - name: Preserve exact corpus and all outcomes, including partial failure
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: uncovered-x86-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/uncovered-evidence
+          retention-days: 30
+          if-no-files-found: error
+
   consumer-benchmark:
     name: Optional consumer tuning (${{ matrix.os }})
     if: github.event_name == 'workflow_dispatch' && inputs.consumer_benchmark && inputs.consumer_benchmark_scope == 'standalone'

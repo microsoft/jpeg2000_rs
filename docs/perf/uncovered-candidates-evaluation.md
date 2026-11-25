@@ -639,11 +639,26 @@ weakened proof/safety guarantees, or claims that missing cells passed.
 
 ## 8. Continuation on 25 November
 
-The user enabled JIT at 08:51 UTC. Both the session GitHub CLI credential and
+The user enabled JIT at 08:51 UTC. At that time both the session GitHub CLI credential and
 the repository's existing noninteractive Git credential still authenticate as
 `telecos` with read access; repository API reports `push: false`, and the exact
 two prototype refs still receive HTTP 403. No write permission or proof-workflow
 success is inferred from host JIT activation. Corpus work continues separately.
+
+At 09:55 UTC the user restored the expired JIT grant. A fresh API check then
+reported `push: true`, and normal non-forced pushes of the unchanged C2/C12
+prototype commits succeeded. Exact-source pinned Verus workflows were dispatched:
+
+- C2 `edd777d27cedf56083a18a5a92e7725c1d460fff`:
+  [run 45590181513](https://github.com/microsoft/jpeg2000_rs/actions/runs/45590181513).
+  Failed at the module-only rejection guard; production/package verification
+  was skipped. This is not a successful source or package receipt.
+- C12 `aa1e5ba24ed27fe29c501b2e4455b3d6c530b67e`:
+  [run 45590186006](https://github.com/microsoft/jpeg2000_rs/actions/runs/45590186006).
+  Production verification is in progress.
+
+The original snapshot's access blocker is historical, not the current gate.
+No administrative bypass, protection change, merge, issue or publication was used.
 
 Incremental coverage refresh read all 12 changed records in full:
 91 issues /394 PRs, including new #492/#493. #485/#486/#488/#489 and their
@@ -692,6 +707,14 @@ cases in generic/consumer/native configurations, with the original 15-iteration
 AND two-second, three-warmup, reversed-process protocol. The 8K streams are
 reserved for separately bound discard/window requests, not mislabeled as
 windowed-decoding measurements when decoded fully.
+
+The report branch adds one manually selected `uncovered-evaluation` CI scope;
+push/PR/default dispatch behavior is unchanged. It measures the 57 smaller A-D
+cases on native x86-64 in generic/consumer/x86-64-v3/native profiles against
+the same pinned `f4b2b7b` decoder. Large/8K hosted timing remains explicitly
+excluded. Its artifact collector preserves canonical encoded inputs and raw
+outcomes with hashes, omitting caches and pixel dumps; 12 focused tooling tests
+now pass. Cross-host pooling is forbidden until input hashes match.
 
 The expanded one-command flow is
 [`expanded.sh`](../../tools/bench-vs-openjpeg/expanded.sh). It prepares and

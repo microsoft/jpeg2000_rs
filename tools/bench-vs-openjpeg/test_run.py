@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import sys
+import subprocess
 import unittest
 
 from run import capture, check_source, compare_dumps, execute, load_corpus, read_dump, sha
@@ -16,6 +17,27 @@ def dump(width, height, values, signed=0, precision=8):
 
 
 class ComparisonTests(unittest.TestCase):
+    def test_collection_preserves_inputs_and_raw_results_without_caches_or_dumps(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            work, output = root / "work", root / "evidence"
+            for name in ["timings/COMPLETE.json", "timings/raw.csv", "corpus/test.j2k",
+                         "timings/generic/cargo/cache.json", "timings/rust-dump.stdout"]:
+                path = work / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"fixture")
+            command = [sys.executable, Path(__file__).with_name("collect.py"),
+                       "--work", work, "--output", output]
+            subprocess.run(command, check=True, capture_output=True)
+            index = json.loads((output / "INDEX.json").read_text())
+            self.assertTrue(index["timing_matrix_complete"])
+            self.assertEqual({entry["path"] for entry in index["entries"]},
+                             {"timings/COMPLETE.json", "timings/raw.csv", "corpus/test.j2k"})
+            self.assertTrue(all(entry["sha256"] == sha(b"fixture") for entry in index["entries"]))
+            self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
+            command[-1] = work / "nested"
+            self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
+
     def test_refusal_capture_retains_status_and_default_execution_still_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

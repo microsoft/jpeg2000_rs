@@ -143,6 +143,21 @@ failure stops the command after saving the complete inventory, rather than
 silently benchmarking only surviving files. Full protocol measurements then
 use the exact hash-checked binaries for every request.
 
+The report branch also adds an opt-in `ci.yml` dispatch scope:
+`consumer_benchmark=true`, `consumer_benchmark_scope=uncovered-evaluation`.
+It pins decoder `f4b2b7b29d38fa31bd74263913462bb67d6e5e4e`, Rust 1.93.1
+and OpenJPEG 2.5.4, and measures the smaller A-D inputs on native x86-64 in
+generic, consumer, x86-64-v3 and native profiles. The 20.7MP and 8K inputs
+are explicitly excluded from that hosted timing scope, not declared qualified.
+No default CI behavior changes. Artifacts retain canonical encoded inputs,
+raw observations, outcomes, metadata and v3 final-binary disassembly, not
+build caches or full pixel dumps. Cross-host pooling requires matching input
+hashes; independently regenerated lossy streams are not presumed identical.
+
+`collect.py --work WORK --output FRESH_SIBLING_DIRECTORY` performs this
+portable evidence collection with a hashed index and an explicit completion
+indicator. It refuses to overwrite a collection or place it inside its source.
+
 To rerun the available baseline, both committed isolated experiments, separate
 profiles/counters, and reduced/windowed checks sequentially with one command:
 
