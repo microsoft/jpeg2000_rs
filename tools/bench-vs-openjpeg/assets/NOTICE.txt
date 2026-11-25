@@ -1,0 +1,20 @@
+Photographic benchmark sources (not covered by the crate's MIT license)
+
+Credit: NASA Johnson Space Center, Earth Science and Remote Sensing Unit.
+These NASA US-government photographs are public domain in the United States.
+No NASA endorsement is implied. NASA names and insignia are not licensed here.
+NASA media policy: https://www.nasa.gov/nasa-brand-center/images-and-media/
+
+ISS066-E-2729.jpg
+Source: https://commons.wikimedia.org/wiki/File:ISS066-E-2729_-_View_of_Earth.jpg
+SHA256: 02a5b21f74555643fd027fe0ad94397bc0a7a32734e0554d20a06c7816463bbc
+
+ISS066-E-47096.jpg
+Source: https://commons.wikimedia.org/wiki/File:ISS066-E-47096_-_View_of_Earth.jpg
+SHA256: d805ffca520ff935716a8918f34bdc21c21ef7905d65aad3344f97ada3b202ad
+
+Both source pages' PD-USGov-NASA notices were checked on 25 November 2026.
+The byte-identical originals are retained for offline reproducibility because
+the public download host refused acquisition from the hosted CI runner.
+Generated PNM/JPEG-2000 inputs are not vendored. corpus.py checks both original
+hashes before deriving any sources and records every derivative and command.

@@ -110,7 +110,7 @@ jobs:
         run: |
           TOOL="$GITHUB_WORKSPACE/evaluation/tools/bench-vs-openjpeg"
           test "$(git -C decoder rev-parse HEAD)" = f4b2b7b29d38fa31bd74263913462bb67d6e5e4e
-          python3 "$TOOL/corpus.py" --output "$WORK/corpus" --assets "$WORK/assets" \
+          python3 "$TOOL/corpus.py" --output "$WORK/corpus" --assets "$TOOL/assets" \
             --encoder "$RUNNER_TEMP/encoder254/bin/opj_compress"
           CPU=$(python3 -c 'import os; print(min(os.sched_getaffinity(0)))')
           if [ "$STUDY" = uncovered-instructions ]; then

@@ -164,6 +164,11 @@ No default CI behavior changes. Artifacts retain canonical encoded inputs,
 raw observations, outcomes, metadata and v3 final-binary disassembly, not
 build caches or full pixel dumps. Cross-host pooling requires matching input
 hashes; independently regenerated lossy streams are not presumed identical.
+The two small original NASA photographs are retained with their separate
+[public-domain notice](assets/NOTICE.txt), credit and pinned hashes. Use
+`--assets tools/bench-vs-openjpeg/assets` for offline preparation. Hosted
+acquisition received HTTP 403; CI uses these same licensed bytes rather than
+retrying through an alternate identity or weakening download hash checks.
 The separate `uncovered-instructions` scope builds the same four configurations
 and records Callgrind process instruction counts for one declared representative
 of each A-D family. Its shortened build checks are not timing evidence.
