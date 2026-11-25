@@ -15511,7 +15511,9 @@
         {"path": "src/tier1/ht_checkpoint.rs", "symbol": "retain_ht_cleanup"},
         {"path": "src/decode/execution.rs", "symbol": "decode_tile_parts_at"},
         {"path": "src/decode/private_ht.rs", "symbol": "standard_eligible"},
+        {"path": "src/decode/private_ht.rs", "symbol": "standard_component_eligible"},
         {"path": "src/decode/private_ht.rs", "symbol": "plan_standard"},
+        {"path": "src/decode/private_ht.rs", "symbol": "plan_standard_component"},
         {"path": "src/decode/private_ht.rs", "symbol": "decode_standard"},
         {"path": "src/packet/private_ht.rs", "symbol": "new_private_ht_resolution_precinct"},
         {"path": "src/packet/private_ht.rs", "symbol": "decode_private_ht_resolution_packets"},
@@ -15531,9 +15533,12 @@
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_selected"},
         {"path": "specs/private_ht_standard_plan.rs", "symbol": "private_ht_standard_eligible"},
         {"path": "specs/private_ht_standard_plan.rs", "symbol": "private_standard_plan_run"},
+        {"path": "specs/private_ht_standard_plan.rs", "symbol": "private_standard_components_run"},
+        {"path": "specs/private_ht_standard_plan.rs", "symbol": "private_standard_component_run"},
         {"path": "specs/private_ht_standard_precinct.rs", "symbol": "private_resolution_initial_run"},
         {"path": "specs/private_ht_standard_packet.rs", "symbol": "private_resolution_decode_run"},
-        {"path": "specs/private_ht_standard_image.rs", "symbol": "private_standard_image_run"}
+        {"path": "specs/private_ht_standard_image.rs", "symbol": "private_standard_image_run"},
+        {"path": "specs/private_ht_standard_image.rs", "symbol": "private_standard_reconstruction_run"}
       ],
       "proof_refs": [
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_state"},
@@ -15570,6 +15575,8 @@
         {"path": "src/tier1/ht_checkpoint.rs", "symbol": "checkpoint_header_snapshot_keeps_full_raw_dimensions_and_payload"},
         {"path": "src/decode/tests.rs", "symbol": "private_ht_standard_admission_uses_complete_effective_styles_and_preserves_wide_results"},
         {"path": "src/decode/tests.rs", "symbol": "private_ht_standard_decompositions_keep_resolution_geometry_empty_bands_and_limits"},
+        {"path": "src/decode/tests.rs", "symbol": "private_ht_components_keep_global_packet_indices_mct_suffix_and_first_errors"},
+        {"path": "src/decode/tests.rs", "symbol": "private_ht_components_effective_overrides_fallback_without_reclassifying_mct_errors"},
         {"path": "src/tier1/private_ht.rs", "symbol": "private_primary_standard_orientations_survive_staging_entropy_and_retention"}
       ]
     },

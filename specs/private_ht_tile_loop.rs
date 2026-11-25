@@ -31,14 +31,14 @@ pub(crate) proof fn private_grid_layout_fields(grid:Part1PacketGrid,precinct:Par
 }
 
 pub(crate) open spec fn private_precinct_wf(state:PrivateHtPrecinctState)->bool {
-    state.logical.component==0
-        && state.packed.len()==state.logical.decoders.len()
+    state.packed.len()==state.logical.decoders.len()
         && forall|i:int|0<=i<state.logical.decoders.len() ==> #[trigger] private_ht_state_wf(
             PrivateHtDecoderState{logical:state.logical.decoders[i],packed:state.packed[i]})
 }
 
 pub(crate) open spec fn private_tile_wf(state:PrivateTileExecution)->bool {
-    private_precinct_wf(state.precinct) && state.precinct.logical.resolution==0 && state.precinct.logical.precinct==0
+    private_precinct_wf(state.precinct) && state.precinct.logical.component==0
+        && state.precinct.logical.resolution==0 && state.precinct.logical.precinct==0
         && state.progress.packed_offset==0
 }
 

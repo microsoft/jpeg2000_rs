@@ -200,7 +200,7 @@ The implementation contains:
   format-support claim.
   The separate standard-DWT private-owner extension carries actual
   resolution/subband/precinct geometry through the same ownership family.
-  It retains the single-component/single-part, implicit-precinct, origin-zero
+  It retains the single-part, implicit-precinct, origin-zero
   structural restrictions and the compiled cooperative fallback. It
   requires complete effective main/component coding-style equality: a
   redundant COC is equivalent to an ignored COM when their complete resolved
@@ -208,6 +208,12 @@ The implementation contains:
   Historical zero-DWT qualification does not qualify the extension, which is
   not an adoption or performance claim; see
   [PROOFS.md](PROOFS.md#standard-dwt-private-owner-extension).
+  The current multi-component continuation uses the same private coefficient
+  family and existing standard RCT/ICT finalization, with real component-plan
+  collection and suffix preservation. Effective mixed styles, custom transforms
+  and compiled cooperative-deadline builds retain the wide path. This continuation
+  has separately revision-bound source/archive/native qualification requirements;
+  historical single-component results are not inherited.
 - Reversible 5/3 and fixed-point irreversible 9/7 synthesis.
   Odd-origin high-only singleton operators use arithmetic half in the
   retained-assertion engineering profile. Actual encoded singleton-tile

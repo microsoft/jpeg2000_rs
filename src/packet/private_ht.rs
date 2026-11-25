@@ -11,6 +11,7 @@ use crate::{DecodeError, MalformedKind, Resource, ResourceLimits};
 use vstd::prelude::*;
 
 pub(crate) struct PrivateHtPrecinct {
+    component: u16,
     resolution: u8,
     precinct: u32,
     states: Vec<CodeBlockPacketState>,
@@ -79,17 +80,18 @@ fn admit_private_resolution_execution(
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires forall|i:int|0<=i<before.len() ==> #[trigger] before@[i].invariant(),
     ensures crate::specs::private_resolution_initial_result(crate::specs::PrivateResolutionInitialContext {
-        resolution,precinct:precinct_number,style,executions:private_executions_view(before@),limits:*limits,
+        component,resolution,precinct:precinct_number,style,executions:private_executions_view(before@),limits:*limits,
     },private_precinct_outcome(result)),
     private_precinct_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
         private_precinct_outcome(result)==crate::specs::private_resolution_initial_value(
             crate::specs::PrivateResolutionInitialContext {
-                resolution,precinct:precinct_number,style,executions:private_executions_view(before@),limits:*limits,
+                component,resolution,precinct:precinct_number,style,executions:private_executions_view(before@),limits:*limits,
             }),
-    match result{Ok(value)=>value.invariant() && value.view().resolution==resolution
+    match result{Ok(value)=>value.invariant() && value.view().component==component && value.view().resolution==resolution
         && value.view().precinct==precinct_number,Err(_)=>true},
 ))]
 pub(crate) fn new_private_ht_resolution_precinct(
+    component: u16,
     resolution: u8,
     precinct_number: u32,
     style: Tier1CodingStyle,
@@ -99,7 +101,7 @@ pub(crate) fn new_private_ht_resolution_precinct(
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost context=crate::specs::PrivateResolutionInitialContext {
-            resolution,precinct:precinct_number,style,executions:private_executions_view(before@),limits:*limits,
+            component,resolution,precinct:precinct_number,style,executions:private_executions_view(before@),limits:*limits,
         };
         let ghost root=|events|crate::specs::private_resolution_initial_run(context,events);
         let ghost mut prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
@@ -133,6 +135,7 @@ pub(crate) fn new_private_ht_resolution_precinct(
         if reserved.is_ok(){prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,());}
     }
     let mut precinct = PrivateHtPrecinct {
+        component,
         resolution,
         precinct: precinct_number,
         states: Vec::new(),
@@ -154,8 +157,9 @@ pub(crate) fn new_private_ht_resolution_precinct(
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant index<=executions.len(),executions.len()==context.executions.len(),executions.len()<=3,
             context==(crate::specs::PrivateResolutionInitialContext {
-                resolution,precinct:precinct_number,style,executions:private_executions_view(before@),limits:*limits,
+                component,resolution,precinct:precinct_number,style,executions:private_executions_view(before@),limits:*limits,
             }),
+            context.component==component,precinct.component==component,
             context.resolution==resolution,context.precinct==precinct_number,precinct.precinct==precinct_number,
             context.style==style,context.limits==*limits,
             precinct.resolution==resolution,precinct.invariant(),precinct.subbands.len()==index,
@@ -372,11 +376,16 @@ fn validate_private_resolution_layout(
         #[cfg(verus_keep_ghost)]
         proof! {
             precincts@[index as int].known_fields();
+            reveal(PrivateHtPrecinct::component_view);
             reveal(PrivateHtPrecinct::resolution_view);
             reveal(PrivateHtPrecinct::precinct_view);
             reveal(crate::specs::part1_progression_precinct_indices);
         }
-        if grid.precinct_index(0, precincts[index].resolution, precincts[index].precinct)? != index
+        if grid.precinct_index(
+            precincts[index].component,
+            precincts[index].resolution,
+            precincts[index].precinct,
+        )? != index
         {
             return Err(invalid_packet_header());
         }
@@ -430,8 +439,8 @@ fn prepare_private_resolution_input(
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires forall|i:int|0<=i<precincts.len() ==> #[trigger] precincts@[i].invariant(),
-        parts.len()==1,super::packet_grid_view(grid).components==1,
-        super::packet_grid_view(grid).component_resolutions.len()==1,
+        parts.len()==1,super::packet_grid_view(grid).components>0,
+        super::packet_grid_view(grid).component_resolutions.len()==super::packet_grid_view(grid).components,
         (match crate::codestream::tile_parts_owned_view(parts@)[0].packed_packet_headers.source{crate::specs::Part1PackedHeaderSource::None=>true,_=>false}),
         (match crate::codestream::tile_parts_owned_view(parts@)[0].packet_lengths.source{crate::specs::Part1PacketLengthSource::None=>true,_=>false}),
         selection.is_none() || super::packet_selection_view(selection)==Some(super::packet_grid_view(grid).component_resolutions),
@@ -778,7 +787,7 @@ verus! {
     impl PrivateHtPrecinct {
         pub(crate) closed spec fn view(&self)->crate::specs::Part1PacketPrecinctState {
             crate::specs::Part1PacketPrecinctState {
-                component:0,resolution:self.resolution,precinct:self.precinct,
+                component:self.component,resolution:self.resolution,precinct:self.precinct,
                 states:self.states@.map_values(|state:CodeBlockPacketState|super::code_block_packet_state_view(&state)),
                 contexts:self.contexts@,
                 decoders:self.decoders@.map_values(|decoder:PrivateHtDecoder|decoder.view()),
@@ -797,6 +806,9 @@ verus! {
         pub(crate) closed spec fn resolution_view(&self)->u8 {
             self.resolution
         }
+        pub(crate) closed spec fn component_view(&self)->u16 {
+            self.component
+        }
         pub(crate) closed spec fn precinct_view(&self)->u32 {
             self.precinct
         }
@@ -806,7 +818,7 @@ verus! {
         pub(crate) proof fn known_fields(&self)
             ensures self.storage_view().logical==self.view(),
                 self.invariant()==crate::specs::private_precinct_wf(self.storage_view()),
-                self.view().component==0,self.view().resolution==self.resolution_view(),self.view().precinct==self.precinct_view(),
+                self.view().component==self.component_view(),self.view().resolution==self.resolution_view(),self.view().precinct==self.precinct_view(),
                 self.storage_view().packed.len()==self.view().decoders.len(),
                 crate::specs::private_precinct_decoder_states(self.storage_view())==
                     self.decoders_view(),
@@ -818,6 +830,7 @@ verus! {
             reveal(PrivateHtPrecinct::view);reveal(PrivateHtPrecinct::storage_view);reveal(PrivateHtPrecinct::invariant);
             reveal(PrivateHtPrecinct::decoders_view);
             reveal(PrivateHtPrecinct::resolution_view);
+            reveal(PrivateHtPrecinct::component_view);
             reveal(PrivateHtPrecinct::precinct_view);
             assert forall|i:int|0<=i<self.decoders.len() implies
                 self.decoders@[i].invariant()==crate::specs::private_ht_state_wf(crate::specs::private_precinct_decoder_states(self.storage_view())[i]) by {
@@ -1110,7 +1123,7 @@ fn prepare_private_payload(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    requires _precinct.invariant(),_precinct.view().resolution==0,_precinct.view().precinct==0,
+    requires _precinct.invariant(),_precinct.view().component==0,_precinct.view().resolution==0,_precinct.view().precinct==0,
         crate::specs::private_grid_shape(super::packet_grid_view(grid)),
     ensures crate::specs::part2_packet_input_result(crate::codestream::tile_parts_owned_view(parts@),super::packet_grid_view(grid),
             seq![_precinct.view()],super::packet_selection_view(selection),limits,super::progression_tile_preparation_outcome(result)),
@@ -1246,7 +1259,8 @@ mod tests {
                 blocks:crate::limits::resource_code_block_limit(limits),work:crate::limits::resource_work_limit(limits),
                 tag_nodes:crate::limits::resource_tag_tree_node_limit(limits),
             }),
-        match result{Ok(value)=>value.invariant() && value.view().resolution==0 && value.view().precinct==0,Err(_)=>true},
+        match result{Ok(value)=>value.invariant() && value.component_view()==0 && value.view().component==0
+            && value.view().resolution==0 && value.view().precinct==0,Err(_)=>true},
 ))]
 pub(crate) fn new_private_ht_precinct(
     across: u32,
@@ -1412,6 +1426,7 @@ pub(crate) fn new_private_ht_precinct(
         assert(crate::specs::part2_cold_prefix(root,prefix+calls,result));
     }
     let precinct = PrivateHtPrecinct {
+        component: 0,
         resolution: 0,
         precinct: 0,
         states,
@@ -1421,6 +1436,7 @@ pub(crate) fn new_private_ht_precinct(
     };
     #[cfg(verus_keep_ghost)]
     proof! {
+        reveal(PrivateHtPrecinct::component_view);
         precinct.known_fields();
         let expected=crate::specs::private_precinct_initial_state(ctx,initial,inclusion,
             super::tag_tree_view(&precinct.subbands@[0].zero_bitplane_tree));
@@ -1449,7 +1465,8 @@ impl PrivateHtPrecinct {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires self.invariant(),
             matches!(crate::codestream::tile_part_owned_view(part).packed_packet_headers.source,crate::specs::Part1PackedHeaderSource::None),
-        ensures final(self).invariant(),final(self).view().resolution==old(self).view().resolution,
+        ensures final(self).invariant(),final(self).view().component==old(self).view().component,
+            final(self).view().resolution==old(self).view().resolution,
             final(self).view().precinct==old(self).view().precinct,
             crate::specs::private_precinct_packet_result(crate::specs::PrivatePrecinctPacketContext {
                 before:old(self).storage_view(),part:crate::codestream::tile_part_owned_view(part),offset:error_offset,sequence,caps:private_packet_caps(limits),
@@ -1524,7 +1541,7 @@ impl PrivateHtPrecinct {
         };
         let style = part
             .component_coding_styles
-            .style(0)?
+            .style(self.component)?
             .tier1_coding_style()?;
         let parameters = PrecinctPayloadParameters {
             error_offset,
@@ -1545,7 +1562,8 @@ impl PrivateHtPrecinct {
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires self.invariant(),!parameters.packed,parameters.decode_tier1,parameters.expected_packet_length.is_none(),
-        ensures final(self).invariant(),final(self).resolution_view()==old(self).resolution_view(),
+        ensures final(self).invariant(),final(self).component_view()==old(self).component_view(),
+            final(self).resolution_view()==old(self).resolution_view(),
             final(self).precinct_view()==old(self).precinct_view(),
             crate::specs::private_payload_result(old(self).storage_view(),data@,super::precinct_payload_parameters_view(parameters),
                 private_packet_caps(limits),(result,final(self).storage_view())),
@@ -1568,6 +1586,7 @@ impl PrivateHtPrecinct {
         proof! {
             reveal(PrivateHtPrecinct::view);reveal(PrivateHtPrecinct::storage_view);reveal(PrivateHtPrecinct::invariant);
             reveal(private_packet_caps);
+            reveal(PrivateHtPrecinct::component_view);
             reveal(super::precinct_payload_parameters_view);reveal(super::precinct_payload_reader_view);
             reveal(super::precinct_header_view);reveal(super::packet_body_contributions_view);
             reveal(super::packet_subband_view);reveal(super::packet_bit_reader_view);
@@ -1678,7 +1697,8 @@ impl PrivateHtPrecinct {
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires self.invariant(),!parameters.packed,parameters.decode_tier1,parameters.expected_packet_length.is_none(),
-        ensures final(self).invariant(),final(self).resolution_view()==old(self).resolution_view(),
+        ensures final(self).invariant(),final(self).component_view()==old(self).component_view(),
+            final(self).resolution_view()==old(self).resolution_view(),
             final(self).precinct_view()==old(self).precinct_view(),
             crate::specs::private_payload_after_result(old(self).storage_view(),super::precinct_payload_parameters_view(parameters),data@,
                 private_header_view(header),private_packet_caps(limits),(result,final(self).storage_view())),
@@ -1702,6 +1722,7 @@ impl PrivateHtPrecinct {
         proof! {
             reveal(PrivateHtPrecinct::view);reveal(PrivateHtPrecinct::storage_view);reveal(PrivateHtPrecinct::invariant);
             reveal(private_packet_caps);reveal(private_header_view);reveal(super::precinct_payload_header_view);
+            reveal(PrivateHtPrecinct::component_view);
             reveal(super::precinct_payload_reader_view);
         }
         let count = self.states.len() as u64;
@@ -1778,10 +1799,12 @@ impl PrivateHtPrecinct {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        requires self.invariant(),self.view().resolution==0,self.view().precinct==0,
+        requires self.invariant(),self.view().component==0,self.view().resolution==0,self.view().precinct==0,
             crate::specs::private_tile_parameters(super::progression_tile_parameters_view(params)),
             super::progression_tile_progress_view(p).packed_offset==0,
-        ensures final(self).invariant(),final(self).resolution_view()==old(self).resolution_view(),
+        ensures final(self).invariant(),final(self).view().component==0,
+            final(self).component_view()==old(self).component_view(),
+            final(self).resolution_view()==old(self).resolution_view(),
             final(self).precinct_view()==old(self).precinct_view(),
             super::progression_tile_progress_view(final(p)).packed_offset==0,
             crate::specs::private_tile_packet_result(super::progression_tile_parameters_view(params),
@@ -1879,10 +1902,10 @@ impl PrivateHtPrecinct {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        requires self.invariant(),self.view().resolution==0,self.view().precinct==0,
+        requires self.invariant(),self.view().component==0,self.view().resolution==0,self.view().precinct==0,
             crate::specs::private_tile_parameters(super::progression_tile_parameters_view(params)),
             super::progression_tile_progress_view(p).packed_offset==0,
-        ensures final(self).invariant(),final(self).view().resolution==0,final(self).view().precinct==0,
+        ensures final(self).invariant(),final(self).view().component==0,final(self).view().resolution==0,final(self).view().precinct==0,
             super::progression_tile_progress_view(final(p)).packed_offset==0,
             crate::specs::private_tile_run_result(super::progression_tile_parameters_view(params),
                 old(self).tile_view(old(p)),(result,final(self).tile_view(final(p)))),
@@ -1907,7 +1930,8 @@ impl PrivateHtPrecinct {
             crate::specs::private_tile_value_fields(context,initial);
         }
         #[cfg_attr(verus_keep_ghost, verus_spec(
-            invariant self.invariant(),self.view().resolution==0,self.view().precinct==0,
+            invariant self.invariant(),self.view().component==0,self.view().resolution==0,self.view().precinct==0,
+                self.component_view()==0,
                 self.resolution_view()==0,self.precinct_view()==0,
                 super::progression_tile_progress_view(p).packed_offset==0,
                 initial==old(self).tile_view(old(p)),
@@ -1975,7 +1999,7 @@ impl PrivateHtPrecinct {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        requires self.invariant(),self.view().resolution==0,self.view().precinct==0,
+        requires self.invariant(),self.view().component==0,self.view().resolution==0,self.view().precinct==0,
             parts.len()==1,crate::specs::private_grid_shape(super::packet_grid_view(grid)),
             (match crate::codestream::tile_parts_owned_view(parts@)[0].packed_packet_headers.source{crate::specs::Part1PackedHeaderSource::None=>true,_=>false}),
             (match crate::codestream::tile_parts_owned_view(parts@)[0].packet_lengths.source{crate::specs::Part1PacketLengthSource::None=>true,_=>false}),

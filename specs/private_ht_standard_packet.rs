@@ -23,7 +23,7 @@ pub(crate) open spec fn private_resolution_tile_wf(value:PrivateResolutionTileEx
 }
 
 pub(crate) open spec fn private_resolution_tile_parameters(params:Part1TilePacketParameters)->bool {
-    params.parts.len()==1 && params.grid.components==1 && params.grid.component_resolutions.len()==1
+    params.parts.len()==1 && params.grid.components>0 && params.grid.component_resolutions.len()==params.grid.components
         && (match params.parts[0].packed_packet_headers.source{Part1PackedHeaderSource::None=>true,_=>false})
         && (match params.parts[0].packet_lengths.source{Part1PacketLengthSource::None=>true,_=>false})
         && params.input.packed==seq![Seq::<u8>::empty()]
@@ -146,8 +146,8 @@ pub(crate) proof fn private_resolution_admission_fields(params:Part1TilePacketPa
             index<before.precincts.len() && expected.is_none() && state.progress.packed_offset==0
             && state.precincts==private_precincts_logical(before.precincts)
             && part==params.parts[0] && state.progress.current_tile_part==0
-            && coordinate.component==0
-            && coordinate.resolution<params.grid.component_resolutions[0],
+            && coordinate.component<params.grid.components
+            && coordinate.resolution<params.grid.component_resolutions[coordinate.component as int],
     },
 {}
 
@@ -457,7 +457,7 @@ pub(crate) open spec fn private_resolution_decode_value(parts:Seq<Part2OwnedTile
 
 pub(crate) proof fn private_resolution_input_parameters(parts:Seq<Part2OwnedTilePart>,grid:Part1PacketGrid,
     before:Seq<PrivateHtPrecinctState>,selection:Option<Seq<u8>>,limits:&crate::ResourceLimits,input:Part1TilePacketPreparation)
-    requires parts.len()==1,grid.components==1,grid.component_resolutions.len()==1,
+    requires parts.len()==1,grid.components>0,grid.component_resolutions.len()==grid.components,
         (match parts[0].packed_packet_headers.source{Part1PackedHeaderSource::None=>true,_=>false})
         && (match parts[0].packet_lengths.source{Part1PacketLengthSource::None=>true,_=>false}),
         selection.is_none() || selection==Some(grid.component_resolutions),
@@ -470,7 +470,7 @@ pub(crate) proof fn private_resolution_input_parameters(parts:Seq<Part2OwnedTile
 
 pub(crate) proof fn private_resolution_decode_value_fields(parts:Seq<Part2OwnedTilePart>,grid:Part1PacketGrid,
     before:Seq<PrivateHtPrecinctState>,selection:Option<Seq<u8>>,limits:&crate::ResourceLimits)
-    requires parts.len()==1,grid.components==1,grid.component_resolutions.len()==1,
+    requires parts.len()==1,grid.components>0,grid.component_resolutions.len()==grid.components,
         (match parts[0].packed_packet_headers.source{Part1PackedHeaderSource::None=>true,_=>false})
         && (match parts[0].packet_lengths.source{Part1PacketLengthSource::None=>true,_=>false}),
         selection.is_none() || selection==Some(grid.component_resolutions),
@@ -554,7 +554,7 @@ pub(crate) proof fn private_resolution_decode_observed(parts:Seq<Part2OwnedTileP
 
 pub(crate) proof fn private_resolution_decode_normal(parts:Seq<Part2OwnedTilePart>,grid:Part1PacketGrid,
     before:Seq<PrivateHtPrecinctState>,selection:Option<Seq<u8>>,limits:&crate::ResourceLimits)
-    requires parts.len()==1,grid.components==1,grid.component_resolutions.len()==1,
+    requires parts.len()==1,grid.components>0,grid.component_resolutions.len()==grid.components,
         (match parts[0].packed_packet_headers.source{Part1PackedHeaderSource::None=>true,_=>false}),
         (match parts[0].packet_lengths.source{Part1PacketLengthSource::None=>true,_=>false}),
         selection.is_none() || selection==Some(grid.component_resolutions),

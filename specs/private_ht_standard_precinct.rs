@@ -8,6 +8,7 @@ pub struct PrivateHtExecutionState {
 }
 
 pub struct PrivateResolutionInitialContext {
+    pub component:u16,
     pub resolution:u8,pub precinct:u32,pub style:crate::tier1::Tier1CodingStyle,
     pub executions:Seq<PrivateHtExecutionState>,pub limits:crate::ResourceLimits,
 }
@@ -35,13 +36,13 @@ pub(crate) open spec fn private_precinct_decoder_states(before:PrivateHtPrecinct
 
 pub(crate) open spec fn private_resolution_initial(context:PrivateResolutionInitialContext)->PrivateHtPrecinctState {
     PrivateHtPrecinctState {
-        logical:part2_precinct_initial((0,context.resolution,context.precinct)),packed:Seq::empty(),
+        logical:part2_precinct_initial((context.component,context.resolution,context.precinct)),packed:Seq::empty(),
     }
 }
 
 pub(crate) open spec fn private_resolution_capacity(context:PrivateResolutionInitialContext)->Part2PrecinctCapacityContext {
     Part2PrecinctCapacityContext {
-        location:(0,context.resolution,context.precinct),style:context.style,
+        location:(context.component,context.resolution,context.precinct),style:context.style,
         executions:private_executions_public(context.executions),
     }
 }
@@ -213,7 +214,7 @@ pub(crate) proof fn private_resolution_rows_reference(context:PrivateResolutionI
 pub(crate) proof fn private_resolution_initial_reference(context:PrivateResolutionInitialContext)
     ensures match private_resolution_initial_value(context){
         Err(error)=>Err(error),Ok(value)=>Ok(value.logical),
-    }==part2_precinct_from_executions(0,context.resolution,context.precinct,context.style,private_executions_public(context.executions),&context.limits),
+    }==part2_precinct_from_executions(context.component,context.resolution,context.precinct,context.style,private_executions_public(context.executions),&context.limits),
 {
     if context.executions.len()<=3{
         private_resolution_rows_reference(context,0,private_resolution_initial(context),0);
@@ -248,6 +249,7 @@ pub(crate) proof fn private_resolution_rows_fields(context:PrivateResolutionInit
         forall|i:int|index<=i<context.executions.len() ==> #[trigger] private_execution_wf(context.executions[i]),
     ensures match private_resolution_rows_value(context,index,before,total){
         Err(_)=>true,Ok(after)=>private_precinct_wf(after)
+            && after.logical.component==before.logical.component
             && after.logical.resolution==before.logical.resolution
             && after.logical.precinct==before.logical.precinct,
     },
@@ -265,7 +267,8 @@ pub(crate) proof fn private_resolution_rows_fields(context:PrivateResolutionInit
 pub(crate) proof fn private_resolution_initial_fields(context:PrivateResolutionInitialContext)
     requires forall|i:int|0<=i<context.executions.len() ==> #[trigger] private_execution_wf(context.executions[i]),
     ensures match private_resolution_initial_value(context){
-        Err(_)=>true,Ok(after)=>private_precinct_wf(after) && after.logical.resolution==context.resolution
+        Err(_)=>true,Ok(after)=>private_precinct_wf(after) && after.logical.component==context.component
+            && after.logical.resolution==context.resolution
             && after.logical.precinct==context.precinct,
     },
 {

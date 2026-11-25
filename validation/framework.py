@@ -7745,12 +7745,16 @@ _HT_EXPONENT_TESTS = {
 _PRIVATE_STANDARD_HT_TESTS = {
     ("src/decode/tests.rs", "private_ht_standard_admission_uses_complete_effective_styles_and_preserves_wide_results"),
     ("src/decode/tests.rs", "private_ht_standard_decompositions_keep_resolution_geometry_empty_bands_and_limits"),
+    ("src/decode/tests.rs", "private_ht_components_keep_global_packet_indices_mct_suffix_and_first_errors"),
+    ("src/decode/tests.rs", "private_ht_components_effective_overrides_fallback_without_reclassifying_mct_errors"),
     ("src/tier1/private_ht.rs", "private_primary_standard_orientations_survive_staging_entropy_and_retention"),
 }
 _PRIVATE_STANDARD_HT_IMPL = {
     ("src/decode/execution.rs", "decode_tile_parts_at"),
     ("src/decode/private_ht.rs", "standard_eligible"),
+    ("src/decode/private_ht.rs", "standard_component_eligible"),
     ("src/decode/private_ht.rs", "plan_standard"),
+    ("src/decode/private_ht.rs", "plan_standard_component"),
     ("src/decode/private_ht.rs", "decode_standard"),
     ("src/packet/private_ht.rs", "new_private_ht_resolution_precinct"),
     ("src/packet/private_ht.rs", "decode_private_ht_resolution_packets"),
@@ -7759,22 +7763,37 @@ _PRIVATE_STANDARD_HT_IMPL = {
 _PRIVATE_STANDARD_HT_SPECS = {
     ("specs/private_ht_standard_plan.rs", "private_ht_standard_eligible"),
     ("specs/private_ht_standard_plan.rs", "private_standard_plan_run"),
+    ("specs/private_ht_standard_plan.rs", "private_standard_components_run"),
+    ("specs/private_ht_standard_plan.rs", "private_standard_component_run"),
     ("specs/private_ht_standard_precinct.rs", "private_resolution_initial_run"),
     ("specs/private_ht_standard_packet.rs", "private_resolution_decode_run"),
     ("specs/private_ht_standard_image.rs", "private_standard_image_run"),
+    ("specs/private_ht_standard_image.rs", "private_standard_reconstruction_run"),
 }
 _PLANE_ROLE_GUARDS = {
     ("specs/private_ht_standard_plan.rs", "private_ht_standard_eligible"): (
-        "!crate::decode::PRIVATE_HT_PRIMARY_ENABLED", "parts.len()!=1", "part2_profile_force_ht(caps)",
-        "style.decomposition_levels>0", "style.decomposition_structure.is_none()", "!style.precincts_defined",
+        "crate::decode::PRIVATE_HT_PRIMARY_ENABLED", "parts.len()==1", "part2_profile_force_ht(caps)",
+        "image_size_component_count(size)>0", "parts[0].coding_style.decomposition_levels>0",
+        "!parts[0].has_functional_header_marker", "!parts[0].has_roi_marker",
+        "forall|component:u16|", "private_ht_standard_component_eligible(size,tile,parts[0],component)",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_ht_standard_component_eligible"): (
+        "component_coding_style_result(&first.component_coding_styles,component)",
+        "style.decomposition_structure.is_none()", "!style.precincts_defined",
         "parsed_coding_style_view(style)", "parsed_coding_style_view(first.coding_style)",
-        "!first.has_functional_header_marker", "!first.has_roi_marker", "geometry.precincts==1",
+        "roi==0", "geometry.precincts==1",
     ),
     ("specs/private_ht_standard_plan.rs", "private_standard_plan_run"): (
         "part2_selection_tile_bounds(", "part2_spatial_derived_grid_run(", "private_standard_plan_after_grid(",
     ),
     ("specs/private_ht_standard_plan.rs", "private_standard_plan_after_grid"): (
-        "part2_component_metadata_run(", "private_standard_plan_after_metadata(",
+        "part2_component_capacity_run(", "private_standard_components_run(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_component_run"): (
+        "part2_component_metadata_run(", "context.component", "private_standard_component_after_metadata(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_components_run"): (
+        "private_standard_component_run(", "private_standard_components_run(", "private_standard_tile_after_component(",
     ),
     ("specs/private_ht_standard_plan.rs", "private_standard_precinct_run"): (
         "private_standard_executions_run(", "private_standard_bands_run(",
@@ -7817,7 +7836,20 @@ _PLANE_ROLE_GUARDS = {
         "part2_planned_tile_accounting(", "private_standard_packet_value_run(", "private_standard_image_after_packets(",
     ),
     ("specs/private_ht_standard_image.rs", "private_standard_image_after_packets"): (
-        "component_coding_style_result(", "private_component_calls_run(", "private_image_after_component(",
+        "private_standard_reconstruction_run(", "context.prepared",
+    ),
+    ("specs/private_ht_standard_image.rs", "private_standard_reconstruction_run"): (
+        "index>=plan.components.len()", "private_standard_image_finish(",
+        "plan.components[index as int]", "component_coding_style_result(", "component.component",
+        "private_component_calls_run(", "private_standard_reconstruction_after_component(",
+    ),
+    ("specs/private_ht_standard_image.rs", "private_standard_reconstruction_after_component"): (
+        "PrivateOwnerCapacityContext::PreparedAppend", "source:prepared,next:component",
+        "private_standard_reconstruction_run(", "index+1,prepared.push(component)",
+    ),
+    ("specs/private_ht_standard_image.rs", "private_standard_image_finish"): (
+        "prepared.skip(context.prepared.len() as int)", "part2_finish_prepared_tile(",
+        "None,context.metadata.standard,context.work", "prepared:context.prepared+result.1",
     ),
     ("specs/private_ht_tile.rs", "private_ht_eligible"): (
         "!crate::decode::PRIVATE_HT_PRIMARY_ENABLED", "parts.len()!=1", "part2_profile_force_ht(caps)",
@@ -7971,13 +8003,25 @@ _PLANE_ROLE_NATIVE_ORDER = {
         "decomposition_directions_equal(", "left.precinct_exponents[index].0 != right.precinct_exponents[index].0",
     ),
     ("src/decode/private_ht.rs", "standard_eligible"): (
-        "!super::PRIVATE_HT_PRIMARY_ENABLED", "size.components != 1", "parts.len() != 1",
+        "!super::PRIVATE_HT_PRIMARY_ENABLED", "size.components == 0", "parts.len() != 1",
         "discard.unwrap_or(0) != 0", "profile.part15_requires_all_ht_blocks()",
-        "style.decomposition_levels > 0", "effective_coding_styles_equal(style, first.coding_style)",
-        "!first.has_functional_header_marker", "!first.has_roi_marker", "geometry.precincts == 1",
+        "first.tile_index != tile", "size.components == 1 && first.coding_style.decomposition_levels == 0",
+        "first.has_functional_header_marker", "first.multiple_component_transform.is_some()",
+        "first.has_roi_marker", "while component < size.components",
+        "!standard_component_eligible(size, tile, first, component)",
+    ),
+    ("src/decode/private_ht.rs", "standard_component_eligible"): (
+        "first.component_coding_styles.style(component)", "style.tier1_coding_style()",
+        "first.roi_shifts.shift(component)", "size.tile_component_bounds(first.tile_index, component)",
+        "derive_component_resolution_geometry_for(", "style.decomposition_structure.is_none()",
+        "effective_coding_styles_equal(style, first.coding_style)", "roi == 0", "geometry.precincts == 1",
     ),
     ("src/decode/private_ht.rs", "plan_standard"): (
-        "derive_packet_grid_for_components(", "prepare_component_plan_metadata(",
+        "derive_packet_grid_for_components(", "empty_with_capacity(usize::from(size.components))",
+        "while component < size.components", "plan_standard_component(", "components.push(row.component)",
+    ),
+    ("src/decode/private_ht.rs", "plan_standard_component"): (
+        "prepare_component_plan_metadata(",
         "prepare_resolution_plan_metadata(", "derive_planned_precinct_origin(", "plan_standard_precinct(",
         "reserve_additional(&mut builder.precincts, 1)", "builder.precincts.push(row.precinct)",
     ),
@@ -7996,12 +8040,13 @@ _PLANE_ROLE_NATIVE_ORDER = {
         "plan_standard(", "decode_standard_planned(",
     ),
     ("src/decode/private_ht.rs", "decode_standard_planned"): (
-        "account_standard_plan(", "decode_private_ht_resolution_packets(", "reconstruct_standard(",
+        "account_standard_plan(", "decode_private_ht_resolution_packets(", "let start = prepared.len()",
+        "while component_index < plan.components.len()", "style(planned_component.component)", "reconstruct_standard(",
         "reserve_additional(&mut prepared, 1)", "prepared.push(component)", "prepared.get_mut(start..)",
-        "finish_prepared_tile(",
+        "finish_prepared_tile(suffix, size, None, metadata.standard, limits, &mut work,)",
     ),
     ("src/packet/private_ht.rs", "new_private_ht_resolution_precinct"): (
-        "let mut precinct = PrivateHtPrecinct { resolution, precinct: precinct_number, states: Vec::new()", "while index < executions.len()",
+        "let mut precinct = PrivateHtPrecinct { component, resolution, precinct: precinct_number, states: Vec::new()", "while index < executions.len()",
         "admit_private_resolution_execution(", "prepare_precinct_contexts(",
         "reserve_additional(", "precinct.decoders.append(",
         "let inclusion_result = super::tag_tree::tag_tree_new(",
@@ -8014,7 +8059,7 @@ _PLANE_ROLE_NATIVE_ORDER = {
     ),
     ("src/packet/private_ht.rs", "validate_private_resolution_layout"): (
         "grid.total_precinct_count()", "count > usize::MAX", "precincts.len() != count as usize",
-        "grid.precinct_index(0, precincts[index].resolution, precincts[index].precinct)",
+        "grid.precinct_index(precincts[index].component, precincts[index].resolution, precincts[index].precinct,)? != index",
     ),
     ("src/packet/private_ht.rs", "run_private_resolution_tile"): (
         "advance_progression_tile_part(", "p.iterator.next_packet()", "p.remaining_packets -= 1",
@@ -8023,6 +8068,10 @@ _PLANE_ROLE_NATIVE_ORDER = {
     ("src/packet/private_ht.rs", "execute_private_resolution_packet"): (
         "progression_packet_slot(", "let (index, seen) = slot?", "let row = &mut precincts[index]", "set_progression_context_layer(",
         "row.decode_packet(", "account_progression_packet(",
+    ),
+    ("src/packet/private_ht.rs", "PrivateHtPrecinct::decode_packet"): (
+        "part.data.get(error_offset..)", "component_coding_styles.style(self.component)?",
+        "tier1_coding_style()?", "self.decode_payload(",
     ),
     ("src/decode/private_ht.rs", "eligible"): (
         "!super::PRIVATE_HT_PRIMARY_ENABLED", "size.components != 1", "parts.len() != 1",

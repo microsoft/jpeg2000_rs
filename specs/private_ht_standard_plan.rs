@@ -1,48 +1,34 @@
 use super::*;
 verus! {
 
-pub(crate) open spec fn private_ht_standard_eligible(
-    size:&crate::codestream::ImageSize,tile:u16,parts:Seq<Part2OwnedTilePart>,
-    caps:Option<(u32,Seq<u16>)>,discard:Option<u8>,
+pub(crate) open spec fn private_ht_standard_component_eligible(
+    size:&crate::codestream::ImageSize,tile:u16,first:Part2OwnedTilePart,component:u16,
 )->bool {
-    if !crate::decode::PRIVATE_HT_PRIMARY_ENABLED
-        || crate::codestream::image_size_component_count(size)!=1
-        || parts.len()!=1 || (match discard{None=>false,Some(level)=>level!=0})
-        || !part2_profile_force_ht(caps) { false }
-    else {
-        let first=parts[0];
-        match crate::codestream::component_coding_style_result(&first.component_coding_styles,0) {
+        match crate::codestream::component_coding_style_result(&first.component_coding_styles,component) {
             Err(_)=>false,
             Ok(style)=>match crate::codestream::coding_style_tier1_result(style) {
                 Err(_)=>false,
-                Ok(tier1)=>match part2_roi_shift(crate::codestream::roi_shifts_view(&first.roi_shifts),0) {
+                Ok(tier1)=>match part2_roi_shift(crate::codestream::roi_shifts_view(&first.roi_shifts),component) {
                     Err(_)=>false,
                     Ok(roi)=>match part2_tile_component_bounds(
                         crate::codestream::selection_geometry_view(size),
                         crate::codestream::image_size_component_count(size),
-                        crate::codestream::image_size_component_infos(size),first.tile_index,0,
+                        crate::codestream::image_size_component_infos(size),first.tile_index,component,
                     ) {
                         Err(_)=>false,
                         Ok(bounds)=>match part2_resolution_geometry(
                             crate::codestream::selection_geometry_view(size),
                             crate::codestream::image_size_component_count(size),
                             crate::codestream::image_size_component_infos(size),
-                            crate::decode::resolution_geometry_style(style),0,style.decomposition_levels,Some(tile),
+                            crate::decode::resolution_geometry_style(style),component,style.decomposition_levels,Some(tile),
                         ) {
                             Err(_)=>false,
                             Ok(geometry)=>matches!(tier1.block_coding,crate::tier1::Tier1BlockCoding::HighThroughput)
-                                && first.tile_index==tile && style.decomposition_levels>0
                                 && style.decomposition_structure.is_none() && !style.precincts_defined
                                 && !matches!(style.transform,crate::codestream::WaveletTransform::Arbitrary(_))
                                 && crate::codestream::parsed_coding_style_view(style)
                                     ==crate::codestream::parsed_coding_style_view(first.coding_style)
-                                && !first.has_functional_header_marker
-                                && !first.coding_style.multiple_component_transform
-                                && first.multiple_component_transform.is_none()
-                                && first.progression_changes.len()==0
-                                && matches!(first.packed_packet_headers.source,Part1PackedHeaderSource::None)
-                                && matches!(first.packet_lengths.source,Part1PacketLengthSource::None)
-                                && roi==0 && !first.has_roi_marker
+                                && roi==0
                                 && bounds.x0==0 && bounds.y0==0
                                 && 0<bounds.x1<=32768 && 0<bounds.y1<=32768
                                 && geometry.precincts==1 && geometry.precincts_across==1 && geometry.precincts_down==1,
@@ -51,7 +37,72 @@ pub(crate) open spec fn private_ht_standard_eligible(
                 },
             },
         }
-    }
+}
+
+pub(crate) open spec fn private_ht_standard_eligible(
+    size:&crate::codestream::ImageSize,tile:u16,parts:Seq<Part2OwnedTilePart>,
+    caps:Option<(u32,Seq<u16>)>,discard:Option<u8>,
+)->bool {
+    crate::decode::PRIVATE_HT_PRIMARY_ENABLED
+        && crate::codestream::image_size_component_count(size)>0 && parts.len()==1
+        && (discard.is_none() || discard==Some(0u8)) && part2_profile_force_ht(caps)
+        && parts[0].tile_index==tile
+        && (crate::codestream::image_size_component_count(size)>1 || parts[0].coding_style.decomposition_levels>0)
+        && !parts[0].has_functional_header_marker && parts[0].multiple_component_transform.is_none()
+        && parts[0].progression_changes.len()==0
+        && (match parts[0].packed_packet_headers.source{Part1PackedHeaderSource::None=>true,_=>false})
+        && (match parts[0].packet_lengths.source{Part1PacketLengthSource::None=>true,_=>false})
+        && !parts[0].has_roi_marker
+        && (forall|component:u16|component<crate::codestream::image_size_component_count(size) ==>
+            #[trigger] private_ht_standard_component_eligible(size,tile,parts[0],component))
+}
+
+pub(crate) proof fn private_standard_eligible_at(size:&crate::codestream::ImageSize,tile:u16,
+    first:Part2OwnedTilePart,caps:Option<(u32,Seq<u16>)>,discard:Option<u8>,component:u16)
+    requires private_ht_standard_eligible(size,tile,seq![first],caps,discard),
+        component<crate::codestream::image_size_component_count(size),
+    ensures private_ht_standard_component_eligible(size,tile,first,component),
+{
+    assert(0<=(component as int) && (component as int)<crate::codestream::image_size_component_count(size));
+    assert(((component as int) as u16)==component);
+}
+
+pub(crate) proof fn private_standard_component_style_fields(size:&crate::codestream::ImageSize,tile:u16,
+    first:Part2OwnedTilePart,component:u16)
+    requires private_ht_standard_component_eligible(size,tile,first,component),
+    ensures crate::codestream::component_coding_style_result(&first.component_coding_styles,component).is_ok(),
+        crate::codestream::component_coding_style_result(&first.component_coding_styles,component).get_Ok_0().decomposition_levels
+            ==first.coding_style.decomposition_levels,
+        crate::codestream::component_coding_style_result(&first.component_coding_styles,component).get_Ok_0().transform==first.coding_style.transform,
+        !matches!(first.coding_style.transform,crate::codestream::WaveletTransform::Arbitrary(_)),
+{
+    let style=crate::codestream::component_coding_style_result(&first.component_coding_styles,component).get_Ok_0();
+    crate::codestream::parsed_coding_style_known_fields(style);
+    crate::codestream::parsed_coding_style_known_fields(first.coding_style);
+    crate::codestream::resolution_selectors_known_fields(style);
+}
+
+pub(crate) proof fn private_standard_selected_counts(size:&crate::codestream::ImageSize,tile:u16,
+    first:Part2OwnedTilePart,component:u16,before:Seq<u8>)
+    requires component<=crate::codestream::image_size_component_count(size),
+        first.coding_style.decomposition_levels<u8::MAX,
+        forall|i:u16|component<=i<crate::codestream::image_size_component_count(size) ==>
+            #[trigger] private_ht_standard_component_eligible(size,tile,first,i),
+    ensures part2_selected_tile_resolutions(&first.component_coding_styles,first.coding_style,
+        crate::codestream::image_size_component_count(size),0,component,before)==Ok(
+            before+Seq::new((crate::codestream::image_size_component_count(size)-component) as nat,
+                |_:int|(first.coding_style.decomposition_levels+1) as u8)),
+    decreases crate::codestream::image_size_component_count(size)-component,
+{
+    reveal_with_fuel(part2_selected_tile_resolutions,1);
+    if component<crate::codestream::image_size_component_count(size){
+        assert(private_ht_standard_component_eligible(size,tile,first,component));
+        private_standard_component_style_fields(size,tile,first,component);
+        let count=(first.coding_style.decomposition_levels+1) as u8;
+        private_standard_selected_counts(size,tile,first,(component+1) as u16,before.push(count));
+        assert(before.push(count)+Seq::new((crate::codestream::image_size_component_count(size)-component-1) as nat,|_:int|count)
+            =~= before+Seq::new((crate::codestream::image_size_component_count(size)-component) as nat,|_:int|count));
+    }else{assert(before+Seq::<u8>::empty() =~= before);}
 }
 
 pub(crate) proof fn private_ht_standard_selected_metadata(
@@ -60,17 +111,26 @@ pub(crate) proof fn private_ht_standard_selected_metadata(
 )
     requires private_ht_standard_eligible(size,tile,parts,caps,discard),
         part2_tile_decode_metadata_owned(parts,crate::codestream::image_size_component_count(size),discard)==Ok(metadata),
-    ensures metadata.first==parts[0],metadata.standard.0==false,
+    ensures metadata.first==parts[0],
+        metadata.standard.0==parts[0].coding_style.multiple_component_transform,
         private_ht_standard_eligible(size,tile,parts,caps,None),
         metadata.resolution_counts==match discard {
             None=>Seq::empty(),
-            Some(_)=>seq![(metadata.first.coding_style.decomposition_levels+1) as u8],
+            Some(_)=>Seq::new(crate::codestream::image_size_component_count(size) as nat,
+                |_:int|(metadata.first.coding_style.decomposition_levels+1) as u8),
         },
 {
-    let style=crate::codestream::component_coding_style_result(&parts[0].component_coding_styles,0).get_Ok_0();
-    crate::codestream::parsed_coding_style_known_fields(style);
-    crate::codestream::parsed_coding_style_known_fields(parts[0].coding_style);
-    reveal_with_fuel(part2_selected_tile_resolutions,2);
+    private_standard_eligible_at(size,tile,parts[0],caps,discard,0);
+    private_standard_component_style_fields(size,tile,parts[0],0);
+    if discard.is_some(){
+        reveal_with_fuel(part2_selected_tile_resolutions,1);
+        assert(parts[0].coding_style.decomposition_levels<u8::MAX);
+        private_standard_selected_counts(size,tile,parts[0],0,Seq::empty());
+    }
+    assert(Seq::<u8>::empty()+Seq::new(crate::codestream::image_size_component_count(size) as nat,
+        |_:int|(metadata.first.coding_style.decomposition_levels+1) as u8)
+        =~= Seq::new(crate::codestream::image_size_component_count(size) as nat,
+            |_:int|(metadata.first.coding_style.decomposition_levels+1) as u8));
 }
 
 pub struct PrivateStandardBlockContext {
@@ -562,6 +622,7 @@ pub(crate) proof fn private_standard_blocks_rows_observed(context:PrivateStandar
 }
 
 pub struct PrivateStandardPrecinctContext {
+    pub component:u16,
     pub band:[u32;4],pub block:[u32;2],pub subbands:Seq<crate::decode::SubbandGeometry>,
     pub range:(usize,usize),pub style:crate::tier1::Tier1CodingStyle,
     pub allowed:bool,pub bound:u8,pub location:(u8,u32,usize),pub limits:crate::ResourceLimits,
@@ -584,12 +645,21 @@ pub struct PrivateStandardComponentBuffers {
 }
 
 pub struct PrivateStandardPlanContext {
+    pub component:u16,
     pub size:crate::codestream::ImageSize,pub tile:u16,pub first:Part2OwnedTilePart,
     pub caps:Option<(u32,Seq<u16>)>,pub limits:crate::ResourceLimits,
 }
 
 pub struct PrivateStandardPlanState {
-    pub component:Part1PreparePlan,pub grid:Part1PacketGrid,pub precincts:Seq<PrivateHtPrecinctState>,
+    pub components:Seq<Part1PreparePlan>,pub grid:Part1PacketGrid,pub precincts:Seq<PrivateHtPrecinctState>,
+}
+
+pub struct PrivateStandardPlannedComponent {
+    pub component:Part1PreparePlan,pub precincts:Seq<PrivateHtPrecinctState>,pub total:u64,
+}
+
+pub struct PrivateStandardTileBuffers {
+    pub components:Seq<Part1PreparePlan>,pub precincts:Seq<PrivateHtPrecinctState>,pub total:u64,
 }
 
 pub(crate) open spec fn private_standard_precinct_buffers_public(before:PrivateStandardPrecinctBuffers)->Part2PrecinctPlanBuilder {
@@ -604,7 +674,7 @@ pub(crate) open spec fn private_standard_component_buffers_public(before:Private
 pub(crate) open spec fn private_standard_precinct_initial_context(context:PrivateStandardPrecinctContext,
     before:PrivateStandardPrecinctBuffers)->PrivateResolutionInitialContext {
     PrivateResolutionInitialContext {
-        resolution:context.location.0,precinct:context.location.1,style:context.style,
+        component:context.component,resolution:context.location.0,precinct:context.location.1,style:context.style,
         executions:before.executions,limits:context.limits,
     }
 }
@@ -715,6 +785,7 @@ pub(crate) open spec fn private_standard_precinct_run(context:PrivateStandardPre
 pub(crate) open spec fn private_standard_precinct_context(context:PrivateStandardPlanContext,metadata:Part2ComponentPlanMetadata,
     data:Part2ResolutionPlanMetadata,origin:[u32;2],resolution:u8,precinct:u32,index:usize)->PrivateStandardPrecinctContext {
     PrivateStandardPrecinctContext {
+        component:context.component,
         band:[origin[0],origin[1],data.band_size[0],data.band_size[1]],block:data.block_size,subbands:metadata.subbands,
         range:(data.first_subband,data.subband_count),style:metadata.tier1_style,
         allowed:part2_profile_multiple_sets(context.caps),bound:part2_profile_magnitude_bound(context.caps),
@@ -778,7 +849,7 @@ pub(crate) open spec fn private_standard_precincts_run(context:PrivateStandardPl
 
 pub(crate) open spec fn private_standard_resolution_value(context:PrivateStandardPlanContext,metadata:Part2ComponentPlanMetadata,
     resolution:u8,before:PrivateStandardComponentBuffers)->Result<PrivateStandardComponentBuffers,crate::DecodeError> {
-    match part2_resolution_plan_metadata(&context.size,metadata.coding_style,0,(context.tile,resolution),[metadata.bounds.x0,metadata.bounds.y0]){
+    match part2_resolution_plan_metadata(&context.size,metadata.coding_style,context.component,(context.tile,resolution),[metadata.bounds.x0,metadata.bounds.y0]){
         Err(error)=>Err(error),
         Ok(data)=>private_standard_precincts_value(context,metadata,data,resolution,0,before),
     }
@@ -786,7 +857,7 @@ pub(crate) open spec fn private_standard_resolution_value(context:PrivateStandar
 
 pub(crate) open spec fn private_standard_resolution_run(context:PrivateStandardPlanContext,metadata:Part2ComponentPlanMetadata,
     resolution:u8,before:PrivateStandardComponentBuffers,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<PrivateStandardComponentBuffers> {
-    match part2_resolution_plan_metadata(&context.size,metadata.coding_style,0,(context.tile,resolution),[metadata.bounds.x0,metadata.bounds.y0]){
+    match part2_resolution_plan_metadata(&context.size,metadata.coding_style,context.component,(context.tile,resolution),[metadata.bounds.x0,metadata.bounds.y0]){
         Err(error)=>Some((Err(error),events)),
         Ok(data)=>private_standard_precincts_run(context,metadata,data,resolution,0,before,events),
     }
@@ -815,28 +886,112 @@ pub(crate) open spec fn private_standard_resolutions_run(context:PrivateStandard
             else{private_standard_resolutions_run(context,metadata,resolution+1,after,rest)})}
 }
 
-pub(crate) open spec fn private_standard_plan_finish(metadata:Part2ComponentPlanMetadata,grid:Part1PacketGrid,
-    buffers:PrivateStandardComponentBuffers)->PrivateStandardPlanState {
-    PrivateStandardPlanState {
-        component:Part1PreparePlan {component:0,x:metadata.x,y:metadata.y,width:metadata.width,height:metadata.height,
+pub(crate) open spec fn private_standard_component_initial(precincts:Seq<PrivateHtPrecinctState>,total:u64)
+    ->PrivateStandardComponentBuffers {
+    PrivateStandardComponentBuffers {precincts,placements:Seq::empty(),total}
+}
+
+pub(crate) open spec fn private_standard_component_finish(context:PrivateStandardPlanContext,
+    metadata:Part2ComponentPlanMetadata,buffers:PrivateStandardComponentBuffers)->PrivateStandardPlannedComponent {
+    PrivateStandardPlannedComponent {
+        component:Part1PreparePlan {component:context.component,x:metadata.x,y:metadata.y,width:metadata.width,height:metadata.height,
             resolution:metadata.output_resolution,subbands:metadata.subbands,placements:buffers.placements},
-        grid,precincts:buffers.precincts,
+        precincts:buffers.precincts,total:buffers.total,
     }
 }
 
-pub(crate) open spec fn private_standard_plan_after_metadata(context:PrivateStandardPlanContext,grid:Part1PacketGrid,
-    metadata:Part2ComponentPlanMetadata,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<PrivateStandardPlanState> {
+pub(crate) open spec fn private_standard_component_after_metadata(context:PrivateStandardPlanContext,
+    precincts:Seq<PrivateHtPrecinctState>,total:u64,metadata:Part2ComponentPlanMetadata,
+    events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<PrivateStandardPlannedComponent> {
     part2_jpip_snapshot_bind(private_standard_resolutions_run(context,metadata,0,
-        PrivateStandardComponentBuffers {precincts:Seq::empty(),placements:Seq::empty(),total:0},events),
-        |after,rest|Some((Ok(private_standard_plan_finish(metadata,grid,after)),rest)))
+        private_standard_component_initial(precincts,total),events),
+        |after,rest|Some((Ok(private_standard_component_finish(context,metadata,after)),rest)))
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn private_standard_component_run(context:PrivateStandardPlanContext,
+    precincts:Seq<PrivateHtPrecinctState>,total:u64,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<PrivateStandardPlannedComponent> {
+    let first=context.first;
+    part2_jpip_snapshot_bind(part2_component_metadata_run(&context.size,&first.component_coding_styles,
+        first.component_quantizations,&first.roi_shifts,context.component,(context.tile,0),part2_profile_force_ht(context.caps),events),
+        |metadata,rest|private_standard_component_after_metadata(context,precincts,total,metadata,rest))
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn private_standard_component_value(context:PrivateStandardPlanContext,
+    precincts:Seq<PrivateHtPrecinctState>,total:u64)->Result<PrivateStandardPlannedComponent,crate::DecodeError> {
+    let first=context.first;
+    match part2_component_plan_metadata_owned(&context.size,&first.component_coding_styles,
+        first.component_quantizations,&first.roi_shifts,context.component,(context.tile,0),part2_profile_force_ht(context.caps)){
+        Err(error)=>Err(error),
+        Ok(metadata)=>match private_standard_resolutions_value(context,metadata,0,private_standard_component_initial(precincts,total)){
+            Err(error)=>Err(error),Ok(after)=>Ok(private_standard_component_finish(context,metadata,after)),
+        },
+    }
+}
+
+pub(crate) open spec fn private_standard_component_result(context:PrivateStandardPlanContext,
+    precincts:Seq<PrivateHtPrecinctState>,total:u64,result:Result<PrivateStandardPlannedComponent,crate::DecodeError>)->bool {
+    part2_cold_framed(|events|private_standard_component_run(context,precincts,total,events),result)
+}
+
+pub(crate) open spec fn private_standard_planned_component_public(row:PrivateStandardPlannedComponent)->Part2PlannedComponent {
+    Part2PlannedComponent {component:row.component,precincts:private_precincts_logical(row.precincts),planned_code_blocks:row.total}
+}
+
+pub(crate) open spec fn private_standard_tile_buffers_public(before:PrivateStandardTileBuffers)->Part2TilePlanBuffers {
+    Part2TilePlanBuffers {components:before.components,precincts:private_precincts_logical(before.precincts),planned_code_blocks:before.total}
+}
+
+pub(crate) open spec fn private_standard_tile_initial()->PrivateStandardTileBuffers {
+    PrivateStandardTileBuffers {components:Seq::empty(),precincts:Seq::empty(),total:0}
+}
+
+pub(crate) open spec fn private_standard_tile_after_component(before:PrivateStandardTileBuffers,row:PrivateStandardPlannedComponent)
+    ->PrivateStandardTileBuffers {
+    PrivateStandardTileBuffers {components:before.components.push(row.component),precincts:row.precincts,total:row.total}
+}
+
+pub(crate) open spec fn private_standard_tile_finish(grid:Part1PacketGrid,buffers:PrivateStandardTileBuffers)->PrivateStandardPlanState {
+    PrivateStandardPlanState {grid,components:buffers.components,precincts:buffers.precincts}
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn private_standard_components_run(context:PrivateStandardPlanContext,grid:Part1PacketGrid,
+    component:u16,before:PrivateStandardTileBuffers,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<PrivateStandardPlanState>
+    decreases crate::codestream::image_size_component_count(&context.size) as nat-component as nat,
+{
+    if component>=crate::codestream::image_size_component_count(&context.size){
+        Some((Ok(private_standard_tile_finish(grid,before)),events))
+    }else{
+        part2_jpip_snapshot_bind(private_standard_component_run(PrivateStandardPlanContext {component,..context},
+            before.precincts,before.total,events),
+            |row,rest|private_standard_components_run(context,grid,(component+1) as u16,
+                private_standard_tile_after_component(before,row),rest))
+    }
+}
+
+#[verifier::opaque]
+pub(crate) open spec fn private_standard_components_value(context:PrivateStandardPlanContext,grid:Part1PacketGrid,
+    component:u16,before:PrivateStandardTileBuffers)->Result<PrivateStandardPlanState,crate::DecodeError>
+    decreases crate::codestream::image_size_component_count(&context.size) as nat-component as nat,
+{
+    if component>=crate::codestream::image_size_component_count(&context.size){Ok(private_standard_tile_finish(grid,before))}
+    else{match private_standard_component_value(PrivateStandardPlanContext {component,..context},before.precincts,before.total){
+        Err(error)=>Err(error),Ok(row)=>private_standard_components_value(context,grid,(component+1) as u16,
+            private_standard_tile_after_component(before,row)),
+    }}
+}
+
+pub(crate) open spec fn private_standard_component_capacity(context:PrivateStandardPlanContext)->Part2ComponentCapacityContext {
+    part2_component_owner_context(&context.size,context.first.coding_style,&context.first.component_coding_styles,
+        context.first.component_quantizations,&context.first.roi_shifts,(context.tile,0),private_standard_policy(context))
 }
 
 pub(crate) open spec fn private_standard_plan_after_grid(context:PrivateStandardPlanContext,grid:Part1PacketGrid,
     events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<PrivateStandardPlanState> {
-    let first=context.first;
-    part2_jpip_snapshot_bind(part2_component_metadata_run(&context.size,&first.component_coding_styles,first.component_quantizations,&first.roi_shifts,
-        0,(context.tile,0),part2_profile_force_ht(context.caps),events),
-        |metadata,rest|private_standard_plan_after_metadata(context,grid,metadata,rest))
+    part2_jpip_snapshot_bind(part2_component_capacity_run(private_standard_component_capacity(context),events),
+        |_:(),rest|private_standard_components_run(context,grid,0,private_standard_tile_initial(),rest))
 }
 
 pub(crate) open spec fn private_standard_plan_run(context:PrivateStandardPlanContext,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<PrivateStandardPlanState> {
@@ -854,14 +1009,7 @@ pub(crate) open spec fn private_standard_plan_value(context:PrivateStandardPlanC
         Err(error)=>Err(error),
         Ok(_)=>match part2_spatial_packet_grid_from_components(&context.size,&first.component_coding_styles,first.coding_style.layers,&context.limits,Some(context.tile),0){
             Err(error)=>Err(error),
-            Ok(grid)=>match part2_component_plan_metadata_owned(&context.size,&first.component_coding_styles,
-                first.component_quantizations,&first.roi_shifts,0,(context.tile,0),part2_profile_force_ht(context.caps)){
-                Err(error)=>Err(error),
-                Ok(metadata)=>match private_standard_resolutions_value(context,metadata,0,
-                    PrivateStandardComponentBuffers {precincts:Seq::empty(),placements:Seq::empty(),total:0}){
-                    Err(error)=>Err(error),Ok(after)=>Ok(private_standard_plan_finish(metadata,grid,after)),
-                },
-            },
+            Ok(grid)=>private_standard_components_value(context,grid,0,private_standard_tile_initial()),
         },
     }
 }
@@ -878,7 +1026,7 @@ pub(crate) open spec fn private_standard_plan_public(context:PrivateStandardPlan
 pub(crate) open spec fn private_standard_plan_public_view(value:PrivateStandardPlanState,tile:u16,first:Part2OwnedTilePart)->Part2ProgressionTilePlan {
     Part2ProgressionTilePlan {
         tile,coding_style:first.coding_style,coding_styles:first.component_coding_styles,
-        grid:value.grid,precincts:private_precincts_logical(value.precincts),components:seq![value.component],
+        grid:value.grid,precincts:private_precincts_logical(value.precincts),components:value.components,
     }
 }
 
@@ -915,7 +1063,7 @@ pub(crate) proof fn private_standard_bands_reference(context:PrivateStandardPrec
     ensures match private_standard_bands_value(context,local,before){
         Err(error)=>Err(error),Ok(after)=>Ok(private_standard_planned_precinct_public(after)),
     }==part2_planned_precinct_rows(context.band,context.block,context.subbands,context.range,context.style,
-        (context.allowed,context.bound,true),(0,context.location.0,context.location.1,context.location.2),
+        (context.allowed,context.bound,true),(context.component,context.location.0,context.location.1,context.location.2),
         true,&context.limits,local,private_standard_precinct_buffers_public(before)),
     decreases context.range.1 as nat-local,
 {
@@ -937,7 +1085,7 @@ pub(crate) proof fn private_standard_precinct_reference(context:PrivateStandardP
     ensures match private_standard_precinct_value(context,placements,total){
         Err(error)=>Err(error),Ok(after)=>Ok(private_standard_planned_precinct_public(after)),
     }==part2_planned_precinct(context.band,context.block,context.subbands,context.range,context.style,
-        (context.allowed,context.bound,true),(0,context.location.0,context.location.1,context.location.2),placements,total,true,&context.limits),
+        (context.allowed,context.bound,true),(context.component,context.location.0,context.location.1,context.location.2),placements,total,true,&context.limits),
 {
     let before=PrivateStandardPrecinctBuffers {executions:Seq::empty(),placements,next:0,total};
     assert(private_executions_public(before.executions) =~= Seq::empty());
@@ -954,7 +1102,7 @@ pub(crate) proof fn private_standard_precinct_step_reference(context:PrivateStan
         matches!(metadata.tier1_style.block_coding,crate::tier1::Tier1BlockCoding::HighThroughput),
     ensures match private_standard_precinct_step_value(context,metadata,data,resolution,precinct,before){
         Err(error)=>Err(error),Ok(after)=>Ok(private_standard_component_buffers_public(after)),
-    }==part2_component_plan_precinct(0,resolution,metadata,data,private_standard_policy(context),&context.limits,precinct,
+    }==part2_component_plan_precinct(context.component,resolution,metadata,data,private_standard_policy(context),&context.limits,precinct,
         private_standard_component_buffers_public(before)),
 {
     if let Ok(origin)=part2_planned_precinct_origin(data.first_precinct,data.geometry.precincts_across,precinct,data.band_size){
@@ -973,7 +1121,7 @@ pub(crate) proof fn private_standard_precincts_reference(context:PrivateStandard
         matches!(metadata.tier1_style.block_coding,crate::tier1::Tier1BlockCoding::HighThroughput),
     ensures match private_standard_precincts_value(context,metadata,data,resolution,precinct,before){
         Err(error)=>Err(error),Ok(after)=>Ok(private_standard_component_buffers_public(after)),
-    }==part2_component_plan_precincts(0,resolution,metadata,data,private_standard_policy(context),&context.limits,precinct,
+    }==part2_component_plan_precincts(context.component,resolution,metadata,data,private_standard_policy(context),&context.limits,precinct,
         private_standard_component_buffers_public(before)),
     decreases data.precincts_in_resolution as nat-precinct,
 {
@@ -986,9 +1134,9 @@ pub(crate) proof fn private_standard_precincts_reference(context:PrivateStandard
     }
 }
 
-pub(crate) open spec fn private_standard_component_public(metadata:Part2ComponentPlanMetadata,before:PrivateStandardComponentBuffers)->Part2PlannedComponent {
+pub(crate) open spec fn private_standard_component_public(context:PrivateStandardPlanContext,metadata:Part2ComponentPlanMetadata,before:PrivateStandardComponentBuffers)->Part2PlannedComponent {
     Part2PlannedComponent {
-        component:Part1PreparePlan {component:0,x:metadata.x,y:metadata.y,width:metadata.width,height:metadata.height,
+        component:Part1PreparePlan {component:context.component,x:metadata.x,y:metadata.y,width:metadata.width,height:metadata.height,
             resolution:metadata.output_resolution,subbands:metadata.subbands,placements:before.placements},
         precincts:private_precincts_logical(before.precincts),planned_code_blocks:before.total,
     }
@@ -999,14 +1147,14 @@ pub(crate) proof fn private_standard_resolutions_reference(context:PrivateStanda
     requires metadata.output_resolution==metadata.coding_style.decomposition_levels,
         metadata.tier1_style.force_high_throughput,matches!(metadata.tier1_style.block_coding,crate::tier1::Tier1BlockCoding::HighThroughput),
     ensures match private_standard_resolutions_value(context,metadata,resolution,before){
-        Err(error)=>Err(error),Ok(after)=>Ok(private_standard_component_public(metadata,after)),
-    }==part2_component_plan_resolutions(&context.size,0,context.tile,metadata,private_standard_policy(context),&context.limits,
+        Err(error)=>Err(error),Ok(after)=>Ok(private_standard_component_public(context,metadata,after)),
+    }==part2_component_plan_resolutions(&context.size,context.component,context.tile,metadata,private_standard_policy(context),&context.limits,
         resolution,private_standard_component_buffers_public(before)),
     decreases metadata.coding_style.decomposition_levels as nat+1-resolution,
 {
     reveal_with_fuel(private_standard_resolutions_value,1);reveal_with_fuel(part2_component_plan_resolutions,1);
     if resolution<=metadata.coding_style.decomposition_levels{
-        if let Ok(data)=part2_resolution_plan_metadata(&context.size,metadata.coding_style,0,(context.tile,resolution as u8),
+        if let Ok(data)=part2_resolution_plan_metadata(&context.size,metadata.coding_style,context.component,(context.tile,resolution as u8),
             [metadata.bounds.x0,metadata.bounds.y0]){
             private_standard_precincts_reference(context,metadata,data,resolution as u8,0,before);
             if let Ok(after)=private_standard_precincts_value(context,metadata,data,resolution as u8,0,before){
@@ -1018,36 +1166,59 @@ pub(crate) proof fn private_standard_resolutions_reference(context:PrivateStanda
 
 pub(crate) proof fn private_standard_metadata_fields(context:PrivateStandardPlanContext,metadata:Part2ComponentPlanMetadata)
     requires private_ht_standard_eligible(&context.size,context.tile,seq![context.first],context.caps,None),
+        context.component<crate::codestream::image_size_component_count(&context.size),
         part2_component_plan_metadata_owned(&context.size,&context.first.component_coding_styles,context.first.component_quantizations,
-            &context.first.roi_shifts,0,(context.tile,0),part2_profile_force_ht(context.caps))==Ok(metadata),
+            &context.first.roi_shifts,context.component,(context.tile,0),part2_profile_force_ht(context.caps))==Ok(metadata),
     ensures metadata.output_resolution==metadata.coding_style.decomposition_levels,
         metadata.tier1_style.force_high_throughput,
         matches!(metadata.tier1_style.block_coding,crate::tier1::Tier1BlockCoding::HighThroughput),
-        metadata.coding_style==crate::codestream::component_coding_style_result(&context.first.component_coding_styles,0).get_Ok_0(),
+        metadata.coding_style==crate::codestream::component_coding_style_result(&context.first.component_coding_styles,context.component).get_Ok_0(),
 {
-    let style=crate::codestream::component_coding_style_result(&context.first.component_coding_styles,0).get_Ok_0();
+    private_standard_eligible_at(&context.size,context.tile,context.first,context.caps,None,context.component);
+    private_standard_component_style_fields(&context.size,context.tile,context.first,context.component);
+    let style=crate::codestream::component_coding_style_result(&context.first.component_coding_styles,context.component).get_Ok_0();
     crate::codestream::parsed_coding_style_known_fields(style);
     crate::codestream::parsed_coding_style_known_fields(context.first.coding_style);
     crate::codestream::resolution_selectors_known_fields(style);
 }
 
-pub(crate) proof fn private_standard_component_reference(context:PrivateStandardPlanContext,metadata:Part2ComponentPlanMetadata)
+pub(crate) proof fn private_standard_component_reference(context:PrivateStandardPlanContext,
+    precincts:Seq<PrivateHtPrecinctState>,total:u64)
     requires private_ht_standard_eligible(&context.size,context.tile,seq![context.first],context.caps,None),
-        part2_component_plan_metadata_owned(&context.size,&context.first.component_coding_styles,context.first.component_quantizations,
-            &context.first.roi_shifts,0,(context.tile,0),part2_profile_force_ht(context.caps))==Ok(metadata),
-    ensures match private_standard_resolutions_value(context,metadata,0,
-        PrivateStandardComponentBuffers {precincts:Seq::empty(),placements:Seq::empty(),total:0}){
-        Err(error)=>Err(error),Ok(after)=>Ok(private_standard_component_public(metadata,after)),
+        context.component<crate::codestream::image_size_component_count(&context.size),
+    ensures match private_standard_component_value(context,precincts,total){
+        Err(error)=>Err(error),Ok(after)=>Ok(private_standard_planned_component_public(after)),
     }==part2_planned_component_owned(&context.size,&context.first.component_coding_styles,context.first.component_quantizations,
-        &context.first.roi_shifts,0,(context.tile,0),private_standard_policy(context),Seq::empty(),0,&context.limits),
+        &context.first.roi_shifts,context.component,(context.tile,0),private_standard_policy(context),
+        private_precincts_logical(precincts),total,&context.limits),
 {
-    private_standard_metadata_fields(context,metadata);
-    assert(private_precincts_logical(Seq::empty()) =~= Seq::<Part1PacketPrecinctState>::empty());
-    assert(private_standard_component_buffers_public(PrivateStandardComponentBuffers {
-        precincts:Seq::empty(),placements:Seq::empty(),total:0})==
-        (Part2ComponentPlanBuffers {precincts:Seq::empty(),placements:Seq::empty(),planned_code_blocks:0}));
-    private_standard_resolutions_reference(context,metadata,0,
-        PrivateStandardComponentBuffers {precincts:Seq::empty(),placements:Seq::empty(),total:0});
+    reveal(private_standard_component_value);
+    if let Ok(metadata)=part2_component_plan_metadata_owned(&context.size,&context.first.component_coding_styles,
+        context.first.component_quantizations,&context.first.roi_shifts,context.component,(context.tile,0),part2_profile_force_ht(context.caps)){
+        private_standard_metadata_fields(context,metadata);
+        private_standard_resolutions_reference(context,metadata,0,private_standard_component_initial(precincts,total));
+    }
+}
+
+pub(crate) proof fn private_standard_components_reference(context:PrivateStandardPlanContext,grid:Part1PacketGrid,
+    component:u16,before:PrivateStandardTileBuffers)
+    requires private_ht_standard_eligible(&context.size,context.tile,seq![context.first],context.caps,None),
+        component<=crate::codestream::image_size_component_count(&context.size),
+    ensures match private_standard_components_value(context,grid,component,before){
+        Err(error)=>Err(error),Ok(after)=>Ok(private_standard_plan_public(context,after)),
+    }==part2_tile_plan_components(&context.size,context.first.coding_style,&context.first.component_coding_styles,
+        context.first.component_quantizations,&context.first.roi_shifts,(context.tile,0),private_standard_policy(context),
+        &context.limits,grid,component,private_standard_tile_buffers_public(before)),
+    decreases crate::codestream::image_size_component_count(&context.size)-component,
+{
+    reveal_with_fuel(private_standard_components_value,1);reveal_with_fuel(part2_tile_plan_components,1);
+    if component<crate::codestream::image_size_component_count(&context.size){
+        let current=PrivateStandardPlanContext {component,..context};
+        private_standard_component_reference(current,before.precincts,before.total);
+        if let Ok(row)=private_standard_component_value(current,before.precincts,before.total){
+            private_standard_components_reference(context,grid,(component+1) as u16,private_standard_tile_after_component(before,row));
+        }
+    }
 }
 
 pub(crate) proof fn private_standard_plan_reference(context:PrivateStandardPlanContext)
@@ -1058,17 +1229,10 @@ pub(crate) proof fn private_standard_plan_reference(context:PrivateStandardPlanC
         context.first.component_quantizations,&context.first.roi_shifts,(context.tile,0),private_standard_policy(context),&context.limits),
 {
     crate::codestream::selection_geometry_known_fields(&context.size);
-    let style=crate::codestream::component_coding_style_result(&context.first.component_coding_styles,0).get_Ok_0();
-    crate::codestream::resolution_selectors_known_fields(style);
-    reveal_with_fuel(part2_tile_plan_components,2);
-    if let Ok(metadata)=part2_component_plan_metadata_owned(&context.size,&context.first.component_coding_styles,
-        context.first.component_quantizations,&context.first.roi_shifts,0,(context.tile,0),part2_profile_force_ht(context.caps)){
-        private_standard_component_reference(context,metadata);
-        if let Ok(component)=part2_planned_component_owned(&context.size,&context.first.component_coding_styles,
-            context.first.component_quantizations,&context.first.roi_shifts,0,(context.tile,0),
-            private_standard_policy(context),Seq::empty(),0,&context.limits){
-            assert(Seq::<Part1PreparePlan>::empty().push(component.component) =~= seq![component.component]);
-        }
+    assert(private_precincts_logical(Seq::empty()) =~= Seq::<Part1PacketPrecinctState>::empty());
+    if let Ok(grid)=part2_spatial_packet_grid_from_components(&context.size,&context.first.component_coding_styles,
+        context.first.coding_style.layers,&context.limits,Some(context.tile),0){
+        private_standard_components_reference(context,grid,0,private_standard_tile_initial());
     }
 }
 
@@ -1183,7 +1347,7 @@ pub(crate) proof fn private_standard_resolutions_fields(context:PrivateStandardP
 {
     reveal_with_fuel(private_standard_resolutions_value,1);
     if resolution<=metadata.coding_style.decomposition_levels{
-        if let Ok(data)=part2_resolution_plan_metadata(&context.size,metadata.coding_style,0,(context.tile,resolution as u8),
+        if let Ok(data)=part2_resolution_plan_metadata(&context.size,metadata.coding_style,context.component,(context.tile,resolution as u8),
             [metadata.bounds.x0,metadata.bounds.y0]){
             private_standard_precincts_fields(context,metadata,data,resolution as u8,0,before);
             if let Ok(after)=private_standard_precincts_value(context,metadata,data,resolution as u8,0,before){
@@ -1318,7 +1482,7 @@ pub(crate) proof fn private_standard_resolutions_normal(context:PrivateStandardP
     if resolution>metadata.coding_style.decomposition_levels{part2_cold_pure(result);}
     else{
         let value=private_standard_resolution_value(context,metadata,resolution as u8,before);
-        match part2_resolution_plan_metadata(&context.size,metadata.coding_style,0,(context.tile,resolution as u8),
+        match part2_resolution_plan_metadata(&context.size,metadata.coding_style,context.component,(context.tile,resolution as u8),
             [metadata.bounds.x0,metadata.bounds.y0]){
             Err(_)=>part2_cold_pure(value),
             Ok(data)=>{
@@ -1339,10 +1503,60 @@ pub(crate) proof fn private_standard_resolutions_normal(context:PrivateStandardP
     }
 }
 
+pub(crate) proof fn private_standard_component_normal(context:PrivateStandardPlanContext,
+    precincts:Seq<PrivateHtPrecinctState>,total:u64)
+    ensures private_standard_component_result(context,precincts,total,private_standard_component_value(context,precincts,total)),
+{
+    reveal(private_standard_component_value);reveal(private_standard_component_run);
+    reveal(part2_component_metadata_result);
+    let first=context.first;
+    let result=private_standard_component_value(context,precincts,total);
+    let metadata_result=part2_component_plan_metadata_owned(&context.size,&first.component_coding_styles,
+        first.component_quantizations,&first.roi_shifts,context.component,(context.tile,0),part2_profile_force_ht(context.caps));
+    part2_component_metadata_normal(&context.size,&first.component_coding_styles,first.component_quantizations,
+        &first.roi_shifts,context.component,(context.tile,0),part2_profile_force_ht(context.caps));
+    if let Ok(metadata)=metadata_result{
+        let before=private_standard_component_initial(precincts,total);
+        let value=private_standard_resolutions_value(context,metadata,0,before);
+        private_standard_resolutions_normal(context,metadata,0,before);
+        if value.is_ok(){part2_cold_pure(result);}
+        part2_cold_bind(|events|private_standard_resolutions_run(context,metadata,0,before,events),
+            |after,rest|Some((Ok(private_standard_component_finish(context,metadata,after)),rest)),value,result);
+        part2_decode_eta(|events|private_standard_component_after_metadata(context,precincts,total,metadata,events),result);
+    }
+    part2_cold_bind(|events|part2_component_metadata_run(&context.size,&first.component_coding_styles,first.component_quantizations,
+        &first.roi_shifts,context.component,(context.tile,0),part2_profile_force_ht(context.caps),events),
+        |metadata,rest|private_standard_component_after_metadata(context,precincts,total,metadata,rest),metadata_result,result);
+}
+
+pub(crate) proof fn private_standard_components_normal(context:PrivateStandardPlanContext,grid:Part1PacketGrid,
+    component:u16,before:PrivateStandardTileBuffers)
+    ensures part2_cold_framed(|events|private_standard_components_run(context,grid,component,before,events),
+        private_standard_components_value(context,grid,component,before)),
+    decreases crate::codestream::image_size_component_count(&context.size) as nat-component as nat,
+{
+    reveal_with_fuel(private_standard_components_run,1);reveal_with_fuel(private_standard_components_value,1);
+    let result=private_standard_components_value(context,grid,component,before);
+    if component>=crate::codestream::image_size_component_count(&context.size){part2_cold_pure(result);}
+    else{
+        let current=PrivateStandardPlanContext {component,..context};
+        let value=private_standard_component_value(current,before.precincts,before.total);
+        private_standard_component_normal(current,before.precincts,before.total);
+        if let Ok(row)=value{
+            private_standard_components_normal(context,grid,(component+1) as u16,private_standard_tile_after_component(before,row));
+            part2_decode_eta(|events|private_standard_components_run(context,grid,(component+1) as u16,
+                private_standard_tile_after_component(before,row),events),result);
+        }
+        part2_cold_bind(|events|private_standard_component_run(current,before.precincts,before.total,events),
+            |row,rest|private_standard_components_run(context,grid,(component+1) as u16,
+                private_standard_tile_after_component(before,row),rest),value,result);
+    }
+}
+
 pub(crate) proof fn private_standard_plan_normal(context:PrivateStandardPlanContext)
     ensures private_standard_plan_result(context,private_standard_plan_value(context)),
 {
-    reveal(part2_spatial_derived_grid_result);reveal(part2_component_metadata_result);
+    reveal(part2_spatial_derived_grid_result);reveal(part2_component_metadata_result);reveal(part2_component_capacity_result);
     let result=private_standard_plan_value(context);
     let first=context.first;
     match part2_selection_tile_bounds(crate::codestream::selection_geometry_view(&context.size),context.tile){
@@ -1352,22 +1566,13 @@ pub(crate) proof fn private_standard_plan_normal(context:PrivateStandardPlanCont
                 first.coding_style.layers,&context.limits,Some(context.tile),0);
             part2_spatial_derived_grid_normal(&context.size,&first.component_coding_styles,first.coding_style.layers,&context.limits,Some(context.tile),0);
             if let Ok(grid)=grid_result{
-                let metadata_result=part2_component_plan_metadata_owned(&context.size,&first.component_coding_styles,
-                    first.component_quantizations,&first.roi_shifts,0,(context.tile,0),part2_profile_force_ht(context.caps));
-                part2_component_metadata_normal(&context.size,&first.component_coding_styles,first.component_quantizations,
-                    &first.roi_shifts,0,(context.tile,0),part2_profile_force_ht(context.caps));
-                if let Ok(metadata)=metadata_result{
-                    let before=PrivateStandardComponentBuffers {precincts:Seq::empty(),placements:Seq::empty(),total:0};
-                    let value=private_standard_resolutions_value(context,metadata,0,before);
-                    private_standard_resolutions_normal(context,metadata,0,before);
-                    if value.is_ok(){part2_cold_pure(result);}
-                    part2_cold_bind(|events|private_standard_resolutions_run(context,metadata,0,before,events),
-                        |after,rest|Some((Ok(private_standard_plan_finish(metadata,grid,after)),rest)),value,result);
-                    part2_decode_eta(|events|private_standard_plan_after_metadata(context,grid,metadata,events),result);
-                }
-                part2_cold_bind(|events|part2_component_metadata_run(&context.size,&first.component_coding_styles,first.component_quantizations,
-                    &first.roi_shifts,0,(context.tile,0),part2_profile_force_ht(context.caps),events),
-                    |metadata,rest|private_standard_plan_after_metadata(context,grid,metadata,rest),metadata_result,result);
+                let capacity=private_standard_component_capacity(context);
+                part2_component_capacity_observed(capacity,Ok(()));
+                private_standard_components_normal(context,grid,0,private_standard_tile_initial());
+                assert(result==private_standard_components_value(context,grid,0,private_standard_tile_initial()));
+                part2_decode_eta(|events|private_standard_components_run(context,grid,0,private_standard_tile_initial(),events),result);
+                part2_cold_bind(|events|part2_component_capacity_run(capacity,events),
+                    |_:(),rest|private_standard_components_run(context,grid,0,private_standard_tile_initial(),rest),Ok(()),result);
                 part2_decode_eta(|events|private_standard_plan_after_grid(context,grid,events),result);
             }
             part2_cold_bind(|events|part2_spatial_derived_grid_run(&context.size,&first.component_coding_styles,first.coding_style.layers,
@@ -1385,35 +1590,79 @@ pub(crate) proof fn private_standard_grid_new_fields(layers:u16,components:u16,r
 pub(crate) proof fn private_standard_grid_resolutions_fields(
     size:&crate::codestream::ImageSize,styles:&crate::codestream::ComponentCodingStyles,
     layers:u16,limits:&crate::ResourceLimits,tile:Option<u16>,descriptors:Part2ComponentResolutionCounts,
-    style:crate::codestream::CodingStyle,resolutions:u8,resolution:u8,counts:Seq<u32>,total:u64,
+    component:u16,style:crate::codestream::CodingStyle,resolutions:u8,resolution:u8,counts:Seq<u32>,total:u64,
 )
-    requires crate::codestream::image_size_component_count(size)==1,
-    ensures match part2_packet_grid_resolutions_run(size,styles,layers,limits,tile,0,descriptors,0,style,resolutions,resolution,counts,total){
-        Err(_)=>true,Ok(grid)=>grid.components==1 && grid.layers==layers && grid.component_resolutions==descriptors.1,
+    ensures match part2_packet_grid_resolutions_run(size,styles,layers,limits,tile,0,descriptors,component,style,resolutions,resolution,counts,total){
+        Err(_)=>true,Ok(grid)=>grid.components==crate::codestream::image_size_component_count(size)
+            && grid.layers==layers && grid.component_resolutions==descriptors.1,
     },
-    decreases descriptors.0 as nat-resolution as nat,
+    decreases crate::codestream::image_size_component_count(size) as nat-component as nat,0nat,
+        descriptors.0 as nat-resolution as nat,
 {
     reveal_with_fuel(part2_packet_grid_resolutions_run,2);
     reveal_with_fuel(part2_packet_grid_components_run,2);
-    if resolution>=descriptors.0{
-        reveal_with_fuel(part2_packet_grid_components_run,1);
-        private_standard_grid_new_fields(layers,1,descriptors.1,counts,limits);
-        assert(part2_packet_grid_resolutions_run(size,styles,layers,limits,tile,0,descriptors,0,style,resolutions,resolution,counts,total)==
-            part1_packet_grid_new(layers,1,descriptors.1,counts,None,limits));
+    if component>=crate::codestream::image_size_component_count(size){}
+    else if resolution>=descriptors.0{
+        private_standard_grid_components_fields(size,styles,layers,limits,tile,descriptors,(component+1) as u16,counts,total);
     }else if resolution>=resolutions{
-        private_standard_grid_resolutions_fields(size,styles,layers,limits,tile,descriptors,style,resolutions,
+        private_standard_grid_resolutions_fields(size,styles,layers,limits,tile,descriptors,component,style,resolutions,
             (resolution+1) as u8,counts.push(0),total);
     }else if let Ok(geometry)=part2_resolution_geometry(crate::codestream::selection_geometry_view(size),
         crate::codestream::image_size_component_count(size),crate::codestream::image_size_component_infos(size),
-        crate::decode::resolution_geometry_style(style),0,resolution,tile){
+        crate::decode::resolution_geometry_style(style),component,resolution,tile){
         if let Ok(subbands)=part2_packet_grid_subband_delta(style,resolution){
             if let Ok(next)=part2_packet_grid_codeblocks(total,geometry.code_blocks,resolution<resolutions,limits){
                 if subbands==0 || geometry.precincts<=u32::MAX{
-                    private_standard_grid_resolutions_fields(size,styles,layers,limits,tile,descriptors,style,resolutions,
+                    private_standard_grid_resolutions_fields(size,styles,layers,limits,tile,descriptors,component,style,resolutions,
                         (resolution+1) as u8,counts.push(if subbands==0{0u32}else{geometry.precincts as u32}),next);
                 }
             }
         }
+    }
+}
+
+pub(crate) proof fn private_standard_grid_components_fields(
+    size:&crate::codestream::ImageSize,styles:&crate::codestream::ComponentCodingStyles,
+    layers:u16,limits:&crate::ResourceLimits,tile:Option<u16>,descriptors:Part2ComponentResolutionCounts,
+    component:u16,counts:Seq<u32>,total:u64)
+    ensures match part2_packet_grid_components_run(size,styles,layers,limits,tile,0,descriptors,component,counts,total){
+        Err(_)=>true,Ok(grid)=>grid.components==crate::codestream::image_size_component_count(size)
+            && grid.layers==layers && grid.component_resolutions==descriptors.1,
+    },
+    decreases crate::codestream::image_size_component_count(size) as nat-component as nat,1nat,0nat,
+{
+    reveal_with_fuel(part2_packet_grid_components_run,2);reveal_with_fuel(part2_packet_grid_resolutions_run,2);
+    if component>=crate::codestream::image_size_component_count(size){
+        private_standard_grid_new_fields(layers,crate::codestream::image_size_component_count(size),descriptors.1,counts,limits);
+    }else if let Ok(style)=crate::codestream::component_coding_style_result(styles,component){
+        if style.decomposition_levels<u8::MAX{
+            private_standard_grid_resolutions_fields(size,styles,layers,limits,tile,descriptors,component,style,
+                (style.decomposition_levels+1) as u8,0,counts,total);
+        }
+    }
+}
+
+pub(crate) proof fn private_standard_descriptors_fields(context:PrivateStandardPlanContext,component:u16,maximum:u8,
+    before:Seq<u8>)
+    requires private_ht_standard_eligible(&context.size,context.tile,seq![context.first],context.caps,None),
+        context.first.coding_style.decomposition_levels<u8::MAX,
+        component<=crate::codestream::image_size_component_count(&context.size),
+        before==Seq::new(component as nat,|_:int|(context.first.coding_style.decomposition_levels+1) as u8),
+        (component==0 && maximum==0) || (component>0 && maximum==(context.first.coding_style.decomposition_levels+1) as u8),
+    ensures part2_component_resolution_counts_run(crate::codestream::image_size_component_count(&context.size),
+        &context.first.component_coding_styles,0,component,maximum,before,before)==Ok((
+            (context.first.coding_style.decomposition_levels+1) as u8,
+            Seq::new(crate::codestream::image_size_component_count(&context.size) as nat,|_:int|(context.first.coding_style.decomposition_levels+1) as u8),
+            Seq::new(crate::codestream::image_size_component_count(&context.size) as nat,|_:int|(context.first.coding_style.decomposition_levels+1) as u8))),
+    decreases crate::codestream::image_size_component_count(&context.size)-component,
+{
+    reveal_with_fuel(part2_component_resolution_counts_run,1);
+    if component<crate::codestream::image_size_component_count(&context.size){
+        private_standard_eligible_at(&context.size,context.tile,context.first,context.caps,None,component);
+        private_standard_component_style_fields(&context.size,context.tile,context.first,component);
+        let count=(context.first.coding_style.decomposition_levels+1) as u8;
+        assert(before.push(count) =~= Seq::new(component as nat+1,|_:int|count));
+        private_standard_descriptors_fields(context,(component+1) as u16,count,before.push(count));
     }
 }
 
@@ -1429,20 +1678,21 @@ pub(crate) proof fn private_standard_grid_fields(context:PrivateStandardPlanCont
     requires private_ht_standard_eligible(&context.size,context.tile,seq![context.first],context.caps,None),
         part2_spatial_packet_grid_from_components(&context.size,&context.first.component_coding_styles,
             context.first.coding_style.layers,&context.limits,Some(context.tile),0)==Ok(grid),
-    ensures grid.components==1,grid.component_resolutions.len()==1,
-        grid.component_resolutions==seq![(context.first.coding_style.decomposition_levels+1) as u8],
+    ensures grid.components==crate::codestream::image_size_component_count(&context.size),
+        grid.component_resolutions.len()==crate::codestream::image_size_component_count(&context.size),
+        grid.component_resolutions==Seq::new(crate::codestream::image_size_component_count(&context.size) as nat,
+            |_:int|(context.first.coding_style.decomposition_levels+1) as u8),
 {
-    let style=crate::codestream::component_coding_style_result(&context.first.component_coding_styles,0).get_Ok_0();
-    crate::codestream::parsed_coding_style_known_fields(style);
-    crate::codestream::parsed_coding_style_known_fields(context.first.coding_style);
-    reveal_with_fuel(part2_component_resolution_counts_run,2);
-    reveal_with_fuel(part2_packet_grid_components_run,1);
-    reveal_with_fuel(part2_packet_grid_resolutions_run,1);
-    if let Ok(descriptors)=part2_component_resolution_counts(1,&context.first.component_coding_styles,0){
-        assert(descriptors.1==seq![(style.decomposition_levels+1) as u8]);
-        private_standard_grid_resolutions_fields(&context.size,&context.first.component_coding_styles,
-            context.first.coding_style.layers,&context.limits,Some(context.tile),descriptors,style,
-            (style.decomposition_levels+1) as u8,0,Seq::empty(),0);
+    private_standard_eligible_at(&context.size,context.tile,context.first,context.caps,None,0);
+    private_standard_component_style_fields(&context.size,context.tile,context.first,0);
+    reveal_with_fuel(part2_component_resolution_counts_run,1);
+    assert(context.first.coding_style.decomposition_levels<u8::MAX);
+    assert(Seq::<u8>::empty() =~= Seq::new(0,|_:int|(context.first.coding_style.decomposition_levels+1) as u8));
+    private_standard_descriptors_fields(context,0,0,Seq::empty());
+    if let Ok(descriptors)=part2_component_resolution_counts(crate::codestream::image_size_component_count(&context.size),
+        &context.first.component_coding_styles,0){
+        private_standard_grid_components_fields(&context.size,&context.first.component_coding_styles,
+            context.first.coding_style.layers,&context.limits,Some(context.tile),descriptors,0,Seq::empty(),0);
     }
     if let Ok(base)=part2_packet_grid_from_components(&context.size,&context.first.component_coding_styles,
         context.first.coding_style.layers,&context.limits,Some(context.tile),0){
@@ -1450,58 +1700,92 @@ pub(crate) proof fn private_standard_grid_fields(context:PrivateStandardPlanCont
     }
 }
 
+pub(crate) proof fn private_standard_component_fields(context:PrivateStandardPlanContext,
+    precincts:Seq<PrivateHtPrecinctState>,total:u64,row:PrivateStandardPlannedComponent)
+    requires private_ht_standard_eligible(&context.size,context.tile,seq![context.first],context.caps,None),
+        context.component<crate::codestream::image_size_component_count(&context.size),
+        forall|i:int|0<=i<precincts.len() ==> #[trigger] private_precinct_wf(precincts[i]),
+        private_standard_component_value(context,precincts,total)==Ok(row),
+    ensures row.component.component==context.component,
+        forall|i:int|0<=i<row.precincts.len() ==> #[trigger] private_precinct_wf(row.precincts[i]),
+{
+    reveal(private_standard_component_value);
+    let first=context.first;
+    let metadata=part2_component_plan_metadata_owned(&context.size,&first.component_coding_styles,first.component_quantizations,
+        &first.roi_shifts,context.component,(context.tile,0),part2_profile_force_ht(context.caps)).get_Ok_0();
+    private_standard_metadata_fields(context,metadata);
+    private_standard_resolutions_fields(context,metadata,0,private_standard_component_initial(precincts,total));
+}
+
+pub(crate) proof fn private_standard_components_fields(context:PrivateStandardPlanContext,grid:Part1PacketGrid,
+    component:u16,before:PrivateStandardTileBuffers,value:PrivateStandardPlanState)
+    requires private_ht_standard_eligible(&context.size,context.tile,seq![context.first],context.caps,None),
+        component<=crate::codestream::image_size_component_count(&context.size),before.components.len()==component,
+        forall|i:int|0<=i<before.components.len() ==> #[trigger] before.components[i].component==i,
+        forall|i:int|0<=i<before.precincts.len() ==> #[trigger] private_precinct_wf(before.precincts[i]),
+        private_standard_components_value(context,grid,component,before)==Ok(value),
+    ensures value.grid==grid,value.components.len()==crate::codestream::image_size_component_count(&context.size),
+        forall|i:int|0<=i<value.components.len() ==> #[trigger] value.components[i].component==i,
+        forall|i:int|0<=i<value.precincts.len() ==> #[trigger] private_precinct_wf(value.precincts[i]),
+    decreases crate::codestream::image_size_component_count(&context.size)-component,
+{
+    reveal_with_fuel(private_standard_components_value,1);
+    if component<crate::codestream::image_size_component_count(&context.size){
+        let current=PrivateStandardPlanContext {component,..context};
+        let row=private_standard_component_value(current,before.precincts,before.total).get_Ok_0();
+        private_standard_component_fields(current,before.precincts,before.total,row);
+        let after=private_standard_tile_after_component(before,row);
+        assert forall|i:int|0<=i<after.components.len() implies #[trigger] after.components[i].component==i by {}
+        private_standard_components_fields(context,grid,(component+1) as u16,after,value);
+    }
+}
+
 pub(crate) proof fn private_standard_plan_value_fields(context:PrivateStandardPlanContext,value:PrivateStandardPlanState)
     requires private_ht_standard_eligible(&context.size,context.tile,seq![context.first],context.caps,None),
         private_standard_plan_value(context)==Ok(value),
-    ensures value.component.component==0,value.grid.components==1,value.grid.component_resolutions.len()==1,
-        value.grid.component_resolutions==seq![(context.first.coding_style.decomposition_levels+1) as u8],
+    ensures value.components.len()==crate::codestream::image_size_component_count(&context.size),
+        forall|i:int|0<=i<value.components.len() ==> #[trigger] value.components[i].component==i,
+        value.grid.components==crate::codestream::image_size_component_count(&context.size),
+        value.grid.component_resolutions.len()==crate::codestream::image_size_component_count(&context.size),
+        value.grid.component_resolutions==Seq::new(crate::codestream::image_size_component_count(&context.size) as nat,
+            |_:int|(context.first.coding_style.decomposition_levels+1) as u8),
         forall|i:int|0<=i<value.precincts.len() ==> #[trigger] private_precinct_wf(value.precincts[i]),
 {
     let first=context.first;
     let grid=part2_spatial_packet_grid_from_components(&context.size,&first.component_coding_styles,
         first.coding_style.layers,&context.limits,Some(context.tile),0).get_Ok_0();
     private_standard_grid_fields(context,grid);
-    let metadata=part2_component_plan_metadata_owned(&context.size,&first.component_coding_styles,first.component_quantizations,
-        &first.roi_shifts,0,(context.tile,0),part2_profile_force_ht(context.caps)).get_Ok_0();
-    private_standard_metadata_fields(context,metadata);
-    private_standard_resolutions_fields(context,metadata,0,
-        PrivateStandardComponentBuffers {precincts:Seq::empty(),placements:Seq::empty(),total:0});
+    private_standard_components_fields(context,grid,0,private_standard_tile_initial(),value);
 }
 
-pub(crate) open spec fn private_standard_plan_prepared(context:PrivateStandardPlanContext,grid:Part1PacketGrid,
+pub(crate) open spec fn private_standard_component_prepared(context:PrivateStandardPlanContext,
     metadata:Part2ComponentPlanMetadata)->bool {
-    part2_selection_tile_bounds(crate::codestream::selection_geometry_view(&context.size),context.tile).is_ok()
-        && part2_spatial_derived_grid_result(&context.size,&context.first.component_coding_styles,context.first.coding_style.layers,
-            &context.limits,Some(context.tile),0,Ok(grid))
-        && part2_component_metadata_result(&context.size,&context.first.component_coding_styles,context.first.component_quantizations,
-            &context.first.roi_shifts,0,(context.tile,0),part2_profile_force_ht(context.caps),Ok(metadata))
-        && part2_spatial_packet_grid_from_components(&context.size,&context.first.component_coding_styles,context.first.coding_style.layers,
-            &context.limits,Some(context.tile),0)==Ok(grid)
+    part2_component_metadata_result(&context.size,&context.first.component_coding_styles,context.first.component_quantizations,
+            &context.first.roi_shifts,context.component,(context.tile,0),part2_profile_force_ht(context.caps),Ok(metadata))
         && part2_component_plan_metadata_owned(&context.size,&context.first.component_coding_styles,context.first.component_quantizations,
-            &context.first.roi_shifts,0,(context.tile,0),part2_profile_force_ht(context.caps))==Ok(metadata)
+            &context.first.roi_shifts,context.component,(context.tile,0),part2_profile_force_ht(context.caps))==Ok(metadata)
 }
 
-pub(crate) proof fn private_standard_plan_resolutions_observed(context:PrivateStandardPlanContext,grid:Part1PacketGrid,
+pub(crate) proof fn private_standard_component_resolutions_observed(context:PrivateStandardPlanContext,
+    precincts:Seq<PrivateHtPrecinctState>,total:u64,
     metadata:Part2ComponentPlanMetadata,result:Result<PrivateStandardComponentBuffers,crate::DecodeError>)
-    requires private_standard_plan_prepared(context,grid,metadata),
+    requires private_standard_component_prepared(context,metadata),
         part2_cold_framed(|events|private_standard_resolutions_run(context,metadata,0,
-            PrivateStandardComponentBuffers {precincts:Seq::empty(),placements:Seq::empty(),total:0},events),result),
-    ensures private_standard_plan_result(context,match result{Err(error)=>Err(error),Ok(after)=>Ok(private_standard_plan_finish(metadata,grid,after))}),
+            private_standard_component_initial(precincts,total),events),result),
+    ensures private_standard_component_result(context,precincts,total,
+        match result{Err(error)=>Err(error),Ok(after)=>Ok(private_standard_component_finish(context,metadata,after))}),
 {
-    reveal(part2_spatial_derived_grid_result);reveal(part2_component_metadata_result);
-    let before=PrivateStandardComponentBuffers {precincts:Seq::empty(),placements:Seq::empty(),total:0};
-    let output=match result{Err(error)=>Err(error),Ok(after)=>Ok(private_standard_plan_finish(metadata,grid,after))};
+    reveal(private_standard_component_run);
+    reveal(part2_component_metadata_result);
+    let before=private_standard_component_initial(precincts,total);
+    let output=match result{Err(error)=>Err(error),Ok(after)=>Ok(private_standard_component_finish(context,metadata,after))};
     if result.is_ok(){part2_cold_pure(output);}
     part2_cold_bind(|events|private_standard_resolutions_run(context,metadata,0,before,events),
-        |after,rest|Some((Ok(private_standard_plan_finish(metadata,grid,after)),rest)),result,output);
-    part2_decode_eta(|events|private_standard_plan_after_metadata(context,grid,metadata,events),output);
+        |after,rest|Some((Ok(private_standard_component_finish(context,metadata,after)),rest)),result,output);
+    part2_decode_eta(|events|private_standard_component_after_metadata(context,precincts,total,metadata,events),output);
     part2_cold_bind(|events|part2_component_metadata_run(&context.size,&context.first.component_coding_styles,
-        context.first.component_quantizations,&context.first.roi_shifts,0,(context.tile,0),part2_profile_force_ht(context.caps),events),
-        |meta,rest|private_standard_plan_after_metadata(context,grid,meta,rest),Ok(metadata),output);
-    part2_decode_eta(|events|private_standard_plan_after_grid(context,grid,events),output);
-    part2_cold_bind(|events|part2_spatial_derived_grid_run(&context.size,&context.first.component_coding_styles,
-        context.first.coding_style.layers,&context.limits,Some(context.tile),0,events),
-        |value,rest|private_standard_plan_after_grid(context,value,rest),Ok(grid),output);
+        context.first.component_quantizations,&context.first.roi_shifts,context.component,(context.tile,0),part2_profile_force_ht(context.caps),events),
+        |meta,rest|private_standard_component_after_metadata(context,precincts,total,meta,rest),Ok(metadata),output);
 }
 
 pub(crate) proof fn private_standard_precinct_step_observed(context:PrivateStandardPlanContext,metadata:Part2ComponentPlanMetadata,
@@ -1620,7 +1904,7 @@ pub(crate) proof fn private_standard_precincts_finish(context:PrivateStandardPla
 pub(crate) proof fn private_standard_resolution_precincts_observed(context:PrivateStandardPlanContext,metadata:Part2ComponentPlanMetadata,
     data:Part2ResolutionPlanMetadata,resolution:u8,before:PrivateStandardComponentBuffers,
     result:Result<PrivateStandardComponentBuffers,crate::DecodeError>)
-    requires part2_resolution_plan_metadata(&context.size,metadata.coding_style,0,(context.tile,resolution),[metadata.bounds.x0,metadata.bounds.y0])==Ok(data),
+    requires part2_resolution_plan_metadata(&context.size,metadata.coding_style,context.component,(context.tile,resolution),[metadata.bounds.x0,metadata.bounds.y0])==Ok(data),
         part2_cold_framed(|events|private_standard_precincts_run(context,metadata,data,resolution,0,before,events),result),
     ensures part2_cold_framed(|events|private_standard_resolution_run(context,metadata,resolution,before,events),result),
 {

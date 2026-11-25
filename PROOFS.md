@@ -6472,10 +6472,10 @@ the same packed primary owner. A
 concrete indexed readable view shares reconstruction with the zero-DWT path;
 standard quantization, inverse DWT and entropy helpers are reused. Existing
 cooperative-deadline builds disable the new entry as well. The extension still
-requires one component, one tile part, origin-zero positive component bounds
+requires one tile part, origin-zero positive component bounds
 no larger than 32768 on either axis, implicit default precincts, no custom
 decomposition structure or arbitrary transform, and all the existing
-ROI/POC/MCT/packed-header/packet-length restrictions. It admits the existing
+ROI/POC/packed-header/packet-length restrictions. It admits the existing
 standard decomposition range through the reached geometry/metadata helpers,
 including empty high-pass axes; it does not select a particular level, image
 size, component precision or fixture name.
@@ -6509,8 +6509,33 @@ geometry, limits/errors, both selection forms and actual packed/wide
 transitions. Exact revision-bound qualification, actual Cargo-archive proof,
 full original-sample oracle and matched-ELF receipts are separate artifacts;
 neither focused native checks nor historical zero-DWT receipts replace them.
-This extension is not adoption, a performance claim, multicomponent or
-legacy/incremental compaction. Source-function coverage remains unmeasured.
+This extension is not adoption, a performance claim or legacy/incremental
+compaction. Source-function coverage remains unmeasured.
+
+The current multi-component continuation collects the existing component-plan
+metadata over one genuine private precinct sequence, carrying actual component,
+resolution and precinct coordinates, global placement indices and code-block
+totals. Every reached component must satisfy the complete effective style,
+geometry and HT admission; mixed effective styles and unsupported custom
+transforms retain the ordinary wide path. Component count, sampling, precision
+and geometry follow the existing format/resource rules, not an exact-three or
+fixture threshold. The single-component zero-DWT path is retained; the shared
+standard owner also handles multi-component zero-DWT plans.
+
+Reconstruction appends all actual components after the existing prepared prefix
+and finalizes only that suffix with the unchanged standard reversible RCT or
+irreversible ICT helpers. Standard MCT admission/congruence and first errors
+are not reclassified. Additional components remain present; no custom Part 2
+MCT or different lifetime/deadline/allocator policy is introduced.
+
+The component collection, constructor/staging invariants, execution and suffix
+projections have concrete source-bound governing contracts and ordered private
+allocation programs through standard-MCT tile return. They preserve actual global
+counts and first nonphysical errors; there is no supplied-result equality or old
+dense-allocation stand-in. Qualification remains exact-revision evidence:
+early native/layout controls alone and historical single-component proof,
+pixel or performance receipts do not qualify a changed source or Cargo archive.
+This does not extend the private owner to legacy/incremental or arbitrary MCT.
 
 ### Guarded native neighbor aggregation
 
