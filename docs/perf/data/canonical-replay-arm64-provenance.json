@@ -1,0 +1,62 @@
+{
+  "scope": "Three exact first-x86 compressed streams replayed on unchanged original f4 ARM builds; never pool with old different-stream samples",
+  "decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+  "records": 1165,
+  "processes": 54,
+  "cases": 3,
+  "builds": {
+    "generic": {
+      "configuration": "generic",
+      "cflags": "-O3 -DNDEBUG -g -ffp-contract=off",
+      "rustflags": "",
+      "lto": "Cargo default",
+      "codegen_units": "Cargo default",
+      "rust_binary_sha256": "fa6424a8a4b693966f541a7ac33b8da538acaafe04464fc1b8fce41ff4b6dd9b",
+      "c_binary_sha256": "0c60e88f00c7b6f03e7424ad5ddfe1daa52e9754cc48009781103797c05dc54d",
+      "allocator": "system libc",
+      "output": "native Rust TypedImage planar 64-bit samples",
+      "openjpeg_native_output": "planar signed 32-bit components",
+      "decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+      "decoder_src_tree": "b3bea69443ec6408edfa48708ee658168ea7dcfd"
+    },
+    "consumer": {
+      "configuration": "consumer",
+      "cflags": "-O3 -DNDEBUG -g -ffp-contract=off",
+      "rustflags": "",
+      "lto": "thin",
+      "codegen_units": "1",
+      "rust_binary_sha256": "ce3874016b6d8c0fef8145020a97741294eac718923bb40bf9110b6632824aef",
+      "c_binary_sha256": "3bce42cab6183a16148a64e6185718cd380c9c54124e0deeefb41f9772b48422",
+      "allocator": "system libc",
+      "output": "native Rust TypedImage planar 64-bit samples",
+      "openjpeg_native_output": "planar signed 32-bit components",
+      "decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+      "decoder_src_tree": "b3bea69443ec6408edfa48708ee658168ea7dcfd"
+    },
+    "native": {
+      "configuration": "native",
+      "cflags": "-O3 -DNDEBUG -g -ffp-contract=off -mcpu=native",
+      "rustflags": "-C target-cpu=native",
+      "lto": "thin",
+      "codegen_units": "1",
+      "rust_binary_sha256": "0875ec03aea5d4dbd029cac7f5fb3bbc6543d5ac2604a7e864c8a6a498becebb",
+      "c_binary_sha256": "48a5074cf4e4307d027d6c439b5c0af13507faeeb932025435c6d8524685ba16",
+      "allocator": "system libc",
+      "output": "native Rust TypedImage planar 64-bit samples",
+      "openjpeg_native_output": "planar signed 32-bit components",
+      "decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+      "decoder_src_tree": "b3bea69443ec6408edfa48708ee658168ea7dcfd"
+    }
+  },
+  "raw_sha256": "b1290fb84a9d9a2aedfae2d62148a4370d5d282278148d16cd2e7251a201967a",
+  "summary_sha256": "7e9ad09d5a30542939cd9c2e01897744f6719fc852aa353ccdf6ab09ea10c3a1",
+  "analyzer_sha256": "252f2e9ac9c92883b692000c9acdadfd6642edc1f7779db17b575dd97fd63851",
+  "canonical_encoded_cases": 57,
+  "cross_target_output_differences": [],
+  "compared_x86_profiles": [
+    "generic",
+    "x86-64-v3",
+    "native"
+  ],
+  "limitation": "First x86 artifact lacks consumer metadata. Final corrected x86 run must match these input hashes before declaring its full four-profile matrix cross-target qualified."
+}

@@ -776,6 +776,19 @@ For the 54 byte-identical streams, both backends' output hashes match between
 ARM64 and each of the retained generic/v3/native x86 profiles. This is a
 strictly scoped result, not qualification of the missing consumer evidence
 or the three different streams.
+The three exact first-x86 streams have now completed a separate ARM64 replay
+using the original unchanged timing binaries: **1,165 samples, 54 measured
+processes, three profiles**. Combining only the 54 unchanged inputs with those
+three replayed inputs yields **57 byte-identical streams**, with exact output
+hash agreement for both backends across ARM64 and the three retained first-x86
+profiles. Samples from the old different streams are never pooled. The final
+replacement x86 artifact still must match these hashes and retain all four
+profiles before its matrix is promoted.
+The [replay latencies](data/canonical-replay-arm64-summary.csv),
+[ratios](data/canonical-replay-arm64-ratios.csv),
+[resources](data/canonical-replay-arm64-resources.csv),
+[output hashes/numerics](data/canonical-replay-arm64-correctness.csv) and
+[scope/source provenance](data/canonical-replay-arm64-provenance.json) are separate.
 
 Window qualification now also compares each backend's actual selected output
 with its own full-decode crop, before any timing. A real 32-square integration

@@ -284,8 +284,8 @@ def summarize(rows, output):
         writer = csv.DictWriter(stream, fieldnames=list(summaries[0]), lineterminator="\n")
         writer.writeheader()
         writer.writerows(summaries)
-    lines = ["# Matched in-memory smoke baseline", "",
-             "Synthetic subset only; no complete A-G or cross-target qualification.", "",
+    lines = ["# Matched in-memory selected-corpus results", "",
+             "Selected cases only; no complete A-G, cross-target or normative qualification.", "",
              "| Configuration | Case | Class | Rust median (IQR), ms | OpenJPEG typed median (IQR), ms | Ratio |",
              "|---|---|---|---|---|---|"]
     ratios = {}
@@ -300,7 +300,7 @@ def summarize(rows, output):
         lines.append(f"| {row['config']} | {row['case']} | {row['class']} | "
                      f"{row['median_ms']:.4f} ({row['iqr_ms']:.4f}) | "
                      f"{other['median_ms']:.4f} ({other['iqr_ms']:.4f}) | {ratio:.4f} |")
-    lines += ["", "## Geometric means (synthetic subset, not complete corpus classes)", ""]
+    lines += ["", "## Geometric means (selected cases, not complete corpus classes)", ""]
     for (config, group), values in sorted(ratios.items()):
         value = math.exp(statistics.mean(map(math.log, values)))
         lines.append(f"- {config}, {group}: {value:.4f} ({'below' if value < 1 else 'not below'} 1.0).")
