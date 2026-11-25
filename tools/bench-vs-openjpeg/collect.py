@@ -23,7 +23,7 @@ def main():
     entries = []
     for directory, dirs, files in os.walk(work):
         dirs[:] = [d for d in dirs if d not in {
-            "cargo", "openjpeg", "openjpeg-source", "consumer", "sources", "assets", "__pycache__"}]
+            "cargo", "openjpeg", "openjpeg-source", "consumer", "sources", "assets", "input", "__pycache__"}]
         for name in files:
             path = Path(directory) / name
             if path.is_symlink() or name.endswith("-dump.stdout") or name in {"rust.stdout", "openjpeg.stdout"}:

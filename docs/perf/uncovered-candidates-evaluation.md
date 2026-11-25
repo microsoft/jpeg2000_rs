@@ -747,7 +747,7 @@ no tool, report or photograph is packaged.
 
 Window qualification now also compares each backend's actual selected output
 with its own full-decode crop, before any timing. A real 32-square integration
-case passes for both backends; 14 focused tooling tests pass. The queued 8K
+case passes for both backends; 15 focused tooling tests pass. The queued 8K
 requests will perform these checks at their real dimensions after the current
 A-D timing finishes, without competing owned measurement processes.
 
@@ -764,3 +764,9 @@ with the notice retained, but is not an unrestricted MIT data license.
 Nonregression files have several distinct origins; its PngSuite subdirectory
 has an explicit permissive grant, not a blanket grant over every bug attachment.
 These metadata findings are not a claim that external vectors were executed.
+The prepared `conformance.py` inventories all 57 encoded conformance vectors
+from the pinned tree, verifies blob identities and sizes, retains the mandatory
+notice and records every backend failure/difference without an invented
+tolerance. Its execution must follow the owned timing queue; preparation and
+unit tests alone are not reported as vector execution. External vectors and
+their pixel dumps are excluded from portable evidence collection.

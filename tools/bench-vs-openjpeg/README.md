@@ -191,6 +191,24 @@ The last argument is optional; omitting it does not qualify #299. Set `PERF`
 when the profiler is not on PATH. This command does not claim missing corpus,
 x86-64-v3, multithreading or proof qualification.
 
+The external conformance inventory is separate and must not run concurrently
+with owned timing. It downloads the pinned tree's 57 encoded conformance
+vectors and two notices through GitHub CLI, verifies each Git blob and size,
+retains the mandatory conformance-use COPYRIGHT, and records every backend
+outcome under the same decoder address-space cap:
+
+```sh
+python3 tools/bench-vs-openjpeg/conformance.py --output FRESH_INVENTORY \
+  --rust COMPLETE_MATRIX/generic/cargo/release/bench-vs-openjpeg \
+  --openjpeg COMPLETE_MATRIX/generic/bench-openjpeg --cpu CPU
+```
+
+Set `--gh` if GitHub CLI is not on PATH. This command reports every difference
+without inventing a lossy tolerance or normative oracle; it exits nonzero unless
+all 57 outputs are identical. It does not cover the separately licensed/mixed
+nonregression collection. Vectors are not committed, packaged or exported by
+`collect.py`; only their hashes, outcomes and provenance are portable evidence.
+
 For user-space hardware counters and profiles, use a separate counting run:
 
 ```sh

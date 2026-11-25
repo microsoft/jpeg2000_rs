@@ -11,6 +11,9 @@ from profile_baseline import parse_report
 from corpus import coding_header, precision_payload
 from instructions import callgrind_instructions
 from qualify import crop_dump
+from conformance import decode_blob
+import base64
+import hashlib
 
 
 def dump(width, height, values, signed=0, precision=8):
@@ -19,6 +22,18 @@ def dump(width, height, values, signed=0, precision=8):
 
 
 class ComparisonTests(unittest.TestCase):
+    def test_external_conformance_download_rejects_replaced_or_truncated_blob(self):
+        data = b"fixture"
+        identity = hashlib.sha1(b"blob 7\0" + data).hexdigest()
+        expected = dict(sha=identity, size=len(data))
+        document = dict(sha=identity, encoding="base64",
+                        content=base64.b64encode(data).decode())
+        self.assertEqual(decode_blob(document, expected), data)
+        for payload in [b"replaced", data[:-1]]:
+            changed = dict(document, content=base64.b64encode(payload).decode())
+            with self.assertRaises(ValueError):
+                decode_blob(changed, expected)
+
     def test_crop_oracle_checks_the_actual_raster_and_rejects_out_of_bounds(self):
         full = dump(4, 3, list(range(-6, 6)), signed=1)
         self.assertEqual(crop_dump(full, (1, 1, 2, 1)), dump(2, 1, [-1, 0], signed=1))
@@ -39,7 +54,8 @@ class ComparisonTests(unittest.TestCase):
             root = Path(directory)
             work, output = root / "work", root / "evidence"
             for name in ["timings/COMPLETE.json", "timings/raw.csv", "corpus/test.j2k",
-                         "timings/generic/cargo/cache.json", "timings/rust-dump.stdout"]:
+                         "timings/generic/cargo/cache.json", "timings/rust-dump.stdout",
+                         "input/conformance/restricted-use.j2k"]:
                 path = work / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b"fixture")
