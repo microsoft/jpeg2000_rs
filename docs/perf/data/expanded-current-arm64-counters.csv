@@ -1,0 +1,397 @@
+scope,config,case,corpus_class,backend,repeat,event,value
+generic,generic,day-small-gray-lossless,A,rust,0,cycles:u,1106395286
+generic,generic,day-small-gray-lossless,A,rust,0,instructions:u,3323073478
+generic,generic,day-small-gray-lossless,A,rust,0,branches:u,559340377
+generic,generic,day-small-gray-lossless,A,rust,0,branch-misses:u,19001090
+generic,generic,day-small-gray-lossless,A,rust,0,L1-dcache-load-misses,5350941
+generic,generic,day-small-gray-lossless,A,rust,0,LLC-load-misses,<not supported>
+generic,generic,day-small-gray-lossless,A,rust,1,cycles:u,1104503679
+generic,generic,day-small-gray-lossless,A,rust,1,instructions:u,3323074774
+generic,generic,day-small-gray-lossless,A,rust,1,branches:u,559340701
+generic,generic,day-small-gray-lossless,A,rust,1,branch-misses:u,18980421
+generic,generic,day-small-gray-lossless,A,rust,1,L1-dcache-load-misses,5284096
+generic,generic,day-small-gray-lossless,A,rust,1,LLC-load-misses,<not supported>
+generic,generic,day-small-gray-lossless,A,rust,2,cycles:u,1103318630
+generic,generic,day-small-gray-lossless,A,rust,2,instructions:u,3323074438
+generic,generic,day-small-gray-lossless,A,rust,2,branches:u,559340617
+generic,generic,day-small-gray-lossless,A,rust,2,branch-misses:u,18969753
+generic,generic,day-small-gray-lossless,A,rust,2,L1-dcache-load-misses,5313816
+generic,generic,day-small-gray-lossless,A,rust,2,LLC-load-misses,<not supported>
+generic,generic,day-small-gray-lossless,A,openjpeg,0,cycles:u,306222631
+generic,generic,day-small-gray-lossless,A,openjpeg,0,instructions:u,399244953
+generic,generic,day-small-gray-lossless,A,openjpeg,0,branches:u,74012035
+generic,generic,day-small-gray-lossless,A,openjpeg,0,branch-misses:u,12399767
+generic,generic,day-small-gray-lossless,A,openjpeg,0,L1-dcache-load-misses,4504100
+generic,generic,day-small-gray-lossless,A,openjpeg,0,LLC-load-misses,<not supported>
+generic,generic,day-small-gray-lossless,A,openjpeg,1,cycles:u,307365913
+generic,generic,day-small-gray-lossless,A,openjpeg,1,instructions:u,399246495
+generic,generic,day-small-gray-lossless,A,openjpeg,1,branches:u,74012399
+generic,generic,day-small-gray-lossless,A,openjpeg,1,branch-misses:u,12380864
+generic,generic,day-small-gray-lossless,A,openjpeg,1,L1-dcache-load-misses,4482311
+generic,generic,day-small-gray-lossless,A,openjpeg,1,LLC-load-misses,<not supported>
+generic,generic,day-small-gray-lossless,A,openjpeg,2,cycles:u,307523826
+generic,generic,day-small-gray-lossless,A,openjpeg,2,instructions:u,399249565
+generic,generic,day-small-gray-lossless,A,openjpeg,2,branches:u,74013132
+generic,generic,day-small-gray-lossless,A,openjpeg,2,branch-misses:u,12402156
+generic,generic,day-small-gray-lossless,A,openjpeg,2,L1-dcache-load-misses,4484782
+generic,generic,day-small-gray-lossless,A,openjpeg,2,LLC-load-misses,<not supported>
+generic,generic,day-small-gray-lossy-r40,B,rust,0,cycles:u,291137339
+generic,generic,day-small-gray-lossy-r40,B,rust,0,instructions:u,1087615583
+generic,generic,day-small-gray-lossy-r40,B,rust,0,branches:u,256125081
+generic,generic,day-small-gray-lossy-r40,B,rust,0,branch-misses:u,1027021
+generic,generic,day-small-gray-lossy-r40,B,rust,0,L1-dcache-load-misses,5482368
+generic,generic,day-small-gray-lossy-r40,B,rust,0,LLC-load-misses,<not supported>
+generic,generic,day-small-gray-lossy-r40,B,rust,1,cycles:u,291901248
+generic,generic,day-small-gray-lossy-r40,B,rust,1,instructions:u,1087616343
+generic,generic,day-small-gray-lossy-r40,B,rust,1,branches:u,256125271
+generic,generic,day-small-gray-lossy-r40,B,rust,1,branch-misses:u,1021988
+generic,generic,day-small-gray-lossy-r40,B,rust,1,L1-dcache-load-misses,5549753
+generic,generic,day-small-gray-lossy-r40,B,rust,1,LLC-load-misses,<not supported>
+generic,generic,day-small-gray-lossy-r40,B,rust,2,cycles:u,289026005
+generic,generic,day-small-gray-lossy-r40,B,rust,2,instructions:u,1087616543
+generic,generic,day-small-gray-lossy-r40,B,rust,2,branches:u,256125321
+generic,generic,day-small-gray-lossy-r40,B,rust,2,branch-misses:u,1023566
+generic,generic,day-small-gray-lossy-r40,B,rust,2,L1-dcache-load-misses,5589892
+generic,generic,day-small-gray-lossy-r40,B,rust,2,LLC-load-misses,<not supported>
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,0,cycles:u,58860389
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,0,instructions:u,158983663
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,0,branches:u,20158295
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,0,branch-misses:u,610970
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,0,L1-dcache-load-misses,1298946
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,0,LLC-load-misses,<not supported>
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,1,cycles:u,58898003
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,1,instructions:u,158978772
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,1,branches:u,20157337
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,1,branch-misses:u,611054
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,1,L1-dcache-load-misses,1296319
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,1,LLC-load-misses,<not supported>
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,2,cycles:u,58873839
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,2,instructions:u,158987621
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,2,branches:u,20159254
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,2,branch-misses:u,613928
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,2,L1-dcache-load-misses,1297945
+generic,generic,day-small-gray-lossy-r40,B,openjpeg,2,LLC-load-misses,<not supported>
+generic,generic,style-b32-m0,C,rust,0,cycles:u,41734486
+generic,generic,style-b32-m0,C,rust,0,instructions:u,125766407
+generic,generic,style-b32-m0,C,rust,0,branches:u,21269693
+generic,generic,style-b32-m0,C,rust,0,branch-misses:u,749167
+generic,generic,style-b32-m0,C,rust,0,L1-dcache-load-misses,184496
+generic,generic,style-b32-m0,C,rust,0,LLC-load-misses,<not supported>
+generic,generic,style-b32-m0,C,rust,1,cycles:u,41933782
+generic,generic,style-b32-m0,C,rust,1,instructions:u,125765423
+generic,generic,style-b32-m0,C,rust,1,branches:u,21269447
+generic,generic,style-b32-m0,C,rust,1,branch-misses:u,751067
+generic,generic,style-b32-m0,C,rust,1,L1-dcache-load-misses,185671
+generic,generic,style-b32-m0,C,rust,1,LLC-load-misses,<not supported>
+generic,generic,style-b32-m0,C,rust,2,cycles:u,41951214
+generic,generic,style-b32-m0,C,rust,2,instructions:u,125765707
+generic,generic,style-b32-m0,C,rust,2,branches:u,21269518
+generic,generic,style-b32-m0,C,rust,2,branch-misses:u,747629
+generic,generic,style-b32-m0,C,rust,2,L1-dcache-load-misses,185664
+generic,generic,style-b32-m0,C,rust,2,LLC-load-misses,<not supported>
+generic,generic,style-b32-m0,C,openjpeg,0,cycles:u,12086968
+generic,generic,style-b32-m0,C,openjpeg,0,instructions:u,15478647
+generic,generic,style-b32-m0,C,openjpeg,0,branches:u,2876039
+generic,generic,style-b32-m0,C,openjpeg,0,branch-misses:u,492677
+generic,generic,style-b32-m0,C,openjpeg,0,L1-dcache-load-misses,175775
+generic,generic,style-b32-m0,C,openjpeg,0,LLC-load-misses,<not supported>
+generic,generic,style-b32-m0,C,openjpeg,1,cycles:u,11965715
+generic,generic,style-b32-m0,C,openjpeg,1,instructions:u,15478643
+generic,generic,style-b32-m0,C,openjpeg,1,branches:u,2876038
+generic,generic,style-b32-m0,C,openjpeg,1,branch-misses:u,484670
+generic,generic,style-b32-m0,C,openjpeg,1,L1-dcache-load-misses,176275
+generic,generic,style-b32-m0,C,openjpeg,1,LLC-load-misses,<not supported>
+generic,generic,style-b32-m0,C,openjpeg,2,cycles:u,11910643
+generic,generic,style-b32-m0,C,openjpeg,2,instructions:u,15478643
+generic,generic,style-b32-m0,C,openjpeg,2,branches:u,2876038
+generic,generic,style-b32-m0,C,openjpeg,2,branch-misses:u,479745
+generic,generic,style-b32-m0,C,openjpeg,2,L1-dcache-load-misses,176310
+generic,generic,style-b32-m0,C,openjpeg,2,LLC-load-misses,<not supported>
+generic,generic,structure-untiled,D,rust,0,cycles:u,2684994199
+generic,generic,structure-untiled,D,rust,0,instructions:u,8271861618
+generic,generic,structure-untiled,D,rust,0,branches:u,1385654811
+generic,generic,structure-untiled,D,rust,0,branch-misses:u,41108112
+generic,generic,structure-untiled,D,rust,0,L1-dcache-load-misses,15998134
+generic,generic,structure-untiled,D,rust,0,LLC-load-misses,<not supported>
+generic,generic,structure-untiled,D,rust,1,cycles:u,2688355145
+generic,generic,structure-untiled,D,rust,1,instructions:u,8271862262
+generic,generic,structure-untiled,D,rust,1,branches:u,1385654972
+generic,generic,structure-untiled,D,rust,1,branch-misses:u,41128080
+generic,generic,structure-untiled,D,rust,1,L1-dcache-load-misses,16065662
+generic,generic,structure-untiled,D,rust,1,LLC-load-misses,<not supported>
+generic,generic,structure-untiled,D,rust,2,cycles:u,2691782440
+generic,generic,structure-untiled,D,rust,2,instructions:u,8271862398
+generic,generic,structure-untiled,D,rust,2,branches:u,1385655006
+generic,generic,structure-untiled,D,rust,2,branch-misses:u,41083267
+generic,generic,structure-untiled,D,rust,2,L1-dcache-load-misses,15725961
+generic,generic,structure-untiled,D,rust,2,LLC-load-misses,<not supported>
+generic,generic,structure-untiled,D,openjpeg,0,cycles:u,689176175
+generic,generic,structure-untiled,D,openjpeg,0,instructions:u,921912582
+generic,generic,structure-untiled,D,openjpeg,0,branches:u,170608611
+generic,generic,structure-untiled,D,openjpeg,0,branch-misses:u,26307987
+generic,generic,structure-untiled,D,openjpeg,0,L1-dcache-load-misses,13494707
+generic,generic,structure-untiled,D,openjpeg,0,LLC-load-misses,<not supported>
+generic,generic,structure-untiled,D,openjpeg,1,cycles:u,689617339
+generic,generic,structure-untiled,D,openjpeg,1,instructions:u,921903164
+generic,generic,structure-untiled,D,openjpeg,1,branches:u,170606419
+generic,generic,structure-untiled,D,openjpeg,1,branch-misses:u,26286106
+generic,generic,structure-untiled,D,openjpeg,1,L1-dcache-load-misses,13421808
+generic,generic,structure-untiled,D,openjpeg,1,LLC-load-misses,<not supported>
+generic,generic,structure-untiled,D,openjpeg,2,cycles:u,689486021
+generic,generic,structure-untiled,D,openjpeg,2,instructions:u,921905078
+generic,generic,structure-untiled,D,openjpeg,2,branches:u,170606940
+generic,generic,structure-untiled,D,openjpeg,2,branch-misses:u,26280207
+generic,generic,structure-untiled,D,openjpeg,2,L1-dcache-load-misses,13476906
+generic,generic,structure-untiled,D,openjpeg,2,LLC-load-misses,<not supported>
+native,native,day-small-gray-lossless,A,rust,0,cycles:u,1121075772
+native,native,day-small-gray-lossless,A,rust,0,instructions:u,3306264449
+native,native,day-small-gray-lossless,A,rust,0,branches:u,544783337
+native,native,day-small-gray-lossless,A,rust,0,branch-misses:u,19204528
+native,native,day-small-gray-lossless,A,rust,0,L1-dcache-load-misses,4883380
+native,native,day-small-gray-lossless,A,rust,0,LLC-load-misses,<not supported>
+native,native,day-small-gray-lossless,A,rust,1,cycles:u,1121813303
+native,native,day-small-gray-lossless,A,rust,1,instructions:u,3306263829
+native,native,day-small-gray-lossless,A,rust,1,branches:u,544783182
+native,native,day-small-gray-lossless,A,rust,1,branch-misses:u,19207126
+native,native,day-small-gray-lossless,A,rust,1,L1-dcache-load-misses,4907575
+native,native,day-small-gray-lossless,A,rust,1,LLC-load-misses,<not supported>
+native,native,day-small-gray-lossless,A,rust,2,cycles:u,1120158549
+native,native,day-small-gray-lossless,A,rust,2,instructions:u,3306263785
+native,native,day-small-gray-lossless,A,rust,2,branches:u,544783171
+native,native,day-small-gray-lossless,A,rust,2,branch-misses:u,19202856
+native,native,day-small-gray-lossless,A,rust,2,L1-dcache-load-misses,4858437
+native,native,day-small-gray-lossless,A,rust,2,LLC-load-misses,<not supported>
+native,native,day-small-gray-lossless,A,openjpeg,0,cycles:u,312575797
+native,native,day-small-gray-lossless,A,openjpeg,0,instructions:u,405595725
+native,native,day-small-gray-lossless,A,openjpeg,0,branches:u,71484904
+native,native,day-small-gray-lossless,A,openjpeg,0,branch-misses:u,12563046
+native,native,day-small-gray-lossless,A,openjpeg,0,L1-dcache-load-misses,4468372
+native,native,day-small-gray-lossless,A,openjpeg,0,LLC-load-misses,<not supported>
+native,native,day-small-gray-lossless,A,openjpeg,1,cycles:u,312186323
+native,native,day-small-gray-lossless,A,openjpeg,1,instructions:u,405595257
+native,native,day-small-gray-lossless,A,openjpeg,1,branches:u,71484775
+native,native,day-small-gray-lossless,A,openjpeg,1,branch-misses:u,12555798
+native,native,day-small-gray-lossless,A,openjpeg,1,L1-dcache-load-misses,4469520
+native,native,day-small-gray-lossless,A,openjpeg,1,LLC-load-misses,<not supported>
+native,native,day-small-gray-lossless,A,openjpeg,2,cycles:u,313300364
+native,native,day-small-gray-lossless,A,openjpeg,2,instructions:u,405590684
+native,native,day-small-gray-lossless,A,openjpeg,2,branches:u,71483705
+native,native,day-small-gray-lossless,A,openjpeg,2,branch-misses:u,12541630
+native,native,day-small-gray-lossless,A,openjpeg,2,L1-dcache-load-misses,4466403
+native,native,day-small-gray-lossless,A,openjpeg,2,LLC-load-misses,<not supported>
+native,native,day-small-gray-lossy-r40,B,rust,0,cycles:u,286162676
+native,native,day-small-gray-lossy-r40,B,rust,0,instructions:u,1044132865
+native,native,day-small-gray-lossy-r40,B,rust,0,branches:u,242623494
+native,native,day-small-gray-lossy-r40,B,rust,0,branch-misses:u,1021459
+native,native,day-small-gray-lossy-r40,B,rust,0,L1-dcache-load-misses,5380662
+native,native,day-small-gray-lossy-r40,B,rust,0,LLC-load-misses,<not supported>
+native,native,day-small-gray-lossy-r40,B,rust,1,cycles:u,286398750
+native,native,day-small-gray-lossy-r40,B,rust,1,instructions:u,1044132773
+native,native,day-small-gray-lossy-r40,B,rust,1,branches:u,242623471
+native,native,day-small-gray-lossy-r40,B,rust,1,branch-misses:u,1021618
+native,native,day-small-gray-lossy-r40,B,rust,1,L1-dcache-load-misses,5483071
+native,native,day-small-gray-lossy-r40,B,rust,1,LLC-load-misses,<not supported>
+native,native,day-small-gray-lossy-r40,B,rust,2,cycles:u,284318734
+native,native,day-small-gray-lossy-r40,B,rust,2,instructions:u,1044132825
+native,native,day-small-gray-lossy-r40,B,rust,2,branches:u,242623484
+native,native,day-small-gray-lossy-r40,B,rust,2,branch-misses:u,1026241
+native,native,day-small-gray-lossy-r40,B,rust,2,L1-dcache-load-misses,5295595
+native,native,day-small-gray-lossy-r40,B,rust,2,LLC-load-misses,<not supported>
+native,native,day-small-gray-lossy-r40,B,openjpeg,0,cycles:u,59249982
+native,native,day-small-gray-lossy-r40,B,openjpeg,0,instructions:u,162334173
+native,native,day-small-gray-lossy-r40,B,openjpeg,0,branches:u,20188113
+native,native,day-small-gray-lossy-r40,B,openjpeg,0,branch-misses:u,626038
+native,native,day-small-gray-lossy-r40,B,openjpeg,0,L1-dcache-load-misses,1287264
+native,native,day-small-gray-lossy-r40,B,openjpeg,0,LLC-load-misses,<not supported>
+native,native,day-small-gray-lossy-r40,B,openjpeg,1,cycles:u,58736368
+native,native,day-small-gray-lossy-r40,B,openjpeg,1,instructions:u,162333455
+native,native,day-small-gray-lossy-r40,B,openjpeg,1,branches:u,20187934
+native,native,day-small-gray-lossy-r40,B,openjpeg,1,branch-misses:u,620141
+native,native,day-small-gray-lossy-r40,B,openjpeg,1,L1-dcache-load-misses,1282583
+native,native,day-small-gray-lossy-r40,B,openjpeg,1,LLC-load-misses,<not supported>
+native,native,day-small-gray-lossy-r40,B,openjpeg,2,cycles:u,58624321
+native,native,day-small-gray-lossy-r40,B,openjpeg,2,instructions:u,162338131
+native,native,day-small-gray-lossy-r40,B,openjpeg,2,branches:u,20189072
+native,native,day-small-gray-lossy-r40,B,openjpeg,2,branch-misses:u,615561
+native,native,day-small-gray-lossy-r40,B,openjpeg,2,L1-dcache-load-misses,1289191
+native,native,day-small-gray-lossy-r40,B,openjpeg,2,LLC-load-misses,<not supported>
+native,native,style-b32-m0,C,rust,0,cycles:u,42615881
+native,native,style-b32-m0,C,rust,0,instructions:u,125006023
+native,native,style-b32-m0,C,rust,0,branches:u,20654410
+native,native,style-b32-m0,C,rust,0,branch-misses:u,756490
+native,native,style-b32-m0,C,rust,0,L1-dcache-load-misses,163227
+native,native,style-b32-m0,C,rust,0,LLC-load-misses,<not supported>
+native,native,style-b32-m0,C,rust,1,cycles:u,42689225
+native,native,style-b32-m0,C,rust,1,instructions:u,125005855
+native,native,style-b32-m0,C,rust,1,branches:u,20654368
+native,native,style-b32-m0,C,rust,1,branch-misses:u,758935
+native,native,style-b32-m0,C,rust,1,L1-dcache-load-misses,163506
+native,native,style-b32-m0,C,rust,1,LLC-load-misses,<not supported>
+native,native,style-b32-m0,C,rust,2,cycles:u,42491010
+native,native,style-b32-m0,C,rust,2,instructions:u,125005275
+native,native,style-b32-m0,C,rust,2,branches:u,20654223
+native,native,style-b32-m0,C,rust,2,branch-misses:u,757995
+native,native,style-b32-m0,C,rust,2,L1-dcache-load-misses,161713
+native,native,style-b32-m0,C,rust,2,LLC-load-misses,<not supported>
+native,native,style-b32-m0,C,openjpeg,0,cycles:u,12371148
+native,native,style-b32-m0,C,openjpeg,0,instructions:u,15704222
+native,native,style-b32-m0,C,openjpeg,0,branches:u,2777335
+native,native,style-b32-m0,C,openjpeg,0,branch-misses:u,496670
+native,native,style-b32-m0,C,openjpeg,0,L1-dcache-load-misses,176408
+native,native,style-b32-m0,C,openjpeg,0,LLC-load-misses,<not supported>
+native,native,style-b32-m0,C,openjpeg,1,cycles:u,12335270
+native,native,style-b32-m0,C,openjpeg,1,instructions:u,15704226
+native,native,style-b32-m0,C,openjpeg,1,branches:u,2777336
+native,native,style-b32-m0,C,openjpeg,1,branch-misses:u,492588
+native,native,style-b32-m0,C,openjpeg,1,L1-dcache-load-misses,175990
+native,native,style-b32-m0,C,openjpeg,1,LLC-load-misses,<not supported>
+native,native,style-b32-m0,C,openjpeg,2,cycles:u,12243660
+native,native,style-b32-m0,C,openjpeg,2,instructions:u,15704222
+native,native,style-b32-m0,C,openjpeg,2,branches:u,2777335
+native,native,style-b32-m0,C,openjpeg,2,branch-misses:u,484995
+native,native,style-b32-m0,C,openjpeg,2,L1-dcache-load-misses,175161
+native,native,style-b32-m0,C,openjpeg,2,LLC-load-misses,<not supported>
+native,native,structure-untiled,D,rust,0,cycles:u,2714260065
+native,native,structure-untiled,D,rust,0,instructions:u,8190690002
+native,native,structure-untiled,D,rust,0,branches:u,1337677135
+native,native,structure-untiled,D,rust,0,branch-misses:u,41609596
+native,native,structure-untiled,D,rust,0,L1-dcache-load-misses,14489211
+native,native,structure-untiled,D,rust,0,LLC-load-misses,<not supported>
+native,native,structure-untiled,D,rust,1,cycles:u,2717929305
+native,native,structure-untiled,D,rust,1,instructions:u,8190689026
+native,native,structure-untiled,D,rust,1,branches:u,1337676891
+native,native,structure-untiled,D,rust,1,branch-misses:u,41609081
+native,native,structure-untiled,D,rust,1,L1-dcache-load-misses,14497007
+native,native,structure-untiled,D,rust,1,LLC-load-misses,<not supported>
+native,native,structure-untiled,D,rust,2,cycles:u,2715243117
+native,native,structure-untiled,D,rust,2,instructions:u,8190689566
+native,native,structure-untiled,D,rust,2,branches:u,1337677026
+native,native,structure-untiled,D,rust,2,branch-misses:u,41583055
+native,native,structure-untiled,D,rust,2,L1-dcache-load-misses,14357641
+native,native,structure-untiled,D,rust,2,LLC-load-misses,<not supported>
+native,native,structure-untiled,D,openjpeg,0,cycles:u,699277378
+native,native,structure-untiled,D,openjpeg,0,instructions:u,933043077
+native,native,structure-untiled,D,openjpeg,0,branches:u,164449421
+native,native,structure-untiled,D,openjpeg,0,branch-misses:u,26652985
+native,native,structure-untiled,D,openjpeg,0,L1-dcache-load-misses,13469156
+native,native,structure-untiled,D,openjpeg,0,LLC-load-misses,<not supported>
+native,native,structure-untiled,D,openjpeg,1,cycles:u,699406602
+native,native,structure-untiled,D,openjpeg,1,instructions:u,933044499
+native,native,structure-untiled,D,openjpeg,1,branches:u,164449850
+native,native,structure-untiled,D,openjpeg,1,branch-misses:u,26660360
+native,native,structure-untiled,D,openjpeg,1,L1-dcache-load-misses,13440824
+native,native,structure-untiled,D,openjpeg,1,LLC-load-misses,<not supported>
+native,native,structure-untiled,D,openjpeg,2,cycles:u,699479108
+native,native,structure-untiled,D,openjpeg,2,instructions:u,933029913
+native,native,structure-untiled,D,openjpeg,2,branches:u,164446354
+native,native,structure-untiled,D,openjpeg,2,branch-misses:u,26669435
+native,native,structure-untiled,D,openjpeg,2,L1-dcache-load-misses,13459414
+native,native,structure-untiled,D,openjpeg,2,LLC-load-misses,<not supported>
+window,generic,roi8k-untiled53,F,rust,0,cycles:u,30240216487
+window,generic,roi8k-untiled53,F,rust,0,instructions:u,89587460944
+window,generic,roi8k-untiled53,F,rust,0,branches:u,15125723211
+window,generic,roi8k-untiled53,F,rust,0,branch-misses:u,473143027
+window,generic,roi8k-untiled53,F,rust,0,L1-dcache-load-misses,208190106
+window,generic,roi8k-untiled53,F,rust,0,LLC-load-misses,<not supported>
+window,generic,roi8k-untiled53,F,rust,1,cycles:u,30179526887
+window,generic,roi8k-untiled53,F,rust,1,instructions:u,89587461416
+window,generic,roi8k-untiled53,F,rust,1,branches:u,15125723329
+window,generic,roi8k-untiled53,F,rust,1,branch-misses:u,472629840
+window,generic,roi8k-untiled53,F,rust,1,L1-dcache-load-misses,206747683
+window,generic,roi8k-untiled53,F,rust,1,LLC-load-misses,<not supported>
+window,generic,roi8k-untiled53,F,rust,2,cycles:u,30201302301
+window,generic,roi8k-untiled53,F,rust,2,instructions:u,89587460968
+window,generic,roi8k-untiled53,F,rust,2,branches:u,15125723217
+window,generic,roi8k-untiled53,F,rust,2,branch-misses:u,472841485
+window,generic,roi8k-untiled53,F,rust,2,L1-dcache-load-misses,206440207
+window,generic,roi8k-untiled53,F,rust,2,LLC-load-misses,<not supported>
+window,generic,roi8k-untiled53,F,openjpeg,0,cycles:u,135485783
+window,generic,roi8k-untiled53,F,openjpeg,0,instructions:u,207750585
+window,generic,roi8k-untiled53,F,openjpeg,0,branches:u,42566413
+window,generic,roi8k-untiled53,F,openjpeg,0,branch-misses:u,4681263
+window,generic,roi8k-untiled53,F,openjpeg,0,L1-dcache-load-misses,696612
+window,generic,roi8k-untiled53,F,openjpeg,0,LLC-load-misses,<not supported>
+window,generic,roi8k-untiled53,F,openjpeg,1,cycles:u,135476277
+window,generic,roi8k-untiled53,F,openjpeg,1,instructions:u,207753716
+window,generic,roi8k-untiled53,F,openjpeg,1,branches:u,42567149
+window,generic,roi8k-untiled53,F,openjpeg,1,branch-misses:u,4676426
+window,generic,roi8k-untiled53,F,openjpeg,1,L1-dcache-load-misses,741514
+window,generic,roi8k-untiled53,F,openjpeg,1,LLC-load-misses,<not supported>
+window,generic,roi8k-untiled53,F,openjpeg,2,cycles:u,135201274
+window,generic,roi8k-untiled53,F,openjpeg,2,instructions:u,207745017
+window,generic,roi8k-untiled53,F,openjpeg,2,branches:u,42565114
+window,generic,roi8k-untiled53,F,openjpeg,2,branch-misses:u,4683301
+window,generic,roi8k-untiled53,F,openjpeg,2,L1-dcache-load-misses,732223
+window,generic,roi8k-untiled53,F,openjpeg,2,LLC-load-misses,<not supported>
+window,generic,roi8k-tiled53,F,rust,0,cycles:u,129690110
+window,generic,roi8k-tiled53,F,rust,0,instructions:u,384872258
+window,generic,roi8k-tiled53,F,rust,0,branches:u,65811199
+window,generic,roi8k-tiled53,F,rust,0,branch-misses:u,1890472
+window,generic,roi8k-tiled53,F,rust,0,L1-dcache-load-misses,1281048
+window,generic,roi8k-tiled53,F,rust,0,LLC-load-misses,<not supported>
+window,generic,roi8k-tiled53,F,rust,1,cycles:u,129682213
+window,generic,roi8k-tiled53,F,rust,1,instructions:u,384871994
+window,generic,roi8k-tiled53,F,rust,1,branches:u,65811133
+window,generic,roi8k-tiled53,F,rust,1,branch-misses:u,1890789
+window,generic,roi8k-tiled53,F,rust,1,L1-dcache-load-misses,1289879
+window,generic,roi8k-tiled53,F,rust,1,LLC-load-misses,<not supported>
+window,generic,roi8k-tiled53,F,rust,2,cycles:u,129663974
+window,generic,roi8k-tiled53,F,rust,2,instructions:u,384872018
+window,generic,roi8k-tiled53,F,rust,2,branches:u,65811139
+window,generic,roi8k-tiled53,F,rust,2,branch-misses:u,1892984
+window,generic,roi8k-tiled53,F,rust,2,L1-dcache-load-misses,1268858
+window,generic,roi8k-tiled53,F,rust,2,LLC-load-misses,<not supported>
+window,generic,roi8k-tiled53,F,openjpeg,0,cycles:u,36155137
+window,generic,roi8k-tiled53,F,openjpeg,0,instructions:u,49166999
+window,generic,roi8k-tiled53,F,openjpeg,0,branches:u,8845572
+window,generic,roi8k-tiled53,F,openjpeg,0,branch-misses:u,1199638
+window,generic,roi8k-tiled53,F,openjpeg,0,L1-dcache-load-misses,899414
+window,generic,roi8k-tiled53,F,openjpeg,0,LLC-load-misses,<not supported>
+window,generic,roi8k-tiled53,F,openjpeg,1,cycles:u,36051351
+window,generic,roi8k-tiled53,F,openjpeg,1,instructions:u,49161352
+window,generic,roi8k-tiled53,F,openjpeg,1,branches:u,8844260
+window,generic,roi8k-tiled53,F,openjpeg,1,branch-misses:u,1202887
+window,generic,roi8k-tiled53,F,openjpeg,1,L1-dcache-load-misses,896385
+window,generic,roi8k-tiled53,F,openjpeg,1,LLC-load-misses,<not supported>
+window,generic,roi8k-tiled53,F,openjpeg,2,cycles:u,35928162
+window,generic,roi8k-tiled53,F,openjpeg,2,instructions:u,49161740
+window,generic,roi8k-tiled53,F,openjpeg,2,branches:u,8844320
+window,generic,roi8k-tiled53,F,openjpeg,2,branch-misses:u,1198831
+window,generic,roi8k-tiled53,F,openjpeg,2,L1-dcache-load-misses,902192
+window,generic,roi8k-tiled53,F,openjpeg,2,LLC-load-misses,<not supported>
+window,generic,roi8k-untiled97,F,rust,0,cycles:u,9415511186
+window,generic,roi8k-untiled97,F,rust,0,instructions:u,32453318882
+window,generic,roi8k-untiled97,F,rust,0,branches:u,7685221017
+window,generic,roi8k-untiled97,F,rust,0,branch-misses:u,42226602
+window,generic,roi8k-untiled97,F,rust,0,L1-dcache-load-misses,198333878
+window,generic,roi8k-untiled97,F,rust,0,LLC-load-misses,<not supported>
+window,generic,roi8k-untiled97,F,rust,1,cycles:u,9427888928
+window,generic,roi8k-untiled97,F,rust,1,instructions:u,32453318638
+window,generic,roi8k-untiled97,F,rust,1,branches:u,7685220956
+window,generic,roi8k-untiled97,F,rust,1,branch-misses:u,42262748
+window,generic,roi8k-untiled97,F,rust,1,L1-dcache-load-misses,199088921
+window,generic,roi8k-untiled97,F,rust,1,LLC-load-misses,<not supported>
+window,generic,roi8k-untiled97,F,rust,2,cycles:u,9454339646
+window,generic,roi8k-untiled97,F,rust,2,instructions:u,32453319418
+window,generic,roi8k-untiled97,F,rust,2,branches:u,7685221151
+window,generic,roi8k-untiled97,F,rust,2,branch-misses:u,42252261
+window,generic,roi8k-untiled97,F,rust,2,L1-dcache-load-misses,200279692
+window,generic,roi8k-untiled97,F,rust,2,LLC-load-misses,<not supported>
+window,generic,roi8k-untiled97,F,openjpeg,0,cycles:u,44377375
+window,generic,roi8k-untiled97,F,openjpeg,0,instructions:u,89652356
+window,generic,roi8k-untiled97,F,openjpeg,0,branches:u,16499862
+window,generic,roi8k-untiled97,F,openjpeg,0,branch-misses:u,1067950
+window,generic,roi8k-untiled97,F,openjpeg,0,L1-dcache-load-misses,502619
+window,generic,roi8k-untiled97,F,openjpeg,0,LLC-load-misses,<not supported>
+window,generic,roi8k-untiled97,F,openjpeg,1,cycles:u,44325505
+window,generic,roi8k-untiled97,F,openjpeg,1,instructions:u,89657779
+window,generic,roi8k-untiled97,F,openjpeg,1,branches:u,16501293
+window,generic,roi8k-untiled97,F,openjpeg,1,branch-misses:u,1070738
+window,generic,roi8k-untiled97,F,openjpeg,1,L1-dcache-load-misses,500923
+window,generic,roi8k-untiled97,F,openjpeg,1,LLC-load-misses,<not supported>
+window,generic,roi8k-untiled97,F,openjpeg,2,cycles:u,44162114
+window,generic,roi8k-untiled97,F,openjpeg,2,instructions:u,89650885
+window,generic,roi8k-untiled97,F,openjpeg,2,branches:u,16499522
+window,generic,roi8k-untiled97,F,openjpeg,2,branch-misses:u,1063529
+window,generic,roi8k-untiled97,F,openjpeg,2,L1-dcache-load-misses,507058
+window,generic,roi8k-untiled97,F,openjpeg,2,LLC-load-misses,<not supported>

@@ -2,7 +2,7 @@
 
 use jpeg2000_decoder::{
     DecodeOptions, DecodeSelection, ImageRegion, TypedImage, TypedSamples,
-    decode_codestream_selected,
+    decode_codestream_selected, decode_jp2_selected,
 };
 use std::{
     env,
@@ -72,7 +72,14 @@ fn run() -> Result<(), Box<dyn Error>> {
     }
     let input = fs::read(path)?;
     let options = DecodeOptions::default();
-    let decode = || decode_codestream_selected(black_box(&input), &options, &selection);
+    let boxed = input.starts_with(b"\0\0\0\x0cjP  \r\n\x87\n");
+    let decode = || {
+        if boxed {
+            decode_jp2_selected(black_box(&input), &options, &selection)
+        } else {
+            decode_codestream_selected(black_box(&input), &options, &selection)
+        }
+    };
     if mode == "dump" {
         return Ok(dump(&decode()?)?);
     }

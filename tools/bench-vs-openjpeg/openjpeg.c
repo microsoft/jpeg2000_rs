@@ -11,6 +11,7 @@
 typedef struct {
     const unsigned char *data;
     size_t size, position;
+    OPJ_CODEC_FORMAT format;
 } Input;
 
 typedef struct {
@@ -92,7 +93,7 @@ static Output decode(Input input, unsigned reduce, const int *window, int typed,
     Output output = {0};
     opj_dparameters_t parameters;
     opj_set_default_decoder_parameters(&parameters);
-    opj_codec_t *codec = opj_create_decompress(OPJ_CODEC_J2K);
+    opj_codec_t *codec = opj_create_decompress(input.format);
     opj_stream_t *stream = opj_stream_create(65536, OPJ_TRUE);
     if (!codec || !stream) fail("codec/stream allocation");
     opj_set_error_handler(codec, error_message, NULL);
@@ -150,10 +151,21 @@ static void word(uint64_t value) {
     if (fwrite(bytes, 1, 8, stdout) != 8) fail("output write");
 }
 
-static void dump(Output output) {
-    /* Common reduced-grid canvas for this harness's unit-sampling corpus. */
-    word(output.image->comps[0].w);
-    word(output.image->comps[0].h);
+static void dump(Output output, unsigned reduce, const int *window) {
+    uint64_t x0 = output.image->x0, y0 = output.image->y0;
+    uint64_t x1 = output.image->x1, y1 = output.image->y1;
+    uint64_t scale = UINT64_C(1) << reduce;
+    if (window) {
+        if (x0 < (uint64_t)window[0]) x0 = (uint64_t)window[0];
+        if (y0 < (uint64_t)window[1]) y0 = (uint64_t)window[1];
+        if (x1 > (uint64_t)window[0] + (uint64_t)window[2])
+            x1 = (uint64_t)window[0] + (uint64_t)window[2];
+        if (y1 > (uint64_t)window[1] + (uint64_t)window[3])
+            y1 = (uint64_t)window[1] + (uint64_t)window[3];
+    }
+    if (x1 <= x0 || y1 <= y0) fail("empty output canvas");
+    word((x1 + scale - 1) / scale - (x0 + scale - 1) / scale);
+    word((y1 + scale - 1) / scale - (y0 + scale - 1) / scale);
     word(output.image->numcomps);
     for (OPJ_UINT32 c = 0; c < output.image->numcomps; ++c) {
         const opj_image_comp_t *plane = &output.image->comps[c];
@@ -194,10 +206,13 @@ int main(int argc, char **argv) {
     if (!bytes || fread(bytes, 1, (size_t)length, file) != (size_t)length)
         fail("input allocation/read");
     if (fclose(file)) fail("input close");
-    Input input = {bytes, (size_t)length, 0};
+    static const unsigned char jp2_signature[] = {0, 0, 0, 12, 'j', 'P', ' ', ' ', 13, 10, 135, 10};
+    OPJ_CODEC_FORMAT format = (size_t)length >= sizeof(jp2_signature) &&
+        !memcmp(bytes, jp2_signature, sizeof(jp2_signature)) ? OPJ_CODEC_JP2 : OPJ_CODEC_J2K;
+    Input input = {bytes, (size_t)length, 0, format};
     if (dumping) {
         Output output = decode(input, (unsigned)reduce, area, 1, threads);
-        dump(output);
+        dump(output, (unsigned)reduce, area);
         destroy(output);
     } else {
         for (uint64_t i = 0; i < warmups; ++i) {

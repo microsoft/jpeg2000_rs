@@ -287,7 +287,7 @@ its actual MSRV build passes. Four invalid-window controls and exact full/window
 output checks pass. Package enumeration verifies tooling/report data are absent
 from the 417-file decoder package.
 
-**Verus: not run, not a theorem failure.** `cargo verus` is unavailable locally;
+**24-November snapshot: Verus not run, not a theorem failure.** `cargo verus` is unavailable locally;
 the pinned job uses an x86 binary/Rust 1.98.1. Attempted exact prototype push
 was denied HTTP 403 to `telecos`, so no exact-ref workflow was dispatched.
 The user was unavailable to grant write/JIT access. No alternative identity,
@@ -354,7 +354,8 @@ The HT baseline supports the existing tracker, not a measured storage gain.
   128-byte table preserves public count classes via saturation and a masked
   index. No stripe representation, block specialization or new storage.
 - **Correctness:** all paired dumps/#299 exact as above; native/MSRV suites
-  pass. Verus blocked; cross-target execution untested.
+  pass. The later exact-source Verus attempt rejects the const-table initializer
+  (Section 8); cross-target prototype execution remains untested.
 - **Effort/risk:** S native, M proof follow-through/medium.
 - **Recommendation:** **no-go for this bounded count-LUT experiment**;
   **needs more data for the larger C2 remainder**. No class reaches a
@@ -464,7 +465,8 @@ results are not relabelled scaling evidence.
 - **Correctness/verification:** no lifetime/zeroing/refusal model changed.
   Complete overwrite, actual owner requests and error order require proof;
   phantom allocations or capacity assumptions from equal sequences are not
-  acceptable. Exact-source verifier access is blocked.
+  acceptable. Verifier access is now restored, but no C7 prototype or new
+  accounting proof has been qualified.
 - **Effort/risk:** M/medium for a bounded residual kernel, L for a new
   cross-call decoder API.
 - **Recommendation:** **needs more data** on representative high-precision/
@@ -527,7 +529,9 @@ full-tile Rust cost, consistent with the source-confirmed intra-tile gap.
 - **Prototype:** `perf/eval-c12-mq-inline`, `aa1e5ba`; four `#[inline]`
   hints, no arithmetic, state, checks or proof-contract changes.
 - **Correctness:** exact dumps/#299; native/MSRV/deadline suites above pass.
-  Verus blocked; cross-target execution untested.
+  Later exact-source and package Verus each pass 6,328 obligations with zero
+  errors under the existing lifetime-disabled boundary (Section 8).
+  Cross-target prototype execution remains untested.
 - **Effort/risk:** S/low native semantic risk, fresh verification still required.
 - **Recommendation:** **no-go for these measured hints**. No repeatable
   retention-level end-to-end or isolated-stage gain is established. This
@@ -576,7 +580,8 @@ The current stack result is unchanged baseline, not an unmeasured composition.
 
 Next investigation order, **not an adoption ranking**:
 
-1. Restore exact-source proof execution and complete H/C9 corpus/ISA gaps.
+1. Complete remaining H/C9 corpus/ISA/evidence gates; exact-source proof
+   attempts are now recorded (C12 passes, C2 fails and stays rejected).
 2. Prefer existing #469/#470/#474 ownership and #472 reader investigations
    over duplicate global scratch work.
 3. Investigate remaining intra-tile ROI with #469/geometry/error-policy
@@ -774,7 +779,7 @@ or the three different streams.
 
 Window qualification now also compares each backend's actual selected output
 with its own full-decode crop, before any timing. A real 32-square integration
-case passes for both backends; 16 focused tooling tests pass. The queued 8K
+case passes for both backends; 17 focused tooling tests pass. The queued 8K
 requests completed after A-D, without competing owned measurement processes.
 All three actual 8192-square streams qualify for discard 1/2/3 and the window;
 all six real window/own-full-crop comparisons are exact.
@@ -889,6 +894,14 @@ speedup or a safe gain bound. New filter-support/geometry, malformed-input,
 work/deadline and selected-state proof prerequisites remain before adoption.
 Shared-host times remain indicative.
 
+Separate actual-window user-cycle profiles reinforce that this is not merely
+a 5/3 arithmetic problem: untiled 5/3 Rust self samples are **85.62% Tier-1
+(including MQ)** and **4.46% DWT**. Untiled 9/7 is **39.52% Tier-1** and
+**35.80% DWT**. These are whole-process sampled self shares, not isolated stage
+wall times or strict Amdahl ceilings; unknown/reconstruction self time remains
+explicit. The profiler follows the actual window request and hash-checked
+reused binary rather than accidentally profiling a full request.
+
 Full [latencies/IQRs](data/partial-current-arm64-summary.csv),
 [ratios/decoded throughput](data/partial-current-arm64-ratios.csv),
 [process resources](data/partial-current-arm64-resources.csv),
@@ -908,10 +921,43 @@ External class-G rights metadata was also inspected before acquisition:
 with the notice retained, but is not an unrestricted MIT data license.
 Nonregression files have several distinct origins; its PngSuite subdirectory
 has an explicit permissive grant, not a blanket grant over every bug attachment.
-These metadata findings are not a claim that external vectors were executed.
-The prepared `conformance.py` inventories all 57 encoded conformance vectors
-from the pinned tree, verifies blob identities and sizes, retains the mandatory
-notice and records every backend failure/difference without an invented
-tolerance. Its execution must follow the owned timing queue; preparation and
-unit tests alone are not reported as vector execution. External vectors and
-their pixel dumps are excluded from portable evidence collection.
+All 57 encoded conformance vectors have now been executed after local timing;
+each pinned Git blob/size is checked and the mandatory notice retained.
+The first diagnostic exposed raw-only input and unit-sampling dump assumptions
+in the harness. Separate rebuilt drivers now use proper JP2 APIs and global-grid
+canvas dimensions; raw full/reduced/window smoke checks still pass. Existing
+timing binaries/data are not relabeled as these rebuilt drivers.
+
+The corrected `f4b2b7b` inventory is **40 identical, 10 decoded with value
+differences, and 7 Rust refusals; OpenJPEG decodes all 57**.
+One refusal deliberately preserves the default 64-component resource limit on
+a 257-component vector; six other marker/quantization/code-block refusals remain
+unresolved compatibility findings. Value differences include maxima 158 on
+`file2.jp2` and 598 on `p0_06.j2k`, not an invented accepted tolerance.
+These unresolved baseline differences do not qualify full conformance or any
+new optimization. The original #299 controls remain separate.
+See the [complete outcome table](data/conformance-current-inventory.csv) and
+[source/driver/rights provenance](data/conformance-current-provenance.json).
+The separately licensed/mixed nonregression collection remains unexecuted.
+External vectors and pixel dumps are not redistributed.
+
+ARM Callgrind separately records 16 successful generic/consumer representative
+A-D process counts. All eight native-profile attempts receive tool SIGILL on
+unsupported instructions; those are explicit missing counts, not zeros or
+library failures inferred from instrumentation. Actual uninstrumented native
+decoding already passes the timing/correctness matrices. Native hardware
+counters and actual-request stage profiles now complete successfully as a
+separate fallback, without changing flags or weakening safety/resource limits.
+The [instruction outcome table](data/expanded-current-arm64-instructions.csv)
+retains successful counts and all refused native attempts.
+
+The fresh collection covers representative A-D in generic/native and all three
+actual windows in generic: **155 stage rows, 396 raw counter rows, and 22
+three-repeat process-counter summaries**. Maximum observed instruction-count
+relative range over the three repeats is **0.01149%**. Cycles, instructions,
+IPC, branches, branch misses and L1 data misses are retained; LLC load misses
+remain explicitly `<not supported>`, never zero.
+See [sampled stages](data/expanded-current-arm64-stages.csv),
+[raw counters](data/expanded-current-arm64-counters.csv),
+[counter/IPC summaries](data/expanded-current-arm64-counter-summary.csv) and
+[request/build/scope provenance](data/expanded-current-arm64-profiles-provenance.json).

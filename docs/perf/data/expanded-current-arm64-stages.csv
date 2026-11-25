@@ -1,0 +1,156 @@
+scope,config,reduce,window,case,class,backend,stage,sampled_self_percent
+generic,generic,0,-,day-small-gray-lossless,A,rust,DWT,2.8
+generic,generic,0,-,day-small-gray-lossless,A,rust,allocation/copy/zero,0.15
+generic,generic,0,-,day-small-gray-lossless,A,rust,reconstruction other,2.8
+generic,generic,0,-,day-small-gray-lossless,A,rust,dequant/placement,1.25
+generic,generic,0,-,day-small-gray-lossless,A,rust,assembly,1.31
+generic,generic,0,-,day-small-gray-lossless,A,rust,typed/output/color,0.43
+generic,generic,0,-,day-small-gray-lossless,A,rust,MQ,25.990000000000002
+generic,generic,0,-,day-small-gray-lossless,A,rust,parsing/Tier2/planning,0.06
+generic,generic,0,-,day-small-gray-lossless,A,rust,Tier1 shared/legacy,63.959999999999994
+generic,generic,0,-,day-small-gray-lossless,A,rust,other,1.24
+generic,generic,0,-,day-small-gray-lossless,A,openjpeg,other,0.64
+generic,generic,0,-,day-small-gray-lossless,A,openjpeg,DWT,6.720000000000001
+generic,generic,0,-,day-small-gray-lossless,A,openjpeg,Tier1 shared/legacy,92.57
+generic,generic,0,-,day-small-gray-lossless,A,openjpeg,TCD reconstruction unresolved,0.08
+generic,generic,0,-,day-small-gray-lossy-r40,B,rust,allocation/copy/zero,1.6600000000000001
+generic,generic,0,-,day-small-gray-lossy-r40,B,rust,parsing/Tier2/planning,0.18
+generic,generic,0,-,day-small-gray-lossy-r40,B,rust,dequant/placement,2.87
+generic,generic,0,-,day-small-gray-lossy-r40,B,rust,reconstruction other,6.86
+generic,generic,0,-,day-small-gray-lossy-r40,B,rust,assembly,4.91
+generic,generic,0,-,day-small-gray-lossy-r40,B,rust,typed/output/color,1.76
+generic,generic,0,-,day-small-gray-lossy-r40,B,rust,MQ,5.28
+generic,generic,0,-,day-small-gray-lossy-r40,B,rust,Tier1 shared/legacy,45.22
+generic,generic,0,-,day-small-gray-lossy-r40,B,rust,DWT,26.22
+generic,generic,0,-,day-small-gray-lossy-r40,B,rust,other,4.999999999999999
+generic,generic,0,-,day-small-gray-lossy-r40,B,openjpeg,other,5.669999999999999
+generic,generic,0,-,day-small-gray-lossy-r40,B,openjpeg,allocation/copy/zero,0.09
+generic,generic,0,-,day-small-gray-lossy-r40,B,openjpeg,DWT,51.669999999999995
+generic,generic,0,-,day-small-gray-lossy-r40,B,openjpeg,parsing/Tier2/planning,0.09
+generic,generic,0,-,day-small-gray-lossy-r40,B,openjpeg,MQ,0.09
+generic,generic,0,-,day-small-gray-lossy-r40,B,openjpeg,Tier1 shared/legacy,28.04
+generic,generic,0,-,day-small-gray-lossy-r40,B,openjpeg,TCD reconstruction unresolved,14.3
+generic,generic,0,-,style-b32-m0,C,rust,DWT,2.77
+generic,generic,0,-,style-b32-m0,C,rust,allocation/copy/zero,0.31
+generic,generic,0,-,style-b32-m0,C,rust,parsing/Tier2/planning,0.16
+generic,generic,0,-,style-b32-m0,C,rust,dequant/placement,1.31
+generic,generic,0,-,style-b32-m0,C,rust,reconstruction other,2.54
+generic,generic,0,-,style-b32-m0,C,rust,assembly,1.47
+generic,generic,0,-,style-b32-m0,C,rust,typed/output/color,0.62
+generic,generic,0,-,style-b32-m0,C,rust,MQ,25.729999999999997
+generic,generic,0,-,style-b32-m0,C,rust,Tier1 shared/legacy,63.71
+generic,generic,0,-,style-b32-m0,C,rust,other,1.41
+generic,generic,0,-,style-b32-m0,C,openjpeg,Tier1 shared/legacy,100.0
+generic,generic,0,-,structure-untiled,D,rust,DWT,3.5
+generic,generic,0,-,structure-untiled,D,rust,Tier1 shared/legacy,64.0
+generic,generic,0,-,structure-untiled,D,rust,allocation/copy/zero,0.04
+generic,generic,0,-,structure-untiled,D,rust,other,1.5300000000000002
+generic,generic,0,-,structure-untiled,D,rust,dequant/placement,1.78
+generic,generic,0,-,structure-untiled,D,rust,reconstruction other,3.34
+generic,generic,0,-,structure-untiled,D,rust,assembly,1.6
+generic,generic,0,-,structure-untiled,D,rust,MCT,0.12
+generic,generic,0,-,structure-untiled,D,rust,typed/output/color,0.65
+generic,generic,0,-,structure-untiled,D,rust,MQ,23.25
+generic,generic,0,-,structure-untiled,D,rust,parsing/Tier2/planning,0.13
+generic,generic,0,-,structure-untiled,D,openjpeg,allocation/copy/zero,0.1
+generic,generic,0,-,structure-untiled,D,openjpeg,other,1.3300000000000003
+generic,generic,0,-,structure-untiled,D,openjpeg,DWT,9.29
+generic,generic,0,-,structure-untiled,D,openjpeg,MCT,0.24
+generic,generic,0,-,structure-untiled,D,openjpeg,MQ,0.05
+generic,generic,0,-,structure-untiled,D,openjpeg,Tier1 shared/legacy,88.52
+generic,generic,0,-,structure-untiled,D,openjpeg,TCD reconstruction unresolved,0.49
+native,native,0,-,day-small-gray-lossless,A,rust,allocation/copy/zero,0.8400000000000001
+native,native,0,-,day-small-gray-lossless,A,rust,other,5.940000000000002
+native,native,0,-,day-small-gray-lossless,A,rust,assembly,1.05
+native,native,0,-,day-small-gray-lossless,A,rust,typed/output/color,0.84
+native,native,0,-,day-small-gray-lossless,A,rust,MQ,25.77
+native,native,0,-,day-small-gray-lossless,A,rust,parsing/Tier2/planning,2.0399999999999996
+native,native,0,-,day-small-gray-lossless,A,rust,Tier1 shared/legacy,61.06
+native,native,0,-,day-small-gray-lossless,A,rust,DWT,2.46
+native,native,0,-,day-small-gray-lossless,A,openjpeg,allocation/copy/zero,0.15
+native,native,0,-,day-small-gray-lossless,A,openjpeg,other,1.2500000000000002
+native,native,0,-,day-small-gray-lossless,A,openjpeg,DWT,6.33
+native,native,0,-,day-small-gray-lossless,A,openjpeg,Tier1 shared/legacy,92.19999999999999
+native,native,0,-,day-small-gray-lossless,A,openjpeg,TCD reconstruction unresolved,0.08
+native,native,0,-,day-small-gray-lossy-r40,B,rust,allocation/copy/zero,4.5
+native,native,0,-,day-small-gray-lossy-r40,B,rust,other,14.199999999999998
+native,native,0,-,day-small-gray-lossy-r40,B,rust,assembly,4.5
+native,native,0,-,day-small-gray-lossy-r40,B,rust,typed/output/color,3.75
+native,native,0,-,day-small-gray-lossy-r40,B,rust,MQ,6.74
+native,native,0,-,day-small-gray-lossy-r40,B,rust,parsing/Tier2/planning,5.06
+native,native,0,-,day-small-gray-lossy-r40,B,rust,Tier1 shared/legacy,33.349999999999994
+native,native,0,-,day-small-gray-lossy-r40,B,rust,DWT,27.84
+native,native,0,-,day-small-gray-lossy-r40,B,openjpeg,other,5.36
+native,native,0,-,day-small-gray-lossy-r40,B,openjpeg,DWT,51.660000000000004
+native,native,0,-,day-small-gray-lossy-r40,B,openjpeg,Tier1 shared/legacy,27.859999999999996
+native,native,0,-,day-small-gray-lossy-r40,B,openjpeg,TCD reconstruction unresolved,15.07
+native,native,0,-,style-b32-m0,C,rust,allocation/copy/zero,1.3099999999999998
+native,native,0,-,style-b32-m0,C,rust,dequant/placement,0.08
+native,native,0,-,style-b32-m0,C,rust,parsing/Tier2/planning,1.4700000000000002
+native,native,0,-,style-b32-m0,C,rust,other,5.3500000000000005
+native,native,0,-,style-b32-m0,C,rust,assembly,1.1600000000000001
+native,native,0,-,style-b32-m0,C,rust,typed/output/color,1.39
+native,native,0,-,style-b32-m0,C,rust,MQ,24.71
+native,native,0,-,style-b32-m0,C,rust,Tier1 shared/legacy,61.7
+native,native,0,-,style-b32-m0,C,rust,DWT,2.85
+native,native,0,-,style-b32-m0,C,openjpeg,Tier1 shared/legacy,99.00999999999999
+native,native,0,-,style-b32-m0,C,openjpeg,other,0.9899999999999999
+native,native,0,-,structure-untiled,D,rust,other,6.7399999999999975
+native,native,0,-,structure-untiled,D,rust,allocation/copy/zero,1.1400000000000001
+native,native,0,-,structure-untiled,D,rust,assembly,1.4
+native,native,0,-,structure-untiled,D,rust,typed/output/color,1.14
+native,native,0,-,structure-untiled,D,rust,MQ,22.5
+native,native,0,-,structure-untiled,D,rust,parsing/Tier2/planning,3.04
+native,native,0,-,structure-untiled,D,rust,Tier1 shared/legacy,60.56
+native,native,0,-,structure-untiled,D,rust,DWT,3.42
+native,native,0,-,structure-untiled,D,openjpeg,other,1.2700000000000002
+native,native,0,-,structure-untiled,D,openjpeg,DWT,9.2
+native,native,0,-,structure-untiled,D,openjpeg,MCT,0.29
+native,native,0,-,structure-untiled,D,openjpeg,MQ,0.05
+native,native,0,-,structure-untiled,D,openjpeg,Tier1 shared/legacy,88.79
+native,native,0,-,structure-untiled,D,openjpeg,TCD reconstruction unresolved,0.43
+window,generic,0,"2048,2048,512,512",roi8k-untiled53,F,rust,allocation/copy/zero,0.04
+window,generic,0,"2048,2048,512,512",roi8k-untiled53,F,rust,DWT,4.460000000000001
+window,generic,0,"2048,2048,512,512",roi8k-untiled53,F,rust,other,2.7199999999999998
+window,generic,0,"2048,2048,512,512",roi8k-untiled53,F,rust,dequant/placement,2.75
+window,generic,0,"2048,2048,512,512",roi8k-untiled53,F,rust,reconstruction other,4.36
+window,generic,0,"2048,2048,512,512",roi8k-untiled53,F,rust,MQ,24.52
+window,generic,0,"2048,2048,512,512",roi8k-untiled53,F,rust,parsing/Tier2/planning,0.11
+window,generic,0,"2048,2048,512,512",roi8k-untiled53,F,rust,Tier1 shared/legacy,61.099999999999994
+window,generic,0,"2048,2048,512,512",roi8k-untiled53,F,openjpeg,allocation/copy/zero,1.03
+window,generic,0,"2048,2048,512,512",roi8k-untiled53,F,openjpeg,other,14.850000000000003
+window,generic,0,"2048,2048,512,512",roi8k-untiled53,F,openjpeg,DWT,0.47
+window,generic,0,"2048,2048,512,512",roi8k-untiled53,F,openjpeg,Tier1 shared/legacy,81.72
+window,generic,0,"2048,2048,512,512",roi8k-untiled53,F,openjpeg,parsing/Tier2/planning,1.02
+window,generic,0,"2048,2048,512,512",roi8k-untiled53,F,openjpeg,TCD reconstruction unresolved,0.95
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,rust,DWT,4.2
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,rust,other,9.330000000000002
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,rust,allocation/copy/zero,0.56
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,rust,parsing/Tier2/planning,1.78
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,rust,dequant/placement,2.3000000000000003
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,rust,reconstruction other,3.05
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,rust,assembly,2.06
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,rust,typed/output/color,0.49
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,rust,MQ,20.330000000000002
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,rust,Tier1 shared/legacy,55.79
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,openjpeg,allocation/copy/zero,0.33
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,openjpeg,other,13.720000000000004
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,openjpeg,DWT,5.49
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,openjpeg,parsing/Tier2/planning,0.64
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,openjpeg,MQ,0.08
+window,generic,0,"2048,2048,512,512",roi8k-tiled53,F,openjpeg,Tier1 shared/legacy,79.68
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,rust,allocation/copy/zero,0.5700000000000001
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,rust,dequant/placement,5.31
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,rust,reconstruction other,9.82
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,rust,assembly,0.05
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,rust,MQ,6.859999999999999
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,rust,parsing/Tier2/planning,0.11
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,rust,Tier1 shared/legacy,32.660000000000004
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,rust,DWT,35.8
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,rust,other,8.81
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,openjpeg,allocation/copy/zero,0.77
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,openjpeg,other,16.27999999999999
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,openjpeg,DWT,9.15
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,openjpeg,Tier1 shared/legacy,66.62
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,openjpeg,parsing/Tier2/planning,0.29000000000000004
+window,generic,0,"2048,2048,512,512",roi8k-untiled97,F,openjpeg,TCD reconstruction unresolved,6.91

@@ -5,6 +5,7 @@ import tempfile
 import sys
 import subprocess
 import unittest
+from unittest.mock import patch
 
 from run import capture, check_source, compare_dumps, execute, load_corpus, read_dump, sha
 from profile_baseline import parse_report
@@ -13,6 +14,7 @@ from instructions import callgrind_instructions
 from qualify import crop_dump
 from conformance import decode_blob
 from analyze import validate_samples
+from profile_baseline import main as profile_main
 import base64
 import hashlib
 
@@ -23,6 +25,39 @@ def dump(width, height, values, signed=0, precision=8):
 
 
 class ComparisonTests(unittest.TestCase):
+    def test_selected_profile_uses_hash_bound_reused_binary_and_actual_request(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, baseline = root / "source", root / "baseline"
+            baseline.mkdir()
+            (baseline / "generic").mkdir()
+            binaries = [source / "generic/cargo/release/bench-vs-openjpeg",
+                        source / "generic/bench-openjpeg"]
+            for binary in binaries:
+                binary.parent.mkdir(parents=True, exist_ok=True)
+                binary.write_bytes(b"fixture")
+            encoded = root / "input.j2k"
+            encoded.write_bytes(b"encoded")
+            (baseline / "COMPLETE.json").write_text("{}")
+            request = dict(reduce=2, window="2048,2048,512,512")
+            (baseline / "corpus.json").write_text(json.dumps(dict(request=request, cases=[
+                dict(id="fixture", path=str(encoded), sha256=sha(b"encoded"), corpus_class="F")])))
+            (baseline / "generic/build-reference.json").write_text(json.dumps(dict(
+                baseline=str(source), metadata=dict(rust_binary_sha256=sha(b"fixture"),
+                                                    c_binary_sha256=sha(b"fixture")))))
+            arguments = ["profile_baseline.py", "--baseline", str(baseline),
+                         "--output", str(root / "output"), "--profile-iterations", "1"]
+            with patch.object(sys, "argv", arguments), patch("profile_baseline.execute") as execute:
+                execute.return_value = b"100.0; jpeg2000_decoder::mq::MqDecoder::decode\n"
+                profile_main()
+                record = execute.call_args_list[0].args[0]
+                self.assertIn(binaries[0], record)
+                self.assertEqual(record[-5:], [2, request["window"], 1, "2000", "0"])
+            binaries[0].write_bytes(b"changed")
+            arguments[4] = str(root / "rejected")
+            with patch.object(sys, "argv", arguments), self.assertRaises(ValueError):
+                profile_main()
+
     def test_analysis_enforces_both_iteration_and_exact_duration_thresholds(self):
         validate_samples([133_333_333] * 14 + [133_333_338])
         for values in [[200_000_000] * 14, [133_333_333] * 15, [0] + [200_000_000] * 14]:

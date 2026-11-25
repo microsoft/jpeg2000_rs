@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import re
 
-from run import execute, write_json
+from run import execute, sha, write_json
 
 
 def stage(symbol):
@@ -62,29 +62,49 @@ def main():
     parser.add_argument("--perf", default="perf")
     parser.add_argument("--cpu", type=int, default=min(os.sched_getaffinity(0)))
     parser.add_argument("--case", default=".")
+    parser.add_argument("--config", choices=["generic", "consumer", "x86-64-v3", "native"], default="generic")
+    parser.add_argument("--profile-iterations", type=int, default=15)
     options = parser.parse_args()
     baseline = options.baseline.resolve()
     if not (baseline / "COMPLETE.json").exists():
         parser.error("baseline incomplete")
+    if options.profile_iterations < 1:
+        parser.error("profile iterations must be positive")
     output = options.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
-    cases = [c for c in json.loads((baseline / "corpus.json").read_text())["cases"]
+    corpus = json.loads((baseline / "corpus.json").read_text())
+    request = corpus["request"]
+    cases = [c for c in corpus["cases"]
              if re.search(options.case, c["id"])]
     if not cases:
         parser.error("no matching cases")
     env = dict(os.environ, OPJ_NUM_THREADS="0", BENCH_OPENJPEG_THREADS="1", LC_ALL="C")
+    origin = baseline
+    build = baseline / options.config / "build.json"
+    if build.exists():
+        metadata = json.loads(build.read_text())
+    else:
+        reference = json.loads((baseline / options.config / "build-reference.json").read_text())
+        metadata = reference["metadata"]
+        origin = Path(reference["baseline"])
+    binaries = {"rust": origin / options.config / "cargo/release/bench-vs-openjpeg",
+                "openjpeg": origin / options.config / "bench-openjpeg"}
+    for backend, binary in binaries.items():
+        key = "rust_binary_sha256" if backend == "rust" else "c_binary_sha256"
+        if sha(binary.read_bytes()) != metadata[key]:
+            raise ValueError(f"profile binary hash differs: {backend}")
     rows = []
     for case in cases:
-        for backend, binary in [
-            ("rust", baseline / "generic/cargo/release/bench-vs-openjpeg"),
-            ("openjpeg", baseline / "generic/bench-openjpeg"),
-        ]:
+        if sha(Path(case["path"]).read_bytes()) != case["sha256"]:
+            raise ValueError(f"profile input hash differs: {case['id']}")
+        for backend, binary in binaries.items():
             work = output / case["id"] / backend
             work.mkdir(parents=True)
-            base = ["taskset", "-c", options.cpu, binary, case["path"], "typed", "0", "-"]
+            base = ["taskset", "-c", options.cpu, binary, case["path"], "typed",
+                    request["reduce"], request["window"]]
             execute([options.perf, "record", "-e", "cycles:u", "-c", "5000000",
                      "--call-graph", "dwarf", "-o", work / "profile.data", "--",
-                     *base, "15", "2000", "0"], work / "record", env)
+                     *base, options.profile_iterations, "2000", "0"], work / "record", env)
             raw = execute([options.perf, "report", "-i", work / "profile.data",
                            "--stdio", "--no-children", "--sort", "symbol",
                            "--field-separator", ";", "-F", "overhead,symbol",
@@ -107,7 +127,9 @@ def main():
         writer.writeheader()
         writer.writerows(rows)
     write_json(output / "COMPLETE.json", {
-        "scope": "generic baseline, sampled leaf/self attribution; not isolated stage timers",
+        "scope": "sampled leaf/self attribution; not isolated stage timers",
+        "configuration": options.config, "request": request, "build": metadata,
+        "profile_iterations": options.profile_iterations,
         "counter_scope": "whole process including startup/input; unsupported events remain explicit",
         "rows": len(rows),
     })

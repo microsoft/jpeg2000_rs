@@ -26,8 +26,13 @@ unnecessary first worker pool inside each timed iteration in OpenJPEG 2.5.4.
 
 The common dump protocol contains little-endian 64-bit words: image width,
 height, component count, then each component's width, height, precision,
-signedness and raster samples. It is intentionally limited to the unit-sampling
-raw corpus, precision <=31. It is not a JP2 palette/color compatibility driver.
+signedness and raster samples, precision <=31. Drivers recognize the JP2
+signature and select the public JP2 API/OpenJPEG JP2 codec; other inputs use
+the raw codestream APIs. The image canvas is the reduced global grid, not
+component zero's potentially subsampled dimensions. Components retain their
+individual geometry. This is not an independent ICC/color-conformance oracle.
+The original raw/unit-sampled timing binaries and hashes remain unchanged;
+container-aware conformance drivers are rebuilt and reported separately.
 Lossless results must agree with each other **and** the independently authored
 source hashes. Irreversible results retain maximum absolute differences and
 differing-sample counts; reference disagreement is not a new tolerance.
@@ -251,6 +256,11 @@ threads are sampled, rather than relying on per-thread adaptive frequency.
 Stage buckets are approximate leaf-symbol attribution, not isolated stage
 timers; unknown symbols stay unknown. Unsupported LLC counters remain explicit.
 Process profiles include startup and destruction, unlike timed decode intervals.
+The profiler follows the completed matrix's actual reduce/window request and
+hash-checks original or reused binaries. `--config native` selects that
+configuration; `--profile-iterations 1` bounds collection on long 8K requests
+while retaining at least two seconds of sampled decoding. It does not shorten
+or replace the separately validated uninstrumented timing protocol.
 
 An isolated prototype can be compared without changing the baseline or stacking
 other candidates:

@@ -1,0 +1,35 @@
+{
+  "scope": "Conformance-use diagnostic inventory, not normative qualification or approved numerical tolerance",
+  "repository": "uclouvain/openjpeg-data",
+  "tree": "39524bd3a601d90ed8e0177559400d23945f96a9",
+  "binary_sha256": {
+    "rust": "0dbd68cf58e9c45d44ab5d4be133414bdceea8e256187dfd48ecac1b3b6d56be",
+    "openjpeg": "48c5ef33d67973d66bc65491ce0bb77cbc37e6533080183bca58b3e425b7e3d2"
+  },
+  "maximum_address_space": 8589934592,
+  "runner_sha256": "dd756a6b154c14dcf4e5851146a6bca435b46e116428efbdd706a5a491d31826",
+  "licensing": "Retain input/conformance/COPYRIGHT; JPEG-2000 conformance use only; no vector redistribution",
+  "outcomes": {
+    "identical": 40,
+    "decoder-refusal-or-failure": 7,
+    "decoded-with-differences": 10
+  },
+  "vectors": 57,
+  "driver_build": {
+    "configuration": "generic",
+    "cflags": "-O3 -DNDEBUG -g -ffp-contract=off",
+    "rustflags": "",
+    "lto": "Cargo default",
+    "codegen_units": "Cargo default",
+    "rust_binary_sha256": "0dbd68cf58e9c45d44ab5d4be133414bdceea8e256187dfd48ecac1b3b6d56be",
+    "c_binary_sha256": "48c5ef33d67973d66bc65491ce0bb77cbc37e6533080183bca58b3e425b7e3d2",
+    "allocator": "system libc",
+    "output": "native Rust TypedImage planar 64-bit samples",
+    "openjpeg_native_output": "planar signed 32-bit components",
+    "decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+    "decoder_src_tree": "b3bea69443ec6408edfa48708ee658168ea7dcfd"
+  },
+  "harness_scope_correction": "Initial diagnostic used raw-only drivers and a unit-sampling dump canvas; rerun uses proper JP2 APIs and global-grid canvas. Original benchmark binaries and timings are not relabeled.",
+  "interpretation": "40 identical,10 decoded-with-differences,7 Rust refusals; OpenJPEG decodes all57. Not normative qualification. Component257 refusal retains default64-component limit. No limits or tolerances relaxed.",
+  "source_notice": "https://api.github.com/repos/uclouvain/openjpeg-data/git/blobs/de760eef50d6f5d24d164883351a524fcd864d59"
+}

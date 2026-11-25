@@ -1,0 +1,85 @@
+{
+  "scope": "Separate whole-process user-cycle sampling and counters, not uninstrumented timings or isolated stage-wall timers",
+  "profiles": [
+    {
+      "selection_scope": "generic",
+      "scope": "sampled leaf/self attribution; not isolated stage timers",
+      "configuration": "generic",
+      "request": {
+        "reduce": 0,
+        "window": "-"
+      },
+      "build": {
+        "configuration": "generic",
+        "cflags": "-O3 -DNDEBUG -g -ffp-contract=off",
+        "rustflags": "",
+        "lto": "Cargo default",
+        "codegen_units": "Cargo default",
+        "rust_binary_sha256": "fa6424a8a4b693966f541a7ac33b8da538acaafe04464fc1b8fce41ff4b6dd9b",
+        "c_binary_sha256": "0c60e88f00c7b6f03e7424ad5ddfe1daa52e9754cc48009781103797c05dc54d",
+        "allocator": "system libc",
+        "output": "native Rust TypedImage planar 64-bit samples",
+        "openjpeg_native_output": "planar signed 32-bit components",
+        "decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+        "decoder_src_tree": "b3bea69443ec6408edfa48708ee658168ea7dcfd"
+      },
+      "profile_iterations": 15,
+      "counter_scope": "whole process including startup/input; unsupported events remain explicit",
+      "rows": 60
+    },
+    {
+      "selection_scope": "native",
+      "scope": "sampled leaf/self attribution; not isolated stage timers",
+      "configuration": "native",
+      "request": {
+        "reduce": 0,
+        "window": "-"
+      },
+      "build": {
+        "configuration": "native",
+        "cflags": "-O3 -DNDEBUG -g -ffp-contract=off -mcpu=native",
+        "rustflags": "-C target-cpu=native",
+        "lto": "thin",
+        "codegen_units": "1",
+        "rust_binary_sha256": "0875ec03aea5d4dbd029cac7f5fb3bbc6543d5ac2604a7e864c8a6a498becebb",
+        "c_binary_sha256": "48a5074cf4e4307d027d6c439b5c0af13507faeeb932025435c6d8524685ba16",
+        "allocator": "system libc",
+        "output": "native Rust TypedImage planar 64-bit samples",
+        "openjpeg_native_output": "planar signed 32-bit components",
+        "decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+        "decoder_src_tree": "b3bea69443ec6408edfa48708ee658168ea7dcfd"
+      },
+      "profile_iterations": 15,
+      "counter_scope": "whole process including startup/input; unsupported events remain explicit",
+      "rows": 50
+    },
+    {
+      "selection_scope": "window",
+      "scope": "sampled leaf/self attribution; not isolated stage timers",
+      "configuration": "generic",
+      "request": {
+        "reduce": 0,
+        "window": "2048,2048,512,512"
+      },
+      "build": {
+        "configuration": "generic",
+        "cflags": "-O3 -DNDEBUG -g -ffp-contract=off",
+        "rustflags": "",
+        "lto": "Cargo default",
+        "codegen_units": "Cargo default",
+        "rust_binary_sha256": "fa6424a8a4b693966f541a7ac33b8da538acaafe04464fc1b8fce41ff4b6dd9b",
+        "c_binary_sha256": "0c60e88f00c7b6f03e7424ad5ddfe1daa52e9754cc48009781103797c05dc54d",
+        "allocator": "system libc",
+        "output": "native Rust TypedImage planar 64-bit samples",
+        "openjpeg_native_output": "planar signed 32-bit components",
+        "decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+        "decoder_src_tree": "b3bea69443ec6408edfa48708ee658168ea7dcfd"
+      },
+      "profile_iterations": 1,
+      "counter_scope": "whole process including startup/input; unsupported events remain explicit",
+      "rows": 45
+    }
+  ],
+  "unknowns": "Unknown/TCD self time remains unresolved; LLC-load-misses unsupported, never zero. Work/deadline costs are not isolated.",
+  "instrumentation": "Native hardware counters avoid the documented Valgrind native-ISA SIGILL; no ISA flags or resource limits changed."
+}
