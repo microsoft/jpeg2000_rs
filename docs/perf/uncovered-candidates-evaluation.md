@@ -415,3 +415,30 @@ See [per-case initial results](data/c12-summary.csv).
   remaining mechanism. Reuse #469's owner work; derive/test filter support
   and preserve selected/full crop equivalence before claiming a partial-decode
   performance win.
+
+## X1: saved-entropy continuation for interactive input
+
+- **Coverage:** uncovered continuation mechanism beyond completed #349's
+  buffered/replay API. This is not #475's terminal/private final-image
+  replay reduction or already implemented no-advance JPIP suppression.
+- **Hypothesis:** confirmed in
+  [the coordinator contract](../../src/incremental.rs#L160): `feed` never
+  decodes, while requested previews are independent buffered snapshots,
+  not saved entropy continuation.
+- **Stage share / ceiling:** unmeasured. The default-feature baseline does
+  not exercise this opt-in coordinator. Benefit depends on actual preview
+  cadence; feed-all-then-decode-once callers do not have repeated entropy
+  work to remove.
+- **Prototype:** none. A naive continuation is not equivalent after MQ
+  virtual end fill; a real-byte checkpoint and correct rollback/replay of
+  affected context/coefficient state are prerequisites.
+- **Correctness/verification:** no coordinator or entropy source changed.
+  Complete output/status/error equivalence, EOF, refusal/retry, selection
+  and deadline behavior across updates are untested for this new mechanism.
+  Existing default proof receipts explicitly do not qualify the optional
+  coordinator; new state/lifetime claims cannot be inferred from them.
+- **Effort/risk:** L/high.
+- **Recommendation:** **needs more data**. Establish an interactive workload
+  with equal observable previews and measured replay first, then scope the
+  continuation model and verification. Do not claim a default full-image
+  speedup by skipping caller-visible work or caching completed rasters.
