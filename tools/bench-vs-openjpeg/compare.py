@@ -61,7 +61,7 @@ def main():
         writer.writeheader()
         for config in options.configs.split(","):
             metadata = json.loads((baseline / config / "build.json").read_text())
-            env = dict(os.environ, OPJ_NUM_THREADS="1", BENCH_OPENJPEG_THREADS="1",
+            env = dict(os.environ, OPJ_NUM_THREADS="0", BENCH_OPENJPEG_THREADS="1",
                        CARGO_TARGET_DIR=str(output / config / "cargo"), CARGO_PROFILE_RELEASE_DEBUG="1")
             env.pop("CARGO_ENCODED_RUSTFLAGS", None)
             for key, value in [

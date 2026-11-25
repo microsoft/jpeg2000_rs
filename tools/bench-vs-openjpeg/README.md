@@ -20,6 +20,9 @@ the end timestamp; the C barrier requires GCC or Clang.
 Codec and stream objects are new per iteration; compressed bytes are read once.
 All runs explicitly select one thread. The Rust API has no thread-count option;
 `BENCH_OPENJPEG_THREADS` is only for separately labeled C-only diagnostics.
+The runner sets `OPJ_NUM_THREADS=0` for codec construction, then the driver calls
+`opj_codec_set_threads(..., 1)`. Setting both to one would create and destroy an
+unnecessary first worker pool inside each timed iteration in OpenJPEG 2.5.4.
 
 The common dump protocol contains little-endian 64-bit words: image width,
 height, component count, then each component's width, height, precision,

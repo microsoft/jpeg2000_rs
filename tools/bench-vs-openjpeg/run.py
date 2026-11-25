@@ -44,6 +44,8 @@ def execute(command, prefix, env=None):
         "wall_ns": time.monotonic_ns() - start, "max_rss_kib": usage.ru_maxrss,
         "user_s": usage.ru_utime, "system_s": usage.ru_stime,
         "minor_faults": usage.ru_minflt, "major_faults": usage.ru_majflt,
+        "thread_environment": {key: (env if env is not None else os.environ).get(key)
+                               for key in ("OPJ_NUM_THREADS", "BENCH_OPENJPEG_THREADS")},
     })
     if process.returncode:
         raise RuntimeError(f"command failed ({process.returncode}); see {prefix}.stderr")
@@ -138,7 +140,7 @@ def prepare(output):
 def build(output, config, options, source):
     work = output / config
     work.mkdir()
-    env = dict(os.environ, OPJ_NUM_THREADS="1", BENCH_OPENJPEG_THREADS="1")
+    env = dict(os.environ, OPJ_NUM_THREADS="0", BENCH_OPENJPEG_THREADS="1")
     env.pop("RUSTFLAGS", None)
     env.pop("CARGO_ENCODED_RUSTFLAGS", None)
     for key in ("CARGO_PROFILE_RELEASE_LTO", "CARGO_PROFILE_RELEASE_CODEGEN_UNITS"):
@@ -297,7 +299,7 @@ def main():
                         (binaries["rust"], "rust_binary_sha256"),
                         (binaries["openjpeg"], "c_binary_sha256")]):
                     raise ValueError("reused binary hash differs")
-                env = dict(os.environ, OPJ_NUM_THREADS="1", BENCH_OPENJPEG_THREADS="1")
+                env = dict(os.environ, OPJ_NUM_THREADS="0", BENCH_OPENJPEG_THREADS="1")
                 (output / config).mkdir()
                 write_json(output / config / "build-reference.json",
                            {"baseline": str(previous), "metadata": metadata})

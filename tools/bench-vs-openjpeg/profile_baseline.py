@@ -72,7 +72,7 @@ def main():
              if re.search(options.case, c["id"])]
     if not cases:
         parser.error("no matching cases")
-    env = dict(os.environ, OPJ_NUM_THREADS="1", BENCH_OPENJPEG_THREADS="1", LC_ALL="C")
+    env = dict(os.environ, OPJ_NUM_THREADS="0", BENCH_OPENJPEG_THREADS="1", LC_ALL="C")
     rows = []
     for case in cases:
         for backend, binary in [
