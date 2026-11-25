@@ -1,0 +1,39 @@
+{
+  "scope": "Exact-source isolated experiments, not current merged-main qualification",
+  "c2": {
+    "commit": "edd777d27cedf56083a18a5a92e7725c1d460fff",
+    "run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/45590181513",
+    "conclusion": "failure",
+    "stage": "Reject module-only proof evidence",
+    "diagnostic": "src/tier1/state.rs:225: cannot call function zero_context_table with mode exec in const ZERO_CONTEXTS",
+    "source_and_package_verification": "skipped; no successful receipt",
+    "disposition": "no-go: already no useful speed gain, and generated const table is incompatible with pinned Verus"
+  },
+  "c12": {
+    "commit": "aa1e5ba24ed27fe29c501b2e4455b3d6c530b67e",
+    "run": "https://github.com/microsoft/jpeg2000_rs/actions/runs/45590186006",
+    "conclusion": "success",
+    "verus_version": "0.2026.10.04.426d8b0",
+    "verus_commit": "426d8b01e7ffb910a36c15e1f870ff985bb61eef",
+    "verus_toolchain": "1.98.1-x86_64-unknown-linux-gnu",
+    "flags": ["--no-lifetime"],
+    "source": {
+      "verified_obligations": 6328,
+      "errors": 0,
+      "source_function_coverage": "not-measured",
+      "matched_src_specs_proofs_files": 401,
+      "proof_coverage_sha256": "48ed1d4897eb4a19915f2f24dc74815e00c23c95ea8a621068e9c0854f460756",
+      "cargo_verus_output_sha256": "4794fb3802ec370d4a0e2da87f4bdc8f4b7086125014079d0db76874d7d4a08a"
+    },
+    "package": {
+      "verified_obligations": 6328,
+      "errors": 0,
+      "source_function_coverage": "not-measured",
+      "matched_src_specs_proofs_files": 401,
+      "proof_coverage_sha256": "209d71d8fdd4dffbc71622ff2e0dc0b937a3e1a048a86f029d24f63f7e2e8579",
+      "cargo_verus_output_sha256": "1c104a54f728c98cc00636c936cba60b63dafcd60de475a96c6947ac5d704755"
+    },
+    "boundary": "Lifetime analysis disabled by existing pinned workflow; Cargo borrow checking is separate. Five documented Rust-only adapters. No claim of measured source-function coverage.",
+    "disposition": "no-go: proof gate passes but measured gain is not retention-worthy"
+  }
+}

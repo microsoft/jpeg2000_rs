@@ -26,7 +26,7 @@ def main():
             "cargo", "openjpeg", "openjpeg-source", "consumer", "sources", "assets", "__pycache__"}]
         for name in files:
             path = Path(directory) / name
-            if path.is_symlink() or name.endswith("-dump.stdout"):
+            if path.is_symlink() or name.endswith("-dump.stdout") or name in {"rust.stdout", "openjpeg.stdout"}:
                 continue
             if path.suffix not in {".csv", ".json", ".stdout", ".stderr", ".log",
                                    ".md", ".txt", ".j2k", ".s", ".asm", ".out"}:

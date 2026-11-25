@@ -74,7 +74,10 @@ def callgrind_instructions(text):
     summaries = [line.split()[1:] for line in lines if line.startswith("summary:")]
     if len(events) != 1 or len(summaries) != 1 or "Ir" not in events[0]:
         raise ValueError("expected exactly one Callgrind instruction event summary")
-    return int(summaries[0][events[0].index("Ir")])
+    value = int(summaries[0][events[0].index("Ir")])
+    if value <= 0:
+        raise ValueError("instruction count must be positive")
+    return value
 
 
 if __name__ == "__main__":

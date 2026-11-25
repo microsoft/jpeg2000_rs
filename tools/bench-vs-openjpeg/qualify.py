@@ -7,8 +7,29 @@ import os
 from pathlib import Path
 import re
 import sys
+import struct
+from array import array
 
-from run import capture, check_source, compare_dumps, load_corpus, sha, write_json
+from run import capture, check_source, compare_dumps, load_corpus, read_dump, sha, write_json
+from corpus import coding_header
+
+
+def crop_dump(data, window):
+    shape, planes = read_dump(data)
+    x, y, width, height = window
+    if min(x, y) < 0 or min(width, height) <= 0 or x + width > shape[0] or y + height > shape[1]:
+        raise ValueError("crop falls outside full image")
+    output = [struct.pack("<3Q", width, height, len(planes))]
+    for (w, h, precision, signed), values in planes:
+        if (w, h) != shape:
+            raise ValueError("crop oracle requires unit-sampled components")
+        cropped = array(values.typecode)
+        for row in range(y, y + height):
+            cropped.extend(values[row * w + x:row * w + x + width])
+        if sys.byteorder != "little":
+            cropped.byteswap()
+        output.extend([struct.pack("<4Q", width, height, precision, signed), cropped.tobytes()])
+    return b"".join(output)
 
 
 def main():
@@ -22,12 +43,22 @@ def main():
     parser.add_argument("--reduce", type=int, default=0)
     parser.add_argument("--window", default="-")
     parser.add_argument("--case", default=".")
+    parser.add_argument("--check-window-crop", action="store_true",
+                        help="also compare each window with its own full decode (zero-origin unit sampling)")
     parser.add_argument("--maximum-address-space", type=int, default=8 * 1024**3)
     options = parser.parse_args()
     if options.cpu not in os.sched_getaffinity(0) or not 0 <= options.reduce <= 16:
         parser.error("invalid CPU or reduction")
     if options.maximum_address_space < 0:
         parser.error("maximum address space must be nonnegative")
+    window = None
+    if options.check_window_crop:
+        try:
+            window = tuple(map(int, options.window.split(",")))
+        except ValueError:
+            parser.error("crop checking requires x,y,width,height")
+        if len(window) != 4 or options.reduce != 0:
+            parser.error("crop checking requires four window coordinates and no reduction")
     destination = options.qualified_manifest.resolve()
     if destination.exists() or destination.parent != options.manifest.resolve().parent:
         parser.error("qualified manifest must be fresh and beside its source manifest")
@@ -64,6 +95,27 @@ def main():
                     if case["lossless"] and options.reduce == 0 and options.window == "-":
                         check_source(dumps["rust"], case)
                     row["status"] = "accepted-with-recorded-numerics"
+                    if options.check_window_crop:
+                        if coding_header(Path(case["path"]).read_bytes())["origin"] != [0, 0]:
+                            raise ValueError("crop oracle requires zero image origin")
+                        row["own_full_crop"] = {}
+                        for backend, binary in binaries.items():
+                            full, metrics = capture(
+                                ["taskset", "-c", options.cpu, binary, case["path"],
+                                 "dump", "0", "-", "1", "0", "0"],
+                                output / case["id"] / (backend + "-full-dump"), env,
+                                maximum_address_space=options.maximum_address_space)
+                            row["processes"][backend + "-full"] = metrics
+                            if metrics["returncode"] != 0:
+                                row["status"] = "full-crop-decoder-refusal-or-failure"
+                                continue
+                            comparison = compare_dumps(dumps[backend], crop_dump(full, window))
+                            comparison["window_sha256"] = comparison.pop("rust_sha256")
+                            comparison["full_crop_sha256"] = comparison.pop("openjpeg_sha256")
+                            row["own_full_crop"][backend] = comparison
+                            if comparison["differing_samples"]:
+                                row["status"] = "own-full-crop-mismatch"
+                            del full
             except ValueError as error:
                 row.update(status="output-validation-failed", error=str(error))
         if row["status"] == "accepted-with-recorded-numerics":
@@ -74,9 +126,11 @@ def main():
     write_json(output / "qualification.json", {
         "scope": "full inventory; accepted subset for timing, not official/normative conformance",
         "source_manifest_sha256": document["source_manifest_sha256"],
+        "qualifier_sha256": sha(Path(__file__).read_bytes()),
         "binary_sha256": {key: sha(path.read_bytes()) for key, path in binaries.items()},
         "request": {"reduce": options.reduce, "window": options.window},
         "case_selector": options.case,
+        "own_full_crop_checked": options.check_window_crop,
         "maximum_address_space": options.maximum_address_space,
         "total": len(records), "accepted": len(accepted), "all_passed": all_passed,
         "records": records,

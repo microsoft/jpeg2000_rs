@@ -6,7 +6,8 @@ Decoder baseline: `54abff44a778b6c210d580770286a531370550b6` (`origin/main` at s
 **Status: measured partial evaluation, not the full definition of done.**
 Coverage is verified, an available ARM64 matrix is reproducible, and two
 isolated experiments were tested and measured. Other uncovered mechanisms have
-explicit needs-more-data cards. Exact-source Verus, native x86-64/v3,
+explicit needs-more-data cards. C12 now passes exact-source/package Verus;
+C2 fails pinned Verus compilation and stays rejected. Native x86-64/v3,
 cross-target execution and the full A-G corpus remain unqualified.
 
 ## Executive summary
@@ -628,7 +629,8 @@ Remaining gates:
 - [x] Available matched ARM64 harness/corpus/baseline/profiles committed.
 - [x] Every supplied candidate and additional X1 has an explicit disposition.
 - [x] Two local experiments tested/measured; original #299 controls replayed.
-- [ ] Exact-source Verus on both prototypes: local tool absent / remote push 403.
+- [x] Exact-source Verus attempted on both: C12 source/package pass; C2 const-table
+  compilation fails and the prototype remains rejected (Section 8).
 - [ ] Complete A-G corpus, isolated stage-wall timers and residual attribution.
 - [ ] Native x86-64/v3/AVX2, cross-target determinism and missing precision cases.
 - [ ] Remaining uncovered prototypes after proof/numerical/error prerequisites.
@@ -652,10 +654,24 @@ prototype commits succeeded. Exact-source pinned Verus workflows were dispatched
 - C2 `edd777d27cedf56083a18a5a92e7725c1d460fff`:
   [run 45590181513](https://github.com/microsoft/jpeg2000_rs/actions/runs/45590181513).
   Failed at the module-only rejection guard; production/package verification
-  was skipped. This is not a successful source or package receipt.
+  was skipped. The compiler rejects the new `ZERO_CONTEXTS` initializer:
+  `zero_context_table` has exec mode and cannot be called there
+  (`src/tier1/state.rs:225`). This is a real prototype compatibility failure,
+  not an access failure or a successful source/package receipt. With no useful
+  measured gain, the proof repair cost further supports **no-go**; no proof,
+  pin, resource policy or budget was weakened to rescue it.
 - C12 `aa1e5ba24ed27fe29c501b2e4455b3d6c530b67e`:
   [run 45590186006](https://github.com/microsoft/jpeg2000_rs/actions/runs/45590186006).
-  Production verification is in progress.
+  **Success:** source and packaged production each verify 6,328 obligations,
+  zero errors, with pinned Verus `0.2026.10.04.426d8b0`.
+  Independently matched all 401 `src`/`specs`/`proofs` hashes in each receipt
+  to the unchanged prototype. Existing `--no-lifetime` remains explicit;
+  this does not verify lifetimes or establish measured source-function
+  coverage. Passing this gate does not reverse the performance **no-go**.
+
+Compact outcomes, receipt hashes and boundaries are committed in
+[`verification-20261125.json`](data/verification-20261125.json); complete
+downloaded receipts and failed-step diagnostics remain in the raw evidence.
 
 The original snapshot's access blocker is historical, not the current gate.
 No administrative bypass, protection change, merge, issue or publication was used.
@@ -713,8 +729,19 @@ push/PR/default dispatch behavior is unchanged. It measures the 57 smaller A-D
 cases on native x86-64 in generic/consumer/x86-64-v3/native profiles against
 the same pinned `f4b2b7b` decoder. Large/8K hosted timing remains explicitly
 excluded. Its artifact collector preserves canonical encoded inputs and raw
-outcomes with hashes, omitting caches and pixel dumps; 12 focused tooling tests
-now pass. Cross-host pooling is forbidden until input hashes match.
+outcomes with hashes, omitting caches and pixel dumps. Cross-host pooling is
+forbidden until input hashes match. The initial diagnostic dispatch
+45591525447 was canceled rather than promote a run missing explicit CPU-model
+and process-instruction evidence. Corrected
+[run 45592665197](https://github.com/microsoft/jpeg2000_rs/actions/runs/45592665197)
+records those observations separately from uninstrumented timing, on the same
+host/binaries. Results are still pending, not claimed.
+
+Window qualification now also compares each backend's actual selected output
+with its own full-decode crop, before any timing. A real 32-square integration
+case passes for both backends; 14 focused tooling tests pass. The queued 8K
+requests will perform these checks at their real dimensions after the current
+A-D timing finishes, without competing owned measurement processes.
 
 The expanded one-command flow is
 [`expanded.sh`](../../tools/bench-vs-openjpeg/expanded.sh). It prepares and

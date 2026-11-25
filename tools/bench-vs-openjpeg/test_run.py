@@ -10,6 +10,7 @@ from run import capture, check_source, compare_dumps, execute, load_corpus, read
 from profile_baseline import parse_report
 from corpus import coding_header, precision_payload
 from instructions import callgrind_instructions
+from qualify import crop_dump
 
 
 def dump(width, height, values, signed=0, precision=8):
@@ -18,9 +19,17 @@ def dump(width, height, values, signed=0, precision=8):
 
 
 class ComparisonTests(unittest.TestCase):
+    def test_crop_oracle_checks_the_actual_raster_and_rejects_out_of_bounds(self):
+        full = dump(4, 3, list(range(-6, 6)), signed=1)
+        self.assertEqual(crop_dump(full, (1, 1, 2, 1)), dump(2, 1, [-1, 0], signed=1))
+        for window in [(-1, 0, 1, 1), (3, 0, 2, 1), (0, 0, 0, 1)]:
+            with self.assertRaises(ValueError):
+                crop_dump(full, window)
+
     def test_instruction_summary_uses_ir_event_and_refuses_incomplete_evidence(self):
         self.assertEqual(callgrind_instructions("events: Dr Ir\nsummary: 5 123\n"), 123)
         for text in ["events: Ir\n", "summary: 123\n",
+                     "events: Ir\nsummary: 0\n",
                      "events: Ir\nsummary: 1\nsummary: 2\n"]:
             with self.assertRaises(ValueError):
                 callgrind_instructions(text)

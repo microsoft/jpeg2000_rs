@@ -26,20 +26,5 @@ python3 "$here/run.py" --output "$output/timings" --openjpeg-source "$2" \
     --reuse-builds "$output/build-check" --corpus-manifest "$output/corpus/qualified-full.json" \
     --configs generic,consumer,native --case '^(?!roi8k)' --cpu "$5"
 
-for reduce in 1 2 3; do
-    python3 "$here/qualify.py" --manifest "$output/corpus/manifest.json" \
-        --rust "$rust" --openjpeg "$openjpeg" --output "$output/qualification-reduce-$reduce" \
-        --qualified-manifest "$output/corpus/qualified-reduce-$reduce.json" \
-        --case '^roi8k' --reduce "$reduce" --cpu "$5"
-    python3 "$here/run.py" --output "$output/reduce-$reduce" --openjpeg-source "$2" \
-        --reuse-builds "$output/build-check" \
-        --corpus-manifest "$output/corpus/qualified-reduce-$reduce.json" \
-        --configs generic,consumer,native --reduce "$reduce" --cpu "$5"
-done
-python3 "$here/qualify.py" --manifest "$output/corpus/manifest.json" \
-    --rust "$rust" --openjpeg "$openjpeg" --output "$output/qualification-window" \
-    --qualified-manifest "$output/corpus/qualified-window.json" \
-    --case '^roi8k' --window 2048,2048,512,512 --cpu "$5"
-python3 "$here/run.py" --output "$output/window" --openjpeg-source "$2" \
-    --reuse-builds "$output/build-check" --corpus-manifest "$output/corpus/qualified-window.json" \
-    --configs generic,consumer,native --window 2048,2048,512,512 --cpu "$5"
+bash "$here/partial.sh" "$output/build-check" "$output/corpus/manifest.json" \
+    "$output/partial" "$2" "$5"

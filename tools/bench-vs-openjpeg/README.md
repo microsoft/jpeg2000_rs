@@ -122,6 +122,10 @@ and accepted-subset manifest are saved. The latter is not full-cohort or
 normative conformance qualification. Use matching `--reduce`/`--window`
 requests in both commands. Independent lossless source hashes use interleaved
 little-endian 8/16-bit samples; the decoded comparison stays planar 64-bit.
+For zero-origin, unit-sampled window cases, `qualify.py --check-window-crop`
+also decodes each input fully and checks its actual matching crop for each
+backend separately. Any failure or mismatch prevents qualification; this is
+not a post-crop performance measurement.
 Both preflight and timed decoder processes have the same default 8GiB OS
 address-space safety cap, recorded separately from unchanged library limits.
 `--maximum-address-space` changes that tooling cap; zero disables it.
@@ -142,6 +146,13 @@ Its initial short build-check is explicitly not speed evidence. Any preflight
 failure stops the command after saving the complete inventory, rather than
 silently benchmarking only surviving files. Full protocol measurements then
 use the exact hash-checked binaries for every request.
+To resume only the 8K work after a completed build/timing matrix, without
+repeating A-D:
+
+```sh
+bash tools/bench-vs-openjpeg/partial.sh COMPLETE_MATRIX MANIFEST \
+  FRESH_PARTIAL_OUTPUT OPENJPEG_254_SOURCE CPU
+```
 
 The report branch also adds an opt-in `ci.yml` dispatch scope:
 `consumer_benchmark=true`, `consumer_benchmark_scope=uncovered-evaluation`.

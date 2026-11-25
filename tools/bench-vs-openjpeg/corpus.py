@@ -67,6 +67,7 @@ def coding_header(raw):
                 raise ValueError("expected unsigned unit-sampling source")
             fields = struct.unpack_from(">8I", payload, 2)
             result.update(width=fields[0] - fields[2], height=fields[1] - fields[3],
+                          origin=[fields[2], fields[3]],
                           tile=[fields[4], fields[5]],
                           channels=channels,
                           precision=(payload[36] & 127) + 1)
