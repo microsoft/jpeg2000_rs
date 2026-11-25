@@ -380,3 +380,38 @@ See [per-case initial results](data/c12-summary.csv).
 - **Recommendation:** **needs more data** on genuinely residual reuse;
   prefer already tracked owner/copy elimination over an unmeasured global
   scratch abstraction.
+
+## C11: intra-tile ROI pruning; discard-level pruning already exists
+
+- **Coverage:** #469 tracks discarded-resolution owners and #481 tracks tile
+  discovery; #368/#369 already avoid unselected tile owners. Do not propose
+  these existing/assigned mechanisms again.
+- **Hypothesis:** reduction half is false. [Packet selection](../../src/packet/tile.rs#L600)
+  computes a resolution predicate, and
+  [body execution](../../src/packet/body.rs#L221) gates entropy on it.
+  Region selection culls tiles, but
+  [the selected-tile decode call](../../src/decode/execution.rs#L603) receives
+  discard levels, not an intra-tile ROI or filter-support block mask.
+- **Stage share / ceiling:** first-pass noisy-gray MQ plus Tier-1 shared work
+  dominates sampled CPU time. Only work outside the correctly expanded
+  synthesis support is removable; no precise halo/work fraction was measured.
+- **Existing behavior measured:** on the 1024-square noisy lossless gray
+  stream, first-pass Rust medians are 329.36 ms full, 92.00/31.08/18.75 ms
+  at discard 1/2/3, and 321.24 ms for a 512-square window. These are different
+  output requests, **not an optimization before/after speedup**. Matched
+  OpenJPEG requests were also measured; the corrected-reference table is
+  being rerun. Both libraries' lossless and lossy windows exactly equal
+  their own full-decode crops in this unit-sampling test.
+- **Prototype:** none for new intra-tile block/partial-DWT pruning.
+- **Correctness/verification:** public selection APIs exist; this is not an
+  API-absence skip. Native 8K windows, nonzero origins, subsampling, mixed
+  resolution counts and derived 5/3/9/7 support margins remain unqualified.
+  New selected-state/error/limit models need exact-source verification,
+  currently blocked. Do not silently relax validation/error policy outside
+  the ROI or mistake an ordinary crop for pruned entropy execution.
+- **Effort/risk:** L/high, with geometry, boundary extension, packet state,
+  accounting and partial reconstruction interacting.
+- **Recommendation:** **needs more data**, with a clear source-confirmed
+  remaining mechanism. Reuse #469's owner work; derive/test filter support
+  and preserve selected/full crop equivalence before claiming a partial-decode
+  performance win.
