@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -141,11 +142,11 @@ class RequestedSyccTests(unittest.TestCase):
         )
         self.assertEqual(len(list((self.evidence / "processes").rglob("*.metrics.json"))), len(samples))
 
-    def test_run_binds_integrated_pair_and_rejects_unlisted_pair_before_sources(self):
+    def check_integrated_pair_binding(self):
         baseline = "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e"
         candidate = "590ca79a111f701308665038a83915434d551e80"
         options = SimpleNamespace(
-            baseline=baseline, candidate=candidate, pairs=8, arch="x86_64",
+            baseline=baseline, candidate=candidate, pairs=8, arch=sycc.native.platform.machine(),
             output=self.evidence / "integrated", qualify_only=True,
         )
         tool = {"command": [sys.executable], "returncode": 0}
@@ -174,3 +175,12 @@ class RequestedSyccTests(unittest.TestCase):
             sycc.run(options)
         sources.assert_not_called()
         self.assertFalse(options.output.exists())
+
+    def test_run_binds_integrated_pair_and_rejects_unlisted_pair_before_sources(self):
+        self.check_integrated_pair_binding()
+
+    def test_integrated_pair_binding_on_other_native_architecture(self):
+        arch = next(name for name in sycc.native.ARCH if name != sycc.native.platform.machine())
+        with patch.object(sycc.native.platform, "machine", return_value=arch), \
+                patch.dict(os.environ, {"RUNNER_ARCH": sycc.native.ARCH[arch][1]}):
+            self.check_integrated_pair_binding()
