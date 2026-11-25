@@ -100,10 +100,14 @@ class ComparisonTests(unittest.TestCase):
                          "timings/generic/cargo/.rustc_info.json", "input/conformance/COPYRIGHT",
                          "input/conformance/restricted-use.j2k", "timings/consumer/build.json",
                          "timings/consumer/case/rust-typed-r0.json",
-                         "timings/consumer/cargo/rust-typed-r0.json"]:
+                         "timings/consumer/cargo/rust-typed-r0.json",
+                         "instructions/consumer/case/rust.stdout", "instructions/consumer/case/rust.json",
+                         "qualification/case/rust.stdout", "qualification/case/rust.json"]:
                 path = work / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b"fixture")
+            (work / "instructions/consumer/case/rust.json").write_text(json.dumps(dict(command=["driver", "typed"])))
+            (work / "qualification/case/rust.json").write_text(json.dumps(dict(command=["driver", "dump"])))
             command = [sys.executable, Path(__file__).with_name("collect.py"),
                        "--work", work, "--output", output]
             subprocess.run(command, check=True, capture_output=True)
@@ -112,8 +116,11 @@ class ComparisonTests(unittest.TestCase):
             self.assertEqual({entry["path"] for entry in index["entries"]},
                              {"timings/COMPLETE.json", "timings/raw.csv", "corpus/test.j2k",
                               "timings/consumer/build.json", "timings/consumer/case/rust-typed-r0.json",
-                              "timings/consumer/cargo/rust-typed-r0.json"})
-            self.assertTrue(all(entry["sha256"] == sha(b"fixture") for entry in index["entries"]))
+                              "timings/consumer/cargo/rust-typed-r0.json",
+                              "instructions/consumer/case/rust.stdout", "instructions/consumer/case/rust.json",
+                              "qualification/case/rust.json"})
+            self.assertTrue(all(entry["sha256"] == sha((work / entry["path"]).read_bytes())
+                                for entry in index["entries"]))
             self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
             command[-1] = work / "nested"
             self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)

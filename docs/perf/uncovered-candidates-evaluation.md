@@ -763,8 +763,26 @@ A real collect/analyze round trip of the complete ARM64 matrix preserves all
 The x86 matrix must be rerun on one host rather than fabricate lost metadata
 or splice profiles from different machines.
 [Replacement run 45614658287](https://github.com/microsoft/jpeg2000_rs/actions/runs/45614658287)
-is running at collector-fix commit `76e23b5`; its decoder remains pinned to
-`f4b2b7b`. Decoder package contents remain
+has completed at collector-fix commit `76e23b5`, with the decoder pinned to
+`f4b2b7b`. Its workflow is **red**, not a verification pass: all timing finishes,
+then native Callgrind rejects AVX-512 instructions, and a second export guard
+detects that pixel-stdout filtering also omitted instrumented `SAMPLE` stdout.
+That filter is now based on captured output mode, regression-tested to preserve
+instruction text while excluding actual pixel dumps.
+
+The replacement ZIP's SHA256 is
+`632f1fc19d4b2602095ddb86c8e15408a3ebea5593caa007f713678f53dde86f`.
+It retains **all four profiles' timing CSV, summaries and process/build
+metadata**, including consumer. Independent analysis reproduces all
+**639,657 samples, 1,368 measured processes and 684 median/IQR rows**.
+The 32 missing instrumented stdout files are explicitly indexed as missing;
+they are not reconstructed or confused with retained uninstrumented timing
+stdout. All 24 successful generic/consumer/v3 Callgrind totals match their
+original profiles; eight native counts remain null after tool SIGILL.
+The original ZIP is preserved and a separate locally recovered file-hash index
+is labeled as such, not presented as the absent original collector index.
+Thus the **timing matrix** is verified while auxiliary failures remain explicit.
+Decoder package contents remain
 exactly 417 files; no tool, report or photograph is packaged.
 
 All 57 cross-host source pixel hashes match, but three encoded 9/7 RGB
@@ -781,9 +799,9 @@ using the original unchanged timing binaries: **1,165 samples, 54 measured
 processes, three profiles**. Combining only the 54 unchanged inputs with those
 three replayed inputs yields **57 byte-identical streams**, with exact output
 hash agreement for both backends across ARM64 and the three retained first-x86
-profiles. Samples from the old different streams are never pooled. The final
-replacement x86 artifact still must match these hashes and retain all four
-profiles before its matrix is promoted.
+profiles. Samples from the old different streams are never pooled. The final replacement x86 artifact now matches every canonical input hash,
+retains all four timing profiles, and matches both backends' output hashes
+against ARM64 in every profile.
 The [replay latencies](data/canonical-replay-arm64-summary.csv),
 [ratios](data/canonical-replay-arm64-ratios.csv),
 [resources](data/canonical-replay-arm64-resources.csv),
@@ -921,6 +939,54 @@ Full [latencies/IQRs](data/partial-current-arm64-summary.csv),
 [numerical statistics](data/partial-current-arm64-correctness.csv) and
 [request/source/crop receipts](data/partial-current-arm64-provenance.json)
 remain distinct from full-image A-D data.
+
+### 8.4 Verified four-profile x86-64 timing matrix
+
+The replacement uses an **Intel Xeon Platinum 8370C** guest (four logical
+CPUs, timed children pinned to CPU0), not the first run's AMD host. Every
+Rust/OpenJPEG pair and all four configurations below are on that same
+replacement host. Native AVX-512 works without instrumentation; its
+Valgrind SIGILL is not an uninstrumented decoder failure.
+
+The 57 smaller A-D inputs exclude the two large photographic variants and
+all 8K requests. Geometric means of per-image typed-output latency ratios:
+
+| Configuration | A (6 cases) | B (18 cases) | C (14 cases) | D (19 cases) |
+|---|---:|---:|---:|---:|
+| Generic | 3.6800 | 7.5977 | 4.2955 | 3.5651 |
+| Consumer | 3.7400 | 7.5374 | 4.2087 | 3.6104 |
+| x86-64-v3 | 3.8134 | 7.6062 | 4.2322 | 3.6348 |
+| Native | 3.6826 | 7.6895 | 4.1226 | 3.5685 |
+
+All **156 reversible source checks** are exact; both backends' output hashes
+are invariant across configurations and match the byte-identical canonical
+ARM64 cohort, including the three explicit replay cases. OpenJPEG uses
+`-ffp-contract=off` in every configuration. All 1,368 process records reproduce
+the full three-warmup / 15-iteration **AND** two-second protocol.
+
+Do not infer Rust tuning gains from changes in Rust/OpenJPEG ratios:
+OpenJPEG changes too. Direct Rust latency comparisons against generic show
+the best class change is consumer C at **-2.16%**, with consumer A **+1.51%**
+and D **+1.17%**; v3 A is **+3.62%**, native A **+4.66%**. These cross-config
+blocks are shared-host indicative observations, not paired prototype
+retention experiments. They do not justify global ISA/profile retuning.
+
+**CI/consumer recommendation:** preserve portable generic and actual MSRV
+correctness gates. A periodic same-host generic/consumer comparison and v3
+codegen smoke are useful diagnostics, not required performance promises.
+Document consumer/v3/native as opt-in build experiments; do not make native
+the published library default or promise a gain from these observations.
+The evaluation adds only manually selected CI study scopes; normal/default
+CI and decoder defaults are unchanged.
+
+See [latencies/IQRs](data/expanded-current-x86-summary.csv),
+[per-image ratios/throughput](data/expanded-current-x86-ratios.csv),
+[direct Rust tuning comparisons](data/expanded-current-x86-rust-tuning.csv),
+[resources](data/expanded-current-x86-resources.csv),
+[output statistics/hashes](data/expanded-current-x86-correctness.csv),
+[class ratios](data/expanded-current-x86-classes.csv),
+[successful/refused instruction outcomes](data/expanded-current-x86-instructions.csv)
+and [source/ZIP/failure-boundary provenance](data/expanded-current-x86-provenance.json).
 
 The expanded one-command flow is
 [`expanded.sh`](../../tools/bench-vs-openjpeg/expanded.sh). It prepares and

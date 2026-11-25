@@ -2,6 +2,7 @@
 """Collect portable raw observations and immutable inputs, excluding build caches."""
 
 import argparse
+import json
 import os
 from pathlib import Path
 import shutil
@@ -31,8 +32,14 @@ def main():
             or (parent / d / "conformance/COPYRIGHT").is_file())]
         for name in files:
             path = Path(directory) / name
-            if path.is_symlink() or name.endswith("-dump.stdout") or name in {"rust.stdout", "openjpeg.stdout"}:
+            if path.is_symlink() or name.endswith("-dump.stdout"):
                 continue
+            if name in {"rust.stdout", "openjpeg.stdout"}:
+                metrics = path.with_suffix(".json")
+                if not metrics.is_file():
+                    raise ValueError(f"cannot distinguish pixels from process text: {path}")
+                if "dump" in json.loads(metrics.read_text())["command"]:
+                    continue
             if path.suffix not in {".csv", ".json", ".stdout", ".stderr", ".log",
                                    ".md", ".txt", ".j2k", ".s", ".asm", ".out"}:
                 continue

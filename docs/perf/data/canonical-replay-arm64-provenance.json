@@ -58,5 +58,16 @@
     "x86-64-v3",
     "native"
   ],
-  "limitation": "First x86 artifact lacks consumer metadata. Final corrected x86 run must match these input hashes before declaring its full four-profile matrix cross-target qualified."
+  "limitation": "Final four-profile timing/input/output evidence verified; auxiliary native Callgrind SIGILL and32 missing instrumented stdout remain explicitly documented in x86 provenance.",
+  "final_replacement_validation": {
+    "workflow": "https://github.com/microsoft/jpeg2000_rs/actions/runs/45614658287",
+    "canonical_inputs_match": true,
+    "profiles": [
+      "generic",
+      "consumer",
+      "x86-64-v3",
+      "native"
+    ],
+    "both_backends_exact": true
+  }
 }
