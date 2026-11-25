@@ -6503,6 +6503,18 @@ private allocations. Constructor/retention/staging invariants describe the
 real fields, not assumed result equality or a generic execution-scope premise.
 The ordinary public/legacy record and getters remain unchanged.
 
+Private reconstruction now borrows either the real wide plane or the private
+owner through one internal indexed reader. Both use the existing fused
+preflight, bounded quantization and direct placement implementation; no public
+dense slice is fabricated. The same value-derived guards decide between direct
+placement and the real generic signed-magnitude/quantized-buffer fallback.
+The private governing placement program delegates to that shared conditional
+program: the direct branch consumes no allocation events, while the fallback
+retains the actual ordered staging requests, first errors and partial writes.
+Neither representation equality nor allocations for removed buffers are
+assumed. This isolated correction introduces no size/precision/component-count
+threshold and does not qualify or erase earlier negative performance evidence.
+
 The regression controls compare private and wide results for reversible and
 irreversible standard decompositions, levels 0/1/5/31/32, odd and empty-axis
 geometry, limits/errors, both selection forms and actual packed/wide

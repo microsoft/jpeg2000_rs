@@ -214,6 +214,10 @@ The implementation contains:
   and compiled cooperative-deadline builds retain the wide path. This continuation
   has separately revision-bound source/archive/native qualification requirements;
   historical single-component results are not inherited.
+  The isolated shared-fused reconstruction correction uses the existing real
+  preflight for both wide and private readers, retaining actual generic staging
+  when that preflight refuses. It does not change format admission or turn the
+  earlier multi-component performance regressions into an adoption claim.
 - Reversible 5/3 and fixed-point irreversible 9/7 synthesis.
   Odd-origin high-only singleton operators use arithmetic half in the
   retained-assertion engineering profile. Actual encoded singleton-tile

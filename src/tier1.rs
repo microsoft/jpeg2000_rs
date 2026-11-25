@@ -568,6 +568,8 @@ pub use ht_cleanup::complete_ht_kappa;
 mod ht_checkpoint;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod private_ht;
+#[cfg(test)]
+pub(crate) use private_ht::extraction_test_private_decoder;
 #[cfg(verus_keep_ghost)]
 pub(crate) use private_ht::private_decoder_outcome;
 pub(crate) use private_ht::{PrivateHtDecoder, new_private_ht_decoder};

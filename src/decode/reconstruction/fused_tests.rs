@@ -1,5 +1,8 @@
 use super::*;
-use crate::tier1::{ExtractionTestCoefficient, SubbandOrientation, extraction_test_plane};
+use crate::tier1::{
+    ExtractionTestCoefficient, SubbandOrientation, extraction_test_plane,
+    extraction_test_private_decoder,
+};
 use crate::transform::QuantizationStep;
 
 fn geometry(
@@ -150,9 +153,17 @@ fn fused_direct_placement_matches_independent_midpoint_roi_and_quantization_refe
                 .and_then(|(_, _, _, samples)| {
                     write_quantized_block(&mut expected, &samples, 4, 2, 1, 1)
                 });
-                let eligible = preflight(&plane, &actual, shape, 1, 1, reversible, &limits)
-                    .unwrap()
-                    .is_some();
+                let eligible = preflight(
+                    ReadablePlane::Wide(&plane),
+                    &actual,
+                    shape,
+                    1,
+                    1,
+                    reversible,
+                    &limits,
+                )
+                .unwrap()
+                .is_some();
                 if eligible {
                     admitted += 1;
                     crate::allocation::with_refusal(0, || {
@@ -197,9 +208,17 @@ fn fused_direct_placement_matches_independent_midpoint_roi_and_quantization_refe
         9,
     );
     assert!(
-        preflight(&roi, &destination(2, 1, false), shape, 0, 0, false, &limits)
-            .unwrap()
-            .is_none()
+        preflight(
+            ReadablePlane::Wide(&roi),
+            &destination(2, 1, false),
+            shape,
+            0,
+            0,
+            false,
+            &limits
+        )
+        .unwrap()
+        .is_none()
     );
     let mut actual = destination(2, 1, false);
     let mut expected = destination(2, 1, false);
@@ -229,6 +248,7 @@ fn fused_fallback_preserves_real_staging_refusals_numeric_priority_and_partial_p
         (&normal, geometry(3, 2, step, 0, 0), u64::MAX, true),
         (&normal, geometry(3, 2, step, 8, 0), 8, true),
     ] {
+        let private = extraction_test_private_decoder(plane.clone());
         let capped = if maximum == u64::MAX {
             ResourceLimits::default()
         } else {
@@ -242,9 +262,17 @@ fn fused_fallback_preserves_real_staging_refusals_numeric_priority_and_partial_p
                 expected.visited[5] = true;
             }
             assert!(
-                preflight(plane, &actual, shape, 1, 0, true, &capped)
-                    .unwrap()
-                    .is_none()
+                preflight(
+                    ReadablePlane::Wide(plane),
+                    &actual,
+                    shape,
+                    1,
+                    0,
+                    true,
+                    &capped
+                )
+                .unwrap()
+                .is_none()
             );
             let a = crate::allocation::with_refusal(after, || {
                 place(plane, &mut actual, shape, 1, 0, true, &capped)
@@ -254,6 +282,15 @@ fn fused_fallback_preserves_real_staging_refusals_numeric_priority_and_partial_p
             });
             assert_eq!(a, b);
             assert_eq!(snapshot(&actual), snapshot(&expected));
+            let mut private_actual = destination(3, 2, true);
+            if overlap {
+                private_actual.visited[5] = true;
+            }
+            let c = crate::allocation::with_refusal(after, || {
+                place_private(&private, &mut private_actual, shape, 1, 0, true, &capped)
+            });
+            assert_eq!(c, b);
+            assert_eq!(snapshot(&private_actual), snapshot(&expected));
         }
         shape.width = 0;
         assert_eq!(
@@ -284,6 +321,66 @@ fn fused_fallback_preserves_real_staging_refusals_numeric_priority_and_partial_p
         Err(invalid_decode())
     );
     assert_eq!(actual.samples, [97, 7, 7, 97, 7, 97]);
+}
+
+#[test]
+fn private_fused_packed_and_wide_readers_preserve_raw_fields_without_staging() {
+    let limits = ResourceLimits::default();
+    for raw in [
+        vec![
+            (7, [0; 5], false, true, None),
+            (3, [0; 5], true, true, Some(0)),
+            (u64::from(u32::MAX), [0; 5], true, false, Some(62)),
+            (0, [0; 5], true, false, None),
+        ],
+        vec![
+            (u64::from(u32::MAX) + 1, [0; 5], true, true, None),
+            (u64::MAX, [u64::MAX; 5], true, false, Some(u16::MAX)),
+            (0, [0; 5], false, true, Some(1)),
+            (19, [0; 5], false, true, None),
+        ],
+    ] {
+        let wide = extraction_test_plane(2, 2, &raw);
+        let private = extraction_test_private_decoder(wide.clone());
+        let before = format!("{private:?}");
+        for reversible in [false, true] {
+            for shift in [0, 1, 9, 64, 255] {
+                let shape = geometry(
+                    4,
+                    3,
+                    QuantizationStep {
+                        exponent: 8,
+                        mantissa: 137,
+                    },
+                    8,
+                    shift,
+                );
+                let mut expected = destination(4, 3, reversible);
+                let reference =
+                    legacy_place(&wide, &mut expected, shape, 1, 1, reversible, &limits);
+                let mut actual = destination(4, 3, reversible);
+                assert!(
+                    preflight(
+                        ReadablePlane::Private(&private),
+                        &actual,
+                        shape,
+                        1,
+                        1,
+                        reversible,
+                        &limits
+                    )
+                    .unwrap()
+                    .is_some()
+                );
+                let result = crate::allocation::with_refusal(0, || {
+                    place_private(&private, &mut actual, shape, 1, 1, reversible, &limits)
+                });
+                assert_eq!(result, reference);
+                assert_eq!(snapshot(&actual), snapshot(&expected));
+                assert_eq!(format!("{private:?}"), before);
+            }
+        }
+    }
 }
 
 #[cfg(feature = "cooperative-deadlines")]

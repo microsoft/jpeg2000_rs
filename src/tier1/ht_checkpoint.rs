@@ -332,6 +332,22 @@ impl HtCleanupCheckpoint {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result==self.view().coefficients.len(),
+            forall|i:int|0<=i<self.view().coefficients.len() ==> #[trigger] self.view().coefficients[i].limbs.len()==6,
+    ))]
+    pub(super) fn private_coefficient_count(&self) -> usize {
+        #[cfg(verus_keep_ghost)]
+        proof! {reveal(HtCleanupCheckpoint::view);reveal(code_block_plane_view);reveal(coefficient_raw_view);}
+        match self {
+            Self::Wide(plane) => plane.coefficients.len(),
+            Self::Packed(plane) => {
+                let (_, _, cells) = plane.header_and_cells();
+                cells.len()
+            }
+        }
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures super::coefficient_raw_outcome(result)==
             if index<self.view().coefficients.len(){Ok(self.view().coefficients[index as int])}
             else{Err(crate::specs::ht_reader_error(crate::MalformedKind::InvalidCodeBlock))},

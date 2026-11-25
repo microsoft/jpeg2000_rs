@@ -2569,61 +2569,37 @@ fn place_private_block(
     {
         return Err(invalid_decode());
     }
-    let collected = decoder.collect();
     #[cfg(verus_keep_ghost)]
     proof_decl! {let ghost source=decoder.view().plane;}
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        let outcome=crate::transform::quantized_coefficients_outcome(collected);
-        crate::specs::part2_coefficient_collect_frames(source,outcome);
-        if let Err(error)=collected{
-            crate::specs::part2_extraction_place_after_coefficients_normal(initial,geometry,placement,source,reversible,maximum,outcome);
-            crate::specs::private_place_collected(initial,plan.component.subbands@,planes,placement,reversible,maximum,
-                geometry,source,outcome,(Err(error),initial));
-        }
-    }
-    let coefficients = collected?;
-    let converted = crate::transform::inverse_quantize_magnitudes(
-        &coefficients,
-        geometry.quantization_step,
-        geometry.dynamic_range,
-        reversible,
-        geometry.roi_shift,
-        limits,
-    );
-    #[cfg(verus_keep_ghost)]
-    proof_decl! {let ghost values=crate::transform::quantized_coefficients_view(coefficients@);}
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        let outcome=crate::transform::reconstruction_outcome(converted);
-        crate::specs::private_place_quantized(initial,geometry,placement,source,reversible,maximum,values,outcome);
-        let effect=crate::specs::part2_extraction_place_after_quantization(initial,geometry,placement,source,reversible,outcome);
-        crate::specs::private_place_collected(initial,plan.component.subbands@,planes,placement,reversible,maximum,
-            geometry,source,Ok(values),effect);
-    }
-    let quantized = converted?;
-    if quantized.fraction_bits() != if reversible { 0 } else { 16 } {
-        return Err(invalid_decode());
-    }
     #[cfg(verus_keep_ghost)]
     proof_decl! {let ghost before_bands=working.bands@;}
     let destination = working
         .bands
         .get_mut(placement.subband_index)
         .ok_or_else(invalid_decode)?;
-    let written = super::reconstruction::write_quantized_block(
+    let written = super::reconstruction::fused::place_private(
+        decoder,
         destination,
-        quantized.samples(),
-        u32::from(width),
-        u32::from(height),
+        geometry,
         placement.x,
         placement.y,
+        reversible,
+        limits,
     );
     #[cfg(verus_keep_ghost)]
     proof! {
         assert(super::working_bands_view(working.bands@) =~= super::working_bands_view(before_bands).update(
             placement.subband_index as int,super::working_subband_view(working.bands@[placement.subband_index as int])));
-        crate::specs::private_unit_result_fields(written);
+        if written==Err(DecodeError::AllocationFailed){
+            assert(crate::specs::part2_extraction_place_admit(initial,plan.component.subbands@,planes,placement)
+                ==Ok(Some((geometry,source))));
+            crate::specs::part2_fused_allocation_lift(initial,plan.component.subbands@,planes,placement,geometry,source,reversible,maximum);
+            assert(working@==initial);
+            crate::specs::private_place_shared(initial,plan.component.subbands@,planes,placement,reversible,maximum,(written,initial));
+        }else{
+            assert((written,working@)==crate::specs::part1_prepare_placement(initial,plan.component.subbands@,planes,placement,reversible,maximum));
+        }
+        assert(crate::specs::private_place_result(initial,plan.component.subbands@,planes,placement,reversible,maximum,(written,working@)));
     }
     written
 }

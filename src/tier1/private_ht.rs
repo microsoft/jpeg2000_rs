@@ -68,6 +68,18 @@ verus! {
 }
 
 #[cfg(test)]
+pub(crate) fn extraction_test_private_decoder(plane: super::CodeBlockPlane) -> PrivateHtDecoder {
+    let mut style = Tier1CodingStyle::from_code_block_style(0x40).unwrap();
+    style.set_force_high_throughput(true);
+    let mut wide = new_private_ht_decoder(1, 1, 2, SubbandOrientation::Ll, style, true, 74)
+        .unwrap()
+        .into_wide()
+        .unwrap();
+    wide.plane = plane;
+    from_wide(wide).unwrap()
+}
+
+#[cfg(test)]
 #[allow(
     clippy::items_after_test_module,
     reason = "Keep private storage regressions adjacent to the owner definition."
@@ -610,6 +622,30 @@ impl PrivateHtDecoder {
         #[cfg(verus_keep_ghost)]
         proof! {reveal(PrivateHtDecoder::view);}
         self.primary.private_dimensions()
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result==self.view().plane.coefficients.len(),
+            forall|i:int|0<=i<self.view().plane.coefficients.len() ==> #[trigger] self.view().plane.coefficients[i].limbs.len()==6,
+    ))]
+    pub(crate) fn coefficient_count(&self) -> usize {
+        #[cfg(verus_keep_ghost)]
+        proof! {reveal(PrivateHtDecoder::view);}
+        self.primary.private_coefficient_count()
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures super::coefficient_raw_outcome(result)==
+            if index<self.view().plane.coefficients.len(){Ok(self.view().plane.coefficients[index as int])}
+            else{Err(crate::specs::ht_reader_error(crate::MalformedKind::InvalidCodeBlock))},
+    ))]
+    pub(crate) fn raw_coefficient(
+        &self,
+        index: usize,
+    ) -> Result<super::CoefficientState, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {reveal(PrivateHtDecoder::view);}
+        self.primary.private_coefficient(index)
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>

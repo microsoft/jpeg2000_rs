@@ -15515,6 +15515,9 @@
         {"path": "src/decode/private_ht.rs", "symbol": "plan_standard"},
         {"path": "src/decode/private_ht.rs", "symbol": "plan_standard_component"},
         {"path": "src/decode/private_ht.rs", "symbol": "decode_standard"},
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place_private"},
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place_readable"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "ReadablePlane::coefficient"},
         {"path": "src/packet/private_ht.rs", "symbol": "new_private_ht_resolution_precinct"},
         {"path": "src/packet/private_ht.rs", "symbol": "decode_private_ht_resolution_packets"},
         {"path": "src/codestream/coding_style.rs", "symbol": "effective_coding_styles_equal"}
@@ -15577,6 +15580,7 @@
         {"path": "src/decode/tests.rs", "symbol": "private_ht_standard_decompositions_keep_resolution_geometry_empty_bands_and_limits"},
         {"path": "src/decode/tests.rs", "symbol": "private_ht_components_keep_global_packet_indices_mct_suffix_and_first_errors"},
         {"path": "src/decode/tests.rs", "symbol": "private_ht_components_effective_overrides_fallback_without_reclassifying_mct_errors"},
+        {"path": "src/decode/reconstruction/fused_tests.rs", "symbol": "private_fused_packed_and_wide_readers_preserve_raw_fields_without_staging"},
         {"path": "src/tier1/private_ht.rs", "symbol": "private_primary_standard_orientations_survive_staging_entropy_and_retention"}
       ]
     },
@@ -21158,6 +21162,7 @@
       "id": "part1-complete-supplied-coefficient-quantization",
       "implementation_refs": [
         {"path": "src/decode/reconstruction/fused.rs", "symbol": "place"},
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place_readable"},
         {"path": "src/decode/code_blocks.rs", "symbol": "decode_code_block"},
         {"path": "src/decode/code_blocks.rs", "symbol": "copy_code_block_samples"},
         {
@@ -21891,6 +21896,7 @@
       "id": "part1-complete-quantized-block-placement",
       "implementation_refs": [
         {"path": "src/decode/reconstruction/fused.rs", "symbol": "place"},
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place_readable"},
         {"path": "src/decode/reconstruction.rs", "symbol": "prepare_tile_component_with_kernel"},
         {"path": "src/decode/reconstruction.rs", "symbol": "place_prepare_block"},
         {"path": "src/decode/reconstruction.rs", "symbol": "write_quantized_block"},
@@ -21938,6 +21944,8 @@
         {"path": "src/decode/reconstruction/fused.rs", "symbol": "place"},
         {"path": "src/decode/reconstruction/fused.rs", "symbol": "preflight"},
         {"path": "src/decode/reconstruction/fused.rs", "symbol": "write"},
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place_readable"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "ReadablePlane::collect"},
         {"path": "src/decode/reconstruction.rs", "symbol": "decode_progression_prepared_image"},
         {"path": "src/decode/reconstruction.rs", "symbol": "prepared_tile_views"},
         {"path": "src/decode/reconstruction.rs", "symbol": "prepare_tile_component"},

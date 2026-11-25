@@ -7743,6 +7743,7 @@ _HT_EXPONENT_TESTS = {
     ("src/decode/tests.rs", "ht_cleanup_scratch_storage_raw_selected_jph_rows_and_automatic_restore_real_image"),
 }
 _PRIVATE_STANDARD_HT_TESTS = {
+    ("src/decode/reconstruction/fused_tests.rs", "private_fused_packed_and_wide_readers_preserve_raw_fields_without_staging"),
     ("src/decode/tests.rs", "private_ht_standard_admission_uses_complete_effective_styles_and_preserves_wide_results"),
     ("src/decode/tests.rs", "private_ht_standard_decompositions_keep_resolution_geometry_empty_bands_and_limits"),
     ("src/decode/tests.rs", "private_ht_components_keep_global_packet_indices_mct_suffix_and_first_errors"),
@@ -7750,6 +7751,9 @@ _PRIVATE_STANDARD_HT_TESTS = {
     ("src/tier1/private_ht.rs", "private_primary_standard_orientations_survive_staging_entropy_and_retention"),
 }
 _PRIVATE_STANDARD_HT_IMPL = {
+    ("src/decode/reconstruction/fused.rs", "place_private"),
+    ("src/decode/reconstruction/fused.rs", "place_readable"),
+    ("src/decode/reconstruction/fused_readable.rs", "ReadablePlane::coefficient"),
     ("src/decode/execution.rs", "decode_tile_parts_at"),
     ("src/decode/private_ht.rs", "standard_eligible"),
     ("src/decode/private_ht.rs", "standard_component_eligible"),
@@ -7874,8 +7878,7 @@ _PLANE_ROLE_GUARDS = {
         "private_image_after_packets(",
     ),
     ("specs/private_ht_reconstruction.rs", "private_place_run"): (
-        "part2_extraction_place_admit(", "part2_extraction_run(plane,true,calls)",
-        "part2_extraction_place_after_coefficients_run(",
+        "part2_extraction_place_run(working,bands,precincts,placement,reversible,maximum,calls)",
     ),
     ("specs/cold_ht_exponents.rs", "part2_ht_exponent_count"): (
         "(metadata.width as nat+1)/2+1",
@@ -8090,8 +8093,42 @@ _PLANE_ROLE_NATIVE_ORDER = {
         "prepared.push(component)", "prepared.get_mut(start..)", "finish_prepared_tile(",
     ),
     ("src/decode/private_ht.rs", "place_private_block"): (
-        "plan.decoder(", "decoder.dimensions()", "decoder.collect()", "inverse_quantize_magnitudes(",
+        "plan.decoder(", "decoder.dimensions()", "let destination = working",
+        "super::reconstruction::fused::place_private(decoder,destination,geometry,placement.x,placement.y,reversible,limits,)",
+    ),
+    ("src/decode/reconstruction/fused.rs", "place_private"): (
+        "place_readable(readable::from_private(plane),destination,geometry,x,y,reversible,limits,)",
+    ),
+    ("src/decode/reconstruction/fused.rs", "place_readable"): (
+        "x.checked_add(width)", "if let Some(quantizer) = preflight(", "return write(",
+        "let collected = plane.collect()", "let coefficients = collected?",
+        "let quantized_result = inverse_quantize_magnitudes(", "let quantized = quantized_result?",
         "quantized.fraction_bits()", "write_quantized_block(",
+    ),
+    ("src/decode/reconstruction/fused.rs", "preflight"): (
+        "plane.dimensions()", "plane.coefficient_count()", "coefficient_count != count",
+        "plane.coefficient(row * width + column)?", "coefficient.narrow_reconstructed_magnitude()",
+        "crate::refinement::maxshift_restore(magnitude, geometry.roi_shift)",
+        "restored > maximum || visited[column]",
+    ),
+    ("src/decode/reconstruction/fused.rs", "write"): (
+        "plane.dimensions()", "plane.coefficient(row * width + column)?",
+        "coefficient.reconstructed_magnitude_bounded()", "crate::transform::quantize_bounded_magnitude(",
+        "coefficient.reconstructed_negative()", "visited[column] = true",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "ReadablePlane::coefficient"): (
+        "match self", "Self::Wide(plane) => Ok(plane.coefficients()[index])",
+        "Self::Private(decoder) => decoder.raw_coefficient(index)",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "ReadablePlane::coefficient_count"): (
+        "match self", "Self::Wide(plane) => plane.coefficients().len()",
+        "Self::Private(decoder) => decoder.coefficient_count()",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "from_wide"): ("ReadablePlane::Wide(plane)",),
+    ("src/decode/reconstruction/fused_readable.rs", "from_private"): ("ReadablePlane::Private(plane)",),
+    ("src/decode/reconstruction/fused_readable.rs", "ReadablePlane::collect"): (
+        "match self", "Self::Wide(plane) => super::collect_prepare_coefficients(plane)",
+        "Self::Private(decoder) => decoder.collect()",
     ),
     ("src/tier1/private_ht.rs", "new_private_ht_decoder"): (
         "!style.force_high_throughput", "let initialized = private_initial(width, height)", "let primary = initialized?",
@@ -9063,11 +9100,14 @@ _QUANTIZATION_OUTPUT_NATIVE_ORDER = {
         "let decoder = precinct.decoder(placement.decoder_index)?", "let plane = decoder.plane()",
         "let destination = working", "let result = fused::place(",
     ),
-    ("src/decode/reconstruction/fused.rs", "place"): (
+    ("src/decode/reconstruction/fused.rs", "place_readable"): (
         "x.checked_add(width)", "if let Some(quantizer) = preflight(", "return write(",
-        "let collected = collect_prepare_coefficients(plane)", "let coefficients = collected?",
+        "let collected = plane.collect()", "let coefficients = collected?",
         "let quantized_result = inverse_quantize_magnitudes(", "let quantized = quantized_result?",
         "quantized.fraction_bits()", "write_quantized_block(",
+    ),
+    ("src/decode/reconstruction/fused.rs", "place"): (
+        "place_readable(readable::from_wide(plane),destination,geometry,x,y,reversible,limits,)",
     ),
 }
 _QUANTIZATION_OUTPUT_TESTS = {
