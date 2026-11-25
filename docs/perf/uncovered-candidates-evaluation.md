@@ -290,3 +290,33 @@ See [per-case initial results](data/c12-summary.csv).
 - **Recommendation:** **needs more data**. First restore proof execution,
   qualify representative precision/geometry inputs, and keep the already
   tracked integer/SIMD work separate. No unmeasured float speedup is claimed.
+
+## C5: genuinely additional whole-plane kernels and fusion
+
+- **Coverage:** preparation/dequantization/placement fusion is already
+  implemented by #451. [Its fast path](../../src/decode/reconstruction/fused.rs#L301)
+  preflights then writes directly, retaining the checked staging fallback.
+  #477/#479 cover native/container ownership and #480 covers MCT/color row
+  kernels. None should be re-proposed as missing work.
+- **Hypothesis:** partly confirmed. [Standard component arithmetic](../../src/image/component_transform.rs#L95)
+  and [typed rounding/level shift](../../src/image/arithmetic.rs#L24) still
+  use checked i64 values. The public typed result remains 64-bit regardless
+  of a possible narrower internal representation.
+- **Stage share / ceiling:** first-pass B dequant/placement samples span
+  4.10-6.80%; typed output 1.31-1.33%; standard RGB MCT 0.83-0.95%.
+  These buckets do not establish that all their work can disappear, and
+  broader plane narrowing also overlaps DWT/memory traffic.
+- **Prototype:** none for an additional complete i32/fused pipeline.
+  Admission must follow actual coefficient/intermediate bounds, not nominal
+  8/16-bit output depth. Widening back to the unchanged public format must
+  remain inside the measured work.
+- **Correctness/verification:** no C5 source or proof changed. New precision,
+  ROI, generic-transform, error-order and refusal-boundary evidence is
+  missing. Exact-source verifier execution is blocked; existing #451 proofs
+  do not prove a different internal plane type.
+- **Effort/risk:** L/medium-high; representation relations and first-error
+  semantics span multiple stages.
+- **Recommendation:** **needs more data**. Separate any genuinely additional
+  pipeline from the tracked row/ownership work, profile the remaining passes
+  on high-precision inputs, and obtain range/proof qualification before
+  introducing a second internal arithmetic representation.
