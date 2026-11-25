@@ -784,8 +784,10 @@ pub(crate) open spec fn part2_trailer_after_selection_run(
     if selection.1.len() != 4 { Some((Err(part1_block_placement_error(false)), events)) }
     else {
         let initial = Part2DecodedLayoutTile { prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0 };
-        part2_trailer_selected_run(&input.size, input.parts, input.capabilities, selection.0,
-            [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0, initial, 0, events)
+        part2_jpip_snapshot_bind(
+            part2_prepare_tile_index_run(input.parts, part2_index_tile_slots(&input.size), selection.0.len(), events),
+            |_: (), rest| part2_trailer_selected_run(&input.size, input.parts, input.capabilities, selection.0,
+                [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0, initial, 0, rest))
     }
 }
 
@@ -847,6 +849,9 @@ pub(crate) proof fn part2_trailer_layout_normal(
                     part2_trailer_selected_normal(&input.size, input.parts, input.capabilities, selection.0, region, selection.2, limits, 0, initial, 0);
                     part2_decode_eta(
                         |events| part2_trailer_selected_run(&input.size, input.parts, input.capabilities, selection.0, region, selection.2, limits, 0, initial, 0, events), result);
+                    part2_index_prefix_normal(input.parts, part2_index_tile_slots(&input.size), selection.0.len(),
+                        |events| part2_trailer_selected_run(&input.size, input.parts, input.capabilities,
+                            selection.0, region, selection.2, limits, 0, initial, 0, events), result);
                 },
             }
             let child = |events| part2_validate_selection_run(size, requested, events);

@@ -28,6 +28,8 @@ pub enum Part2JpipSnapshotEvent {
         caps:(u64,u64,u32,u64,u64,u64),calls:Seq<Part2Tier1StorageEvent>},
     CollectedPayloadCopy { source: Part2OwnedTilePart, calls: Seq<Part1ColdStorageEvent> },
     CollectedPartsCapacity { source: Seq<Part2OwnedTilePart>, tile: u16, elements: nat, succeeded: bool },
+    TilePartIndexCapacity { source: Seq<Part2OwnedTilePart>, tile_slots: nat,
+        next_positions: bool, elements: nat, succeeded: bool },
     SelectionCapacity { size: Part2SelectionGeometry, explicit: Seq<u16>, region: Seq<u32>, count: u64,
         elements: nat, succeeded: bool },
     CoefficientReconstructionCalls {context:Part2CoefficientReconstructionContext,calls:Seq<Part2Tier1StorageEvent>},

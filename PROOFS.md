@@ -15,6 +15,37 @@ contracts and models. Exact run counts and source/tool hashes belong in fresh
 CI artifacts, not committed result snapshots. Independent model-to-standard
 review and official conformance testing remain separate.
 
+## Decode-local stable copy collection index
+
+The private [position index](src/decode/tile_part_index.rs) is constructed
+after existing layout/effective-selection admission, only for more than one
+validated selected tile. Full-one, selected-one and ROI-one calls retain the
+actual original collector without an index reservation or part classifier.
+One head/count buffer and one actual-part next-position buffer are reserved
+fallibly. Reverse physical traversal produces increasing source-position
+chains; it does not sort ordinals, move source owners or validate later or
+unselected payload metadata.
+
+The indexed collector retains the original count-capacity branch,
+`try_duplicate` order, owned `Vec<TilePartPayload>` and downstream slice ABI.
+The [source model](specs/tile_part_index.rs) requires exact stable-filter
+equality, link bounds/progress and source-qualified capacity responses.
+Actual full, selected and PDF-trailer governing roots include the once-only
+index allocation prefix before their unchanged collection/copy events.
+Multi-tile nth-allocation frontiers therefore change explicitly; no dummy
+reservation or old-request-number equivalence is claimed.
+
+The buffers are sized from actual parsed layout tile/part cardinalities,
+already admitted by the existing resource limits, not encoded `TNsot`
+claims. Existing logical parser/planning/packet/output budgets are unchanged.
+These stage-local limits are not allocator capacity or total live-heap
+theorems. New reservations use the existing typed physical-failure boundary;
+initialization and traversal retain bounded cooperative deadline polls.
+An index never survives its current layout/selection call or crosses a PDF
+repair/retry. The five existing Rust-only adapters, `--no-lifetime` boundary
+and solver policy remain unchanged. Fresh source/archive run receipts, not
+this description, establish qualification of a particular commit.
+
 ## POC endpoint intersection and authoritative JP2 image header
 
 The #456 POC reader retains declared endpoints, including zero's specified

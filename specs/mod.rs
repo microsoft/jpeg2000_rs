@@ -259,6 +259,8 @@ mod cold_header_progression;
 pub use cold_header_progression::*;
 mod decoder_input;
 pub use decoder_input::*;
+mod tile_part_index;
+pub(crate) use tile_part_index::*;
 mod raw_decode;
 pub use raw_decode::*;
 mod selected_reconstruction;

@@ -1,9 +1,14 @@
 use super::execution::{
-    account_planned_tile, collect_tile_parts, prepare_tile_decode_metadata,
-    reconstruct_planned_tile, validate_part2_execution,
+    account_planned_tile, prepare_tile_decode_metadata, reconstruct_planned_tile,
+    validate_part2_execution,
 };
 use super::planning::plan_progression_tile_at_selected;
 use super::selection::validate_selection;
+use super::tile_part_index::{
+    collect_tile_parts_with_index, prepare_tile_part_index, tile_index_slots,
+};
+#[cfg(verus_keep_ghost)]
+use super::tile_part_index::{index_preparation_outcome, optional_index_matches};
 use super::*;
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -341,7 +346,30 @@ pub(super) fn decode_trailer_layout(
         reveal(validated_selection_view); reveal(validated_selection_outcome);
         assert(selection.region@.len() == 4);
         assert([selection.region@[0], selection.region@[1], selection.region@[2], selection.region@[3]] == selection.region);
+        crate::specs::part2_index_selection_slots(
+            codestream::selection_geometry_view(&layout.info.image_size), requested_input);
+        codestream::selection_geometry_known_fields(&layout.info.image_size);
     }
+    let slots = tile_index_slots(&layout.info.image_size);
+    let indexing = prepare_tile_part_index(&layout.tile_parts, slots, selection.tiles.len());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let initial = crate::specs::Part2DecodedLayoutTile {
+            prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0,
+        };
+        let root = |events| crate::specs::part2_trailer_layout_run(source, requested_input, limits, events);
+        let child = |events| crate::specs::part2_prepare_tile_index_run(
+            source.parts, slots as nat, selection.tiles@.len(), events);
+        let next = |_: (), rest| crate::specs::part2_trailer_selected_run(
+            &source.size, source.parts, source.capabilities, selection.tiles@, selection.region,
+            selection.discard_levels, limits, 0, initial, 0, rest);
+        assert forall|tail| root(prefix + tail) == crate::specs::part2_jpip_snapshot_bind(child(tail), next) by {}
+        match index_preparation_outcome(indexing) {
+            Err(error) => crate::specs::part2_decode_prefix_error(root, child, next, prefix, error),
+            Ok(()) => { prefix = crate::specs::part2_decode_prefix_advance(root, child, next, prefix, ()); },
+        }
+    }
+    let part_index = indexing?;
     let mut prepared = Vec::new();
     let mut counters = (0_u64, 0_u64, 0_u64);
     let mut work = 0_u64;
@@ -355,6 +383,7 @@ pub(super) fn decode_trailer_layout(
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant index <= selection.tiles.len(),
             source == codestream::decoder_layout_input_view(layout),
+            optional_index_matches(source.parts, &part_index),
             requested_input == crate::options::decode_selection_view(requested),
             crate::specs::part2_trailer_layout_result(source, requested_input, limits, goal),
             goal == crate::specs::part2_trailer_layout_value(source, requested_input, limits),
@@ -392,7 +421,7 @@ pub(super) fn decode_trailer_layout(
                         selection.discard_levels, limits, before.prepared, before.counters, before.mct_work, discarded, rest),
                     next_tile);
         }
-        let collected = collect_tile_parts(&layout.tile_parts, tile);
+        let collected = collect_tile_parts_with_index(&layout.tile_parts, tile, &part_index);
         #[cfg(verus_keep_ghost)]
         proof! {
             let child = |events| crate::specs::part2_collected_parts_run(source.parts, tile, events);

@@ -21,9 +21,11 @@ pub(crate) open spec fn part2_packet_value_run(parts: Seq<Part2OwnedTilePart>, g
         selection: Part2ValidatedSelection, limits: &crate::ResourceLimits,
         events: Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part1DecodedImageModel> {
         if selection.1.len() != 4 { Some((Err(part1_block_placement_error(false)), events)) }
-        else { part2_selected_decode_run(&input.size, input.parts, input.capabilities, selection.0,
-            [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0,
-            Part2DecodedLayoutTile { prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0 }, events) }
+        else { part2_jpip_snapshot_bind(
+            part2_prepare_tile_index_run(input.parts, part2_index_tile_slots(&input.size), selection.0.len(), events),
+            |_: (), rest| part2_selected_decode_run(&input.size, input.parts, input.capabilities, selection.0,
+                [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0,
+                Part2DecodedLayoutTile { prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0 }, rest)) }
     }
     pub(crate) open spec fn part2_layout_decode_run(input: Part2DecoderLayoutInput, requested: Option<Part2DecodeSelection>,
         limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part1DecodedImageModel> {
@@ -35,7 +37,10 @@ pub(crate) open spec fn part2_packet_value_run(parts: Seq<Part2OwnedTilePart>, g
                     Err(error) => Some((Err(error), events)),
                     Ok(count) => if count > u16::MAX as u64 + 1 {
                         Some((Err(crate::DecodeError::MalformedInput { offset: 0, kind: crate::MalformedKind::InvalidImageGeometry }), events))
-                    } else { part2_full_decode_run(&input.size, input.parts, input.capabilities, limits, count, 0, initial, events) },
+                    } else { part2_jpip_snapshot_bind(
+                        part2_prepare_tile_index_run(input.parts, count as nat, count as nat, events),
+                        |_: (), rest| part2_full_decode_run(
+                            &input.size, input.parts, input.capabilities, limits, count, 0, initial, rest)) },
                 },
                 Some(selection) => part2_jpip_snapshot_bind(
                     part2_validate_selection_run(crate::codestream::selection_geometry_view(&input.size), selection, events),
@@ -66,6 +71,9 @@ pub(crate) open spec fn part2_packet_value_run(parts: Seq<Part2OwnedTilePart>, g
                             part2_full_decode_normal(&input.size, input.parts, input.capabilities, limits, count, 0, initial);
                             part2_decode_eta(|events|part2_full_decode_run(&input.size,input.parts,input.capabilities,limits,count,0,initial,events),
                                 part2_full_layout_tiles(&input.size,input.parts,input.capabilities,limits,count,0,initial));
+                            part2_index_prefix_normal(input.parts, count as nat, count as nat,
+                                |events| part2_full_decode_run(&input.size,input.parts,input.capabilities,limits,count,0,initial,events),
+                                part2_full_layout_tiles(&input.size,input.parts,input.capabilities,limits,count,0,initial));
                         },
                 },
                 Some(selection) => {
@@ -82,6 +90,10 @@ pub(crate) open spec fn part2_packet_value_run(parts: Seq<Part2OwnedTilePart>, g
                                 part2_decode_eta(|events| part2_selected_decode_run(&input.size, input.parts, input.capabilities,
                                     selection.0, [selection.1[0], selection.1[1], selection.1[2], selection.1[3]],
                                     selection.2, limits, 0, initial, events), result);
+                                part2_index_prefix_normal(input.parts, part2_index_tile_slots(&input.size), selection.0.len(),
+                                    |events| part2_selected_decode_run(&input.size, input.parts, input.capabilities,
+                                        selection.0, [selection.1[0], selection.1[1], selection.1[2], selection.1[3]],
+                                        selection.2, limits, 0, initial, events), result);
                             }
                         },
                     }
