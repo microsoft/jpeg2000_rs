@@ -410,6 +410,12 @@ pub(super) fn scale_parity(
 pub(super) fn fixed_mul(value: i64, factor: i64) -> Result<i64, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { assert(FIXED_ONE == 65536) by(compute); }
+    if (-(1_i64 << 34)..=1_i64 << 34).contains(&value)
+        && (-(1_i64 << 18)..=1_i64 << 18).contains(&factor)
+    {
+        // The guarded integer product and rounding bias are exact in binary64.
+        return Ok(((value as f64 * factor as f64 + 32768.0) / 65536.0).floor() as i64);
+    }
     // Two signed 32-bit operands leave room for the Q16 rounding bias.
     if value >= i32::MIN as i64
         && value <= i32::MAX as i64

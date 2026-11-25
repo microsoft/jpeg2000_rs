@@ -1,6 +1,59 @@
 use super::*;
 
 #[test]
+fn guarded_binary64_product_preserves_rounding_boundaries_and_integer_fallback_errors() {
+    let bound = 1_i64 << 34;
+    for value in [
+        i64::MIN,
+        -bound - 1,
+        -bound,
+        -bound + 1,
+        -65537,
+        -65536,
+        -32769,
+        -32768,
+        -1,
+        0,
+        1,
+        32767,
+        32768,
+        32769,
+        65535,
+        65536,
+        bound - 1,
+        bound,
+        bound + 1,
+        i64::MAX,
+    ] {
+        for factor in [
+            -(1_i64 << 18) - 1,
+            -(1_i64 << 18),
+            -103949,
+            -3472,
+            -1,
+            0,
+            1,
+            28931,
+            58130,
+            75359,
+            1_i64 << 18,
+            (1_i64 << 18) + 1,
+        ] {
+            let expected = value
+                .checked_mul(factor)
+                .and_then(|product| product.checked_add(32768))
+                .map(|adjusted| adjusted >> 16)
+                .ok_or_else(arithmetic_overflow);
+            assert_eq!(
+                wavelets::fixed_mul(value, factor),
+                expected,
+                "{value} * {factor}"
+            );
+        }
+    }
+}
+
+#[test]
 fn rowwise_vertical_five_three_exact_boundaries_origins_and_single_output_owner() {
     let limits = ResourceLimits::default();
     let boundary = 1_i64 << 30;
