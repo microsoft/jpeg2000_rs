@@ -129,6 +129,8 @@ pub(crate) open spec fn part2_tile_after_metadata_run(size:&crate::codestream::I
     metadata:Part2TileDecodeMetadata,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2DecodedLayoutTile> {
     if private_ht_eligible(size,tile,parts,caps,discard){
         private_image_run(PrivateImageContext{size:*size,tile,parts,caps,discard,limits:*limits,prepared,initial,work,metadata},events)
+    }else if private_ht_standard_eligible(size,tile,parts,caps,discard){
+        private_standard_image_run(PrivateImageContext{size:*size,tile,parts,caps,discard,limits:*limits,prepared,initial,work,metadata},events)
     }else{part2_jpip_snapshot_bind(part2_grid_plan_run(size,metadata.first.coding_style,&metadata.first.component_coding_styles,
         metadata.first.component_quantizations,&metadata.first.roi_shifts,(tile,match discard {None=>0u8,Some(level)=>level}),
         (part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps),true),limits,events),
@@ -144,6 +146,10 @@ pub(crate) proof fn part2_tile_after_metadata_normal(size:&crate::codestream::Im
         let context=PrivateImageContext{size:*size,tile,parts,caps,discard,limits:*limits,prepared,initial,work,metadata};
         private_image_normal(context);private_image_reference(context);
         part2_decode_eta(|events|private_image_run(context,events),private_image_value(context));
+    }else if private_ht_standard_eligible(size,tile,parts,caps,discard){
+        let context=PrivateImageContext{size:*size,tile,parts,caps,discard,limits:*limits,prepared,initial,work,metadata};
+        private_standard_image_normal(context);private_standard_image_reference(context);
+        part2_decode_eta(|events|private_standard_image_run(context,events),private_standard_image_value(context));
     }else{
     let result=part2_decode_tile_parts_owned(size,tile,parts,caps,discard,limits,prepared,initial,work);
     let select=(tile,match discard {None=>0u8,Some(level)=>level});

@@ -267,6 +267,7 @@ pub(crate) proof fn part2_tile_decode_components_actual(size: &crate::codestream
     initial: (u64, u64, u64), work: u64, metadata: Part2TileDecodeMetadata, plan: Part2ProgressionTilePlan,
     counters: (u64, u64, u64), result: Result<Part2DecodedTileComponents, crate::DecodeError>)
     requires !private_ht_eligible(size,tile,parts,caps,discard),
+        !private_ht_standard_eligible(size,tile,parts,caps,discard),
         part2_tile_decode_metadata_owned(parts, crate::codestream::image_size_component_count(size), discard) == Ok(metadata),
         part2_progression_tile_plan_owned(size, metadata.first.coding_style, &metadata.first.component_coding_styles,
             metadata.first.component_quantizations, &metadata.first.roi_shifts, (tile, match discard { None => 0u8, Some(levels) => levels }),

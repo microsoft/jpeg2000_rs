@@ -10986,6 +10986,53 @@ class FrameworkTests(WorkingFiles):
             with self.subTest(source=relative, fragment=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "remaining plane storage|private HT primary"):
                 framework.validate_normative_coverage(data)
+        scoped_mutations = (
+            ("src/decode/execution.rs", "decode_tile_parts_at",
+             "if super::private_ht::standard_eligible(", "if false && super::private_ht::standard_eligible("),
+            ("src/codestream/coding_style.rs", "effective_coding_styles_equal",
+             "left.code_block_width != right.code_block_width", "false"),
+            ("src/decode/private_ht.rs", "standard_eligible",
+             "effective_coding_styles_equal(style, first.coding_style)", "effective_coding_styles_equal(style, style)"),
+            ("src/decode/private_ht.rs", "append_standard_block",
+             "value.subband_index = indices.1", "value.subband_index = 0"),
+            ("src/packet/private_ht.rs", "execute_private_resolution_packet",
+             "precincts[index]", "precincts[0]"),
+            ("src/packet/private_ht.rs", "new_private_ht_resolution_precinct",
+             "precinct.decoders.append(", "discard_decoders("),
+            ("specs/private_ht_standard_plan.rs", "private_ht_standard_eligible",
+             "!crate::decode::PRIVATE_HT_PRIMARY_ENABLED", "false"),
+            ("specs/private_ht_standard_plan.rs", "private_standard_cell_run",
+             "private_decoder_initial_calls_run(", "supplied_decoder("),
+            ("specs/private_ht_standard_precinct.rs", "private_resolution_decoder_capacity",
+             "PrivateOwnerCapacityContext::ResolutionDecoders", "PrivateOwnerCapacityContext::BlockAppend"),
+            ("specs/private_ht_standard_precinct.rs", "private_resolution_after_inclusion",
+             "index,true,Some(inclusion)", "index,false,None"),
+            ("specs/private_ht_standard_packet.rs", "private_resolution_packet_run",
+             "private_precinct_packet_run(", "supplied_packet("),
+            ("specs/private_ht_standard_image.rs", "private_standard_image_after_plan",
+             "part2_planned_tile_accounting(", "supplied_accounting("),
+        )
+        for relative, symbol, before, after in scoped_mutations:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(source=relative, symbol=symbol), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "remaining plane storage|private HT primary"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"]
+            if (ref["path"], ref["symbol"]) not in framework._PRIVATE_STANDARD_HT_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "private HT primary standard"):
+            framework.validate_normative_coverage(missing)
 
     def test_inventory_ht_checkpoint_binds_private_mode_packed_tape_and_refinement_source(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())

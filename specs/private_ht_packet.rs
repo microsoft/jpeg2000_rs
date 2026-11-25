@@ -587,6 +587,9 @@ pub(crate) proof fn private_packet_body_value_fields(before:PrivatePacketBodyExe
         ensures (private_precinct_packet_value(ctx).0,private_precinct_packet_value(ctx).1.logical)==
             part1_precinct_packet_owned(ctx.before.logical,ctx.part,ctx.offset,Seq::empty(),0,None,ctx.sequence,true,
                 ctx.caps.0,ctx.caps.1,ctx.caps.2,ctx.caps.3,ctx.caps.4,ctx.caps.5),
+            private_precinct_packet_value(ctx).1.logical.component==ctx.before.logical.component,
+            private_precinct_packet_value(ctx).1.logical.resolution==ctx.before.logical.resolution,
+            private_precinct_packet_value(ctx).1.logical.precinct==ctx.before.logical.precinct,
             private_precinct_packet_value(ctx).1.packed.len()==private_precinct_packet_value(ctx).1.logical.decoders.len(),
             forall|i:int|0<=i<private_precinct_packet_value(ctx).1.logical.decoders.len() ==> #[trigger] private_ht_state_wf(
                 PrivateHtDecoderState{

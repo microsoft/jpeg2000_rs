@@ -6461,33 +6461,56 @@ private record is 136 bytes. Public Tier1/planning/precinct APIs, JPIP and legac
 storage remain unchanged. This first subset and checkpoint packing do not
 complete the remaining original #474 legacy/incremental scope or establish a
 performance benefit. Source-function coverage remains unmeasured. These
-qualification statements describe the zero-DWT baseline, not the unqualified
+qualification statements describe the zero-DWT baseline, not the separate
 extension below.
 
-### Unqualified standard-DWT private trial
+### Standard-DWT private-owner extension
 
-The development trial carries resolution/subband geometry through private
-precincts and preserves orientation in the same packed primary owner. A
+The extension carries actual resolution/subband/precinct geometry through
+private planning and packet execution, preserving all four orientations in
+the same packed primary owner. A
 concrete indexed readable view shares reconstruction with the zero-DWT path;
 standard quantization, inverse DWT and entropy helpers are reused. Existing
-cooperative-deadline builds disable the new entry as well.
+cooperative-deadline builds disable the new entry as well. The extension still
+requires one component, one tile part, origin-zero positive component bounds
+no larger than 32768 on either axis, implicit default precincts, no custom
+decomposition structure or arbitrary transform, and all the existing
+ROI/POC/MCT/packed-header/packet-length restrictions. It admits the existing
+standard decomposition range through the reached geometry/metadata helpers,
+including empty high-pass axes; it does not select a particular level, image
+size, component precision or fixture name.
 
-The trial is blocked on the literal no-COC admission requirement. The regression
-`private_ht_standard_admission_requires_main_coc_provenance_not_resolved_style_equality`
+The clarified admission boundary requires complete effective main/component
+coding-style equality, not literal COC absence. The regression
+`private_ht_standard_admission_uses_complete_effective_styles_and_preserves_wide_results`
 constructs a valid main-header COC identical to COD and a same-sized ignored
-COM alternative. Both produce equal complete `CodestreamLayout` values,
-including header counts, effective component styles and tile-marker flags.
-The current governing tile entry therefore cannot distinguish them. Neither
-resolved-style equality nor rejecting functional tile-header markers proves
-main-header COC absence. A private raw-header provenance bridge would be needed;
-no public record field, pointer trick, guessed marker-count restriction or
-weakened admission contract has been substituted.
+COM alternative. Both produce equal complete `CodestreamLayout` values and
+must preserve admission, private/wide samples, metadata, counters and errors.
+A genuinely different effective COC is rejected by private eligibility and
+retains the ordinary wide path. Existing observable functional tile-header,
+ROI/POC and other restrictions remain in force. No raw-header sidecar or
+provenance assumption is introduced. Historical literal-marker failure
+receipts remain preserved and are not represented as a proof of this clarified
+semantic condition.
 
-The new general planning/packet allocation programs and governing proof
-composition remain unfinished. No whole-source/package verification, complete
-qualification, matched final ELF or performance result is claimed for this
-extension. Focused native geometry/orientation and early release layout checks
-are development evidence only, not a verifier or whole-image oracle pass.
+The logical plan, precinct, execution and readable-reconstruction projections
+connect the actual private tile caller to the unchanged wide result, including
+first nonphysical errors. Concrete ordered programs separately account for
+the new per-push private plan and precinct containers, actual word copies,
+wide bridges, staging transactions and reconstruction buffers through tile
+return. They do not substitute the old dense decoder-vector allocations for
+private allocations. Constructor/retention/staging invariants describe the
+real fields, not assumed result equality or a generic execution-scope premise.
+The ordinary public/legacy record and getters remain unchanged.
+
+The regression controls compare private and wide results for reversible and
+irreversible standard decompositions, levels 0/1/5/31/32, odd and empty-axis
+geometry, limits/errors, both selection forms and actual packed/wide
+transitions. Exact revision-bound qualification, actual Cargo-archive proof,
+full original-sample oracle and matched-ELF receipts are separate artifacts;
+neither focused native checks nor historical zero-DWT receipts replace them.
+This extension is not adoption, a performance claim, multicomponent or
+legacy/incremental compaction. Source-function coverage remains unmeasured.
 
 ### Guarded native neighbor aggregation
 

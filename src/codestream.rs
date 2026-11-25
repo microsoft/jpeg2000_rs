@@ -703,6 +703,7 @@ include!("codestream/decoder_input_proof_support.rs");
 mod coding_markers;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod coding_style;
+pub(crate) use coding_style::effective_coding_styles_equal;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod decomposition;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]

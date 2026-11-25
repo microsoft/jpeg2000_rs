@@ -12,6 +12,7 @@ use vstd::prelude::*;
 
 pub(crate) struct PrivateHtPrecinct {
     resolution: u8,
+    precinct: u32,
     states: Vec<CodeBlockPacketState>,
     contexts: Vec<CodeBlockPacketContext>,
     subbands: Vec<PacketSubbandState>,
@@ -26,88 +27,277 @@ pub(crate) struct PrivateHtSubbandExecution {
     pub(crate) decoders: Vec<PrivateHtDecoder>,
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result==crate::specs::private_resolution_execution_admit(
+        across,down,maximum_zero,decoder_count as nat,total,limits),
+))]
+fn admit_private_resolution_execution(
+    across: u32,
+    down: u32,
+    maximum_zero: u16,
+    decoder_count: usize,
+    total: u64,
+    limits: &ResourceLimits,
+) -> Result<(usize, u64), DecodeError> {
+    if across == 0
+        || down == 0
+        || maximum_zero == 0
+        || maximum_zero > crate::tier1::MAX_TIER1_BITPLANES
+    {
+        return Err(invalid_packet_header());
+    }
+    let count = u64::from(across)
+        .checked_mul(u64::from(down))
+        .ok_or_else(packet_arithmetic_overflow)?;
+    let total = total
+        .checked_add(count)
+        .ok_or_else(packet_arithmetic_overflow)?;
+    if total > limits.maximum_code_blocks() {
+        return Err(DecodeError::LimitExceeded {
+            resource: Resource::CodeBlocks,
+            limit: limits.maximum_code_blocks(),
+            actual: total,
+        });
+    }
+    if total > limits.maximum_work_units() {
+        return Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            limit: limits.maximum_work_units(),
+            actual: total,
+        });
+    }
+    if count > usize::MAX as u64 {
+        return Err(packet_arithmetic_overflow());
+    }
+    let count = count as usize;
+    if decoder_count != count {
+        return Err(invalid_packet_header());
+    }
+    Ok((count, total))
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires forall|i:int|0<=i<before.len() ==> #[trigger] before@[i].invariant(),
+    ensures crate::specs::private_resolution_initial_result(crate::specs::PrivateResolutionInitialContext {
+        resolution,precinct:precinct_number,style,executions:private_executions_view(before@),limits:*limits,
+    },private_precinct_outcome(result)),
+    private_precinct_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        private_precinct_outcome(result)==crate::specs::private_resolution_initial_value(
+            crate::specs::PrivateResolutionInitialContext {
+                resolution,precinct:precinct_number,style,executions:private_executions_view(before@),limits:*limits,
+            }),
+    match result{Ok(value)=>value.invariant() && value.view().resolution==resolution
+        && value.view().precinct==precinct_number,Err(_)=>true},
+))]
 pub(crate) fn new_private_ht_resolution_precinct(
     resolution: u8,
+    precinct_number: u32,
     style: Tier1CodingStyle,
-    mut executions: Vec<PrivateHtSubbandExecution>,
+    before: Vec<PrivateHtSubbandExecution>,
     limits: &ResourceLimits,
 ) -> Result<PrivateHtPrecinct, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost context=crate::specs::PrivateResolutionInitialContext {
+            resolution,precinct:precinct_number,style,executions:private_executions_view(before@),limits:*limits,
+        };
+        let ghost root=|events|crate::specs::private_resolution_initial_run(context,events);
+        let ghost mut prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert forall|i:int|0<=i<before.len() implies #[trigger] crate::specs::private_execution_wf(context.executions[i]) by {
+            before@[i].known_fields();
+        }
+    }
+    let mut executions = before;
     if executions.len() > 3 {
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_cold_pure::<crate::specs::PrivateHtPrecinctState>(Err(crate::specs::part1_packet_header_error()));}
         return Err(invalid_packet_header());
+    }
+    let reserved = if executions.is_empty() {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(executions.len())
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_precinct_capacity_result);
+        let capacity=crate::specs::private_resolution_capacity(context);
+        let response=match reserved {Err(error)=>Err(error),Ok(_)=>Ok(())};
+        crate::specs::part2_precinct_capacity_observed(capacity,response);
+        let child=|events|crate::specs::part2_precinct_capacity_run(capacity,events);
+        let next=|_:(),rest|crate::specs::private_resolution_rows_run(context,0,crate::specs::private_resolution_initial(context),0,rest);
+        if let Err(error)=reserved {crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);}
+        if reserved.is_ok(){prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,());}
     }
     let mut precinct = PrivateHtPrecinct {
         resolution,
+        precinct: precinct_number,
         states: Vec::new(),
         contexts: Vec::new(),
-        subbands: if executions.is_empty() {
-            Vec::new()
-        } else {
-            crate::allocation::empty_with_capacity(executions.len())?
-        },
+        subbands: reserved?,
         decoders: Vec::new(),
     };
     let mut total = 0_u64;
     let mut index = 0;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(PrivateHtPrecinct::view);reveal(PrivateHtPrecinct::storage_view);reveal(PrivateHtPrecinct::invariant);
+        assert(precinct.states@.map_values(|value:CodeBlockPacketState|super::code_block_packet_state_view(&value)) =~= Seq::empty());
+        assert(precinct.decoders@.map_values(|value:PrivateHtDecoder|value.view()) =~= Seq::empty());
+        assert(precinct.decoders@.map_values(|value:PrivateHtDecoder|value.storage_view().packed) =~= Seq::empty());
+        assert(precinct.subbands@.map_values(|value:PacketSubbandState|super::packet_subband_view(&value)) =~= Seq::empty());
+        assert(precinct.storage_view()==crate::specs::private_resolution_initial(context));
+    }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index<=executions.len(),executions.len()==context.executions.len(),executions.len()<=3,
+            context==(crate::specs::PrivateResolutionInitialContext {
+                resolution,precinct:precinct_number,style,executions:private_executions_view(before@),limits:*limits,
+            }),
+            context.resolution==resolution,context.precinct==precinct_number,precinct.precinct==precinct_number,
+            context.style==style,context.limits==*limits,
+            precinct.resolution==resolution,precinct.invariant(),precinct.subbands.len()==index,
+            forall|i:int|index<=i<executions.len() ==> #[trigger] executions@[i].view()==context.executions[i],
+            forall|i:int|0<=i<context.executions.len() ==> #[trigger] crate::specs::private_execution_wf(context.executions[i]),
+            crate::specs::private_resolution_prefix(context,index as nat,precinct.storage_view(),total,prefix),
+            crate::specs::private_resolution_initial_value(context)==crate::specs::private_resolution_rows_value(
+                context,index as nat,precinct.storage_view(),total),
+        decreases executions.len()-index,
+    ))]
     while index < executions.len() {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost prior=precinct.storage_view();
+            let ghost prior_total=total;
+            let ghost row=context.executions[index as int];
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            precinct.known_fields();
+            reveal_with_fuel(crate::specs::private_resolution_rows_value,1);
+        }
         let execution = executions
             .get_mut(index)
             .ok_or_else(invalid_packet_header)?;
-        if execution.across == 0
-            || execution.down == 0
-            || execution.maximum_zero == 0
-            || execution.maximum_zero > crate::tier1::MAX_TIER1_BITPLANES
-        {
-            return Err(invalid_packet_header());
+        #[cfg(verus_keep_ghost)]
+        proof! {execution.known_fields();reveal(PrivateHtSubbandExecution::view);}
+        let admitted = admit_private_resolution_execution(
+            execution.across,
+            execution.down,
+            execution.maximum_zero,
+            execution.decoders.len(),
+            total,
+            limits,
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error)=admitted {
+                crate::specs::private_resolution_scalar_error(context,index as nat,prior,prior_total,prefix,error);
+            }
         }
-        let count = u64::from(execution.across)
-            .checked_mul(u64::from(execution.down))
-            .ok_or_else(packet_arithmetic_overflow)?;
-        total = total
-            .checked_add(count)
-            .ok_or_else(packet_arithmetic_overflow)?;
-        if total > limits.maximum_code_blocks() {
-            return Err(DecodeError::LimitExceeded {
-                resource: Resource::CodeBlocks,
-                limit: limits.maximum_code_blocks(),
-                actual: total,
-            });
-        }
-        if total > limits.maximum_work_units() {
-            return Err(DecodeError::LimitExceeded {
-                resource: Resource::WorkUnits,
-                limit: limits.maximum_work_units(),
-                actual: total,
-            });
-        }
-        if count > usize::MAX as u64 {
-            return Err(packet_arithmetic_overflow());
-        }
-        let count = count as usize;
-        if execution.decoders.len() != count {
-            return Err(invalid_packet_header());
-        }
+        let (count, next) = admitted?;
+        total = next;
         let first_decoder = precinct.decoders.len();
-        let (states, contexts) = super::precinct::prepare_precinct_contexts(
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(first_decoder==prior.logical.decoders.len());
+            assert(count==row.decoders.len());
+        }
+        let prepared_contexts = super::precinct::prepare_precinct_contexts(
             precinct.states,
             precinct.contexts,
             count,
             execution.across,
             execution.maximum_zero,
             style,
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost context_response=super::precinct_contexts_outcome(prepared_contexts);}
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error)=prepared_contexts{
+                crate::specs::private_resolution_row_contexts_error(context,index as nat,prior,prior_total,error);
+                crate::specs::private_resolution_row_error(context,index as nat,prior,prior_total,prefix,error);
+            }
+        }
+        let (states, contexts) = prepared_contexts?;
         precinct.states = states;
         precinct.contexts = contexts;
-        if !execution.decoders.is_empty() {
-            crate::allocation::reserve_additional(
-                &mut precinct.decoders,
-                execution.decoders.len(),
-            )?;
+        let decoder_capacity = if !execution.decoders.is_empty() {
+            crate::allocation::reserve_additional(&mut precinct.decoders, execution.decoders.len())
+        } else {
+            Ok(())
+        };
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost prepared=crate::specs::private_resolution_prepare(prior,row,context_response.get_Ok_0(),total);
+            let ghost capacity_response=crate::allocation::inspection_capacity_outcome(decoder_capacity);
+            let ghost old_decoders=precinct.decoders@;
+            let ghost added_decoders=execution.decoders@;
         }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if execution.decoders.len()==0{crate::specs::part2_cold_pure::<()>(Ok(()));}
+            else{crate::specs::private_owner_capacity_observed(crate::specs::private_resolution_decoder_capacity(prior,row),capacity_response);}
+            crate::specs::private_resolution_decoder_capacity_observed(prior,row,capacity_response);
+            if let Err(error)=decoder_capacity {
+                crate::specs::private_resolution_decoder_observed(context,index as nat,prior,prepared,Err(error),Err(error));
+                crate::specs::private_resolution_row_after_observed(context,index as nat,prior,prior_total,prepared,Err(error));
+                crate::specs::private_resolution_row_error(context,index as nat,prior,prior_total,prefix,error);
+            }
+        }
+        decoder_capacity?;
         precinct.decoders.append(&mut execution.decoders);
-        let inclusion_tree =
-            super::tag_tree::tag_tree_new(execution.across, execution.down, limits)?;
-        let zero_bitplane_tree =
-            super::tag_tree::tag_tree_new(execution.across, execution.down, limits)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(super::precinct_contexts_outcome);
+            private_native_decoders_known_fields(old_decoders);
+            private_native_decoders_known_fields(added_decoders);
+            private_native_decoders_known_fields(precinct.decoders@);
+            assert(precinct.decoders@.map_values(|decoder:PrivateHtDecoder|decoder.storage_view()) =~=
+                old_decoders.map_values(|decoder:PrivateHtDecoder|decoder.storage_view())
+                    +added_decoders.map_values(|decoder:PrivateHtDecoder|decoder.storage_view()));
+            assert(super::packet_states_view(precinct.states@)==prepared.0.states);
+            assert(precinct.contexts@==prepared.0.contexts);
+            assert(precinct.decoders@.map_values(|decoder:PrivateHtDecoder|decoder.view()) =~= prepared.0.decoders);
+            assert(precinct.view()==prepared.0);
+        }
+        let inclusion_result =
+            super::tag_tree::tag_tree_new(execution.across, execution.down, limits);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_precinct_tree_observed(
+                crate::specs::part2_precinct_tree_context(prepared,crate::specs::private_execution_public(row),index as nat,false,None,limits),
+                super::tag_tree_outcome(inclusion_result));
+            if let Err(error)=inclusion_result{
+                crate::specs::private_resolution_inclusion_observed(context,index as nat,prior,prepared,Err(error),Err(error));
+                crate::specs::private_resolution_decoder_observed(context,index as nat,prior,prepared,Ok(()),Err(error));
+                crate::specs::private_resolution_row_after_observed(context,index as nat,prior,prior_total,prepared,Err(error));
+                crate::specs::private_resolution_row_error(context,index as nat,prior,prior_total,prefix,error);
+            }
+        }
+        let inclusion_tree = inclusion_result?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost inclusion=super::tag_tree_view(&inclusion_tree);}
+        let zero_result = super::tag_tree::tag_tree_new(execution.across, execution.down, limits);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::part2_precinct_tree_observed(
+                crate::specs::part2_precinct_tree_context(prepared,crate::specs::private_execution_public(row),index as nat,true,Some(inclusion),limits),
+                super::tag_tree_outcome(zero_result));
+            if let Err(error)=zero_result{
+                crate::specs::private_resolution_zero_observed(context,index as nat,prior,prepared,inclusion,Err(error));
+                crate::specs::private_resolution_inclusion_observed(context,index as nat,prior,prepared,Ok(inclusion),Err(error));
+                crate::specs::private_resolution_decoder_observed(context,index as nat,prior,prepared,Ok(()),Err(error));
+                crate::specs::private_resolution_row_after_observed(context,index as nat,prior,prior_total,prepared,Err(error));
+                crate::specs::private_resolution_row_error(context,index as nat,prior,prior_total,prefix,error);
+            }
+        }
+        let zero_bitplane_tree = zero_result?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost zero=super::tag_tree_view(&zero_bitplane_tree);}
         precinct.subbands.push(PacketSubbandState {
             orientation: execution.orientation,
             first_decoder,
@@ -117,11 +307,143 @@ pub(crate) fn new_private_ht_resolution_precinct(
             inclusion_tree,
             zero_bitplane_tree,
         });
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(super::packet_subband_view);
+            precinct.known_fields();
+            let after=crate::specs::private_resolution_row_finish(prior,prepared.0,row,inclusion,zero);
+            let band=crate::specs::Part1PacketSubbandState {
+                orientation:row.orientation,first_decoder:first_decoder,decoder_count:count,
+                code_blocks_across:row.across,code_blocks_down:row.down,inclusion_tree:inclusion,zero_bitplane_tree:zero,
+            };
+            assert(precinct.view().subbands =~= prepared.0.subbands.push(band));
+            assert(precinct.view()==after.logical);
+            assert(precinct.storage_view().packed =~= prior.packed+row.decoders.map_values(
+                |decoder:crate::specs::PrivateHtDecoderState|decoder.packed));
+            assert(precinct.storage_view()==after);
+            crate::specs::private_resolution_zero_observed(context,index as nat,prior,prepared,inclusion,Ok(zero));
+            crate::specs::private_resolution_inclusion_observed(context,index as nat,prior,prepared,Ok(inclusion),Ok((after,total)));
+            crate::specs::private_resolution_decoder_observed(context,index as nat,prior,prepared,Ok(()),Ok((after,total)));
+            crate::specs::private_resolution_row_after_observed(context,index as nat,prior,prior_total,prepared,Ok((after,total)));
+            crate::specs::private_resolution_row_value_from_trees(context,index as nat,prior,prior_total,count,total,
+                context_response.get_Ok_0(),inclusion,zero);
+            assert(crate::specs::private_resolution_row_value(context,index as nat,prior,prior_total)==Ok((after,total)));
+            crate::specs::private_resolution_row_fields(context,index as nat,prior,prior_total,(after,total));
+            prefix=crate::specs::private_resolution_row_advance(context,index as nat,prior,prior_total,prefix,(after,total));
+            assert(precinct.invariant());
+        }
         index += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::private_resolution_prefix_finish(context,index as nat,precinct.storage_view(),total,prefix);
+        reveal_with_fuel(crate::specs::private_resolution_rows_value,1);
     }
     Ok(precinct)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result==crate::specs::part1_progression_precinct_layout(super::packet_grid_view(grid),
+        crate::specs::private_precincts_logical(private_precincts_view(precincts@))),
+))]
+fn validate_private_resolution_layout(
+    grid: &super::PacketGrid,
+    precincts: &[PrivateHtPrecinct],
+) -> Result<(), DecodeError> {
+    let count = grid.total_precinct_count()?;
+    if count > usize::MAX as u64 {
+        return Err(packet_arithmetic_overflow());
+    }
+    if precincts.len() != count as usize {
+        return Err(invalid_packet_header());
+    }
+    let mut index = 0;
+    #[cfg(verus_keep_ghost)]
+    proof! {reveal(crate::specs::part1_progression_precinct_indices);}
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index<=precincts.len(),
+            crate::specs::part1_progression_precinct_layout(super::packet_grid_view(grid),
+                crate::specs::private_precincts_logical(private_precincts_view(precincts@)))==
+            crate::specs::part1_progression_precinct_indices(super::packet_grid_view(grid),
+                crate::specs::private_precincts_logical(private_precincts_view(precincts@)),index),
+        decreases precincts.len()-index,
+    ))]
+    while index < precincts.len() {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            precincts@[index as int].known_fields();
+            reveal(PrivateHtPrecinct::resolution_view);
+            reveal(PrivateHtPrecinct::precinct_view);
+            reveal(crate::specs::part1_progression_precinct_indices);
+        }
+        if grid.precinct_index(0, precincts[index].resolution, precincts[index].precinct)? != index
+        {
+            return Err(invalid_packet_header());
+        }
+        index += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {reveal(crate::specs::part1_progression_precinct_indices);}
+    Ok(())
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_packet_input_result(crate::codestream::tile_parts_owned_view(parts@),super::packet_grid_view(grid),
+        crate::specs::private_precincts_logical(private_precincts_view(precincts@)),super::packet_selection_view(selection),limits,
+        super::progression_tile_preparation_outcome(result)),
+    super::progression_tile_preparation_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        super::progression_tile_preparation_outcome(result)==crate::specs::part1_progression_tile_input_owned(
+            crate::codestream::tile_parts_owned_view(parts@),super::packet_grid_view(grid),
+            crate::specs::private_precincts_logical(private_precincts_view(precincts@)),super::packet_selection_view(selection),limits),
+))]
+fn prepare_private_resolution_input(
+    parts: &[crate::codestream::TilePartPayload<'_>],
+    grid: &super::PacketGrid,
+    precincts: &[PrivateHtPrecinct],
+    selection: Option<&[u8]>,
+    limits: &ResourceLimits,
+) -> Result<super::ProgressionTilePreparation, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_packet_input_normal(crate::codestream::tile_parts_owned_view(parts@),super::packet_grid_view(grid),
+            crate::specs::private_precincts_logical(private_precincts_view(precincts@)),super::packet_selection_view(selection),limits);
+    }
+    super::tile::validate_progression_layout(parts, grid, selection, limits)?;
+    let first = parts
+        .first()
+        .ok_or_else(|| packet_reader_error(0, MalformedKind::InvalidTilePart))?;
+    let prepared = super::tile::prepare_progression_payloads(parts, first.tile_index, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=prepared {
+            crate::specs::part2_packet_input_payload_error(crate::codestream::tile_parts_owned_view(parts@),super::packet_grid_view(grid),
+                crate::specs::private_precincts_logical(private_precincts_view(precincts@)),super::packet_selection_view(selection),limits,error);
+        }
+    }
+    let input = prepared?;
+    if input.all_lengths && input.declared_packets > grid.packet_count {
+        return Err(packet_reader_error(0, MalformedKind::InvalidPacketLength));
+    }
+    validate_private_resolution_layout(grid, precincts)?;
+    Ok(input)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires forall|i:int|0<=i<precincts.len() ==> #[trigger] precincts@[i].invariant(),
+        parts.len()==1,super::packet_grid_view(grid).components==1,
+        super::packet_grid_view(grid).component_resolutions.len()==1,
+        (match crate::codestream::tile_parts_owned_view(parts@)[0].packed_packet_headers.source{crate::specs::Part1PackedHeaderSource::None=>true,_=>false}),
+        (match crate::codestream::tile_parts_owned_view(parts@)[0].packet_lengths.source{crate::specs::Part1PacketLengthSource::None=>true,_=>false}),
+        selection.is_none() || super::packet_selection_view(selection)==Some(super::packet_grid_view(grid).component_resolutions),
+    ensures final(precincts).len()==old(precincts).len(),
+        forall|i:int|0<=i<final(precincts).len() ==> #[trigger] final(precincts)@[i].invariant(),
+        crate::specs::private_resolution_decode_result(crate::codestream::tile_parts_owned_view(parts@),super::packet_grid_view(grid),
+            private_precincts_view(old(precincts)@),super::packet_selection_view(selection),limits,
+            (result,private_precincts_view(final(precincts)@))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result,private_precincts_view(final(precincts)@))==
+            crate::specs::private_resolution_decode_value(crate::codestream::tile_parts_owned_view(parts@),super::packet_grid_view(grid),
+                private_precincts_view(old(precincts)@),super::packet_selection_view(selection),limits),
+))]
 pub(crate) fn decode_private_ht_resolution_packets(
     parts: &[crate::codestream::TilePartPayload<'_>],
     grid: &super::PacketGrid,
@@ -129,25 +451,22 @@ pub(crate) fn decode_private_ht_resolution_packets(
     selection: Option<&[u8]>,
     limits: &ResourceLimits,
 ) -> Result<super::TilePacketDecode, DecodeError> {
-    super::tile::validate_progression_layout(parts, grid, selection, limits)?;
-    let first = parts
-        .first()
-        .ok_or_else(|| packet_reader_error(0, MalformedKind::InvalidTilePart))?;
-    let input = super::tile::prepare_progression_payloads(parts, first.tile_index, limits)?;
-    if input.all_lengths && input.declared_packets > grid.packet_count {
-        return Err(packet_reader_error(0, MalformedKind::InvalidPacketLength));
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost before=private_precincts_view(precincts@);
+        let ghost source=crate::codestream::tile_parts_owned_view(parts@);
+        let ghost shape=super::packet_grid_view(grid);
+        let ghost selected=super::packet_selection_view(selection);
     }
-    let count = grid.total_precinct_count()?;
-    if count > usize::MAX as u64 || precincts.len() != count as usize {
-        return Err(invalid_packet_header());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        private_resolution_owners_known_fields(precincts@);
+        crate::specs::private_resolution_decode_value_fields(source,shape,before,selected,limits);
     }
-    let mut index = 0;
-    while index < precincts.len() {
-        if grid.precinct_index(0, precincts[index].resolution, 0)? != index {
-            return Err(invalid_packet_header());
-        }
-        index += 1;
-    }
+    let prepared = prepare_private_resolution_input(parts, grid, precincts, selection, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=prepared {crate::specs::private_resolution_input_error(source,shape,before,selected,limits,error);}}
+    let input = prepared?;
     let params = super::ProgressionTileParameters {
         tile_parts: parts,
         grid,
@@ -155,19 +474,94 @@ pub(crate) fn decode_private_ht_resolution_packets(
         selection,
         limits,
     };
-    let mut p = super::tile::progression_tile_progress_new(&params)?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost input_value=super::progression_tile_preparation_view(&input);}
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::private_resolution_input_parameters(source,shape,before,selected,limits,input_value);}
+    let initialized = super::tile::progression_tile_progress_new(&params);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=initialized {crate::specs::private_resolution_progress_error(source,shape,before,selected,limits,input_value,error);}}
+    let mut p = initialized?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost initial=super::progression_tile_progress_view(&p);}
+    let decoded = run_private_resolution_tile(&params, precincts, &mut p);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::private_resolution_decode_observed(source,shape,before,selected,limits,input_value,initial,
+            (decoded,resolution_tile_view(precincts@,&p)));
+    }
+    decoded?;
+    super::tile::finish_progression_tile_packets(&params, &mut p)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires forall|i:int|0<=i<precincts.len() ==> #[trigger] precincts@[i].invariant(),
+        crate::specs::private_resolution_tile_parameters(super::progression_tile_parameters_view(params)),
+        super::progression_tile_progress_view(p).packed_offset==0,
+    ensures final(precincts).len()==old(precincts).len(),
+        forall|i:int|0<=i<final(precincts).len() ==> #[trigger] final(precincts)@[i].invariant(),
+        super::progression_tile_progress_view(final(p)).packed_offset==0,
+        crate::specs::private_resolution_tile_result(super::progression_tile_parameters_view(params),
+            resolution_tile_view(old(precincts)@,old(p)),(result,resolution_tile_view(final(precincts)@,final(p)))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result,resolution_tile_view(final(precincts)@,final(p)))==
+            crate::specs::private_resolution_tile_value(super::progression_tile_parameters_view(params),resolution_tile_view(old(precincts)@,old(p))),
+))]
+fn run_private_resolution_tile<'a, 'data>(
+    params: &super::ProgressionTileParameters<'a, 'data>,
+    precincts: &mut [PrivateHtPrecinct],
+    p: &mut super::ProgressionTileProgress<'a>,
+) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost initial=resolution_tile_view(precincts@,p);
+        let ghost context=super::progression_tile_parameters_view(params);
+        let ghost mut prefix=Seq::<crate::specs::Part2Tier1StorageEvent>::empty();
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        private_resolution_owners_known_fields(precincts@);reveal(resolution_tile_view);
+        crate::specs::private_resolution_tile_value_fields(context,initial);
+    }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant precincts.len()==old(precincts).len(),
+            initial==resolution_tile_view(old(precincts)@,old(p)),
+            forall|i:int|0<=i<precincts.len() ==> #[trigger] precincts@[i].invariant(),
+            super::progression_tile_progress_view(p).packed_offset==0,
+            context==super::progression_tile_parameters_view(params),
+            crate::specs::private_resolution_tile_parameters(context),
+            forall|calls| #[trigger] crate::specs::private_resolution_tile_run(context,initial,prefix+calls)==
+                crate::specs::private_resolution_tile_run(context,resolution_tile_view(precincts@,p),calls),
+            crate::specs::private_resolution_tile_value(context,initial)==
+                crate::specs::private_resolution_tile_value(context,resolution_tile_view(precincts@,p)),
+        decreases p.remaining_packets,
+    ))]
     loop {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before=resolution_tile_view(precincts@,p);}
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            private_resolution_owners_known_fields(precincts@);
+            reveal(resolution_tile_view);reveal(super::progression_tile_progress_view);reveal(super::progression_tile_parameters_view);
+            crate::specs::private_resolution_tile_step_fields(context,before);
+            reveal_with_fuel(crate::specs::private_resolution_tile_value,1);
+            if let crate::specs::Part2PlaneTileStep::Return(result)=
+                crate::specs::part2_plane_tile_run_admit(context,crate::specs::private_resolution_tile_logical(before)){
+                crate::specs::private_resolution_run_scalar(context,before,result);
+                crate::specs::part2_tier1_prefix_finish(|calls|crate::specs::private_resolution_tile_run(context,initial,calls),prefix,
+                    Ok((result.0,crate::specs::PrivateResolutionTileExecution {precincts:before.precincts,progress:result.1.progress})));
+            }
+        }
         #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
         crate::deadline::checkpoint()?;
-        super::tile::advance_progression_tile_part(&params, &mut p)?;
-        if p.current_tile_part == parts.len()
-            && p.packets == grid.packet_count
+        super::tile::advance_progression_tile_part(params, p)?;
+        if p.current_tile_part == params.tile_parts.len()
+            && p.packets == params.grid.packet_count
             && super::tile::all_progression_packets_seen(&p.seen)
         {
-            break;
+            return Ok(());
         }
         let Some(coordinate) = p.iterator.next_packet()? else {
-            break;
+            return Ok(());
         };
         if p.remaining_packets == 0 {
             return Err(packet_reader_error(
@@ -176,21 +570,56 @@ pub(crate) fn decode_private_ht_resolution_packets(
             ));
         }
         p.remaining_packets -= 1;
-        if p.current_tile_part == parts.len() {
-            super::tile::omit_progression_packet(&params, &mut p, coordinate, precincts.len())?;
+        if p.current_tile_part == params.tile_parts.len() {
+            super::tile::omit_progression_packet(params, p, coordinate, precincts.len())?;
+            #[cfg(verus_keep_ghost)]
+            proof! {crate::specs::private_resolution_run_continue(context,before,crate::specs::private_resolution_tile_logical(resolution_tile_view(precincts@,p)));}
             continue;
         }
-        execute_private_resolution_packet(&params, precincts, &mut p, coordinate)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost packet_before=resolution_tile_view(precincts@,p);}
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::private_resolution_run_packet_step(context,before,coordinate,crate::specs::private_resolution_tile_logical(packet_before));}
+        let decoded = execute_private_resolution_packet(params, precincts, p, coordinate);
+        #[cfg(verus_keep_ghost)]
+        proof! {prefix=crate::specs::private_resolution_prefix_observed(context,initial,packet_before,coordinate,
+        before.progress.remaining_packets,prefix,(decoded,resolution_tile_view(precincts@,p)));}
+        decoded?;
     }
-    super::tile::finish_progression_tile_packets(&params, &mut p)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires forall|i:int|0<=i<precincts.len() ==> #[trigger] precincts@[i].invariant(),
+        crate::specs::private_resolution_tile_parameters(super::progression_tile_parameters_view(params)),
+        super::progression_tile_progress_view(p).packed_offset==0,
+    ensures final(precincts).len()==old(precincts).len(),
+        forall|i:int|0<=i<final(precincts).len() ==> #[trigger] final(precincts)@[i].invariant(),
+        super::progression_tile_progress_view(final(p)).packed_offset==0,
+        crate::specs::private_resolution_packet_result(super::progression_tile_parameters_view(params),
+            resolution_tile_view(old(precincts)@,old(p)),coordinate,(result,resolution_tile_view(final(precincts)@,final(p)))),
+        result!=Err(DecodeError::AllocationFailed) ==> (result,resolution_tile_view(final(precincts)@,final(p)))==
+            crate::specs::private_resolution_packet_value(super::progression_tile_parameters_view(params),resolution_tile_view(old(precincts)@,old(p)),coordinate),
+))]
 fn execute_private_resolution_packet<'a, 'data>(
     params: &super::ProgressionTileParameters<'a, 'data>,
     precincts: &mut [PrivateHtPrecinct],
     p: &mut super::ProgressionTileProgress<'a>,
     coordinate: super::PacketCoordinate,
 ) -> Result<(), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost before=resolution_tile_view(precincts@,p);
+        let ghost context=super::progression_tile_parameters_view(params);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        private_resolution_owners_known_fields(precincts@);reveal(resolution_tile_view);
+        crate::specs::private_resolution_packet_value_fields(context,before,coordinate);
+        if let crate::specs::Part2PlaneTileAdmission::Return(result)=
+            crate::specs::part2_plane_tile_packet_admit(context,crate::specs::private_resolution_tile_logical(before),coordinate){
+            crate::specs::private_resolution_packet_scalar(context,before,coordinate,result);
+        }
+    }
     let part = params
         .tile_parts
         .get(p.current_tile_part)
@@ -214,39 +643,142 @@ fn execute_private_resolution_packet<'a, 'data>(
         p.length_tile_part = p.current_tile_part;
     }
     let (index, seen) = slot?;
-    let already = *p
-        .seen
-        .get(seen)
-        .ok_or_else(|| packet_reader_error(p.offset, MalformedKind::InvalidPacketHeader))?;
+    let already = match p.seen.get(seen) {
+        Some(value) => *value,
+        None => {
+            return Err(packet_reader_error(
+                p.offset,
+                MalformedKind::InvalidPacketHeader,
+            ));
+        }
+    };
     if !crate::refinement::progression_emit_allowed(already) {
         return Ok(());
     }
-    let row = precincts
-        .get_mut(index)
-        .ok_or_else(|| packet_reader_error(p.offset, MalformedKind::InvalidPacketHeader))?;
-    super::tile::set_progression_context_layer(&mut row.contexts, coordinate.layer)?;
-    params
-        .input
-        .packed
-        .get(p.current_tile_part)
-        .ok_or_else(|| packet_reader_error(0, MalformedKind::InvalidTilePart))?;
-    if let Some(counts) = params.selection {
-        counts
-            .get(usize::from(coordinate.component))
-            .ok_or_else(|| packet_reader_error(0, MalformedKind::InvalidCodingStyle))?;
+    if index >= precincts.len() {
+        return Err(packet_reader_error(
+            p.offset,
+            MalformedKind::InvalidPacketHeader,
+        ));
     }
-    let sequence = (p.packets & u64::from(u16::MAX)) as u16;
-    let (decoded, tile_bytes, packed_bytes) =
-        row.decode_packet(part, p.offset, sequence, params.limits)?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost admitted=crate::specs::private_resolution_tile_logical(resolution_tile_view(precincts@,p));
+        let ghost prior_native=precincts@;
+        let ghost prior=private_precincts_view(precincts@);
+    }
+    let packet_number = p.packets;
+    #[cfg(verus_keep_ghost)]
+    proof! {assert(packet_number&65535u64<=65535u64) by(bit_vector);}
+    let sequence = (packet_number & u64::from(u16::MAX)) as u16;
+    let packet = {
+        let row = &mut precincts[index];
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost original_decoders=row.decoders@;}
+        #[cfg(verus_keep_ghost)]
+        proof! {assert(row.invariant());reveal(PrivateHtPrecinct::invariant);}
+        super::tile::set_progression_context_layer(&mut row.contexts, coordinate.layer)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(row.decoders@==original_decoders);
+            assert(row.invariant());
+        }
+        params
+            .input
+            .packed
+            .get(p.current_tile_part)
+            .ok_or_else(|| packet_reader_error(0, MalformedKind::InvalidTilePart))?;
+        if let Some(counts) = params.selection {
+            counts
+                .get(usize::from(coordinate.component))
+                .ok_or_else(|| packet_reader_error(0, MalformedKind::InvalidCodingStyle))?;
+        }
+        row.decode_packet(part, p.offset, sequence, params.limits)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert forall|i:int|0<=i<precincts.len() && i!=index as int implies precincts@[i]==prior_native[i] by {}
+        assert(private_precincts_view(precincts@) =~= prior.update(index as int,precincts@[index as int].storage_view()));
+        crate::specs::private_resolution_packet_observed(context,before,coordinate,admitted,
+            crate::codestream::tile_part_owned_view(part),index,seen,(packet,precincts@[index as int].storage_view()));
+    }
+    let (decoded, tile_bytes, packed_bytes) = packet?;
     super::tile::account_progression_packet(p, decoded, tile_bytes, packed_bytes, None, seen)
 }
 
 #[cfg(verus_keep_ghost)]
 verus! {
+    closed spec fn resolution_tile_view(values:Seq<PrivateHtPrecinct>,progress:&super::ProgressionTileProgress<'_>)
+        ->crate::specs::PrivateResolutionTileExecution {
+        crate::specs::PrivateResolutionTileExecution {
+            precincts:private_precincts_view(values),progress:super::progression_tile_progress_view(progress),
+        }
+    }
+    impl PrivateHtSubbandExecution {
+        pub(crate) closed spec fn view(&self)->crate::specs::PrivateHtExecutionState {
+            crate::specs::PrivateHtExecutionState {
+                orientation:self.orientation,across:self.across,down:self.down,maximum_zero:self.maximum_zero,
+                decoders:self.decoders@.map_values(|decoder:PrivateHtDecoder|decoder.storage_view()),
+            }
+        }
+        pub(crate) closed spec fn invariant(&self)->bool {
+            forall|i:int|0<=i<self.decoders.len() ==> #[trigger] self.decoders@[i].invariant()
+        }
+        pub(crate) proof fn known_fields(&self)
+            ensures self.view()==(crate::specs::PrivateHtExecutionState {
+                    orientation:self.orientation,across:self.across,down:self.down,maximum_zero:self.maximum_zero,
+                    decoders:self.decoders@.map_values(|decoder:PrivateHtDecoder|decoder.storage_view()),
+                }),
+                self.invariant()==crate::specs::private_execution_wf(self.view()),
+                crate::specs::private_execution_public(self.view()).decoders==
+                    self.decoders@.map_values(|decoder:PrivateHtDecoder|decoder.view()),
+        {
+            reveal(PrivateHtSubbandExecution::view);reveal(PrivateHtSubbandExecution::invariant);
+            assert forall|i:int|0<=i<self.decoders.len() implies
+                self.decoders@[i].invariant()==crate::specs::private_ht_state_wf(self.view().decoders[i]) by {
+                self.decoders@[i].known_fields();
+            }
+            assert(crate::specs::private_execution_public(self.view()).decoders =~=
+                self.decoders@.map_values(|decoder:PrivateHtDecoder|decoder.view())) by {
+                assert forall|i:int|0<=i<self.decoders.len() implies
+                    #[trigger] self.view().decoders[i].logical==self.decoders@[i].view() by {
+                    self.decoders@[i].known_fields();
+                }
+            }
+        }
+    }
+    pub(crate) open spec fn private_executions_view(values:Seq<PrivateHtSubbandExecution>)
+        ->Seq<crate::specs::PrivateHtExecutionState> {
+        values.map_values(|value:PrivateHtSubbandExecution|value.view())
+    }
+    pub(crate) open spec fn private_precincts_view(values:Seq<PrivateHtPrecinct>)
+        ->Seq<crate::specs::PrivateHtPrecinctState> {
+        values.map_values(|value:PrivateHtPrecinct|value.storage_view())
+    }
+    pub(crate) proof fn private_resolution_owners_known_fields(values:Seq<PrivateHtPrecinct>)
+        ensures (forall|i:int|0<=i<values.len() ==> #[trigger] values[i].invariant())==
+            (forall|i:int|0<=i<values.len() ==> #[trigger] crate::specs::private_precinct_wf(private_precincts_view(values)[i])),
+    {
+        assert forall|i:int|0<=i<values.len() implies values[i].invariant()==
+            crate::specs::private_precinct_wf(private_precincts_view(values)[i]) by {
+            values[i].known_fields();
+        }
+    }
+    proof fn private_native_decoders_known_fields(values:Seq<PrivateHtDecoder>)
+        ensures values.map_values(|decoder:PrivateHtDecoder|decoder.storage_view()).map_values(
+            |decoder:crate::specs::PrivateHtDecoderState|decoder.logical)==values.map_values(|decoder:PrivateHtDecoder|decoder.view()),
+    {
+        assert(values.map_values(|decoder:PrivateHtDecoder|decoder.storage_view()).map_values(
+            |decoder:crate::specs::PrivateHtDecoderState|decoder.logical) =~= values.map_values(|decoder:PrivateHtDecoder|decoder.view())) by {
+            assert forall|i:int|0<=i<values.len() implies values[i].storage_view().logical==values[i].view() by {
+                values[i].known_fields();
+            }
+        }
+    }
     impl PrivateHtPrecinct {
         pub(crate) closed spec fn view(&self)->crate::specs::Part1PacketPrecinctState {
             crate::specs::Part1PacketPrecinctState {
-                component:0,resolution:self.resolution,precinct:0,
+                component:0,resolution:self.resolution,precinct:self.precinct,
                 states:self.states@.map_values(|state:CodeBlockPacketState|super::code_block_packet_state_view(&state)),
                 contexts:self.contexts@,
                 decoders:self.decoders@.map_values(|decoder:PrivateHtDecoder|decoder.view()),
@@ -259,19 +791,46 @@ verus! {
                 packed:self.decoders@.map_values(|decoder:PrivateHtDecoder|decoder.storage_view().packed),
             }
         }
+        pub(crate) closed spec fn decoders_view(&self)->Seq<crate::specs::PrivateHtDecoderState> {
+            self.decoders@.map_values(|decoder:PrivateHtDecoder|decoder.storage_view())
+        }
+        pub(crate) closed spec fn resolution_view(&self)->u8 {
+            self.resolution
+        }
+        pub(crate) closed spec fn precinct_view(&self)->u32 {
+            self.precinct
+        }
         pub(crate) closed spec fn invariant(&self)->bool {
             forall|i:int|0<=i<self.decoders.len() ==> #[trigger] self.decoders@[i].invariant()
         }
         pub(crate) proof fn known_fields(&self)
             ensures self.storage_view().logical==self.view(),
-                self.view().component==0,self.view().resolution==self.resolution,self.view().precinct==0,
+                self.invariant()==crate::specs::private_precinct_wf(self.storage_view()),
+                self.view().component==0,self.view().resolution==self.resolution_view(),self.view().precinct==self.precinct_view(),
                 self.storage_view().packed.len()==self.view().decoders.len(),
+                crate::specs::private_precinct_decoder_states(self.storage_view())==
+                    self.decoders_view(),
                 self.invariant() ==> forall|i:int|0<=i<self.view().decoders.len() ==>
                     #[trigger] crate::specs::private_ht_state_wf(crate::specs::PrivateHtDecoderState {
                         logical:self.view().decoders[i],packed:self.storage_view().packed[i],
                     }),
         {
             reveal(PrivateHtPrecinct::view);reveal(PrivateHtPrecinct::storage_view);reveal(PrivateHtPrecinct::invariant);
+            reveal(PrivateHtPrecinct::decoders_view);
+            reveal(PrivateHtPrecinct::resolution_view);
+            reveal(PrivateHtPrecinct::precinct_view);
+            assert forall|i:int|0<=i<self.decoders.len() implies
+                self.decoders@[i].invariant()==crate::specs::private_ht_state_wf(crate::specs::private_precinct_decoder_states(self.storage_view())[i]) by {
+                self.decoders@[i].known_fields();
+            }
+            assert(crate::specs::private_precinct_decoder_states(self.storage_view()) =~=
+                self.decoders@.map_values(|decoder:PrivateHtDecoder|decoder.storage_view())) by {
+                assert forall|i:int|0<=i<self.decoders.len() implies
+                    #[trigger] crate::specs::private_precinct_decoder_states(self.storage_view())[i]
+                        ==self.decoders@[i].storage_view() by {
+                    self.decoders@[i].known_fields();
+                }
+            }
             assert forall|i:int|0<=i<self.view().decoders.len() && self.invariant() implies
                 #[trigger] crate::specs::private_ht_state_wf(crate::specs::PrivateHtDecoderState {
                     logical:self.view().decoders[i],packed:self.storage_view().packed[i],
@@ -551,7 +1110,8 @@ fn prepare_private_payload(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    requires _precinct.invariant(),crate::specs::private_grid_shape(super::packet_grid_view(grid)),
+    requires _precinct.invariant(),_precinct.view().resolution==0,_precinct.view().precinct==0,
+        crate::specs::private_grid_shape(super::packet_grid_view(grid)),
     ensures crate::specs::part2_packet_input_result(crate::codestream::tile_parts_owned_view(parts@),super::packet_grid_view(grid),
             seq![_precinct.view()],super::packet_selection_view(selection),limits,super::progression_tile_preparation_outcome(result)),
         super::progression_tile_preparation_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
@@ -686,7 +1246,7 @@ mod tests {
                 blocks:crate::limits::resource_code_block_limit(limits),work:crate::limits::resource_work_limit(limits),
                 tag_nodes:crate::limits::resource_tag_tree_node_limit(limits),
             }),
-        match result{Ok(value)=>value.invariant(),Err(_)=>true},
+        match result{Ok(value)=>value.invariant() && value.view().resolution==0 && value.view().precinct==0,Err(_)=>true},
 ))]
 pub(crate) fn new_private_ht_precinct(
     across: u32,
@@ -853,6 +1413,7 @@ pub(crate) fn new_private_ht_precinct(
     }
     let precinct = PrivateHtPrecinct {
         resolution: 0,
+        precinct: 0,
         states,
         contexts,
         subbands,
@@ -888,7 +1449,8 @@ impl PrivateHtPrecinct {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires self.invariant(),
             matches!(crate::codestream::tile_part_owned_view(part).packed_packet_headers.source,crate::specs::Part1PackedHeaderSource::None),
-        ensures final(self).invariant(),
+        ensures final(self).invariant(),final(self).view().resolution==old(self).view().resolution,
+            final(self).view().precinct==old(self).view().precinct,
             crate::specs::private_precinct_packet_result(crate::specs::PrivatePrecinctPacketContext {
                 before:old(self).storage_view(),part:crate::codestream::tile_part_owned_view(part),offset:error_offset,sequence,caps:private_packet_caps(limits),
             },(result,final(self).storage_view())),
@@ -983,7 +1545,8 @@ impl PrivateHtPrecinct {
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires self.invariant(),!parameters.packed,parameters.decode_tier1,parameters.expected_packet_length.is_none(),
-        ensures final(self).invariant(),
+        ensures final(self).invariant(),final(self).resolution_view()==old(self).resolution_view(),
+            final(self).precinct_view()==old(self).precinct_view(),
             crate::specs::private_payload_result(old(self).storage_view(),data@,super::precinct_payload_parameters_view(parameters),
                 private_packet_caps(limits),(result,final(self).storage_view())),
             result!=Err(DecodeError::AllocationFailed) ==> (result,final(self).storage_view())==
@@ -1115,7 +1678,8 @@ impl PrivateHtPrecinct {
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires self.invariant(),!parameters.packed,parameters.decode_tier1,parameters.expected_packet_length.is_none(),
-        ensures final(self).invariant(),
+        ensures final(self).invariant(),final(self).resolution_view()==old(self).resolution_view(),
+            final(self).precinct_view()==old(self).precinct_view(),
             crate::specs::private_payload_after_result(old(self).storage_view(),super::precinct_payload_parameters_view(parameters),data@,
                 private_header_view(header),private_packet_caps(limits),(result,final(self).storage_view())),
             result!=Err(DecodeError::AllocationFailed) ==> (result,final(self).storage_view())==
@@ -1214,10 +1778,12 @@ impl PrivateHtPrecinct {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        requires self.invariant(),
+        requires self.invariant(),self.view().resolution==0,self.view().precinct==0,
             crate::specs::private_tile_parameters(super::progression_tile_parameters_view(params)),
             super::progression_tile_progress_view(p).packed_offset==0,
-        ensures final(self).invariant(),super::progression_tile_progress_view(final(p)).packed_offset==0,
+        ensures final(self).invariant(),final(self).resolution_view()==old(self).resolution_view(),
+            final(self).precinct_view()==old(self).precinct_view(),
+            super::progression_tile_progress_view(final(p)).packed_offset==0,
             crate::specs::private_tile_packet_result(super::progression_tile_parameters_view(params),
                 old(self).tile_view(old(p)),coordinate,(result,final(self).tile_view(final(p)))),
             result!=Err(DecodeError::AllocationFailed) ==>
@@ -1313,9 +1879,11 @@ impl PrivateHtPrecinct {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        requires self.invariant(),crate::specs::private_tile_parameters(super::progression_tile_parameters_view(params)),
+        requires self.invariant(),self.view().resolution==0,self.view().precinct==0,
+            crate::specs::private_tile_parameters(super::progression_tile_parameters_view(params)),
             super::progression_tile_progress_view(p).packed_offset==0,
-        ensures final(self).invariant(),super::progression_tile_progress_view(final(p)).packed_offset==0,
+        ensures final(self).invariant(),final(self).view().resolution==0,final(self).view().precinct==0,
+            super::progression_tile_progress_view(final(p)).packed_offset==0,
             crate::specs::private_tile_run_result(super::progression_tile_parameters_view(params),
                 old(self).tile_view(old(p)),(result,final(self).tile_view(final(p)))),
             result!=Err(DecodeError::AllocationFailed) ==> (result,final(self).tile_view(final(p)))==
@@ -1339,7 +1907,9 @@ impl PrivateHtPrecinct {
             crate::specs::private_tile_value_fields(context,initial);
         }
         #[cfg_attr(verus_keep_ghost, verus_spec(
-            invariant self.invariant(),super::progression_tile_progress_view(p).packed_offset==0,
+            invariant self.invariant(),self.view().resolution==0,self.view().precinct==0,
+                self.resolution_view()==0,self.precinct_view()==0,
+                super::progression_tile_progress_view(p).packed_offset==0,
                 initial==old(self).tile_view(old(p)),
                 context==super::progression_tile_parameters_view(params),
                 crate::specs::private_tile_parameters(context),
@@ -1405,11 +1975,13 @@ impl PrivateHtPrecinct {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        requires self.invariant(),parts.len()==1,crate::specs::private_grid_shape(super::packet_grid_view(grid)),
+        requires self.invariant(),self.view().resolution==0,self.view().precinct==0,
+            parts.len()==1,crate::specs::private_grid_shape(super::packet_grid_view(grid)),
             (match crate::codestream::tile_parts_owned_view(parts@)[0].packed_packet_headers.source{crate::specs::Part1PackedHeaderSource::None=>true,_=>false}),
             (match crate::codestream::tile_parts_owned_view(parts@)[0].packet_lengths.source{crate::specs::Part1PacketLengthSource::None=>true,_=>false}),
             selection.is_none() || super::packet_selection_view(selection)==Some(seq![1u8]),
-        ensures final(self).invariant(),
+        ensures final(self).invariant(),final(self).view().resolution==old(self).view().resolution,
+            final(self).view().precinct==old(self).view().precinct,
             crate::specs::private_packet_decode_result(crate::codestream::tile_parts_owned_view(parts@),super::packet_grid_view(grid),
                 old(self).storage_view(),super::packet_selection_view(selection),limits,(result,final(self).storage_view())),
             result!=Err(DecodeError::AllocationFailed) ==> (result,final(self).storage_view())==

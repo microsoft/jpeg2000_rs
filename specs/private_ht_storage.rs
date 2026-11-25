@@ -15,10 +15,18 @@ pub enum PrivateOwnerCapacityContext {
     PlacementAppend {source:Seq<crate::decode::ProgressionCodeBlockPlacement>,next:crate::decode::ProgressionCodeBlockPlacement},
     PrecinctSubband {source:PrivatePrecinctInitialContext},
     PreparedAppend {source:Seq<Part1AssemblyTile>,next:Part1AssemblyTile},
+    ResolutionDecoders {source:Seq<PrivateHtDecoderState>,next:Seq<PrivateHtDecoderState>},
+    StandardExecutions {context:PrivateStandardPrecinctContext,placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,total:u64},
+    ResolutionAppend {source:Seq<PrivateHtPrecinctState>,next:PrivateHtPrecinctState},
 }
 
 pub(crate) open spec fn private_owner_capacity_count(context:PrivateOwnerCapacityContext)->usize {
-    match context{PrivateOwnerCapacityContext::Blocks{count,..}=>count,_=>1usize}
+    match context{
+        PrivateOwnerCapacityContext::Blocks{count,..}=>count,
+        PrivateOwnerCapacityContext::ResolutionDecoders{next,..}=>next.len() as usize,
+        PrivateOwnerCapacityContext::StandardExecutions{context,..}=>context.range.1,
+        _=>1usize,
+    }
 }
 
 pub(crate) open spec fn private_owner_capacity_run(context:PrivateOwnerCapacityContext,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<()> {

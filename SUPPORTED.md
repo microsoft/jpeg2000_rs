@@ -198,11 +198,16 @@ The implementation contains:
   public/JPIP coefficient owners and other layouts retain wide storage.
   Existing cooperative-deadline builds use the wide path; this does not add a
   format-support claim.
-  The standard-DWT private-owner development trial is **unqualified**: its
-  literal no-COC admission requirement fails on a redundant main-header COC.
-  Resolved layout/style equality and the existing tile-header marker flag do
-  not retain that main-header provenance. The trial is not an adoption or a
-  performance claim; see [PROOFS.md](PROOFS.md#unqualified-standard-dwt-private-trial).
+  The separate standard-DWT private-owner extension carries actual
+  resolution/subband/precinct geometry through the same ownership family.
+  It retains the single-component/single-part, implicit-precinct, origin-zero
+  structural restrictions and the compiled cooperative fallback. It
+  requires complete effective main/component coding-style equality: a
+  redundant COC is equivalent to an ignored COM when their complete resolved
+  inputs are equal, while genuine effective overrides retain the wide path.
+  Historical zero-DWT qualification does not qualify the extension, which is
+  not an adoption or performance claim; see
+  [PROOFS.md](PROOFS.md#standard-dwt-private-owner-extension).
 - Reversible 5/3 and fixed-point irreversible 9/7 synthesis.
   Odd-origin high-only singleton operators use arithmetic half in the
   retained-assertion engineering profile. Actual encoded singleton-tile

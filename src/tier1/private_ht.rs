@@ -85,12 +85,13 @@ mod tests {
     #[test]
     fn private_primary_release_layout_and_real_initial_owner() {
         eprintln!(
-            "legacy={} private={} coefficient={} packed-owner={} optional-checkpoint={}",
+            "legacy={} private={} coefficient={} packed-owner={} optional-checkpoint={} private-precinct={}",
             size_of::<Tier1CodeBlockDecoder>(),
             size_of::<PrivateHtDecoder>(),
             size_of::<CoefficientState>(),
             size_of::<HtCleanupCheckpoint>(),
             size_of::<Option<HtCleanupCheckpoint>>(),
+            size_of::<crate::packet::PrivateHtPrecinct>(),
         );
         assert_eq!(size_of::<Tier1CodeBlockDecoder>(), 432);
         assert_eq!(size_of::<CoefficientState>(), 56);

@@ -15499,7 +15499,7 @@
     },
     {
       "id": "part15-cleanup-only-actual-symbol-caller",
-      "topic": "Explicit absent-refinement actual symbol-caller composition through real metadata/numeric/cleanup checkpoint producers and complete decoder state, including ordered partial accounting errors and private packed versus public wide checkpoint allocation",
+      "topic": "Explicit absent-refinement symbol-caller composition through metadata/numeric/checkpoint producers and complete decoder state, including the actual private standard-DWT governing chain, effective style equivalence, real packed storage and ordered allocation/error programs; public/JPIP/legacy wide ownership remains separate",
       "contract_refs": [
         {"path": "src/tier1/ht_cleanup.rs", "symbol": "prepare_ht_cleanup_symbols"},
         {"path": "src/tier1/ht_contributions.rs", "symbol": "Tier1CodeBlockDecoder::store_ht_coefficient_symbols"},
@@ -15508,7 +15508,14 @@
       "implementation_refs": [
         {"path": "src/tier1/ht_contributions.rs", "symbol": "Tier1CodeBlockDecoder::decode_ht_coefficient_symbols"},
         {"path": "src/tier1/ht_cleanup.rs", "symbol": "prepare_ht_cleanup_symbols"},
-        {"path": "src/tier1/ht_checkpoint.rs", "symbol": "retain_ht_cleanup"}
+        {"path": "src/tier1/ht_checkpoint.rs", "symbol": "retain_ht_cleanup"},
+        {"path": "src/decode/execution.rs", "symbol": "decode_tile_parts_at"},
+        {"path": "src/decode/private_ht.rs", "symbol": "standard_eligible"},
+        {"path": "src/decode/private_ht.rs", "symbol": "plan_standard"},
+        {"path": "src/decode/private_ht.rs", "symbol": "decode_standard"},
+        {"path": "src/packet/private_ht.rs", "symbol": "new_private_ht_resolution_precinct"},
+        {"path": "src/packet/private_ht.rs", "symbol": "decode_private_ht_resolution_packets"},
+        {"path": "src/codestream/coding_style.rs", "symbol": "effective_coding_styles_equal"}
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "ht_cleanup_prepare"},
@@ -15521,7 +15528,12 @@
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_result"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_after_metadata"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_run"},
-        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_selected"}
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_selected"},
+        {"path": "specs/private_ht_standard_plan.rs", "symbol": "private_ht_standard_eligible"},
+        {"path": "specs/private_ht_standard_plan.rs", "symbol": "private_standard_plan_run"},
+        {"path": "specs/private_ht_standard_precinct.rs", "symbol": "private_resolution_initial_run"},
+        {"path": "specs/private_ht_standard_packet.rs", "symbol": "private_resolution_decode_run"},
+        {"path": "specs/private_ht_standard_image.rs", "symbol": "private_standard_image_run"}
       ],
       "proof_refs": [
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_state"},
@@ -15536,7 +15548,9 @@
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_metadata_error"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_metadata_join"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_packed"},
-        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_wide"}
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_wide"},
+        {"path": "specs/private_ht_standard_plan.rs", "symbol": "private_standard_plan_reference"},
+        {"path": "specs/private_ht_standard_image.rs", "symbol": "private_standard_image_reference"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_caller_composes_real_metadata_numeric_duplicate_and_complete_decoder_state"},
@@ -15553,7 +15567,10 @@
         {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_expired_materialization_leaves_source_exact"},
         {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_does_not_skip_dense_initial_allocation_or_snapshot"},
         {"path": "src/tier1/tests.rs", "symbol": "checkpoint_header_replays_geometry_independent_of_current_output"},
-        {"path": "src/tier1/ht_checkpoint.rs", "symbol": "checkpoint_header_snapshot_keeps_full_raw_dimensions_and_payload"}
+        {"path": "src/tier1/ht_checkpoint.rs", "symbol": "checkpoint_header_snapshot_keeps_full_raw_dimensions_and_payload"},
+        {"path": "src/decode/tests.rs", "symbol": "private_ht_standard_admission_uses_complete_effective_styles_and_preserves_wide_results"},
+        {"path": "src/decode/tests.rs", "symbol": "private_ht_standard_decompositions_keep_resolution_geometry_empty_bands_and_limits"},
+        {"path": "src/tier1/private_ht.rs", "symbol": "private_primary_standard_orientations_survive_staging_entropy_and_retention"}
       ]
     },
     {

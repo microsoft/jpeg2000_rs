@@ -7742,7 +7742,83 @@ _HT_EXPONENT_TESTS = {
     ("src/packet/tests.rs", "ht_cleanup_scratch_storage_packet_first_later_rows_roll_back_full_decoder_and_restore"),
     ("src/decode/tests.rs", "ht_cleanup_scratch_storage_raw_selected_jph_rows_and_automatic_restore_real_image"),
 }
+_PRIVATE_STANDARD_HT_TESTS = {
+    ("src/decode/tests.rs", "private_ht_standard_admission_uses_complete_effective_styles_and_preserves_wide_results"),
+    ("src/decode/tests.rs", "private_ht_standard_decompositions_keep_resolution_geometry_empty_bands_and_limits"),
+    ("src/tier1/private_ht.rs", "private_primary_standard_orientations_survive_staging_entropy_and_retention"),
+}
+_PRIVATE_STANDARD_HT_IMPL = {
+    ("src/decode/execution.rs", "decode_tile_parts_at"),
+    ("src/decode/private_ht.rs", "standard_eligible"),
+    ("src/decode/private_ht.rs", "plan_standard"),
+    ("src/decode/private_ht.rs", "decode_standard"),
+    ("src/packet/private_ht.rs", "new_private_ht_resolution_precinct"),
+    ("src/packet/private_ht.rs", "decode_private_ht_resolution_packets"),
+    ("src/codestream/coding_style.rs", "effective_coding_styles_equal"),
+}
+_PRIVATE_STANDARD_HT_SPECS = {
+    ("specs/private_ht_standard_plan.rs", "private_ht_standard_eligible"),
+    ("specs/private_ht_standard_plan.rs", "private_standard_plan_run"),
+    ("specs/private_ht_standard_precinct.rs", "private_resolution_initial_run"),
+    ("specs/private_ht_standard_packet.rs", "private_resolution_decode_run"),
+    ("specs/private_ht_standard_image.rs", "private_standard_image_run"),
+}
 _PLANE_ROLE_GUARDS = {
+    ("specs/private_ht_standard_plan.rs", "private_ht_standard_eligible"): (
+        "!crate::decode::PRIVATE_HT_PRIMARY_ENABLED", "parts.len()!=1", "part2_profile_force_ht(caps)",
+        "style.decomposition_levels>0", "style.decomposition_structure.is_none()", "!style.precincts_defined",
+        "parsed_coding_style_view(style)", "parsed_coding_style_view(first.coding_style)",
+        "!first.has_functional_header_marker", "!first.has_roi_marker", "geometry.precincts==1",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_plan_run"): (
+        "part2_selection_tile_bounds(", "part2_spatial_derived_grid_run(", "private_standard_plan_after_grid(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_plan_after_grid"): (
+        "part2_component_metadata_run(", "private_standard_plan_after_metadata(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_precinct_run"): (
+        "private_standard_executions_run(", "private_standard_bands_run(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_band_run"): (
+        "context.range.0 as nat+local", "part2_planned_subband_lattice(",
+        "private_standard_blocks_run(", "private_standard_after_band(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_blocks_run"): (
+        "private_standard_blocks_admit(", "private_standard_blocks_capacity_run(", "private_standard_rows_run(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_cell_run"): (
+        "part2_planned_codeblock_geometry(", "private_decoder_initial_calls_run(", "private_standard_cell_after_initial(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_cell_after_placement"): (
+        "PrivateOwnerCapacityContext::PlacementAppend", "private_standard_cell_finish(",
+    ),
+    ("specs/private_ht_standard_precinct.rs", "private_resolution_row_run"): (
+        "private_resolution_execution_admit(", "part2_precinct_contexts_run(", "private_resolution_after_contexts(",
+    ),
+    ("specs/private_ht_standard_precinct.rs", "private_resolution_after_contexts"): (
+        "private_resolution_decoder_run(", "private_resolution_after_decoders(",
+    ),
+    ("specs/private_ht_standard_precinct.rs", "private_resolution_decoder_capacity"): (
+        "PrivateOwnerCapacityContext::ResolutionDecoders", "source:private_precinct_decoder_states(before)", "next:row.decoders",
+    ),
+    ("specs/private_ht_standard_precinct.rs", "private_resolution_after_inclusion"): (
+        "part2_precinct_tree_run(", "index,true,Some(inclusion)", "private_resolution_row_finish(",
+    ),
+    ("specs/private_ht_standard_packet.rs", "private_resolution_packet_run"): (
+        "part2_plane_tile_packet_admit(", "private_precinct_packet_run(", "private_resolution_packet_finish(",
+    ),
+    ("specs/private_ht_standard_packet.rs", "private_resolution_decode_run"): (
+        "part2_packet_input_run(", "part2_progress_initial_run(", "private_resolution_decode_after_progress(",
+    ),
+    ("specs/private_ht_standard_image.rs", "private_standard_image_run"): (
+        "private_standard_plan_run(", "private_standard_image_after_plan(",
+    ),
+    ("specs/private_ht_standard_image.rs", "private_standard_image_after_plan"): (
+        "part2_planned_tile_accounting(", "private_standard_packet_value_run(", "private_standard_image_after_packets(",
+    ),
+    ("specs/private_ht_standard_image.rs", "private_standard_image_after_packets"): (
+        "component_coding_style_result(", "private_component_calls_run(", "private_image_after_component(",
+    ),
     ("specs/private_ht_tile.rs", "private_ht_eligible"): (
         "!crate::decode::PRIVATE_HT_PRIMARY_ENABLED", "parts.len()!=1", "part2_profile_force_ht(caps)",
         "style.decomposition_levels==0", "style.decomposition_structure.is_none()", "!style.precincts_defined",
@@ -7751,6 +7827,7 @@ _PLANE_ROLE_GUARDS = {
     ),
     ("specs/cold_tile_metadata.rs", "part2_tile_after_metadata_run"): (
         "if private_ht_eligible(size,tile,parts,caps,discard)", "private_image_run(PrivateImageContext",
+        "if private_ht_standard_eligible(size,tile,parts,caps,discard)", "private_standard_image_run(PrivateImageContext",
         "else{part2_jpip_snapshot_bind(part2_grid_plan_run(",
     ),
     ("specs/private_ht_primary.rs", "private_primary_copy_run"): (
@@ -7885,6 +7962,65 @@ _PLANE_ROLE_GUARDS = {
     ),
 }
 _PLANE_ROLE_NATIVE_ORDER = {
+    ("src/codestream/coding_style.rs", "CodingStyle::equals"): (
+        "effective_coding_styles_equal(self, other)",
+    ),
+    ("src/codestream/coding_style.rs", "effective_coding_styles_equal"): (
+        "progression_orders_equal(", "left.decomposition_levels != right.decomposition_levels",
+        "left.code_block_width != right.code_block_width", "wavelet_transforms_equal(",
+        "decomposition_directions_equal(", "left.precinct_exponents[index].0 != right.precinct_exponents[index].0",
+    ),
+    ("src/decode/private_ht.rs", "standard_eligible"): (
+        "!super::PRIVATE_HT_PRIMARY_ENABLED", "size.components != 1", "parts.len() != 1",
+        "discard.unwrap_or(0) != 0", "profile.part15_requires_all_ht_blocks()",
+        "style.decomposition_levels > 0", "effective_coding_styles_equal(style, first.coding_style)",
+        "!first.has_functional_header_marker", "!first.has_roi_marker", "geometry.precincts == 1",
+    ),
+    ("src/decode/private_ht.rs", "plan_standard"): (
+        "derive_packet_grid_for_components(", "prepare_component_plan_metadata(",
+        "prepare_resolution_plan_metadata(", "derive_planned_precinct_origin(", "plan_standard_precinct(",
+        "reserve_additional(&mut builder.precincts, 1)", "builder.precincts.push(row.precinct)",
+    ),
+    ("src/decode/private_ht.rs", "plan_standard_precinct"): (
+        "empty_with_capacity(range.1)", "while local < range.1", "derive_planned_subband_lattice(",
+        "plan_standard_blocks(", "PrivateHtSubbandExecution {", "new_private_ht_resolution_precinct(",
+    ),
+    ("src/decode/private_ht.rs", "append_standard_block"): (
+        "derive_planned_codeblock_geometry(", "new_private_ht_decoder(", "geometry.orientation",
+        "reserve_additional(&mut state.blocks, 1)", "state.blocks.push(decoder)",
+        "private_placement(geometry, x, y, state.next)", "value.precinct_index = indices.0",
+        "value.subband_index = indices.1", "reserve_additional(&mut state.placements, 1)",
+        "state.placements.push(placement)", "state.next.checked_add(1)",
+    ),
+    ("src/decode/private_ht.rs", "decode_standard"): (
+        "plan_standard(", "decode_standard_planned(",
+    ),
+    ("src/decode/private_ht.rs", "decode_standard_planned"): (
+        "account_standard_plan(", "decode_private_ht_resolution_packets(", "reconstruct_standard(",
+        "reserve_additional(&mut prepared, 1)", "prepared.push(component)", "prepared.get_mut(start..)",
+        "finish_prepared_tile(",
+    ),
+    ("src/packet/private_ht.rs", "new_private_ht_resolution_precinct"): (
+        "let mut precinct = PrivateHtPrecinct { resolution, precinct: precinct_number, states: Vec::new()", "while index < executions.len()",
+        "admit_private_resolution_execution(", "prepare_precinct_contexts(",
+        "reserve_additional(", "precinct.decoders.append(", "tag_tree_new(", "subbands.push(",
+    ),
+    ("src/packet/private_ht.rs", "decode_private_ht_resolution_packets"): (
+        "prepare_private_resolution_input(", "progression_tile_progress_new(", "run_private_resolution_tile(",
+        "finish_progression_tile_packets(",
+    ),
+    ("src/packet/private_ht.rs", "validate_private_resolution_layout"): (
+        "grid.total_precinct_count()", "count > usize::MAX", "precincts.len() != count as usize",
+        "grid.precinct_index(0, precincts[index].resolution, precincts[index].precinct)",
+    ),
+    ("src/packet/private_ht.rs", "run_private_resolution_tile"): (
+        "advance_progression_tile_part(", "p.iterator.next_packet()", "p.remaining_packets -= 1",
+        "omit_progression_packet(", "execute_private_resolution_packet(",
+    ),
+    ("src/packet/private_ht.rs", "execute_private_resolution_packet"): (
+        "progression_packet_slot(", "let (index, seen) = slot?", "let row = &mut precincts[index]", "set_progression_context_layer(",
+        "row.decode_packet(", "account_progression_packet(",
+    ),
     ("src/decode/private_ht.rs", "eligible"): (
         "!super::PRIVATE_HT_PRIMARY_ENABLED", "size.components != 1", "parts.len() != 1",
         "discard.unwrap_or(0) != 0", "profile.part15_requires_all_ht_blocks()",
@@ -7898,11 +8034,11 @@ _PLANE_ROLE_NATIVE_ORDER = {
         "let planned = plan(", "decode_planned(",
     ),
     ("src/decode/private_ht.rs", "decode_planned"): (
-        "account_private_plan(", ".decode_tile(", "reconstruct(", "reserve_additional(&mut prepared, 1)",
+        "account_private_plan(", ".decode_tile(", "reconstruct_readable(", "reserve_additional(&mut prepared, 1)",
         "prepared.push(component)", "prepared.get_mut(start..)", "finish_prepared_tile(",
     ),
     ("src/decode/private_ht.rs", "place_private_block"): (
-        "plan.precinct.decoder(", "decoder.dimensions()", "decoder.collect()", "inverse_quantize_magnitudes(",
+        "plan.decoder(", "decoder.dimensions()", "decoder.collect()", "inverse_quantize_magnitudes(",
         "quantized.fraction_bits()", "write_quantized_block(",
     ),
     ("src/tier1/private_ht.rs", "new_private_ht_decoder"): (
@@ -7976,8 +8112,11 @@ _PLANE_ROLE_NATIVE_ORDER = {
         "roi_shifts, 0, false, 74, false, false, limits,",
     ),
     ("src/decode/execution.rs", "decode_tile_parts_at"): (
+        "prepare_tile_decode_metadata(",
         "if super::private_ht::eligible(size, tile, parts, profile, discard)",
         "super::private_ht::decode(",
+        "if super::private_ht::standard_eligible(size, tile, parts, profile, discard)",
+        "super::private_ht::decode_standard(",
         "let plan_result = plan_progression_tile_at_selected(",
         "profile.part15_requires_all_ht_blocks(), true, limits,",
     ),
@@ -20224,6 +20363,14 @@ def validate_normative_coverage(
         )):
             raise ValueError("private HT primary requires the existing cooperative-deadlines fallback gate")
         for entry in coverage["requirements"]:
+            if entry["id"] == "part15-cleanup-only-actual-symbol-caller":
+                for field, required in (
+                    ("implementation_refs", _PRIVATE_STANDARD_HT_IMPL),
+                    ("spec_refs", _PRIVATE_STANDARD_HT_SPECS),
+                    ("test_refs", _PRIVATE_STANDARD_HT_TESTS),
+                ):
+                    if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                        raise ValueError("private HT primary standard DWT requires actual governing/effective-style/storage/orientation references")
             if entry["id"] == "part15-complete-actual-cleanup-plane":
                 if not _HT_EXPONENT_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("HT exponent storage requires bounded raw/decoder/packet/public refusal/restore controls")

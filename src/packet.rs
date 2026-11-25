@@ -509,12 +509,15 @@ use precinct::{
     decode_jpip_precinct_packet_inner, decode_precinct_contribution_headers,
     decode_precinct_packet, decode_precinct_packet_payload, decode_precinct_packet_payload_prefix,
 };
-#[cfg(verus_keep_ghost)]
-pub(crate) use private_ht::private_precinct_outcome;
 pub(crate) use private_ht::{PrivateHtPrecinct, new_private_ht_precinct};
 pub(crate) use private_ht::{
     PrivateHtSubbandExecution, decode_private_ht_resolution_packets,
     new_private_ht_resolution_precinct,
+};
+#[cfg(verus_keep_ghost)]
+pub(crate) use private_ht::{
+    private_executions_view, private_precinct_outcome, private_precincts_view,
+    private_resolution_owners_known_fields,
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod progression;

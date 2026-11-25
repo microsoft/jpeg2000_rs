@@ -8127,7 +8127,7 @@ fn sarah_dev_174ec5fee4_jph_components_do_not_require_specified_colour() {
 }
 
 #[test]
-fn private_ht_standard_admission_requires_main_coc_provenance_not_resolved_style_equality() {
+fn private_ht_standard_admission_uses_complete_effective_styles_and_preserves_wide_results() {
     let limits = ResourceLimits::default();
     let mut source = prepared_codestream(1, 1, 1, &[0x20, 0x40, 0x40, 0x40, 0x40], &[0, 0]);
     let siz = source
@@ -8162,10 +8162,19 @@ fn private_ht_standard_admission_requires_main_coc_provenance_not_resolved_style
         .unwrap();
     let mut comment = source.clone();
     comment.splice(sot..sot, segment(0xff64, &coc));
+    let mut different = source.clone();
+    let mut changed_coc = coc;
+    changed_coc[3] ^= 1;
+    different.splice(sot..sot, segment(0xff53, &changed_coc));
     source.splice(sot..sot, segment(0xff53, &coc));
     let comment_layout = parse_layout(&comment, &limits).unwrap();
     let coc_layout = parse_layout(&source, &limits).unwrap();
+    let different_layout = parse_layout(&different, &limits).unwrap();
     assert_eq!(comment_layout, coc_layout);
+    assert_ne!(
+        comment_layout.tile_parts[0].component_coding_styles,
+        different_layout.tile_parts[0].component_coding_styles
+    );
     assert!(!comment_layout.tile_parts[0].has_functional_header_marker);
     assert!(!coc_layout.tile_parts[0].has_functional_header_marker);
     let plain = super::private_ht::standard_eligible(
@@ -8175,30 +8184,158 @@ fn private_ht_standard_admission_requires_main_coc_provenance_not_resolved_style
         &comment_layout.info.profile,
         None,
     );
-    let overridden = super::private_ht::standard_eligible(
+    let redundant = super::private_ht::standard_eligible(
         &coc_layout.info.image_size,
         0,
         &coc_layout.tile_parts,
         &coc_layout.info.profile,
         None,
     );
-    eprintln!(
-        "COC scope: equal complete parsed layouts; main-header-segments={}; tile-functional-marker={}; comment-admitted={plain}; COC-admitted={overridden}",
-        comment_layout.info.main_header_segments,
-        coc_layout.tile_parts[0].has_functional_header_marker,
-    );
     assert_eq!(plain, !cfg!(feature = "cooperative-deadlines"));
-    assert!(
-        !overridden,
-        "the DWT extension must not admit an actual COC marker"
+    assert_eq!(redundant, plain);
+    assert!(!super::private_ht::standard_eligible(
+        &different_layout.info.image_size,
+        0,
+        &different_layout.tile_parts,
+        &different_layout.info.profile,
+        None,
+    ));
+    let wide = |layout: &crate::codestream::CodestreamLayout<'_>,
+                discard: Option<u8>,
+                restricted: &ResourceLimits|
+     -> Result<DecodedLayoutTile, DecodeError> {
+        let metadata =
+            super::execution::prepare_tile_decode_metadata(&layout.tile_parts, 1, discard)?;
+        let first = &layout.tile_parts[0];
+        let plan = super::planning::plan_progression_tile_at_selected(
+            &layout.info.image_size,
+            0,
+            first.coding_style,
+            &first.component_coding_styles,
+            &first.component_quantizations,
+            &first.roi_shifts,
+            0,
+            layout.info.profile.part15_allows_multiple_ht_sets(),
+            layout.info.profile.part15_magnitude_bound(),
+            true,
+            true,
+            restricted,
+        )?;
+        let selected = discard.map(|_| metadata.resolution_counts.as_slice());
+        let counters =
+            super::execution::account_planned_tile(&plan, selected, (0, 0, 0), restricted)?;
+        let value = super::execution::decode_planned_tile_components(
+            plan,
+            &layout.tile_parts,
+            first,
+            &layout.info.image_size,
+            metadata.standard,
+            selected,
+            restricted,
+            Vec::new(),
+            0,
+        )?;
+        Ok(DecodedLayoutTile {
+            prepared: value.prepared,
+            counters,
+            mct_work: value.mct_work,
+        })
+    };
+    let values = |value: DecodedLayoutTile| (value.prepared, value.counters, value.mct_work);
+    for discard in [None, Some(0)] {
+        for restricted in [
+            limits,
+            limits.with_maximum_work_units(1).unwrap(),
+            limits.with_maximum_decoded_bytes(1).unwrap(),
+            limits.with_maximum_packets(1).unwrap(),
+        ] {
+            let expected = wide(&comment_layout, discard, &restricted).map(values);
+            assert_eq!(
+                wide(&coc_layout, discard, &restricted).map(values),
+                expected
+            );
+            if plain {
+                for layout in [&comment_layout, &coc_layout] {
+                    let metadata = super::execution::prepare_tile_decode_metadata(
+                        &layout.tile_parts,
+                        1,
+                        discard,
+                    )
+                    .unwrap();
+                    let actual = super::private_ht::decode_standard(
+                        &layout.info.image_size,
+                        0,
+                        &layout.tile_parts,
+                        &layout.info.profile,
+                        discard,
+                        &metadata,
+                        &restricted,
+                        Vec::new(),
+                        (0, 0, 0),
+                        0,
+                    )
+                    .map(values);
+                    assert_eq!(actual, expected);
+                }
+            }
+            let fallback = super::execution::decode_tile_parts_at(
+                &different_layout.info.image_size,
+                0,
+                &different_layout.tile_parts,
+                &different_layout.info.profile,
+                discard,
+                &restricted,
+                Vec::new(),
+                (0, 0, 0),
+                0,
+            )
+            .map(values);
+            assert_eq!(
+                fallback,
+                wide(&different_layout, discard, &restricted).map(values)
+            );
+        }
+    }
+    if plain {
+        for payload in [&[][..], &[0x80][..]] {
+            for input in [&comment, &source] {
+                let mut malformed = parse_layout(input, &limits).unwrap();
+                malformed.tile_parts[0].data = payload;
+                let metadata =
+                    super::execution::prepare_tile_decode_metadata(&malformed.tile_parts, 1, None)
+                        .unwrap();
+                let actual = super::private_ht::decode_standard(
+                    &malformed.info.image_size,
+                    0,
+                    &malformed.tile_parts,
+                    &malformed.info.profile,
+                    None,
+                    &metadata,
+                    &limits,
+                    Vec::new(),
+                    (0, 0, 0),
+                    0,
+                )
+                .map(values);
+                assert_eq!(actual, wide(&malformed, None, &limits).map(values));
+            }
+        }
+    }
+    let options = crate::DecodeOptions::default();
+    let typed = crate::decode_codestream(&comment, &options).unwrap();
+    assert_eq!(typed, crate::decode_codestream(&source, &options).unwrap());
+    assert_eq!(
+        typed,
+        crate::decode_codestream(&different, &options).unwrap()
     );
+    assert_eq!(typed.components()[0].channel_definitions(), &[]);
 }
 
 #[test]
 fn private_ht_standard_decompositions_keep_resolution_geometry_empty_bands_and_limits() {
     let limits = ResourceLimits::default();
     for (width, height) in [(1, 1), (1, 5), (5, 1), (3, 5), (17, 19)] {
-        for levels in [1_u8, 5] {
+        for levels in [1_u8, 5, 31, 32] {
             for irreversible in [false, true] {
                 let mut quantization = vec![0x20];
                 quantization.resize(usize::from(levels) * 3 + 2, 0x40);

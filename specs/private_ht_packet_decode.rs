@@ -172,6 +172,7 @@ pub(crate) proof fn private_packet_input_parameters(parts:Seq<Part2OwnedTilePart
 pub(crate) proof fn private_packet_decode_value_fields(parts:Seq<Part2OwnedTilePart>,grid:Part1PacketGrid,
     before:PrivateHtPrecinctState,selection:Option<Seq<u8>>,limits:&crate::ResourceLimits)
     requires parts.len()==1,private_grid_shape(grid),private_precinct_wf(before),
+        before.logical.resolution==0,before.logical.precinct==0,
         (match parts[0].packed_packet_headers.source{Part1PackedHeaderSource::None=>true,_=>false}),
         (match parts[0].packet_lengths.source{Part1PacketLengthSource::None=>true,_=>false}),
         selection.is_none() || selection==Some(seq![1u8]),
@@ -193,6 +194,7 @@ pub(crate) proof fn private_packet_decode_value_fields(parts:Seq<Part2OwnedTileP
     pub(crate) proof fn private_packet_decode_normal(parts:Seq<Part2OwnedTilePart>,grid:Part1PacketGrid,
         before:PrivateHtPrecinctState,selection:Option<Seq<u8>>,limits:&crate::ResourceLimits)
         requires parts.len()==1,private_grid_shape(grid),private_precinct_wf(before),
+            before.logical.resolution==0,before.logical.precinct==0,
             (match parts[0].packed_packet_headers.source{Part1PackedHeaderSource::None=>true,_=>false}),
             (match parts[0].packet_lengths.source{Part1PacketLengthSource::None=>true,_=>false}),
             selection.is_none() || selection==Some(seq![1u8]),

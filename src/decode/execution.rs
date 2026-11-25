@@ -284,9 +284,17 @@ pub(crate) fn decode_tile_parts_at(
         return result;
     }
     if super::private_ht::standard_eligible(size, tile, parts, profile, discard) {
-        return super::private_ht::decode_standard(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost context=super::private_ht::private_image_context(
+        size,tile,parts@,profile,discard,&metadata,limits,prepared@,initial,mct_work);}
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::private_standard_image_reference(context);}
+        let result = super::private_ht::decode_standard(
             size, tile, parts, profile, discard, &metadata, limits, prepared, initial, mct_work,
         );
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::private_standard_image_tile_observed(context,decoded_layout_tile_outcome(result));}
+        return result;
     }
     let first = metadata.first;
     let maximum_resolution_counts = match discard {

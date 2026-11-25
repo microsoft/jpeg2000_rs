@@ -6,6 +6,19 @@ pub struct PrivateReconstructionContext {
     pub style:Part1PrepareStyle,pub maximum:u64,
 }
 
+pub(crate) proof fn private_subband_prefix_positive(levels:u8,directions:Seq<crate::codestream::DecompositionDirection>,completed:nat)
+    ensures match part1_subband_count_prefix(levels,directions,completed){Err(_)=>true,Ok(count)=>count>0},
+    decreases completed,
+{
+    if completed>0{private_subband_prefix_positive(levels,directions,(completed-1) as nat);}
+}
+
+pub(crate) proof fn private_subband_count_positive(levels:u8,directions:Seq<crate::codestream::DecompositionDirection>,resolution:u8)
+    ensures match part1_subband_count_through_resolution(levels,directions,resolution){Err(_)=>true,Ok(count)=>count>0},
+{
+    if resolution<=levels{private_subband_prefix_positive(levels,directions,resolution as nat);}
+}
+
 pub(crate) open spec fn private_place_run(working:Part1PrepareWorking,bands:Seq<crate::decode::SubbandGeometry>,
     precincts:Seq<Seq<Tier1RawPlane>>,placement:crate::decode::ProgressionCodeBlockPlacement,reversible:bool,maximum:u64,
     calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Part2ExtractionWorkingEffect> {

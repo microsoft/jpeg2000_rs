@@ -660,6 +660,7 @@ pub(crate) proof fn private_plan_value_fields(size:&crate::codestream::ImageSize
 caps:Option<(u32,Seq<u16>)>,limits:&crate::ResourceLimits,plan:PrivateHtPlanState)
 requires private_ht_eligible(size,tile,seq![first],caps,None),private_plan_value(size,tile,first,caps,limits)==Ok(plan),
 ensures private_grid_shape(plan.grid),private_precinct_wf(plan.precinct),plan.component.component==0,
+    plan.precinct.logical.resolution==0,plan.precinct.logical.precinct==0,
 {
 let grid=part2_spatial_packet_grid_from_components(size,&first.component_coding_styles,first.coding_style.layers,limits,Some(tile),0).get_Ok_0();
 private_plan_grid_fields(size,tile,first,caps,limits,grid);

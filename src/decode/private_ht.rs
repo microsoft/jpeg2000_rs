@@ -30,6 +30,596 @@ struct PrivateHtStandardPlan {
     precincts: Vec<PrivateHtPrecinct>,
 }
 
+struct PrivateHtStandardBlocks {
+    blocks: Vec<PrivateHtDecoder>,
+    placements: Vec<ProgressionCodeBlockPlacement>,
+    next: usize,
+    total: u64,
+}
+
+struct PrivateHtStandardPrecinctBuilder {
+    executions: Vec<crate::packet::PrivateHtSubbandExecution>,
+    placements: Vec<ProgressionCodeBlockPlacement>,
+    next: usize,
+    total: u64,
+}
+
+struct PrivateHtStandardPlannedPrecinct {
+    precinct: PrivateHtPrecinct,
+    placements: Vec<ProgressionCodeBlockPlacement>,
+    total: u64,
+}
+
+struct PrivateHtStandardPlanBuffers {
+    precincts: Vec<PrivateHtPrecinct>,
+    placements: Vec<ProgressionCodeBlockPlacement>,
+    total: u64,
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires state.invariant(),state.blocks.len()<usize::MAX,
+        style.force_high_throughput,matches!(style.block_coding,Tier1BlockCoding::HighThroughput),
+    ensures crate::specs::part2_cold_framed(|events|crate::specs::private_standard_cell_run(
+        private_standard_context(lattice,geometry,style,profile,indices),state.view(),block,events),private_standard_blocks_outcome(result)),
+    private_standard_blocks_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        private_standard_blocks_outcome(result)==crate::specs::private_standard_cell_value(
+            private_standard_context(lattice,geometry,style,profile,indices),state.view(),block),
+    match result{Ok(value)=>value.invariant() && value.blocks.len()==state.blocks.len()+1,Err(_)=>true},
+))]
+fn append_standard_block(
+    lattice: super::PlannedSubbandLattice,
+    block: [u32; 2],
+    geometry: SubbandGeometry,
+    style: Tier1CodingStyle,
+    profile: &codestream::CodestreamProfile,
+    indices: (usize, usize),
+    state: PrivateHtStandardBlocks,
+) -> Result<PrivateHtStandardBlocks, DecodeError> {
+    let mut state = state;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost context=private_standard_context(lattice,geometry,style,profile,indices);
+        let ghost before=state.view();
+        let ghost root=|events|crate::specs::private_standard_cell_run(context,before,block,events);
+        let ghost mut prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(private_standard_context);reveal(PrivateHtStandardBlocks::view);reveal(PrivateHtStandardBlocks::invariant);
+        reveal(crate::specs::private_standard_cell_run);
+    }
+    let derived =
+        super::planning::derive_planned_codeblock_geometry(lattice.grid, lattice.clip, block);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=derived {crate::specs::part2_cold_pure::<crate::specs::PrivateStandardBlocksState>(Err(error));}
+    }
+    let (x, y, width, height) = derived?;
+    let initialized = new_private_ht_decoder(
+        width,
+        height,
+        geometry.significant_bitplanes,
+        geometry.orientation,
+        style,
+        profile.part15_allows_multiple_ht_sets(),
+        profile.part15_magnitude_bound(),
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let ctor=crate::specs::private_standard_cell_context(context,(x,y,width,height));
+        crate::specs::private_decoder_initial_calls_observed(ctor,crate::tier1::private_decoder_outcome(initialized));
+        let child=|events|crate::specs::private_decoder_initial_calls_run(ctor,events);
+        let next=|decoder,rest|crate::specs::private_standard_cell_after_initial(context,before,(x,y,width,height),decoder,rest);
+        if let Err(error)=initialized {crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);}
+        if let Ok(value)=crate::tier1::private_decoder_outcome(initialized){
+            prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,value);
+        }
+    }
+    let decoder = initialized?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost decoded=decoder.storage_view();}
+    let reserved = crate::allocation::reserve_additional(&mut state.blocks, 1);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let capacity=crate::specs::PrivateOwnerCapacityContext::BlockAppend {source:before.blocks,next:decoded};
+        crate::specs::private_owner_capacity_observed(capacity,crate::allocation::inspection_capacity_outcome(reserved));
+        let child=|events|crate::specs::private_owner_capacity_run(capacity,events);
+        let next=|_:(),rest|crate::specs::private_standard_cell_after_append(context,before,(x,y,width,height),decoded,rest);
+        if let Err(error)=reserved{crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);}
+        if reserved.is_ok(){prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,());}
+    }
+    reserved?;
+    state.blocks.push(decoder);
+    let placement = match private_placement(geometry, x, y, state.next) {
+        Err(error) => Err(error),
+        Ok(mut value) => {
+            value.precinct_index = indices.0;
+            value.subband_index = indices.1;
+            Ok(value)
+        }
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(placement==crate::specs::private_standard_placement(context,before,(x,y,width,height)));
+        crate::specs::part2_cold_pure(placement);
+        let child=|events|Some((crate::specs::private_standard_placement(context,before,(x,y,width,height)),events));
+        let next=|place,rest|crate::specs::private_standard_cell_after_placement(before,decoded,place,rest);
+        if let Err(error)=placement{crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);}
+        if let Ok(place)=placement{prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,place);}
+    }
+    let placement = placement?;
+    let reserved = crate::allocation::reserve_additional(&mut state.placements, 1);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let capacity=crate::specs::PrivateOwnerCapacityContext::PlacementAppend {source:before.placements,next:placement};
+        crate::specs::private_owner_capacity_observed(capacity,crate::allocation::inspection_capacity_outcome(reserved));
+        let child=|events|crate::specs::private_owner_capacity_run(capacity,events);
+        let next=|_:(),rest|Some((crate::specs::private_standard_cell_finish(before,decoded,placement),rest));
+        if let Err(error)=reserved{crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);}
+        if reserved.is_ok(){prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,());}
+    }
+    reserved?;
+    state.placements.push(placement);
+    let next = state.next.checked_add(1).ok_or_else(arithmetic_overflow);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=next{assert(crate::specs::part2_cold_prefix(root,prefix,Err(error)));}
+    }
+    state.next = next?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(state.blocks@.map_values(|decoder:PrivateHtDecoder|decoder.storage_view()) =~= before.blocks.push(decoded));
+        assert(state.placements@ =~= before.placements.push(placement));
+        assert(state.view()==crate::specs::private_standard_cell_finish(before,decoded,placement).get_Ok_0());
+        assert(crate::specs::part2_cold_prefix(root,prefix,Ok(state.view())));
+    }
+    Ok(state)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires style.force_high_throughput,matches!(style.block_coding,Tier1BlockCoding::HighThroughput),
+    ensures crate::specs::part2_cold_framed(|events|crate::specs::private_standard_blocks_run(
+        private_standard_context(lattice,geometry,style,profile,(indices.0,indices.1)),
+        placements@,indices.2,starting_total,limits,events),private_standard_blocks_outcome(result)),
+    private_standard_blocks_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        private_standard_blocks_outcome(result)==crate::specs::private_standard_blocks_value(
+            private_standard_context(lattice,geometry,style,profile,(indices.0,indices.1)),
+            placements@,indices.2,starting_total,limits),
+    match result{Ok(value)=>value.invariant(),Err(_)=>true},
+))]
+fn plan_standard_blocks(
+    lattice: super::PlannedSubbandLattice,
+    geometry: SubbandGeometry,
+    style: Tier1CodingStyle,
+    profile: &codestream::CodestreamProfile,
+    indices: (usize, usize, usize),
+    placements: Vec<ProgressionCodeBlockPlacement>,
+    starting_total: u64,
+    limits: &ResourceLimits,
+) -> Result<PrivateHtStandardBlocks, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost context=private_standard_context(lattice,geometry,style,profile,(indices.0,indices.1));
+        let ghost original_placements=placements@;
+        let ghost original_total=starting_total;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(private_standard_context);reveal(super::planned_subband_lattice_view);
+        reveal(PrivateHtStandardBlocks::view);reveal(PrivateHtStandardBlocks::invariant);
+    }
+    let counted = u64::from(lattice.blocks[0])
+        .checked_mul(u64::from(lattice.blocks[1]))
+        .ok_or_else(arithmetic_overflow);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=counted {crate::specs::part2_cold_pure::<crate::specs::PrivateStandardBlocksState>(Err(error));}
+    }
+    let count = counted?;
+    let added = starting_total
+        .checked_add(count)
+        .ok_or_else(arithmetic_overflow);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=added {crate::specs::part2_cold_pure::<crate::specs::PrivateStandardBlocksState>(Err(error));}
+    }
+    let total = added?;
+    if total > limits.maximum_code_blocks() {
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_cold_pure::<crate::specs::PrivateStandardBlocksState>(
+        Err(DecodeError::LimitExceeded {resource:Resource::CodeBlocks,limit:crate::limits::resource_code_block_limit(limits),actual:total}));}
+        return Err(DecodeError::LimitExceeded {
+            resource: Resource::CodeBlocks,
+            limit: limits.maximum_code_blocks(),
+            actual: total,
+        });
+    }
+    if total > limits.maximum_work_units() {
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_cold_pure::<crate::specs::PrivateStandardBlocksState>(
+        Err(DecodeError::LimitExceeded {resource:Resource::WorkUnits,limit:crate::limits::resource_work_limit(limits),actual:total}));}
+        return Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            limit: limits.maximum_work_units(),
+            actual: total,
+        });
+    }
+    if count > usize::MAX as u64 {
+        #[cfg(verus_keep_ghost)]
+        proof! {crate::specs::part2_cold_pure::<crate::specs::PrivateStandardBlocksState>(Err(crate::specs::part1_block_placement_error(true)));}
+        return Err(arithmetic_overflow());
+    }
+    let capacity = count as usize;
+    let reserved = if capacity == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(capacity)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::specs::private_standard_blocks_admit(context,original_total,limits)==Ok((capacity,total)));
+        let response=match reserved {Err(error)=>Err(error),Ok(_)=>Ok(())};
+        if capacity==0{crate::specs::part2_cold_pure::<()>(Ok(()));}
+        else{crate::specs::private_owner_capacity_observed(crate::specs::private_standard_blocks_capacity(context,capacity),response);}
+        crate::specs::private_standard_blocks_capacity_observed(context,capacity,response);
+        if let Err(error)=reserved{
+            crate::specs::part2_cold_bind(|events|crate::specs::private_standard_blocks_capacity_run(context,capacity,events),
+                |_:(),rest|crate::specs::private_standard_rows_run(context,crate::specs::private_standard_blocks_initial(
+                    original_placements,indices.2,total),0,rest),Err(error),Err(error));
+        }
+    }
+    let mut state = PrivateHtStandardBlocks {
+        blocks: reserved?,
+        placements,
+        next: indices.2,
+        total,
+    };
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost initial=state.view();
+        let ghost mut row_prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(state.blocks@.map_values(|decoder:PrivateHtDecoder|decoder.storage_view()) =~= Seq::empty());
+        assert(initial==crate::specs::private_standard_blocks_initial(original_placements,indices.2,total));
+    }
+    let mut row = 0;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant row<=lattice.blocks[1],state.invariant(),state.total==total,
+            original_placements==placements@,original_total==starting_total,
+            context==private_standard_context(lattice,geometry,style,profile,(indices.0,indices.1)),
+            initial==crate::specs::private_standard_blocks_initial(original_placements,indices.2,total),
+            capacity as nat==lattice.blocks[0] as nat*lattice.blocks[1] as nat,
+            state.blocks.len() as nat==row as nat*lattice.blocks[0] as nat,
+            style.force_high_throughput,matches!(style.block_coding,Tier1BlockCoding::HighThroughput),
+            crate::specs::private_standard_blocks_admit(context,original_total,limits)==Ok((capacity,total)),
+            crate::specs::part2_cold_framed(|events|crate::specs::private_standard_blocks_capacity_run(context,capacity,events),Ok(())),
+            crate::specs::private_standard_rows_prefix(context,initial,row as nat,state.view(),row_prefix),
+            crate::specs::private_standard_blocks_value(context,original_placements,indices.2,original_total,limits)==
+                crate::specs::private_standard_rows_value(context,state.view(),row as nat),
+        decreases lattice.blocks[1]-row,
+    ))]
+    while row < lattice.blocks[1] {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost row_before=state.view();
+            let ghost mut column_prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {reveal_with_fuel(crate::specs::private_standard_rows_value,1);}
+        let mut column = 0;
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant column<=lattice.blocks[0],row<lattice.blocks[1],state.invariant(),state.total==total,
+                original_placements==placements@,original_total==starting_total,
+                context==private_standard_context(lattice,geometry,style,profile,(indices.0,indices.1)),
+                initial==crate::specs::private_standard_blocks_initial(original_placements,indices.2,total),
+                capacity as nat==lattice.blocks[0] as nat*lattice.blocks[1] as nat,
+                state.blocks.len() as nat==row as nat*lattice.blocks[0] as nat+column as nat,
+                style.force_high_throughput,matches!(style.block_coding,Tier1BlockCoding::HighThroughput),
+                crate::specs::private_standard_blocks_admit(context,original_total,limits)==Ok((capacity,total)),
+                crate::specs::part2_cold_framed(|events|crate::specs::private_standard_blocks_capacity_run(context,capacity,events),Ok(())),
+                crate::specs::private_standard_rows_prefix(context,initial,row as nat,row_before,row_prefix),
+                crate::specs::private_standard_columns_prefix(context,row_before,row,column as nat,state.view(),column_prefix),
+                crate::specs::private_standard_blocks_value(context,original_placements,indices.2,original_total,limits)==
+                    match crate::specs::private_standard_columns_value(context,state.view(),row,column as nat){
+                        Err(error)=>Err(error),Ok(after)=>crate::specs::private_standard_rows_value(context,after,row as nat+1),
+                    },
+            decreases lattice.blocks[0]-column,
+        ))]
+        while column < lattice.blocks[0] {
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {let ghost before=state.view();}
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert((row as nat)*(lattice.blocks[0] as nat)+(column as nat)<capacity) by(nonlinear_arith)
+                    requires row<lattice.blocks[1],column<lattice.blocks[0],
+                        capacity as nat==lattice.blocks[0] as nat*lattice.blocks[1] as nat;
+                reveal_with_fuel(crate::specs::private_standard_columns_value,1);
+            }
+            #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+            crate::deadline::checkpoint()?;
+            let appended = append_standard_block(
+                lattice,
+                [column, row],
+                geometry,
+                style,
+                profile,
+                (indices.0, indices.1),
+                state,
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=appended{
+                    crate::specs::private_standard_column_error(context,row_before,row,column as nat,before,column_prefix,error);
+                    crate::specs::private_standard_row_error(context,initial,row as nat,row_before,row_prefix,error);
+                    crate::specs::private_standard_blocks_rows_observed(context,original_placements,indices.2,original_total,
+                        limits,capacity,total,Err(error));
+                }
+                if let Ok(after)=private_standard_blocks_outcome(appended){
+                    column_prefix=crate::specs::private_standard_column_advance(context,row_before,row,column as nat,before,column_prefix,after);
+                }
+            }
+            state = appended?;
+            column += 1;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::private_standard_columns_finish(context,row_before,row,state.view(),column_prefix);
+            row_prefix=crate::specs::private_standard_row_advance(context,initial,row as nat,row_before,row_prefix,state.view());
+            reveal_with_fuel(crate::specs::private_standard_columns_value,1);
+            assert(row as nat*lattice.blocks[0] as nat+lattice.blocks[0] as nat==
+                (row as nat+1)*lattice.blocks[0] as nat) by(nonlinear_arith);
+        }
+        row += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::private_standard_rows_finish(context,initial,state.view(),row_prefix);
+        crate::specs::private_standard_blocks_rows_observed(context,original_placements,indices.2,original_total,
+            limits,capacity,total,Ok(state.view()));
+        reveal_with_fuel(crate::specs::private_standard_rows_value,1);
+    }
+    Ok(state)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires style.force_high_throughput,matches!(style.block_coding,Tier1BlockCoding::HighThroughput),
+    ensures crate::specs::part2_cold_framed(|events|crate::specs::private_standard_precinct_run(
+        private_standard_precinct_context(band,block_size,subbands@,range,style,profile,location,limits),
+        placements@,starting_total,events),private_standard_precinct_outcome(result)),
+    private_standard_precinct_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        private_standard_precinct_outcome(result)==crate::specs::private_standard_precinct_value(
+            private_standard_precinct_context(band,block_size,subbands@,range,style,profile,location,limits),placements@,starting_total),
+    match result{Ok(value)=>value.precinct.invariant(),Err(_)=>true},
+))]
+fn plan_standard_precinct(
+    band: [u32; 4],
+    block_size: [u32; 2],
+    subbands: &[SubbandGeometry],
+    range: (usize, usize),
+    style: Tier1CodingStyle,
+    profile: &codestream::CodestreamProfile,
+    location: (u8, u32, usize),
+    placements: Vec<ProgressionCodeBlockPlacement>,
+    starting_total: u64,
+    limits: &ResourceLimits,
+) -> Result<PrivateHtStandardPlannedPrecinct, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost context=private_standard_precinct_context(band,block_size,subbands@,range,style,profile,location,limits);
+        let ghost original_placements=placements@;
+        let ghost original_total=starting_total;
+        let ghost root=|events|crate::specs::private_standard_precinct_run(context,original_placements,original_total,events);
+        let ghost mut prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(private_standard_precinct_context);reveal(PrivateHtStandardPrecinctBuilder::view);
+        reveal(PrivateHtStandardPrecinctBuilder::invariant);
+    }
+    let reserved = if range.1 == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::allocation::empty_with_capacity(range.1)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let response=match reserved {Err(error)=>Err(error),Ok(_)=>Ok(())};
+        if range.1==0{crate::specs::part2_cold_pure::<()>(Ok(()));}
+        else{crate::specs::private_owner_capacity_observed(crate::specs::PrivateOwnerCapacityContext::StandardExecutions {
+            context,placements:original_placements,total:original_total,
+        },response);}
+        crate::specs::private_standard_executions_observed(context,original_placements,original_total,response);
+        let child=|events|crate::specs::private_standard_executions_run(context,original_placements,original_total,events);
+        let next=|_:(),rest|crate::specs::private_standard_bands_run(context,0,
+            crate::specs::PrivateStandardPrecinctBuffers {executions:Seq::empty(),placements:original_placements,next:0,total:original_total},rest);
+        if let Err(error)=reserved {crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);}
+        if reserved.is_ok(){prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,());}
+    }
+    let mut builder = PrivateHtStandardPrecinctBuilder {
+        executions: reserved?,
+        placements,
+        next: 0,
+        total: starting_total,
+    };
+    let mut local = 0;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::packet::private_executions_view(builder.executions@) =~= Seq::empty());
+        assert(builder.view()==(crate::specs::PrivateStandardPrecinctBuffers {
+            executions:Seq::empty(),placements:original_placements,next:0,total:original_total,
+        }));
+    }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant local<=range.1,builder.invariant(),builder.executions.len()<=local,
+            original_placements==placements@,original_total==starting_total,
+            context==private_standard_precinct_context(band,block_size,subbands@,range,style,profile,location,limits),
+            forall|events| #[trigger] root(events)==crate::specs::private_standard_precinct_run(context,original_placements,original_total,events),
+            style.force_high_throughput,matches!(style.block_coding,Tier1BlockCoding::HighThroughput),
+            forall|events| #[trigger] root(prefix+events)==crate::specs::private_standard_bands_run(context,local as nat,builder.view(),events),
+            crate::specs::private_standard_precinct_value(context,original_placements,original_total)==
+                crate::specs::private_standard_bands_value(context,local as nat,builder.view()),
+        decreases range.1-local,
+    ))]
+    while local < range.1 {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost before=builder.view();}
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal_with_fuel(crate::specs::private_standard_bands_run,1);
+            reveal_with_fuel(crate::specs::private_standard_bands_value,1);
+        }
+        let indexed = range.0.checked_add(local).ok_or_else(arithmetic_overflow);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error)=indexed {
+                crate::specs::part2_cold_pure::<crate::specs::PrivateStandardPrecinctBuffers>(Err(error));
+                crate::specs::part2_decode_prefix_error(root,|events|crate::specs::private_standard_band_run(context,local as nat,before,events),
+                    |after,rest|crate::specs::private_standard_bands_run(context,local as nat+1,after,rest),prefix,error);
+                crate::specs::part2_cold_framed_extensional(root,|events|crate::specs::private_standard_precinct_run(
+                    context,original_placements,original_total,events),Err(error));
+            }
+        }
+        let index = indexed?;
+        let selected = subbands.get(index).ok_or_else(invalid_decode);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error)=selected {
+                crate::specs::part2_cold_pure::<crate::specs::PrivateStandardPrecinctBuffers>(Err(error));
+                crate::specs::part2_decode_prefix_error(root,|events|crate::specs::private_standard_band_run(context,local as nat,before,events),
+                    |after,rest|crate::specs::private_standard_bands_run(context,local as nat+1,after,rest),prefix,error);
+                crate::specs::part2_cold_framed_extensional(root,|events|crate::specs::private_standard_precinct_run(
+                    context,original_placements,original_total,events),Err(error));
+            }
+        }
+        let geometry = *selected?;
+        let derived = super::planning::derive_planned_subband_lattice(band, block_size, geometry);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error)=derived {
+                crate::specs::part2_cold_pure::<crate::specs::PrivateStandardPrecinctBuffers>(Err(error));
+                crate::specs::part2_decode_prefix_error(root,|events|crate::specs::private_standard_band_run(context,local as nat,before,events),
+                    |after,rest|crate::specs::private_standard_bands_run(context,local as nat+1,after,rest),prefix,error);
+                crate::specs::part2_cold_framed_extensional(root,|events|crate::specs::private_standard_precinct_run(
+                    context,original_placements,original_total,events),Err(error));
+            }
+        }
+        if let Some(lattice) = derived? {
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {
+                let ghost lattice_view=super::planned_subband_lattice_view(lattice);
+                let ghost child_context=crate::specs::private_standard_band_context(context,index,geometry,lattice_view);
+            }
+            let planned = plan_standard_blocks(
+                lattice,
+                geometry,
+                style,
+                profile,
+                (location.2, index, builder.next),
+                builder.placements,
+                builder.total,
+                limits,
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=planned {
+                    crate::specs::part2_cold_bind(|events|crate::specs::private_standard_blocks_run(child_context,
+                        before.placements,before.next,before.total,limits,events),
+                        |blocks,rest|Some((Ok(crate::specs::private_standard_after_band(before,geometry,lattice_view,blocks)),rest)),
+                        Err(error),Err(error));
+                    crate::specs::part2_decode_prefix_error(root,|events|crate::specs::private_standard_band_run(context,local as nat,before,events),
+                        |after,rest|crate::specs::private_standard_bands_run(context,local as nat+1,after,rest),prefix,error);
+                    crate::specs::part2_cold_framed_extensional(root,|events|crate::specs::private_standard_precinct_run(
+                        context,original_placements,original_total,events),Err(error));
+                }
+            }
+            let blocks = planned?;
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {let ghost child=blocks.view();}
+            #[cfg(verus_keep_ghost)]
+            proof! {blocks.known_fields();}
+            builder.placements = blocks.placements;
+            builder.next = blocks.next;
+            builder.total = blocks.total;
+            let execution = crate::packet::PrivateHtSubbandExecution {
+                orientation: geometry.orientation,
+                across: lattice.blocks[0],
+                down: lattice.blocks[1],
+                maximum_zero: geometry.significant_bitplanes,
+                decoders: blocks.blocks,
+            };
+            #[cfg(verus_keep_ghost)]
+            proof! {execution.known_fields();assert(execution.invariant());}
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {let ghost published=execution.view();}
+            builder.executions.push(execution);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(crate::packet::private_executions_view(builder.executions@) =~= before.executions.push(published));
+                assert(published==(crate::specs::PrivateHtExecutionState {
+                    orientation:geometry.orientation,across:lattice_view.blocks[0],down:lattice_view.blocks[1],
+                    maximum_zero:geometry.significant_bitplanes,decoders:child.blocks,
+                }));
+                assert(builder.view()==crate::specs::private_standard_after_band(before,geometry,lattice_view,child));
+                crate::specs::part2_cold_pure::<crate::specs::PrivateStandardPrecinctBuffers>(Ok(builder.view()));
+                crate::specs::part2_cold_bind(|events|crate::specs::private_standard_blocks_run(child_context,
+                    before.placements,before.next,before.total,limits,events),
+                    |blocks,rest|Some((Ok(crate::specs::private_standard_after_band(before,geometry,lattice_view,blocks)),rest)),
+                    Ok(child),Ok(builder.view()));
+            }
+        } else {
+            #[cfg(verus_keep_ghost)]
+            proof! {crate::specs::part2_cold_pure::<crate::specs::PrivateStandardPrecinctBuffers>(Ok(builder.view()));}
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            prefix=crate::specs::part2_decode_prefix_advance(root,
+                |events|crate::specs::private_standard_band_run(context,local as nat,before,events),
+                |after,rest|crate::specs::private_standard_bands_run(context,local as nat+1,after,rest),prefix,builder.view());
+        }
+        local += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal_with_fuel(crate::specs::private_standard_bands_run,1);
+        reveal_with_fuel(crate::specs::private_standard_bands_value,1);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost before=builder.view();}
+    let initialized = crate::packet::new_private_ht_resolution_precinct(
+        location.0,
+        location.1,
+        style,
+        builder.executions,
+        limits,
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let child=|events|crate::specs::private_resolution_initial_run(crate::specs::private_standard_precinct_initial_context(context,before),events);
+        let next=|precinct,rest|Some((Ok(crate::specs::PrivateStandardPlannedPrecinct {precinct,placements:before.placements,total:before.total}),rest));
+        if let Err(error)=initialized {crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);}
+        if let Ok(value)=crate::packet::private_precinct_outcome(initialized){
+            prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,value);
+        }
+    }
+    let precinct = initialized?;
+    let result = PrivateHtStandardPlannedPrecinct {
+        precinct,
+        placements: builder.placements,
+        total: builder.total,
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(PrivateHtStandardPlannedPrecinct::view);
+        assert(crate::specs::part2_cold_prefix(root,prefix,Ok(result.view())));
+    }
+    Ok(result)
+}
+
 enum PrivateHtReadablePrecincts<'a> {
     One(&'a PrivateHtPrecinct),
     Resolutions(&'a [PrivateHtPrecinct]),
@@ -42,6 +632,110 @@ struct PrivateHtReadable<'a> {
 
 #[cfg(verus_keep_ghost)]
 verus! {
+    closed spec fn private_standard_precinct_context(
+        band:[u32;4],block:[u32;2],subbands:Seq<SubbandGeometry>,range:(usize,usize),style:Tier1CodingStyle,
+        profile:&codestream::CodestreamProfile,location:(u8,u32,usize),limits:&ResourceLimits,
+    )->crate::specs::PrivateStandardPrecinctContext {
+        crate::specs::PrivateStandardPrecinctContext {
+            band,block,subbands,range,style,
+            allowed:crate::specs::part2_profile_multiple_sets(codestream::codestream_profile_capabilities(profile)),
+            bound:crate::specs::part2_profile_magnitude_bound(codestream::codestream_profile_capabilities(profile)),
+            location,limits:*limits,
+        }
+    }
+    closed spec fn private_standard_plan_context(size:&ImageSize,tile:u16,first:&TilePartPayload<'_>,
+        profile:&codestream::CodestreamProfile,limits:&ResourceLimits)->crate::specs::PrivateStandardPlanContext {
+        crate::specs::PrivateStandardPlanContext {
+            size:*size,tile,first:codestream::tile_part_owned_view(first),
+            caps:codestream::codestream_profile_capabilities(profile),limits:*limits,
+        }
+    }
+    impl PrivateHtStandardPrecinctBuilder {
+        closed spec fn view(&self)->crate::specs::PrivateStandardPrecinctBuffers {
+            crate::specs::PrivateStandardPrecinctBuffers {
+                executions:crate::packet::private_executions_view(self.executions@),
+                placements:self.placements@,next:self.next,total:self.total,
+            }
+        }
+        closed spec fn invariant(&self)->bool {
+            forall|i:int|0<=i<self.executions.len() ==> #[trigger] self.executions@[i].invariant()
+        }
+    }
+    impl PrivateHtStandardPlannedPrecinct {
+        closed spec fn view(&self)->crate::specs::PrivateStandardPlannedPrecinct {
+            crate::specs::PrivateStandardPlannedPrecinct {
+                precinct:self.precinct.storage_view(),placements:self.placements@,total:self.total,
+            }
+        }
+    }
+    spec fn private_standard_precinct_outcome(result:Result<PrivateHtStandardPlannedPrecinct,DecodeError>)
+        ->Result<crate::specs::PrivateStandardPlannedPrecinct,DecodeError> {
+        match result{Err(error)=>Err(error),Ok(value)=>Ok(value.view())}
+    }
+    impl PrivateHtStandardPlanBuffers {
+        closed spec fn view(&self)->crate::specs::PrivateStandardComponentBuffers {
+            crate::specs::PrivateStandardComponentBuffers {
+                precincts:crate::packet::private_precincts_view(self.precincts@),
+                placements:self.placements@,total:self.total,
+            }
+        }
+        closed spec fn invariant(&self)->bool {
+            forall|i:int|0<=i<self.precincts.len() ==> #[trigger] self.precincts@[i].invariant()
+        }
+    }
+    impl PrivateHtStandardPlan {
+        closed spec fn view(&self)->crate::specs::PrivateStandardPlanState {
+            crate::specs::PrivateStandardPlanState {
+                component:super::prepare_plan_view(&self.component),grid:crate::packet::packet_grid_view(&self.grid),
+                precincts:crate::packet::private_precincts_view(self.precincts@),
+            }
+        }
+        closed spec fn invariant(&self)->bool {
+            forall|i:int|0<=i<self.precincts.len() ==> #[trigger] self.precincts@[i].invariant()
+        }
+    }
+    spec fn private_standard_plan_outcome(result:Result<PrivateHtStandardPlan,DecodeError>)
+        ->Result<crate::specs::PrivateStandardPlanState,DecodeError> {
+        match result{Err(error)=>Err(error),Ok(value)=>Ok(value.view())}
+    }
+    closed spec fn private_standard_context(
+        lattice:super::PlannedSubbandLattice,geometry:SubbandGeometry,style:Tier1CodingStyle,
+        profile:&codestream::CodestreamProfile,indices:(usize,usize),
+    )->crate::specs::PrivateStandardBlockContext {
+        crate::specs::PrivateStandardBlockContext {
+            lattice:super::planned_subband_lattice_view(lattice),geometry,style,
+            allowed:crate::specs::part2_profile_multiple_sets(codestream::codestream_profile_capabilities(profile)),
+            bound:crate::specs::part2_profile_magnitude_bound(codestream::codestream_profile_capabilities(profile)),indices,
+        }
+    }
+    impl PrivateHtStandardBlocks {
+        closed spec fn view(&self)->crate::specs::PrivateStandardBlocksState {
+            crate::specs::PrivateStandardBlocksState {
+                blocks:self.blocks@.map_values(|decoder:PrivateHtDecoder|decoder.storage_view()),
+                placements:self.placements@,next:self.next,total:self.total,
+            }
+        }
+        closed spec fn invariant(&self)->bool {
+            forall|i:int|0<=i<self.blocks.len() ==> #[trigger] self.blocks@[i].invariant()
+        }
+        proof fn known_fields(&self)
+            ensures self.invariant()==crate::specs::private_standard_blocks_wf(self.view()),
+                self.view()==(crate::specs::PrivateStandardBlocksState {
+                    blocks:self.blocks@.map_values(|decoder:PrivateHtDecoder|decoder.storage_view()),
+                    placements:self.placements@,next:self.next,total:self.total,
+                }),
+        {
+            reveal(PrivateHtStandardBlocks::view);reveal(PrivateHtStandardBlocks::invariant);
+            assert forall|i:int|0<=i<self.blocks.len() implies
+                self.blocks@[i].invariant()==crate::specs::private_ht_state_wf(self.view().blocks[i]) by {
+                self.blocks@[i].known_fields();
+            }
+        }
+    }
+    spec fn private_standard_blocks_outcome(result:Result<PrivateHtStandardBlocks,DecodeError>)
+        ->Result<crate::specs::PrivateStandardBlocksState,DecodeError> {
+        match result{Err(error)=>Err(error),Ok(value)=>Ok(value.view())}
+    }
     impl PrivateHtReadable<'_> {
         closed spec fn precincts_view(&self)->Seq<crate::specs::PrivateHtPrecinctState> {
             match self.precincts {
@@ -59,9 +753,11 @@ impl PrivateHtReadable<'_> {
             Ok(value)=>precinct<self.precincts_view().len()
                 && decoder<self.precincts_view()[precinct as int].logical.decoders.len()
                 && value.view()==self.precincts_view()[precinct as int].logical.decoders[decoder as int],
-            Err(error)=>error==if precinct>=self.precincts_view().len(){
-                crate::specs::part1_block_placement_error(false)
-            }else{crate::specs::part1_packet_header_error()},
+            Err(error)=>(precinct>=self.precincts_view().len()
+                || decoder>=self.precincts_view()[precinct as int].logical.decoders.len())
+                && error==if precinct>=self.precincts_view().len(){
+                    crate::specs::part1_block_placement_error(false)
+                }else{crate::specs::part1_packet_header_error()},
         },
     ))]
     fn decoder(&self, precinct: usize, decoder: usize) -> Result<&PrivateHtDecoder, DecodeError> {
@@ -86,6 +782,10 @@ impl PrivateHtReadable<'_> {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result==crate::specs::private_ht_standard_eligible(size,tile,
+        codestream::tile_parts_owned_view(parts@),codestream::codestream_profile_capabilities(profile),discard),
+))]
 pub(super) fn standard_eligible(
     size: &ImageSize,
     tile: u16,
@@ -93,6 +793,11 @@ pub(super) fn standard_eligible(
     profile: &codestream::CodestreamProfile,
     discard: Option<u8>,
 ) -> bool {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::selection_geometry_known_fields(size);
+        reveal(codestream::tile_part_owned_view);
+    }
     if !super::PRIVATE_HT_PRIMARY_ENABLED
         || size.components != 1
         || parts.len() != 1
@@ -131,7 +836,7 @@ pub(super) fn standard_eligible(
         && style.decomposition_structure.is_none()
         && !style.precincts_defined
         && !matches!(style.transform, WaveletTransform::Arbitrary(_))
-        && style.equals(first.coding_style)
+        && codestream::effective_coding_styles_equal(style, first.coding_style)
         && !first.has_functional_header_marker
         && !first.coding_style.multiple_component_transform
         && first.multiple_component_transform.is_none()
@@ -151,6 +856,16 @@ pub(super) fn standard_eligible(
         && geometry.precincts_down == 1
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires crate::specs::private_ht_standard_eligible(size,tile,seq![codestream::tile_part_owned_view(first)],
+        codestream::codestream_profile_capabilities(profile),None),
+    ensures crate::specs::private_standard_plan_result(private_standard_plan_context(size,tile,first,profile,limits),
+        private_standard_plan_outcome(result)),
+    private_standard_plan_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        private_standard_plan_outcome(result)==crate::specs::private_standard_plan_value(
+            private_standard_plan_context(size,tile,first,profile,limits)),
+    match result{Ok(value)=>value.invariant() && value.component.component==0,Err(_)=>true},
+))]
 fn plan_standard(
     size: &ImageSize,
     tile: u16,
@@ -158,16 +873,41 @@ fn plan_standard(
     profile: &codestream::CodestreamProfile,
     limits: &ResourceLimits,
 ) -> Result<PrivateHtStandardPlan, DecodeError> {
-    size.tile_bounds(tile)?;
-    let grid = super::geometry::derive_packet_grid_for_components(
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost context=private_standard_plan_context(size,tile,first,profile,limits);
+        let ghost root=|events|crate::specs::private_standard_plan_run(context,events);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(private_standard_plan_context);reveal(codestream::tile_part_owned_view);
+        codestream::selection_geometry_known_fields(size);
+    }
+    let bounds = size.tile_bounds(tile);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=bounds {crate::specs::part2_cold_pure::<crate::specs::PrivateStandardPlanState>(Err(error));}}
+    bounds?;
+    let derived_grid = super::geometry::derive_packet_grid_for_components(
         size,
         &first.component_coding_styles,
         first.coding_style.layers,
         limits,
         Some(tile),
         0,
-    )?;
-    let metadata = super::planning::prepare_component_plan_metadata(
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_spatial_derived_grid_result);
+        if let Err(error)=derived_grid{
+            crate::specs::part2_cold_bind(|events|crate::specs::part2_spatial_derived_grid_run(size,
+                &context.first.component_coding_styles,context.first.coding_style.layers,limits,Some(tile),0,events),
+                |grid,rest|crate::specs::private_standard_plan_after_grid(context,grid,rest),Err(error),Err(error));
+        }
+    }
+    let grid = derived_grid?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost grid_value=crate::packet::packet_grid_view(&grid);}
+    let derived_metadata = super::planning::prepare_component_plan_metadata(
         size,
         &first.component_coding_styles,
         &first.component_quantizations,
@@ -175,119 +915,214 @@ fn plan_standard(
         0,
         (tile, 0),
         profile.part15_requires_all_ht_blocks(),
-    )?;
-    let mut precincts = Vec::new();
-    let mut placements = Vec::new();
-    let mut total = 0_u64;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_component_metadata_result);
+        if let Err(error)=derived_metadata{
+            crate::specs::part2_cold_bind(|events|crate::specs::part2_component_metadata_run(size,&context.first.component_coding_styles,
+                context.first.component_quantizations,&context.first.roi_shifts,0,(tile,0),
+                crate::specs::part2_profile_force_ht(context.caps),events),
+                |metadata,rest|crate::specs::private_standard_plan_after_metadata(context,grid_value,metadata,rest),Err(error),Err(error));
+            crate::specs::part2_decode_eta(|events|crate::specs::private_standard_plan_after_grid(context,grid_value,events),Err(error));
+            crate::specs::part2_cold_bind(|events|crate::specs::part2_spatial_derived_grid_run(size,&context.first.component_coding_styles,
+                context.first.coding_style.layers,limits,Some(tile),0,events),
+                |grid,rest|crate::specs::private_standard_plan_after_grid(context,grid,rest),Ok(grid_value),Err(error));
+        }
+    }
+    let metadata = derived_metadata?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost meta=super::component_plan_metadata_view(&metadata);}
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::private_standard_metadata_fields(context,meta);
+        assert(crate::specs::private_standard_plan_prepared(context,grid_value,meta));
+        reveal(PrivateHtStandardPlanBuffers::view);reveal(PrivateHtStandardPlanBuffers::invariant);
+    }
+    let mut builder = PrivateHtStandardPlanBuffers {
+        precincts: Vec::new(),
+        placements: Vec::new(),
+        total: 0,
+    };
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost initial=builder.view();
+        let ghost mut resolution_prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::packet::private_precincts_view(builder.precincts@) =~= Seq::empty());
+        assert(initial==(crate::specs::PrivateStandardComponentBuffers {precincts:Seq::empty(),placements:Seq::empty(),total:0}));
+    }
     let mut resolution = 0_u8;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant resolution<=metadata.component_coding_style.decomposition_levels as int+1,builder.invariant(),
+            metadata.tier1_style.force_high_throughput,matches!(metadata.tier1_style.block_coding,Tier1BlockCoding::HighThroughput),
+            context==private_standard_plan_context(size,tile,first,profile,limits),
+            meta==super::component_plan_metadata_view(&metadata),grid_value==crate::packet::packet_grid_view(&grid),
+            initial==(crate::specs::PrivateStandardComponentBuffers {precincts:Seq::empty(),placements:Seq::empty(),total:0}),
+            crate::specs::private_standard_plan_prepared(context,grid_value,meta),
+            crate::specs::private_standard_resolutions_prefix(context,meta,initial,resolution as nat,builder.view(),resolution_prefix),
+            crate::specs::private_standard_plan_value(context)==match crate::specs::private_standard_resolutions_value(
+                context,meta,resolution as nat,builder.view()){
+                Err(error)=>Err(error),Ok(after)=>Ok(crate::specs::private_standard_plan_finish(meta,grid_value,after)),
+            },
+        decreases metadata.component_coding_style.decomposition_levels as int+1-resolution as int,
+    ))]
     while resolution <= metadata.component_coding_style.decomposition_levels {
-        let data = super::planning::prepare_resolution_plan_metadata(
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {let ghost resolution_before=builder.view();}
+        #[cfg(verus_keep_ghost)]
+        proof! {reveal_with_fuel(crate::specs::private_standard_resolutions_value,1);}
+        let derived_data = super::planning::prepare_resolution_plan_metadata(
             size,
             metadata.component_coding_style,
             0,
             (tile, resolution),
             [metadata.bounds.x0, metadata.bounds.y0],
-        )?;
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if let Err(error)=derived_data{
+                crate::specs::part2_cold_pure::<crate::specs::PrivateStandardComponentBuffers>(Err(error));
+                crate::specs::private_standard_resolutions_error(context,meta,initial,resolution as nat,resolution_before,resolution_prefix,error);
+                crate::specs::private_standard_plan_resolutions_observed(context,grid_value,meta,Err(error));
+            }
+        }
+        let data = derived_data?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost data_value=super::resolution_plan_metadata_view(&data);
+            let ghost mut precinct_prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+        }
         let mut precinct = 0;
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant precinct<=data.precincts_in_resolution,builder.invariant(),
+                metadata.tier1_style.force_high_throughput,matches!(metadata.tier1_style.block_coding,Tier1BlockCoding::HighThroughput),
+                resolution<=metadata.component_coding_style.decomposition_levels,
+                context==private_standard_plan_context(size,tile,first,profile,limits),
+                meta==super::component_plan_metadata_view(&metadata),grid_value==crate::packet::packet_grid_view(&grid),
+                data_value==super::resolution_plan_metadata_view(&data),
+                initial==(crate::specs::PrivateStandardComponentBuffers {precincts:Seq::empty(),placements:Seq::empty(),total:0}),
+                crate::specs::private_standard_plan_prepared(context,grid_value,meta),
+                crate::specs::private_standard_resolutions_prefix(context,meta,initial,resolution as nat,resolution_before,resolution_prefix),
+                crate::specs::part2_resolution_plan_metadata(size,meta.coding_style,0,(tile,resolution),[meta.bounds.x0,meta.bounds.y0])==Ok(data_value),
+                crate::specs::private_standard_precincts_prefix(context,meta,data_value,resolution,resolution_before,precinct as nat,builder.view(),precinct_prefix),
+                crate::specs::private_standard_plan_value(context)==match crate::specs::private_standard_precincts_value(
+                    context,meta,data_value,resolution,precinct as nat,builder.view()){
+                    Err(error)=>Err(error),Ok(after)=>if resolution==u8::MAX{Err(crate::specs::part1_block_placement_error(true))}
+                        else{match crate::specs::private_standard_resolutions_value(context,meta,resolution as nat+1,after){
+                            Err(error)=>Err(error),Ok(last)=>Ok(crate::specs::private_standard_plan_finish(meta,grid_value,last)),
+                        }},
+                },
+            decreases data.precincts_in_resolution-precinct,
+        ))]
         while precinct < data.precincts_in_resolution {
-            let origin = super::planning::derive_planned_precinct_origin(
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {let ghost before=builder.view();}
+            #[cfg(verus_keep_ghost)]
+            proof! {reveal_with_fuel(crate::specs::private_standard_precincts_value,1);}
+            let derived_origin = super::planning::derive_planned_precinct_origin(
                 data.first_precinct,
                 data.geometry.precincts_across,
                 precinct,
                 data.band_size,
-            )?;
-            let region = [origin[0], origin[1], data.band_size[0], data.band_size[1]];
-            let mut executions = if data.subband_count == 0 {
-                Vec::new()
-            } else {
-                crate::allocation::empty_with_capacity(data.subband_count)?
-            };
-            let mut decoder_index = 0_usize;
-            let mut local = 0;
-            while local < data.subband_count {
-                let subband_index = data
-                    .first_subband
-                    .checked_add(local)
-                    .ok_or_else(arithmetic_overflow)?;
-                let geometry = *metadata
-                    .subbands
-                    .get(subband_index)
-                    .ok_or_else(invalid_decode)?;
-                if let Some(lattice) = super::planning::derive_planned_subband_lattice(
-                    region,
-                    data.block_size,
-                    geometry,
-                )? {
-                    let count = u64::from(lattice.blocks[0])
-                        .checked_mul(u64::from(lattice.blocks[1]))
-                        .ok_or_else(arithmetic_overflow)?;
-                    total = total.checked_add(count).ok_or_else(arithmetic_overflow)?;
-                    if total > limits.maximum_code_blocks() {
-                        return Err(DecodeError::LimitExceeded {
-                            resource: Resource::CodeBlocks,
-                            limit: limits.maximum_code_blocks(),
-                            actual: total,
-                        });
-                    }
-                    if total > limits.maximum_work_units() {
-                        return Err(DecodeError::LimitExceeded {
-                            resource: Resource::WorkUnits,
-                            limit: limits.maximum_work_units(),
-                            actual: total,
-                        });
-                    }
-                    let mut band = plan_subband(
-                        geometry,
-                        metadata.tier1_style,
-                        region,
-                        data.block_size,
-                        profile,
-                        limits,
-                    )?;
-                    let mut index = 0;
-                    while index < band.placements.len() {
-                        let placement =
-                            band.placements.get_mut(index).ok_or_else(invalid_decode)?;
-                        placement.precinct_index = precincts.len();
-                        placement.subband_index = subband_index;
-                        placement.decoder_index = decoder_index
-                            .checked_add(index)
-                            .ok_or_else(arithmetic_overflow)?;
-                        index += 1;
-                    }
-                    decoder_index = decoder_index
-                        .checked_add(band.blocks.len())
-                        .ok_or_else(arithmetic_overflow)?;
-                    if !band.placements.is_empty() {
-                        crate::allocation::reserve_additional(
-                            &mut placements,
-                            band.placements.len(),
-                        )?;
-                    }
-                    placements.append(&mut band.placements);
-                    executions.push(crate::packet::PrivateHtSubbandExecution {
-                        orientation: geometry.orientation,
-                        across: band.across,
-                        down: band.down,
-                        maximum_zero: geometry.significant_bitplanes,
-                        decoders: band.blocks,
-                    });
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=derived_origin {
+                    crate::specs::part2_cold_pure::<crate::specs::PrivateStandardComponentBuffers>(Err(error));
+                    crate::specs::private_standard_precincts_error(context,meta,data_value,resolution,resolution_before,
+                        precinct as nat,before,precinct_prefix,error);
+                    crate::specs::private_standard_resolution_precincts_observed(context,meta,data_value,resolution,resolution_before,Err(error));
+                    crate::specs::private_standard_resolutions_error(context,meta,initial,resolution as nat,resolution_before,resolution_prefix,error);
+                    crate::specs::private_standard_plan_resolutions_observed(context,grid_value,meta,Err(error));
                 }
-                local += 1;
             }
-            let row = crate::packet::new_private_ht_resolution_precinct(
-                resolution,
+            let origin = derived_origin?;
+            let region = [origin[0], origin[1], data.band_size[0], data.band_size[1]];
+            let planned_row = plan_standard_precinct(
+                region,
+                data.block_size,
+                &metadata.subbands,
+                (data.first_subband, data.subband_count),
                 metadata.tier1_style,
-                executions,
+                profile,
+                (resolution, precinct, builder.precincts.len()),
+                builder.placements,
+                builder.total,
                 limits,
-            )?;
-            crate::allocation::reserve_additional(&mut precincts, 1)?;
-            precincts.push(row);
+            );
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                if let Err(error)=planned_row{
+                    crate::specs::private_standard_precinct_step_observed(context,meta,data_value,resolution,precinct,before,origin,Err(error),Ok(()));
+                    crate::specs::private_standard_precincts_error(context,meta,data_value,resolution,resolution_before,
+                        precinct as nat,before,precinct_prefix,error);
+                    crate::specs::private_standard_resolution_precincts_observed(context,meta,data_value,resolution,resolution_before,Err(error));
+                    crate::specs::private_standard_resolutions_error(context,meta,initial,resolution as nat,resolution_before,resolution_prefix,error);
+                    crate::specs::private_standard_plan_resolutions_observed(context,grid_value,meta,Err(error));
+                }
+            }
+            let row = planned_row?;
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {let ghost row_value=row.view();}
+            builder.placements = row.placements;
+            builder.total = row.total;
+            let reserved = crate::allocation::reserve_additional(&mut builder.precincts, 1);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let capacity=crate::specs::PrivateOwnerCapacityContext::ResolutionAppend {source:before.precincts,next:row_value.precinct};
+                crate::specs::private_owner_capacity_observed(capacity,crate::allocation::inspection_capacity_outcome(reserved));
+                if let Err(error)=reserved{
+                    crate::specs::private_standard_precinct_step_observed(context,meta,data_value,resolution,precinct,before,origin,Ok(row_value),Err(error));
+                    crate::specs::private_standard_precincts_error(context,meta,data_value,resolution,resolution_before,
+                        precinct as nat,before,precinct_prefix,error);
+                    crate::specs::private_standard_resolution_precincts_observed(context,meta,data_value,resolution,resolution_before,Err(error));
+                    crate::specs::private_standard_resolutions_error(context,meta,initial,resolution as nat,resolution_before,resolution_prefix,error);
+                    crate::specs::private_standard_plan_resolutions_observed(context,grid_value,meta,Err(error));
+                }
+            }
+            reserved?;
+            #[cfg(verus_keep_ghost)]
+            proof_decl! {let ghost prior_precincts=builder.precincts@;}
+            builder.precincts.push(row.precinct);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(crate::packet::private_precincts_view(builder.precincts@) =~=
+                    crate::packet::private_precincts_view(prior_precincts).push(row_value.precinct));
+                assert(builder.view()==crate::specs::private_standard_after_precinct(before,row_value));
+                crate::specs::private_standard_precinct_step_observed(context,meta,data_value,resolution,precinct,before,origin,Ok(row_value),Ok(()));
+                precinct_prefix=crate::specs::private_standard_precincts_advance(context,meta,data_value,resolution,resolution_before,
+                    precinct as nat,before,precinct_prefix,builder.view());
+            }
             precinct = precinct.checked_add(1).ok_or_else(arithmetic_overflow)?;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::private_standard_precincts_finish(context,meta,data_value,resolution,resolution_before,builder.view(),precinct_prefix);
+            crate::specs::private_standard_resolution_precincts_observed(context,meta,data_value,resolution,resolution_before,Ok(builder.view()));
+            reveal_with_fuel(crate::specs::private_standard_precincts_value,1);
+            if resolution==u8::MAX{
+                crate::specs::private_standard_resolutions_terminal_error(context,meta,initial,resolution as nat,
+                    resolution_before,resolution_prefix,builder.view());
+                crate::specs::private_standard_plan_resolutions_observed(context,grid_value,meta,Err(crate::specs::part1_block_placement_error(true)));
+            }else{
+                resolution_prefix=crate::specs::private_standard_resolutions_advance(context,meta,initial,resolution as nat,
+                    resolution_before,resolution_prefix,builder.view());
+            }
         }
         resolution = resolution.checked_add(1).ok_or_else(arithmetic_overflow)?;
     }
-    Ok(PrivateHtStandardPlan {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost buffers=builder.view();}
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::private_standard_resolutions_finish(context,meta,initial,resolution as nat,buffers,resolution_prefix);
+        crate::specs::private_standard_plan_resolutions_observed(context,grid_value,meta,Ok(buffers));
+        reveal_with_fuel(crate::specs::private_standard_resolutions_value,1);
+    }
+    let result = PrivateHtStandardPlan {
         component: PlannedTileComponent {
             component: 0,
             x: metadata.component_x,
@@ -296,13 +1131,30 @@ fn plan_standard(
             height: metadata.component_height,
             output_resolution: metadata.output_resolution,
             subbands: metadata.subbands,
-            placements,
+            placements: builder.placements,
         },
         grid,
-        precincts,
-    })
+        precincts: builder.precincts,
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(PrivateHtStandardPlan::view);reveal(PrivateHtStandardPlan::invariant);reveal(super::prepare_plan_view);
+        reveal(super::component_plan_metadata_view);
+        assert(result.view()==crate::specs::private_standard_plan_finish(meta,grid_value,buffers));
+    }
+    Ok(result)
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::private_component_result(crate::specs::PrivateReconstructionContext {
+        plan:super::prepare_plan_view(&plan.component),precinct:crate::packet::private_precincts_view(plan.precincts@),
+        style:super::prepare_style_view(coding),maximum:crate::limits::resource_decoded_bytes_limit(limits),
+    },super::prepared_component_outcome(result)),
+    super::prepared_component_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        super::prepared_component_outcome(result)==crate::specs::part2_prepare_component(super::prepare_plan_view(&plan.component),
+            crate::specs::private_ht_precinct_planes(crate::packet::private_precincts_view(plan.precincts@)),
+            super::prepare_style_view(coding),None,crate::limits::resource_decoded_bytes_limit(limits)),
+))]
 fn reconstruct_standard(
     plan: &PrivateHtStandardPlan,
     coding: codestream::CodingStyle,
@@ -318,25 +1170,23 @@ fn reconstruct_standard(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn decode_standard(
-    size: &ImageSize,
-    tile: u16,
-    parts: &[TilePartPayload<'_>],
-    profile: &codestream::CodestreamProfile,
-    discard: Option<u8>,
-    metadata: &super::TileDecodeMetadata<'_, '_>,
-    limits: &ResourceLimits,
-    prepared: Vec<PreparedTileComponent>,
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result==crate::specs::part2_planned_tile_accounting(
+        crate::specs::private_standard_plan_public_view(plan.view(),first.tile_index,codestream::tile_part_owned_view(first)),
+        crate::packet::packet_selection_view(selection),initial,limits),
+))]
+fn account_standard_plan(
+    plan: &PrivateHtStandardPlan,
+    first: &TilePartPayload<'_>,
+    selection: Option<&[u8]>,
     initial: (u64, u64, u64),
-    mct_work: u64,
-) -> Result<DecodedLayoutTile, DecodeError> {
-    let mut prepared = prepared;
-    let mut plan = plan_standard(size, tile, metadata.first, profile, limits)?;
-    let selection = match discard {
-        None => None,
-        Some(_) => Some(metadata.resolution_counts.as_slice()),
-    };
+    limits: &ResourceLimits,
+) -> Result<(u64, u64, u64), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(PrivateHtStandardPlan::view);reveal(super::prepare_plan_view);reveal(codestream::tile_part_owned_view);
+        reveal_with_fuel(crate::specs::part2_account_plan_blocks,2);
+    }
     let packets = initial
         .0
         .checked_add(match selection {
@@ -351,16 +1201,16 @@ pub(super) fn decode_standard(
             actual: packets,
         });
     }
-    let precinct_count = if selection.is_some() {
+    let count = if selection.is_some() {
         (packets - initial.0)
-            .checked_div(u64::from(metadata.first.coding_style.layers))
+            .checked_div(u64::from(first.coding_style.layers))
             .ok_or_else(arithmetic_overflow)?
     } else {
         plan.grid.total_precinct_count()?
     };
     let precincts = initial
         .1
-        .checked_add(precinct_count)
+        .checked_add(count)
         .ok_or_else(arithmetic_overflow)?;
     if precincts > limits.maximum_precincts() {
         return Err(DecodeError::LimitExceeded {
@@ -384,33 +1234,197 @@ pub(super) fn decode_standard(
             actual: blocks,
         });
     }
-    crate::packet::decode_private_ht_resolution_packets(
+    Ok((packets, precincts, blocks))
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires crate::specs::private_standard_image_admitted(private_image_context(
+        size,tile,parts@,profile,discard,metadata,limits,prepared@,initial,mct_work)),
+    ensures crate::specs::private_standard_image_result(private_image_context(
+        size,tile,parts@,profile,discard,metadata,limits,prepared@,initial,mct_work),super::decoded_layout_tile_outcome(result)),
+    super::decoded_layout_tile_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        super::decoded_layout_tile_outcome(result)==crate::specs::private_standard_image_value(private_image_context(
+            size,tile,parts@,profile,discard,metadata,limits,prepared@,initial,mct_work)),
+))]
+pub(super) fn decode_standard(
+    size: &ImageSize,
+    tile: u16,
+    parts: &[TilePartPayload<'_>],
+    profile: &codestream::CodestreamProfile,
+    discard: Option<u8>,
+    metadata: &super::TileDecodeMetadata<'_, '_>,
+    limits: &ResourceLimits,
+    prepared: Vec<PreparedTileComponent>,
+    initial: (u64, u64, u64),
+    mct_work: u64,
+) -> Result<DecodedLayoutTile, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost context=private_image_context(size,tile,parts@,profile,discard,metadata,limits,prepared@,initial,mct_work);}
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(private_image_context);reveal(super::tile_decode_metadata_view);reveal(codestream::tile_part_owned_view);
+        crate::specs::private_ht_standard_selected_metadata(size,tile,context.parts,context.caps,discard,context.metadata);
+        assert(context.parts =~= seq![context.metadata.first]);
+    }
+    let planned = plan_standard(size, tile, metadata.first, profile, limits);
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost planned_value=private_standard_plan_outcome(planned);}
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if let Err(error)=planned {
+            crate::specs::part2_cold_bind(
+                |events|crate::specs::private_standard_plan_run(crate::specs::private_standard_image_plan_context(context),events),
+                |plan,rest|crate::specs::private_standard_image_after_plan(context,plan,rest),Err(error),Err(error));
+        }
+    }
+    let plan = planned?;
+    #[cfg(verus_keep_ghost)]
+    proof! {crate::specs::private_standard_plan_value_fields(crate::specs::private_standard_image_plan_context(context),plan.view());}
+    let result = decode_standard_planned(
+        size, tile, parts, profile, discard, metadata, limits, plan, prepared, initial, mct_work,
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let value=planned_value.get_Ok_0();
+        crate::specs::part2_decode_eta(|events|crate::specs::private_standard_image_after_plan(context,value,events),super::decoded_layout_tile_outcome(result));
+        crate::specs::part2_cold_bind(
+            |events|crate::specs::private_standard_plan_run(crate::specs::private_standard_image_plan_context(context),events),
+            |plan,rest|crate::specs::private_standard_image_after_plan(context,plan,rest),planned_value,super::decoded_layout_tile_outcome(result));
+    }
+    result
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires crate::specs::private_standard_image_admitted(private_image_context(
+        size,_tile,parts@,_profile,discard,metadata,limits,prepared@,initial,mct_work)),
+        planned.invariant(),planned.component.component==0,
+        planned.view().grid.components==1,
+        planned.view().grid.component_resolutions==seq![(metadata.first.coding_style.decomposition_levels+1) as u8],
+    ensures crate::specs::part2_cold_framed(|events|crate::specs::private_standard_image_after_plan(
+        private_image_context(size,_tile,parts@,_profile,discard,metadata,limits,prepared@,initial,mct_work),planned.view(),events),
+        super::decoded_layout_tile_outcome(result)),
+    super::decoded_layout_tile_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        super::decoded_layout_tile_outcome(result)==crate::specs::private_standard_image_after_plan_value(
+            private_image_context(size,_tile,parts@,_profile,discard,metadata,limits,prepared@,initial,mct_work),planned.view()),
+))]
+fn decode_standard_planned(
+    size: &ImageSize,
+    _tile: u16,
+    parts: &[TilePartPayload<'_>],
+    _profile: &codestream::CodestreamProfile,
+    discard: Option<u8>,
+    metadata: &super::TileDecodeMetadata<'_, '_>,
+    limits: &ResourceLimits,
+    planned: PrivateHtStandardPlan,
+    prepared: Vec<PreparedTileComponent>,
+    initial: (u64, u64, u64),
+    mct_work: u64,
+) -> Result<DecodedLayoutTile, DecodeError> {
+    let mut prepared = prepared;
+    let mut plan = planned;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost context=private_image_context(size,_tile,parts@,_profile,discard,metadata,limits,prepared@,initial,mct_work);
+        let ghost original_plan=plan.view();
+        let ghost root=|events|crate::specs::private_standard_image_after_plan(context,original_plan,events);
+        let ghost mut prefix=Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(private_image_context);reveal(super::tile_decode_metadata_view);reveal(codestream::tile_part_owned_view);
+        crate::specs::private_ht_standard_selected_metadata(size,_tile,context.parts,context.caps,discard,context.metadata);
+        crate::packet::private_resolution_owners_known_fields(plan.precincts@);
+    }
+    let selection = match discard {
+        None => None,
+        Some(_) => Some(metadata.resolution_counts.as_slice()),
+    };
+    let accounted = account_standard_plan(&plan, metadata.first, selection, initial, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=accounted {assert(crate::specs::part2_cold_prefix(root,prefix,Err(error)));}}
+    let counters = accounted?;
+    let decoded = crate::packet::decode_private_ht_resolution_packets(
         parts,
         &plan.grid,
         &mut plan.precincts,
         selection,
         limits,
-    )?;
-    let component = reconstruct_standard(
-        &plan,
-        metadata.first.component_coding_styles.style(0)?,
-        limits,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let after=crate::packet::private_precincts_view(plan.precincts@);
+        crate::specs::private_standard_packet_value_observed(context.parts,original_plan.grid,original_plan.precincts,
+            crate::specs::private_image_selection(context),limits,(decoded,after));
+        let child=|events|crate::specs::private_standard_packet_value_run(context.parts,original_plan.grid,original_plan.precincts,
+            crate::specs::private_image_selection(context),limits,events);
+        let next=|precincts,rest|crate::specs::private_standard_image_after_packets(context,original_plan,counters,precincts,rest);
+        if let Err(error)=decoded {crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);}
+        if decoded.is_ok(){prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,after);}
+    }
+    decoded?;
+    let coding = metadata.first.component_coding_styles.style(0);
+    #[cfg(verus_keep_ghost)]
+    proof! {if let Err(error)=coding {assert(crate::specs::part2_cold_prefix(root,prefix,Err(error)));}}
+    let coding = coding?;
+    let reconstructed = reconstruct_standard(&plan, coding, limits);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let reconstruction=crate::specs::private_standard_image_reconstruction(context,original_plan,
+            crate::packet::private_precincts_view(plan.precincts@),super::prepare_style_view(coding));
+        crate::specs::private_component_calls_observed(reconstruction,super::prepared_component_outcome(reconstructed));
+        let child=|events|crate::specs::private_component_calls_run(reconstruction,events);
+        let next=|value,rest|crate::specs::private_image_after_component(context,counters,value,rest);
+        if let Err(error)=reconstructed {crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);}
+        if let Ok(value)=super::prepared_component_outcome(reconstructed){
+            prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,value);
+        }
+    }
+    let component = reconstructed?;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {let ghost value=super::prepared_component_view(component);}
     let start = prepared.len();
-    crate::allocation::reserve_additional(&mut prepared, 1)?;
+    let reserved = crate::allocation::reserve_additional(&mut prepared, 1);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let capacity=crate::specs::PrivateOwnerCapacityContext::PreparedAppend {source:context.prepared,next:value};
+        crate::specs::private_owner_capacity_observed(capacity,crate::allocation::inspection_capacity_outcome(reserved));
+        let child=|events|crate::specs::private_owner_capacity_run(capacity,events);
+        let next=|_:(),rest|Some((crate::specs::private_image_finish(context,counters,value),rest));
+        if let Err(error)=reserved {crate::specs::part2_decode_prefix_error(root,child,next,prefix,error);}
+        if reserved.is_ok(){prefix=crate::specs::part2_decode_prefix_advance(root,child,next,prefix,());}
+    }
+    reserved?;
     prepared.push(component);
     let mut work = mct_work;
-    super::execution::finish_prepared_tile(
-        prepared.get_mut(start..).ok_or_else(invalid_decode)?,
+    let suffix = prepared.get_mut(start..).ok_or_else(invalid_decode)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(super::prepared_components_view(suffix@) =~= seq![value]);
+        reveal(super::tile_mct_option);
+    }
+    let finished = super::execution::finish_prepared_tile(
+        suffix,
         size,
         None,
         metadata.standard,
         limits,
         &mut work,
-    )?;
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::private_image_inactive_finish(seq![value],codestream::image_size_component_count(size),
+            codestream::image_size_component_infos(size),metadata.standard,mct_work,
+            crate::limits::resource_work_limit(limits),crate::limits::resource_decoded_bytes_limit(limits),
+            (finished,super::prepared_components_view(suffix@),work));
+        assert(super::prepared_components_view(prepared@) =~= context.prepared+seq![value]);
+        assert(crate::specs::part2_cold_prefix(root,prefix,crate::specs::private_image_finish(context,counters,value)));
+    }
+    finished?;
     Ok(DecodedLayoutTile {
         prepared,
-        counters: (packets, precincts, blocks),
+        counters,
         mct_work: work,
     })
 }
@@ -987,7 +2001,8 @@ fn private_region(
             private_plan_outcome(result)==crate::specs::private_plan_value(size,tile,codestream::tile_part_owned_view(first),
                 codestream::codestream_profile_capabilities(profile),limits),
         match result{Ok(value)=>value.invariant() && crate::specs::private_grid_shape(value.view().grid)
-            && value.component.output_resolution==0,Err(_)=>true},
+            && value.component.output_resolution==0 && value.precinct.view().resolution==0
+            && value.precinct.view().precinct==0,Err(_)=>true},
 ))]
 fn plan(
     size: &ImageSize,
@@ -1272,6 +2287,12 @@ fn reconstruct_readable(
     };
     let fraction = if reversible { 0 } else { 16 };
     let selected = coding.subband_count_through_resolution(plan.component.output_resolution)?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        codestream::resolution_selectors_known_fields(coding);
+        crate::specs::private_subband_count_positive(coding.decomposition_levels,coding.decomposition_directions@,
+            plan.component.output_resolution);
+    }
     if selected > plan.component.subbands.len() {
         return Err(invalid_decode());
     }
@@ -1435,6 +2456,7 @@ fn account_private_plan(
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires crate::specs::private_image_admitted(private_image_context(size,_tile,parts@,_profile,discard,metadata,limits,prepared@,initial,mct_work)),
         planned.invariant(),crate::specs::private_grid_shape(planned.view().grid),planned.component.output_resolution==0,
+        planned.precinct.view().resolution==0,planned.precinct.view().precinct==0,
     ensures crate::specs::private_image_after_plan_result(private_image_context(size,_tile,parts@,_profile,discard,metadata,limits,prepared@,initial,mct_work),
             planned.view(),super::decoded_layout_tile_outcome(result)),
         super::decoded_layout_tile_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
