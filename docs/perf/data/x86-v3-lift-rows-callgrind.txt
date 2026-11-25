@@ -1,0 +1,4 @@
+events: Ir
+cfn=(1896) jpeg2000_decoder::transform::rowwise::lift_rows
+calls=5 +51 
+* 3051592

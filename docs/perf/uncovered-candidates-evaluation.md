@@ -756,7 +756,10 @@ and is regression-tested on `consumer` and a legitimate case named `cargo`.
 A real collect/analyze round trip of the complete ARM64 matrix preserves all
 1,170 process records and reproduces all 665,567 samples/medians/IQRs.
 The x86 matrix must be rerun on one host rather than fabricate lost metadata
-or splice profiles from different machines. Decoder package contents remain
+or splice profiles from different machines.
+[Replacement run 45614658287](https://github.com/microsoft/jpeg2000_rs/actions/runs/45614658287)
+is running at collector-fix commit `76e23b5`; its decoder remains pinned to
+`f4b2b7b`. Decoder package contents remain
 exactly 417 files; no tool, report or photograph is packaged.
 
 All 57 cross-host source pixel hashes match, but three encoded 9/7 RGB
@@ -764,6 +767,10 @@ streams differ between encoders: day r10/r40 and night r10. Cross-target
 output comparisons must use canonical matching stream bytes; those three
 cases require an explicit same-stream ARM64 replay, not an assumption that
 matching source pixels imply matching compressed inputs.
+For the 54 byte-identical streams, both backends' output hashes match between
+ARM64 and each of the retained generic/v3/native x86 profiles. This is a
+strictly scoped result, not qualification of the missing consumer evidence
+or the three different streams.
 
 Window qualification now also compares each backend's actual selected output
 with its own full-decode crop, before any timing. A real 32-square integration
@@ -813,6 +820,28 @@ Distinct current-main tables, not replacements for the frozen tables:
 - [Per-image numerical maxima/counts and hashes](data/expanded-current-arm64-correctness.csv).
 - [Class ratios](data/expanded-current-arm64-classes.csv) and
   [source/build/raw-hash provenance](data/expanded-current-arm64-provenance.json).
+
+### 8.2 Actual x86-64-v3 arithmetic, not only allowed ISA flags
+
+The preserved first x86 run's final consuming executable contains a real
+256-bit integer loop in
+[`rowwise::lift_rows`](https://github.com/microsoft/jpeg2000_rs/blob/f4b2b7b29d38fa31bd74263913462bb67d6e5e4e/src/transform/rowwise.rs#L280),
+the bounded reversible 5/3 row-lifting path. At `0x7c030..0x7c09b`,
+`vpaddq`/`vpsubq` operate on YMM registers; `vpsrad`, `vpsrlq` and `vpblendd`
+implement signed 64-bit right shifts without AVX-512. This is arithmetic,
+not merely vector copies, and does not imply that Q16 9/7 multiplication,
+MQ, or every fallback vectorizes.
+
+The same hash-checked v3 executable's separate gray-lossless Callgrind
+profile records five calls on its update-stage `lift_rows` edge, with
+3,051,592 inclusive instruction events. This confirms execution of the
+function, not a stage-wall-time percentage or that every row takes its vector
+branch. Existing range/alias guards and scalar/error paths remain present.
+
+The [final-binary loop excerpt](data/x86-v3-lift-rows.asm),
+[execution excerpt](data/x86-v3-lift-rows-callgrind.txt) and
+[exact build/artifact/source provenance](data/x86-v3-codegen-provenance.json)
+are retained independently of the incomplete first timing artifact.
 
 The expanded one-command flow is
 [`expanded.sh`](../../tools/bench-vs-openjpeg/expanded.sh). It prepares and
