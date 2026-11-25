@@ -775,9 +775,9 @@ or the three different streams.
 Window qualification now also compares each backend's actual selected output
 with its own full-decode crop, before any timing. A real 32-square integration
 case passes for both backends; 16 focused tooling tests pass. The queued 8K
-requests have started after A-D completion, without competing owned measurement
-processes. Discard-1 preflight accepts all three actual 8192-square streams;
-its timing and the remaining requests are still pending.
+requests completed after A-D, without competing owned measurement processes.
+All three actual 8192-square streams qualify for discard 1/2/3 and the window;
+all six real window/own-full-crop comparisons are exact.
 
 ### 8.1 Completed expanded current-main ARM64 matrix
 
@@ -842,6 +842,59 @@ The [final-binary loop excerpt](data/x86-v3-lift-rows.asm),
 [execution excerpt](data/x86-v3-lift-rows-callgrind.txt) and
 [exact build/artifact/source provenance](data/x86-v3-codegen-provenance.json)
 are retained independently of the incomplete first timing artifact.
+
+### 8.3 Completed actual 8K partial requests
+
+The three **8192 x 8192** grayscale streams are untiled 5/3, tiled-256 5/3,
+and untiled 9/7. They are explicitly resampled NASA-derived sources, not native
+8K sensor captures. Each real public-API request was independently qualified
+and measured in generic/consumer/native configurations using the same
+hash-checked `f4b2b7b` builds. Analysis verifies **7,781 samples and 216
+full-protocol measured processes** across the four requests.
+
+Generic profile, median milliseconds; ratio is Rust/OpenJPEG typed:
+
+| Request | Stream | Rust ms | OpenJPEG ms | Ratio |
+|---|---|---:|---:|---:|
+| Discard 1 | Untiled 5/3 | 4499.18 | 1083.72 | 4.15 |
+| Discard 1 | Tiled 5/3 | 3534.94 | 984.21 | 3.59 |
+| Discard 1 | Untiled 9/7 | 2154.65 | 393.42 | 5.48 |
+| Discard 2 | Untiled 5/3 | 2083.65 | 309.59 | 6.73 |
+| Discard 2 | Tiled 5/3 | 1169.44 | 306.18 | 3.82 |
+| Discard 2 | Untiled 9/7 | 1319.34 | 174.17 | 7.58 |
+| Discard 3 | Untiled 5/3 | 1306.73 | 74.88 | 17.45 |
+| Discard 3 | Tiled 5/3 | 468.13 | 89.67 | 5.22 |
+| Discard 3 | Untiled 9/7 | 843.44 | 54.94 | 15.35 |
+| Window 512-square | Untiled 5/3 | 10361.80 | 40.79 | 254.03 |
+| Window 512-square | Tiled 5/3 | 41.82 | 10.71 | 3.90 |
+| Window 512-square | Untiled 9/7 | 3642.99 | 15.77 | 230.98 |
+
+Discard outputs contain 4096-square, 2048-square and 1024-square pixels;
+the window is exactly `(2048,2048,512,512)`, with 262,144 output pixels.
+Throughput uses those actual output sizes, not the full input area.
+This measures the selected API itself, not a harness post-crop proxy.
+Rust may still reconstruct an entire selected tile internally.
+
+All 24 reversible case/request/profile comparisons match OpenJPEG exactly.
+All six backend window outputs equal their own full-decode crops at the real
+8K size, including independent full-source checks for the four reversible
+backend outputs. The irreversible stream has maximum difference 1 for every
+request, with per-image counts retained. Both backends remain bit-identical
+across the three profiles for each selected request.
+
+This confirms C11's **remaining intra-selected-tile** gap and that existing
+tile selection already helps; it does not re-propose implemented tile culling
+or discard entropy pruning. The 231-254 ratio is not a measured prototype
+speedup or a safe gain bound. New filter-support/geometry, malformed-input,
+work/deadline and selected-state proof prerequisites remain before adoption.
+Shared-host times remain indicative.
+
+Full [latencies/IQRs](data/partial-current-arm64-summary.csv),
+[ratios/decoded throughput](data/partial-current-arm64-ratios.csv),
+[process resources](data/partial-current-arm64-resources.csv),
+[numerical statistics](data/partial-current-arm64-correctness.csv) and
+[request/source/crop receipts](data/partial-current-arm64-provenance.json)
+remain distinct from full-image A-D data.
 
 The expanded one-command flow is
 [`expanded.sh`](../../tools/bench-vs-openjpeg/expanded.sh). It prepares and

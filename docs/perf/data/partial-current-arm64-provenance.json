@@ -1,0 +1,280 @@
+{
+  "scope": "Actual three 8192-square zero-origin unit-sampled grayscale streams through selected APIs, not a harness post-crop proxy; Rust can still reconstruct whole selected tiles internally",
+  "decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+  "cpu": "ARM Neoverse-N2, CPU3; shared host; indicative wall times",
+  "input": "NASA-derived resampled 8K gray; untiled 5/3, tiled-256 5/3, untiled 9/7",
+  "total_records": 7781,
+  "total_processes": 216,
+  "receipts": [
+    {
+      "request": "reduce-1",
+      "selection": {
+        "reduce": 1,
+        "window": "-"
+      },
+      "records": 810,
+      "processes": 54,
+      "raw_sha256": "9650857bbc985cfc0ae6c1e937d3a5e5f7d906a7e92f6e849b563440f9b8dc79",
+      "summary_sha256": "39cb5a26c51a994ecbe84439e994e3c3b36409110b7fa8703ce9ed50b3e01b99",
+      "analyzer_sha256": "252f2e9ac9c92883b692000c9acdadfd6642edc1f7779db17b575dd97fd63851",
+      "qualifier_sha256": "fa91cc3817d82e154764ff7e4771a6112a0ec5ab615f8c2f527372edabd0ee09",
+      "binary_sha256": {
+        "rust": "fa6424a8a4b693966f541a7ac33b8da538acaafe04464fc1b8fce41ff4b6dd9b",
+        "openjpeg": "0c60e88f00c7b6f03e7424ad5ddfe1daa52e9754cc48009781103797c05dc54d"
+      },
+      "maximum_address_space": 8589934592,
+      "all_preflight_passed": true,
+      "own_full_crop_checked": false,
+      "case_records": [
+        {
+          "case": "roi8k-untiled53",
+          "status": "accepted-with-recorded-numerics",
+          "comparison": {
+            "samples": 16777216,
+            "differing_samples": 0,
+            "maximum_absolute_difference": 0,
+            "rust_sha256": "e288271b40b843de2bd94f5b116efeefe94646130082cfd81d7b79deb0e97ed4",
+            "openjpeg_sha256": "e288271b40b843de2bd94f5b116efeefe94646130082cfd81d7b79deb0e97ed4"
+          }
+        },
+        {
+          "case": "roi8k-tiled53",
+          "status": "accepted-with-recorded-numerics",
+          "comparison": {
+            "samples": 16777216,
+            "differing_samples": 0,
+            "maximum_absolute_difference": 0,
+            "rust_sha256": "db855ec2758bfbafed376d74b8dc8216f574527c7f5ae3660bc2a141eb7dae17",
+            "openjpeg_sha256": "db855ec2758bfbafed376d74b8dc8216f574527c7f5ae3660bc2a141eb7dae17"
+          }
+        },
+        {
+          "case": "roi8k-untiled97",
+          "status": "accepted-with-recorded-numerics",
+          "comparison": {
+            "samples": 16777216,
+            "differing_samples": 1352759,
+            "maximum_absolute_difference": 1,
+            "rust_sha256": "e6f6dfa08df9de8702785cf909bc7a5a5b3f019b9646e49b6e854cf6e9b9ac50",
+            "openjpeg_sha256": "23f91b7e9658e787e21f57e8b521af4e9ae5c50d09baacaf14a246ef0aa8875b"
+          }
+        }
+      ]
+    },
+    {
+      "request": "reduce-2",
+      "selection": {
+        "reduce": 2,
+        "window": "-"
+      },
+      "records": 810,
+      "processes": 54,
+      "raw_sha256": "183688790895221ab1d60ee7c7e3eba32ee724c679737d56e9a3b4a5b1505da4",
+      "summary_sha256": "ff76f7955099eb7ce754c4df59e85879026f01d953e5ce613975a5cd33a8ba56",
+      "analyzer_sha256": "252f2e9ac9c92883b692000c9acdadfd6642edc1f7779db17b575dd97fd63851",
+      "qualifier_sha256": "fa91cc3817d82e154764ff7e4771a6112a0ec5ab615f8c2f527372edabd0ee09",
+      "binary_sha256": {
+        "rust": "fa6424a8a4b693966f541a7ac33b8da538acaafe04464fc1b8fce41ff4b6dd9b",
+        "openjpeg": "0c60e88f00c7b6f03e7424ad5ddfe1daa52e9754cc48009781103797c05dc54d"
+      },
+      "maximum_address_space": 8589934592,
+      "all_preflight_passed": true,
+      "own_full_crop_checked": false,
+      "case_records": [
+        {
+          "case": "roi8k-untiled53",
+          "status": "accepted-with-recorded-numerics",
+          "comparison": {
+            "samples": 4194304,
+            "differing_samples": 0,
+            "maximum_absolute_difference": 0,
+            "rust_sha256": "0ca7e351b8258d8eea6d4ad10cde3fb28ac66595782f1075c073ef21190dce4c",
+            "openjpeg_sha256": "0ca7e351b8258d8eea6d4ad10cde3fb28ac66595782f1075c073ef21190dce4c"
+          }
+        },
+        {
+          "case": "roi8k-tiled53",
+          "status": "accepted-with-recorded-numerics",
+          "comparison": {
+            "samples": 4194304,
+            "differing_samples": 0,
+            "maximum_absolute_difference": 0,
+            "rust_sha256": "57fde6953580f0ae1246d2a769be414b4257b37867207ff4683f7c1d8873b4d8",
+            "openjpeg_sha256": "57fde6953580f0ae1246d2a769be414b4257b37867207ff4683f7c1d8873b4d8"
+          }
+        },
+        {
+          "case": "roi8k-untiled97",
+          "status": "accepted-with-recorded-numerics",
+          "comparison": {
+            "samples": 4194304,
+            "differing_samples": 289371,
+            "maximum_absolute_difference": 1,
+            "rust_sha256": "c5b927938d1d69d6901818ff10f1803446534ed3000013aa850db7fe923adb8e",
+            "openjpeg_sha256": "bc0a83166b3fcc24ce6aa1f34e8c82b1b620336258660b8bde19180dc9614b00"
+          }
+        }
+      ]
+    },
+    {
+      "request": "reduce-3",
+      "selection": {
+        "reduce": 3,
+        "window": "-"
+      },
+      "records": 1305,
+      "processes": 54,
+      "raw_sha256": "0975d248f620cb5cbbb2282a21f8883b0af9f2f4033e9c823c197dea282ee81b",
+      "summary_sha256": "d729182fa70ed165e15342c2918269f02e174395351da8bda70f3460b4f06a50",
+      "analyzer_sha256": "252f2e9ac9c92883b692000c9acdadfd6642edc1f7779db17b575dd97fd63851",
+      "qualifier_sha256": "fa91cc3817d82e154764ff7e4771a6112a0ec5ab615f8c2f527372edabd0ee09",
+      "binary_sha256": {
+        "rust": "fa6424a8a4b693966f541a7ac33b8da538acaafe04464fc1b8fce41ff4b6dd9b",
+        "openjpeg": "0c60e88f00c7b6f03e7424ad5ddfe1daa52e9754cc48009781103797c05dc54d"
+      },
+      "maximum_address_space": 8589934592,
+      "all_preflight_passed": true,
+      "own_full_crop_checked": false,
+      "case_records": [
+        {
+          "case": "roi8k-untiled53",
+          "status": "accepted-with-recorded-numerics",
+          "comparison": {
+            "samples": 1048576,
+            "differing_samples": 0,
+            "maximum_absolute_difference": 0,
+            "rust_sha256": "b0f0fa41355ebbca57fa5515209e30790ee48dfb34e2c1fcc7893b7f7f376e3c",
+            "openjpeg_sha256": "b0f0fa41355ebbca57fa5515209e30790ee48dfb34e2c1fcc7893b7f7f376e3c"
+          }
+        },
+        {
+          "case": "roi8k-tiled53",
+          "status": "accepted-with-recorded-numerics",
+          "comparison": {
+            "samples": 1048576,
+            "differing_samples": 0,
+            "maximum_absolute_difference": 0,
+            "rust_sha256": "e011f634b451880ae77244b29ad6979853e97c68299de7476c148baa69d62a77",
+            "openjpeg_sha256": "e011f634b451880ae77244b29ad6979853e97c68299de7476c148baa69d62a77"
+          }
+        },
+        {
+          "case": "roi8k-untiled97",
+          "status": "accepted-with-recorded-numerics",
+          "comparison": {
+            "samples": 1048576,
+            "differing_samples": 42059,
+            "maximum_absolute_difference": 1,
+            "rust_sha256": "c532c9d4fe4ca28fc62bd4f39094bd2917bd0e0ee92414dbaba1f875cf81b709",
+            "openjpeg_sha256": "69f3d97f47828da99ab0eb60a3e3f92de52cfafd2f547f0692ddd31e20148532"
+          }
+        }
+      ]
+    },
+    {
+      "request": "window",
+      "selection": {
+        "reduce": 0,
+        "window": "2048,2048,512,512"
+      },
+      "records": 4856,
+      "processes": 54,
+      "raw_sha256": "38e94d32ab57bacdc95b6d2eabb61e3619b5323dd0d7477c839f34464a0e8dca",
+      "summary_sha256": "96cbbee3599e760ebf5c9a50693fe9a79e1030530eb24403bd3209712bf6502e",
+      "analyzer_sha256": "252f2e9ac9c92883b692000c9acdadfd6642edc1f7779db17b575dd97fd63851",
+      "qualifier_sha256": "fa91cc3817d82e154764ff7e4771a6112a0ec5ab615f8c2f527372edabd0ee09",
+      "binary_sha256": {
+        "rust": "fa6424a8a4b693966f541a7ac33b8da538acaafe04464fc1b8fce41ff4b6dd9b",
+        "openjpeg": "0c60e88f00c7b6f03e7424ad5ddfe1daa52e9754cc48009781103797c05dc54d"
+      },
+      "maximum_address_space": 8589934592,
+      "all_preflight_passed": true,
+      "own_full_crop_checked": true,
+      "case_records": [
+        {
+          "case": "roi8k-untiled53",
+          "status": "accepted-with-recorded-numerics",
+          "comparison": {
+            "samples": 262144,
+            "differing_samples": 0,
+            "maximum_absolute_difference": 0,
+            "rust_sha256": "d25804a2ab4900fdce00fba72424666f7431ee86da3ce5eac00334c435a09375",
+            "openjpeg_sha256": "d25804a2ab4900fdce00fba72424666f7431ee86da3ce5eac00334c435a09375"
+          },
+          "own_full_crop": {
+            "rust": {
+              "samples": 262144,
+              "differing_samples": 0,
+              "maximum_absolute_difference": 0,
+              "window_sha256": "d25804a2ab4900fdce00fba72424666f7431ee86da3ce5eac00334c435a09375",
+              "full_crop_sha256": "d25804a2ab4900fdce00fba72424666f7431ee86da3ce5eac00334c435a09375"
+            },
+            "openjpeg": {
+              "samples": 262144,
+              "differing_samples": 0,
+              "maximum_absolute_difference": 0,
+              "window_sha256": "d25804a2ab4900fdce00fba72424666f7431ee86da3ce5eac00334c435a09375",
+              "full_crop_sha256": "d25804a2ab4900fdce00fba72424666f7431ee86da3ce5eac00334c435a09375"
+            }
+          }
+        },
+        {
+          "case": "roi8k-tiled53",
+          "status": "accepted-with-recorded-numerics",
+          "comparison": {
+            "samples": 262144,
+            "differing_samples": 0,
+            "maximum_absolute_difference": 0,
+            "rust_sha256": "d25804a2ab4900fdce00fba72424666f7431ee86da3ce5eac00334c435a09375",
+            "openjpeg_sha256": "d25804a2ab4900fdce00fba72424666f7431ee86da3ce5eac00334c435a09375"
+          },
+          "own_full_crop": {
+            "rust": {
+              "samples": 262144,
+              "differing_samples": 0,
+              "maximum_absolute_difference": 0,
+              "window_sha256": "d25804a2ab4900fdce00fba72424666f7431ee86da3ce5eac00334c435a09375",
+              "full_crop_sha256": "d25804a2ab4900fdce00fba72424666f7431ee86da3ce5eac00334c435a09375"
+            },
+            "openjpeg": {
+              "samples": 262144,
+              "differing_samples": 0,
+              "maximum_absolute_difference": 0,
+              "window_sha256": "d25804a2ab4900fdce00fba72424666f7431ee86da3ce5eac00334c435a09375",
+              "full_crop_sha256": "d25804a2ab4900fdce00fba72424666f7431ee86da3ce5eac00334c435a09375"
+            }
+          }
+        },
+        {
+          "case": "roi8k-untiled97",
+          "status": "accepted-with-recorded-numerics",
+          "comparison": {
+            "samples": 262144,
+            "differing_samples": 20243,
+            "maximum_absolute_difference": 1,
+            "rust_sha256": "22abe92e8f323b3ee4b310923df46e60475c1ff9534a65fb878cc4a9c8d3dcdf",
+            "openjpeg_sha256": "f217b1c0605b7bf17b56ae6ac8f165262ed34a3885fd0af372b5da1795f38685"
+          },
+          "own_full_crop": {
+            "rust": {
+              "samples": 262144,
+              "differing_samples": 0,
+              "maximum_absolute_difference": 0,
+              "window_sha256": "22abe92e8f323b3ee4b310923df46e60475c1ff9534a65fb878cc4a9c8d3dcdf",
+              "full_crop_sha256": "22abe92e8f323b3ee4b310923df46e60475c1ff9534a65fb878cc4a9c8d3dcdf"
+            },
+            "openjpeg": {
+              "samples": 262144,
+              "differing_samples": 0,
+              "maximum_absolute_difference": 0,
+              "window_sha256": "f217b1c0605b7bf17b56ae6ac8f165262ed34a3885fd0af372b5da1795f38685",
+              "full_crop_sha256": "f217b1c0605b7bf17b56ae6ac8f165262ed34a3885fd0af372b5da1795f38685"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "correctness": "Every reversible selected result exactly matches OpenJPEG. Window preflight compares each backend with its own full-decode crop; all six exact, with independent lossless source checks for the four full reversible outputs.",
+  "irreversible": "Statistics recorded, not newly approved tolerances or substitutes for original #299 controls."
+}
