@@ -109,6 +109,8 @@ def main():
                             if metrics["returncode"] != 0:
                                 row["status"] = "full-crop-decoder-refusal-or-failure"
                                 continue
+                            if case["lossless"]:
+                                check_source(full, case)
                             comparison = compare_dumps(dumps[backend], crop_dump(full, window))
                             comparison["window_sha256"] = comparison.pop("rust_sha256")
                             comparison["full_crop_sha256"] = comparison.pop("openjpeg_sha256")

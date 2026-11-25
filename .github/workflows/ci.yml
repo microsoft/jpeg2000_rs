@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       consumer_benchmark:
-        description: Run optional issue 449 native final-consumer benchmark (no publication)
+        description: Run an optional performance study (no publication)
         required: false
         type: boolean
         default: false

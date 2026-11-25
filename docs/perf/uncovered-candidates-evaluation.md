@@ -734,8 +734,16 @@ forbidden until input hashes match. The initial diagnostic dispatch
 45591525447 was canceled rather than promote a run missing explicit CPU-model
 and process-instruction evidence. Corrected
 [run 45592665197](https://github.com/microsoft/jpeg2000_rs/actions/runs/45592665197)
-records those observations separately from uninstrumented timing, on the same
-host/binaries. Results are still pending, not claimed.
+then failed during public-photo acquisition with HTTP 403, before any
+measurement. Its logs are preserved. The two unchanged, previously licensed
+NASA originals (7.4MB total) are now vendored outside the decoder package with
+separate credit, public-domain notice and mandatory hash checks. No alternate
+identity, remote-access bypass or relaxed hash check is used.
+[Run 45593985345](https://github.com/microsoft/jpeg2000_rs/actions/runs/45593985345)
+uses those offline sources and records CPU/instruction observations separately
+from uninstrumented timing on the same host/binaries. Results are still
+pending, not claimed. Decoder package contents remain exactly 417 files;
+no tool, report or photograph is packaged.
 
 Window qualification now also compares each backend's actual selected output
 with its own full-decode crop, before any timing. A real 32-square integration
