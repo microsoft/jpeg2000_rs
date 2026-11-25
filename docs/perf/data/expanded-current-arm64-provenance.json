@@ -1,0 +1,73 @@
+{
+  "scope": "Current merged main and expanded photographic A-D cohort; not the old synthetic baseline or complete conformance",
+  "decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+  "decoder_src_tree": "b3bea69443ec6408edfa48708ee658168ea7dcfd",
+  "cpu_model": "ARM Neoverse-N2",
+  "architecture": "aarch64",
+  "platform": "Linux-6.6.82.1-1.azl3-aarch64-with-glibc2.38",
+  "rustc": "rustc 1.93.1 (01f6ddf75 2026-02-11)\nbinary: rustc\ncommit-hash: 01f6ddf7588f42ae2d7eb0a2f21d44e8e96674cf\ncommit-date: 2026-02-11\nhost: aarch64-unknown-linux-gnu\nrelease: 1.93.1\nLLVM version: 21.1.8\n",
+  "cc": "clang version 19.1.7 (https://github.com/ziglang/zig-bootstrap de1b01a8c1dddf75a560123ac1c2ab182b4830da)\nTarget: aarch64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/build-tools/zig-aarch64-linux-0.14.1\n",
+  "cpu": 3,
+  "request": {
+    "reduce": 0,
+    "window": "-"
+  },
+  "samples": 665567,
+  "processes": 1170,
+  "cases": 65,
+  "reversible_source_checks": 123,
+  "timing": "Each process: 3 warmups, >=15 measured iterations AND >=2 seconds; 2 fresh-process rounds with reversed backend order. Shared-host times indicative.",
+  "maximum_address_space": 8589934592,
+  "builds": {
+    "generic": {
+      "configuration": "generic",
+      "cflags": "-O3 -DNDEBUG -g -ffp-contract=off",
+      "rustflags": "",
+      "lto": "Cargo default",
+      "codegen_units": "Cargo default",
+      "rust_binary_sha256": "fa6424a8a4b693966f541a7ac33b8da538acaafe04464fc1b8fce41ff4b6dd9b",
+      "c_binary_sha256": "0c60e88f00c7b6f03e7424ad5ddfe1daa52e9754cc48009781103797c05dc54d",
+      "allocator": "system libc",
+      "output": "native Rust TypedImage planar 64-bit samples",
+      "openjpeg_native_output": "planar signed 32-bit components",
+      "decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+      "decoder_src_tree": "b3bea69443ec6408edfa48708ee658168ea7dcfd"
+    },
+    "consumer": {
+      "configuration": "consumer",
+      "cflags": "-O3 -DNDEBUG -g -ffp-contract=off",
+      "rustflags": "",
+      "lto": "thin",
+      "codegen_units": "1",
+      "rust_binary_sha256": "ce3874016b6d8c0fef8145020a97741294eac718923bb40bf9110b6632824aef",
+      "c_binary_sha256": "3bce42cab6183a16148a64e6185718cd380c9c54124e0deeefb41f9772b48422",
+      "allocator": "system libc",
+      "output": "native Rust TypedImage planar 64-bit samples",
+      "openjpeg_native_output": "planar signed 32-bit components",
+      "decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+      "decoder_src_tree": "b3bea69443ec6408edfa48708ee658168ea7dcfd"
+    },
+    "native": {
+      "configuration": "native",
+      "cflags": "-O3 -DNDEBUG -g -ffp-contract=off -mcpu=native",
+      "rustflags": "-C target-cpu=native",
+      "lto": "thin",
+      "codegen_units": "1",
+      "rust_binary_sha256": "0875ec03aea5d4dbd029cac7f5fb3bbc6543d5ac2604a7e864c8a6a498becebb",
+      "c_binary_sha256": "48a5074cf4e4307d027d6c439b5c0af13507faeeb932025435c6d8524685ba16",
+      "allocator": "system libc",
+      "output": "native Rust TypedImage planar 64-bit samples",
+      "openjpeg_native_output": "planar signed 32-bit components",
+      "decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+      "decoder_src_tree": "b3bea69443ec6408edfa48708ee658168ea7dcfd"
+    }
+  },
+  "raw_sha256": "a01f824ede4b09f483ed32e4d69010a4ccf6a9a693f9f265239742eb4cea7270",
+  "summary_sha256": "aa6f24d3d9c104b8bf042cac547a9c7e69297bee9e8ff821e149d50401e838b8",
+  "analyzer_sha256": "252f2e9ac9c92883b692000c9acdadfd6642edc1f7779db17b575dd97fd63851",
+  "runner_sha256": "7276edeb756cb122ced6158c41b8b663091ed41b2ff683d92ab7c5ef1169a3af",
+  "cross_configuration_differences": [],
+  "frozen54_currentf4_output_differences": [],
+  "numerical_scope": "All reversible results exactly match independent sources; photographic irreversible differences are recorded, not an accepted tolerance or replacement for original #299 controls.",
+  "resource_scope": "Per timed process peak RSS and faults include startup, input, warmups and destruction, not isolated stage memory."
+}

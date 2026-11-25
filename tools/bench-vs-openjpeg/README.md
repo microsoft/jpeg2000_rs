@@ -178,6 +178,21 @@ Unsupported native ISA instructions remain recorded failures, never zero counts.
 portable evidence collection with a hashed index and an explicit completion
 indicator. It refuses to overwrite a collection or place it inside its source.
 
+For a completed full-protocol matrix, independently verify all raw sample
+counts/durations, worker/cap metadata, case coverage and reproducible summary
+medians/IQRs, then extract source-separated latency, ratio, output-throughput,
+numerical and resource tables:
+
+```sh
+python3 tools/bench-vs-openjpeg/analyze.py --matrix COMPLETE_MATRIX \
+  --output FRESH_ANALYSIS
+```
+
+This rejects shortened build checks. Throughput uses the selected uniform,
+unit-sampled cohort's decoded samples and channel count, not the full input
+area for partial requests. These tables do not qualify a numerical tolerance,
+missing stage attribution or normative conformance.
+
 To rerun the available baseline, both committed isolated experiments, separate
 profiles/counters, and reduced/windowed checks sequentially with one command:
 

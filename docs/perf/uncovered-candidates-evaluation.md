@@ -718,7 +718,7 @@ bindings. Eleven focused Python tests pass. No new decoder runtime, model,
 proof, package default, release branch or acceptance tolerance changed.
 A selected-case end-to-end smoke builds and records the actual clean
 `f4b2b7b` decoder source separately; its shortened iterations are not speed
-evidence. The full current-main A-D matrix is now running on all 65 relevant
+evidence. The full current-main A-D matrix has completed on all 65 relevant
 cases in generic/consumer/native configurations, with the original 15-iteration
 AND two-second, three-warmup, reversed-process protocol. The 8K streams are
 reserved for separately bound discard/window requests, not mislabeled as
@@ -747,9 +747,52 @@ no tool, report or photograph is packaged.
 
 Window qualification now also compares each backend's actual selected output
 with its own full-decode crop, before any timing. A real 32-square integration
-case passes for both backends; 15 focused tooling tests pass. The queued 8K
-requests will perform these checks at their real dimensions after the current
-A-D timing finishes, without competing owned measurement processes.
+case passes for both backends; 16 focused tooling tests pass. The queued 8K
+requests have started after A-D completion, without competing owned measurement
+processes. Discard-1 preflight accepts all three actual 8192-square streams;
+its timing and the remaining requests are still pending.
+
+### 8.1 Completed expanded current-main ARM64 matrix
+
+Source remains `f4b2b7b`, not the original `54abff4` synthetic control.
+Independent analysis reproduces all summary medians/IQRs from **665,567 raw
+samples**, verifies all **1,170** fresh measured processes meet both
+15 iterations and two seconds with three warmups, and checks worker/cap
+metadata and all selected case/configuration combinations.
+
+Geometric means of per-image Rust/OpenJPEG **typed-output median latency**:
+
+| Configuration | A (8 cases) | B (24 cases) | C (14 cases) | D (19 cases) |
+|---|---:|---:|---:|---:|
+| Generic | 3.7159 | 5.5012 | 4.4011 | 3.6314 |
+| Consumer | 3.7060 | 5.2260 | 4.2903 | 3.6065 |
+| Native | 3.6770 | 5.2009 | 4.2654 | 3.5742 |
+
+Lower than 1 would favor Rust; none of the 195 individual case/configuration
+median ratios is below 1. Shared-host wall times remain **indicative**.
+These new-source/new-corpus ratios cannot be subtracted from the old synthetic
+ratios to attribute a merged PR speedup or a prototype effect.
+
+All **123 reversible source-oracle checks** pass exactly. Both backends'
+65 output hashes are invariant across all three profiles, and their generic
+outputs also match the earlier frozen-control qualification on the same
+65 inputs. Photographic irreversible maxima remain up to 6 for 8-bit RGB
+and 10 for derived 16-bit gray, with per-image counts retained; these are not
+newly approved tolerances or substitutes for the original #299 controls.
+
+Largest observed timed-process RSS is 6,449,068 KiB for Rust and 1,198,940 KiB
+for OpenJPEG typed output. These are **nonpaired peaks across different
+cases**, including startup/input/warmups/destruction, not isolated stage
+allocation counts. Full per-process resources remain available.
+
+Distinct current-main tables, not replacements for the frozen tables:
+
+- [Latency and IQR](data/expanded-current-arm64-summary.csv).
+- [Per-image ratios and decoded MP/s](data/expanded-current-arm64-ratios.csv).
+- [Per-process RSS/faults](data/expanded-current-arm64-resources.csv).
+- [Per-image numerical maxima/counts and hashes](data/expanded-current-arm64-correctness.csv).
+- [Class ratios](data/expanded-current-arm64-classes.csv) and
+  [source/build/raw-hash provenance](data/expanded-current-arm64-provenance.json).
 
 The expanded one-command flow is
 [`expanded.sh`](../../tools/bench-vs-openjpeg/expanded.sh). It prepares and

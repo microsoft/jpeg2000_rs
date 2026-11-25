@@ -12,6 +12,7 @@ from corpus import coding_header, precision_payload
 from instructions import callgrind_instructions
 from qualify import crop_dump
 from conformance import decode_blob
+from analyze import validate_samples
 import base64
 import hashlib
 
@@ -22,6 +23,12 @@ def dump(width, height, values, signed=0, precision=8):
 
 
 class ComparisonTests(unittest.TestCase):
+    def test_analysis_enforces_both_iteration_and_exact_duration_thresholds(self):
+        validate_samples([133_333_333] * 14 + [133_333_338])
+        for values in [[200_000_000] * 14, [133_333_333] * 15, [0] + [200_000_000] * 14]:
+            with self.assertRaises(ValueError):
+                validate_samples(values)
+
     def test_external_conformance_download_rejects_replaced_or_truncated_blob(self):
         data = b"fixture"
         identity = hashlib.sha1(b"blob 7\0" + data).hexdigest()
