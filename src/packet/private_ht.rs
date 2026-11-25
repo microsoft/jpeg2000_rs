@@ -11,10 +11,234 @@ use crate::{DecodeError, MalformedKind, Resource, ResourceLimits};
 use vstd::prelude::*;
 
 pub(crate) struct PrivateHtPrecinct {
+    resolution: u8,
     states: Vec<CodeBlockPacketState>,
     contexts: Vec<CodeBlockPacketContext>,
     subbands: Vec<PacketSubbandState>,
     decoders: Vec<PrivateHtDecoder>,
+}
+
+pub(crate) struct PrivateHtSubbandExecution {
+    pub(crate) orientation: crate::tier1::SubbandOrientation,
+    pub(crate) across: u32,
+    pub(crate) down: u32,
+    pub(crate) maximum_zero: u16,
+    pub(crate) decoders: Vec<PrivateHtDecoder>,
+}
+
+pub(crate) fn new_private_ht_resolution_precinct(
+    resolution: u8,
+    style: Tier1CodingStyle,
+    mut executions: Vec<PrivateHtSubbandExecution>,
+    limits: &ResourceLimits,
+) -> Result<PrivateHtPrecinct, DecodeError> {
+    if executions.len() > 3 {
+        return Err(invalid_packet_header());
+    }
+    let mut precinct = PrivateHtPrecinct {
+        resolution,
+        states: Vec::new(),
+        contexts: Vec::new(),
+        subbands: if executions.is_empty() {
+            Vec::new()
+        } else {
+            crate::allocation::empty_with_capacity(executions.len())?
+        },
+        decoders: Vec::new(),
+    };
+    let mut total = 0_u64;
+    let mut index = 0;
+    while index < executions.len() {
+        let execution = executions
+            .get_mut(index)
+            .ok_or_else(invalid_packet_header)?;
+        if execution.across == 0
+            || execution.down == 0
+            || execution.maximum_zero == 0
+            || execution.maximum_zero > crate::tier1::MAX_TIER1_BITPLANES
+        {
+            return Err(invalid_packet_header());
+        }
+        let count = u64::from(execution.across)
+            .checked_mul(u64::from(execution.down))
+            .ok_or_else(packet_arithmetic_overflow)?;
+        total = total
+            .checked_add(count)
+            .ok_or_else(packet_arithmetic_overflow)?;
+        if total > limits.maximum_code_blocks() {
+            return Err(DecodeError::LimitExceeded {
+                resource: Resource::CodeBlocks,
+                limit: limits.maximum_code_blocks(),
+                actual: total,
+            });
+        }
+        if total > limits.maximum_work_units() {
+            return Err(DecodeError::LimitExceeded {
+                resource: Resource::WorkUnits,
+                limit: limits.maximum_work_units(),
+                actual: total,
+            });
+        }
+        if count > usize::MAX as u64 {
+            return Err(packet_arithmetic_overflow());
+        }
+        let count = count as usize;
+        if execution.decoders.len() != count {
+            return Err(invalid_packet_header());
+        }
+        let first_decoder = precinct.decoders.len();
+        let (states, contexts) = super::precinct::prepare_precinct_contexts(
+            precinct.states,
+            precinct.contexts,
+            count,
+            execution.across,
+            execution.maximum_zero,
+            style,
+        )?;
+        precinct.states = states;
+        precinct.contexts = contexts;
+        if !execution.decoders.is_empty() {
+            crate::allocation::reserve_additional(
+                &mut precinct.decoders,
+                execution.decoders.len(),
+            )?;
+        }
+        precinct.decoders.append(&mut execution.decoders);
+        let inclusion_tree =
+            super::tag_tree::tag_tree_new(execution.across, execution.down, limits)?;
+        let zero_bitplane_tree =
+            super::tag_tree::tag_tree_new(execution.across, execution.down, limits)?;
+        precinct.subbands.push(PacketSubbandState {
+            orientation: execution.orientation,
+            first_decoder,
+            decoder_count: count,
+            code_blocks_across: execution.across,
+            code_blocks_down: execution.down,
+            inclusion_tree,
+            zero_bitplane_tree,
+        });
+        index += 1;
+    }
+    Ok(precinct)
+}
+
+pub(crate) fn decode_private_ht_resolution_packets(
+    parts: &[crate::codestream::TilePartPayload<'_>],
+    grid: &super::PacketGrid,
+    precincts: &mut [PrivateHtPrecinct],
+    selection: Option<&[u8]>,
+    limits: &ResourceLimits,
+) -> Result<super::TilePacketDecode, DecodeError> {
+    super::tile::validate_progression_layout(parts, grid, selection, limits)?;
+    let first = parts
+        .first()
+        .ok_or_else(|| packet_reader_error(0, MalformedKind::InvalidTilePart))?;
+    let input = super::tile::prepare_progression_payloads(parts, first.tile_index, limits)?;
+    if input.all_lengths && input.declared_packets > grid.packet_count {
+        return Err(packet_reader_error(0, MalformedKind::InvalidPacketLength));
+    }
+    let count = grid.total_precinct_count()?;
+    if count > usize::MAX as u64 || precincts.len() != count as usize {
+        return Err(invalid_packet_header());
+    }
+    let mut index = 0;
+    while index < precincts.len() {
+        if grid.precinct_index(0, precincts[index].resolution, 0)? != index {
+            return Err(invalid_packet_header());
+        }
+        index += 1;
+    }
+    let params = super::ProgressionTileParameters {
+        tile_parts: parts,
+        grid,
+        input: &input,
+        selection,
+        limits,
+    };
+    let mut p = super::tile::progression_tile_progress_new(&params)?;
+    loop {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint()?;
+        super::tile::advance_progression_tile_part(&params, &mut p)?;
+        if p.current_tile_part == parts.len()
+            && p.packets == grid.packet_count
+            && super::tile::all_progression_packets_seen(&p.seen)
+        {
+            break;
+        }
+        let Some(coordinate) = p.iterator.next_packet()? else {
+            break;
+        };
+        if p.remaining_packets == 0 {
+            return Err(packet_reader_error(
+                0,
+                MalformedKind::InvalidProgressionOrderChange,
+            ));
+        }
+        p.remaining_packets -= 1;
+        if p.current_tile_part == parts.len() {
+            super::tile::omit_progression_packet(&params, &mut p, coordinate, precincts.len())?;
+            continue;
+        }
+        execute_private_resolution_packet(&params, precincts, &mut p, coordinate)?;
+    }
+    super::tile::finish_progression_tile_packets(&params, &mut p)
+}
+
+fn execute_private_resolution_packet<'a, 'data>(
+    params: &super::ProgressionTileParameters<'a, 'data>,
+    precincts: &mut [PrivateHtPrecinct],
+    p: &mut super::ProgressionTileProgress<'a>,
+    coordinate: super::PacketCoordinate,
+) -> Result<(), DecodeError> {
+    let part = params
+        .tile_parts
+        .get(p.current_tile_part)
+        .ok_or(DecodeError::MalformedInput {
+            offset: params.input.payload_bytes,
+            kind: MalformedKind::Truncated,
+        })?;
+    let slot = super::tile::progression_packet_slot(params.grid, coordinate);
+    let duplicate = match slot {
+        Ok((_, seen)) => match p.seen.get(seen) {
+            Some(value) => *value,
+            None => false,
+        },
+        Err(_) => false,
+    };
+    if duplicate {
+        return Ok(());
+    }
+    if p.length_tile_part != p.current_tile_part {
+        p.length_iterator = part.packet_lengths.iter();
+        p.length_tile_part = p.current_tile_part;
+    }
+    let (index, seen) = slot?;
+    let already = *p
+        .seen
+        .get(seen)
+        .ok_or_else(|| packet_reader_error(p.offset, MalformedKind::InvalidPacketHeader))?;
+    if !crate::refinement::progression_emit_allowed(already) {
+        return Ok(());
+    }
+    let row = precincts
+        .get_mut(index)
+        .ok_or_else(|| packet_reader_error(p.offset, MalformedKind::InvalidPacketHeader))?;
+    super::tile::set_progression_context_layer(&mut row.contexts, coordinate.layer)?;
+    params
+        .input
+        .packed
+        .get(p.current_tile_part)
+        .ok_or_else(|| packet_reader_error(0, MalformedKind::InvalidTilePart))?;
+    if let Some(counts) = params.selection {
+        counts
+            .get(usize::from(coordinate.component))
+            .ok_or_else(|| packet_reader_error(0, MalformedKind::InvalidCodingStyle))?;
+    }
+    let sequence = (p.packets & u64::from(u16::MAX)) as u16;
+    let (decoded, tile_bytes, packed_bytes) =
+        row.decode_packet(part, p.offset, sequence, params.limits)?;
+    super::tile::account_progression_packet(p, decoded, tile_bytes, packed_bytes, None, seen)
 }
 
 #[cfg(verus_keep_ghost)]
@@ -22,7 +246,7 @@ verus! {
     impl PrivateHtPrecinct {
         pub(crate) closed spec fn view(&self)->crate::specs::Part1PacketPrecinctState {
             crate::specs::Part1PacketPrecinctState {
-                component:0,resolution:0,precinct:0,
+                component:0,resolution:self.resolution,precinct:0,
                 states:self.states@.map_values(|state:CodeBlockPacketState|super::code_block_packet_state_view(&state)),
                 contexts:self.contexts@,
                 decoders:self.decoders@.map_values(|decoder:PrivateHtDecoder|decoder.view()),
@@ -40,7 +264,7 @@ verus! {
         }
         pub(crate) proof fn known_fields(&self)
             ensures self.storage_view().logical==self.view(),
-                self.view().component==0,self.view().resolution==0,self.view().precinct==0,
+                self.view().component==0,self.view().resolution==self.resolution,self.view().precinct==0,
                 self.storage_view().packed.len()==self.view().decoders.len(),
                 self.invariant() ==> forall|i:int|0<=i<self.view().decoders.len() ==>
                     #[trigger] crate::specs::private_ht_state_wf(crate::specs::PrivateHtDecoderState {
@@ -383,7 +607,16 @@ mod tests {
     fn decoder() -> PrivateHtDecoder {
         let mut style = Tier1CodingStyle::from_code_block_style(0x40).unwrap();
         style.set_force_high_throughput(true);
-        crate::tier1::new_private_ht_decoder(1, 1, 2, style, true, 74).unwrap()
+        crate::tier1::new_private_ht_decoder(
+            1,
+            1,
+            2,
+            crate::tier1::SubbandOrientation::Ll,
+            style,
+            true,
+            74,
+        )
+        .unwrap()
     }
 
     fn contribution() -> super::super::CodeBlockContribution {
@@ -619,6 +852,7 @@ pub(crate) fn new_private_ht_precinct(
         assert(crate::specs::part2_cold_prefix(root,prefix+calls,result));
     }
     let precinct = PrivateHtPrecinct {
+        resolution: 0,
         states,
         contexts,
         subbands,

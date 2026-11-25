@@ -8,6 +8,7 @@ use vstd::prelude::*;
 #[cfg_attr(not(verus_keep_ghost), derive(Debug))]
 pub(crate) struct PrivateHtDecoder {
     primary: HtCleanupCheckpoint,
+    orientation: SubbandOrientation,
     style: Tier1CodingStyle,
     maximum_passes: u32,
     next_pass: u32,
@@ -30,7 +31,7 @@ verus! {
     impl PrivateHtDecoder {
         pub(crate) closed spec fn view(&self)->crate::specs::Tier1DecoderState {
             crate::specs::Tier1DecoderState {
-                plane:self.primary.view(),private_plan:true,orientation:SubbandOrientation::Ll,
+                plane:self.primary.view(),private_plan:true,orientation:self.orientation,
                 style:self.style,maximum_passes:self.maximum_passes,next_pass:self.next_pass,
                 bitplane:self.bitplane,zero_bitplanes:self.zero_bitplanes,
                 bitplane_state:None,mq_context_state:None,reset_contexts_before_mq:false,
@@ -78,7 +79,7 @@ mod tests {
     fn configured(width: u16, height: u16) -> PrivateHtDecoder {
         let mut style = Tier1CodingStyle::from_code_block_style(0x40).unwrap();
         style.set_force_high_throughput(true);
-        new_private_ht_decoder(width, height, 2, style, true, 74).unwrap()
+        new_private_ht_decoder(width, height, 2, SubbandOrientation::Ll, style, true, 74).unwrap()
     }
 
     #[test]
@@ -120,6 +121,40 @@ mod tests {
             assert_eq!(actual.plane(), reference.plane());
             assert_eq!(actual.next_pass(), reference.next_pass());
             assert_eq!(actual.decoded_bytes(), reference.decoded_bytes());
+        }
+    }
+
+    #[test]
+    fn private_primary_standard_orientations_survive_staging_entropy_and_retention() {
+        let limits = ResourceLimits::default();
+        let mut style = Tier1CodingStyle::from_code_block_style(0x40).unwrap();
+        style.set_force_high_throughput(true);
+        for orientation in [
+            SubbandOrientation::Ll,
+            SubbandOrientation::Hl,
+            SubbandOrientation::Lh,
+            SubbandOrientation::Hh,
+        ] {
+            let decoder = new_private_ht_decoder(1, 1, 2, orientation, style, true, 74).unwrap();
+            let mut reference = decoder.stage().unwrap().into_wide().unwrap();
+            let mut actual = decoder;
+            for cleanup in [true, false, false, true] {
+                let mut wide = actual.stage().unwrap().into_wide().unwrap();
+                let execute = |state: &mut Tier1CodeBlockDecoder| {
+                    if cleanup {
+                        state.decode_high_throughput_segments(&[0, 0x63, 0], 1, None, 0, &limits)
+                    } else {
+                        state.decode_high_throughput_refinement(&[0], 1, &limits)
+                    }
+                };
+                assert_eq!(execute(&mut wide), execute(&mut reference));
+                actual = from_wide(wide).unwrap();
+                assert_eq!(actual.orientation, orientation);
+                let observed = actual.stage().unwrap().into_wide().unwrap();
+                assert_eq!(observed.orientation, orientation);
+                assert_eq!(observed.plane(), reference.plane());
+                assert_eq!(observed.next_pass(), reference.next_pass());
+            }
         }
     }
 
@@ -180,7 +215,8 @@ mod tests {
         let limits = ResourceLimits::default();
         let mut style = Tier1CodingStyle::from_code_block_style(0x40).unwrap();
         style.set_force_high_throughput(true);
-        let create = || new_private_ht_decoder(1, 1, 40, style, true, 74).unwrap();
+        let create =
+            || new_private_ht_decoder(1, 1, 40, SubbandOrientation::Ll, style, true, 74).unwrap();
         let mut state = crate::packet::CodeBlockPacketState::new();
         let mut inclusion = crate::packet::TagTree::new(1, 1, &limits).unwrap();
         let mut zero = crate::packet::TagTree::new(1, 1, &limits).unwrap();
@@ -272,11 +308,11 @@ mod tests {
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::private_ht_initial_result(crate::specs::PrivateHtInitialContext {
-            width,height,bitplanes,style,allowed:allow_sets,bound:magnitude_bound,
+            width,height,bitplanes,orientation,style,allowed:allow_sets,bound:magnitude_bound,
         },private_decoder_outcome(result)),
         private_decoder_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
             private_decoder_outcome(result)==crate::specs::private_ht_initial_value(crate::specs::PrivateHtInitialContext {
-                width,height,bitplanes,style,allowed:allow_sets,bound:magnitude_bound,
+                width,height,bitplanes,orientation,style,allowed:allow_sets,bound:magnitude_bound,
             }),
         match result{Ok(value)=>value.invariant(),Err(_)=>true},
 ))]
@@ -284,13 +320,14 @@ pub(crate) fn new_private_ht_decoder(
     width: u16,
     height: u16,
     bitplanes: u16,
+    orientation: SubbandOrientation,
     style: Tier1CodingStyle,
     allow_sets: bool,
     magnitude_bound: u8,
 ) -> Result<PrivateHtDecoder, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! {let ghost ctx=crate::specs::PrivateHtInitialContext {
-        width,height,bitplanes,style,allowed:allow_sets,bound:magnitude_bound,
+        width,height,bitplanes,orientation,style,allowed:allow_sets,bound:magnitude_bound,
     };}
     if !matches!(style.block_coding, Tier1BlockCoding::HighThroughput)
         || !style.force_high_throughput
@@ -316,6 +353,7 @@ pub(crate) fn new_private_ht_decoder(
     }
     Ok(PrivateHtDecoder {
         primary,
+        orientation,
         style,
         maximum_passes: u32::from(bitplanes) * 3 - 2,
         next_pass: 0,
@@ -382,6 +420,7 @@ impl PrivateHtDecoder {
         let refinement = copied_bytes?;
         Ok(Self {
             primary,
+            orientation: self.orientation,
             style: self.style,
             maximum_passes: self.maximum_passes,
             next_pass: self.next_pass,
@@ -421,7 +460,7 @@ impl PrivateHtDecoder {
         Ok(Tier1CodeBlockDecoder {
             plane,
             private_plan: true,
-            orientation: SubbandOrientation::Ll,
+            orientation: self.orientation,
             style: self.style,
             maximum_passes: self.maximum_passes,
             next_pass: self.next_pass,
@@ -469,7 +508,6 @@ fn from_wide(wide: Tier1CodeBlockDecoder) -> Result<PrivateHtDecoder, DecodeErro
         || wide.legacy_decode_work != 0
         || !wide.private_plan
         || !wide.style.force_high_throughput
-        || !matches!(wide.orientation, SubbandOrientation::Ll)
         || !matches!(wide.style.block_coding, Tier1BlockCoding::HighThroughput)
     {
         #[cfg(verus_keep_ghost)]
@@ -483,6 +521,7 @@ fn from_wide(wide: Tier1CodeBlockDecoder) -> Result<PrivateHtDecoder, DecodeErro
     let primary = retained?;
     Ok(PrivateHtDecoder {
         primary,
+        orientation: wide.orientation,
         style: wide.style,
         maximum_passes: wide.maximum_passes,
         next_pass: wide.next_pass,

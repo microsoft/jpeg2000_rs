@@ -5,6 +5,7 @@ pub struct PrivateHtInitialContext {
     pub width:u16,
     pub height:u16,
     pub bitplanes:u16,
+    pub orientation:crate::tier1::SubbandOrientation,
     pub style:crate::tier1::Tier1CodingStyle,
     pub allowed:bool,
     pub bound:u8,
@@ -18,7 +19,7 @@ pub(crate) open spec fn private_ht_initial_supported(ctx:PrivateHtInitialContext
 
 pub(crate) open spec fn private_ht_initial_state(ctx:PrivateHtInitialContext,plane:Tier1RawPlane)->PrivateHtDecoderState {
     PrivateHtDecoderState {packed:true,logical:Tier1DecoderState {
-        plane,private_plan:true,orientation:crate::tier1::SubbandOrientation::Ll,style:ctx.style,
+        plane,private_plan:true,orientation:ctx.orientation,style:ctx.style,
         maximum_passes:(3*(ctx.bitplanes as nat)-2) as u32,next_pass:0,
         bitplane:(ctx.bitplanes as int-1) as u16,zero_bitplanes:None,
         bitplane_state:None,mq_context_state:None,reset_contexts_before_mq:false,
@@ -72,7 +73,7 @@ pub(crate) proof fn private_ht_initial_equivalent(ctx:PrivateHtInitialContext)
     ensures match private_ht_initial_value(ctx){
         Err(error)=>Err(error),Ok(value)=>Ok(value.logical),
     }==part2_configured_checkpoint(ctx.width,ctx.height,ctx.bitplanes,
-        crate::tier1::SubbandOrientation::Ll,ctx.style,ctx.allowed,ctx.bound,true),
+        ctx.orientation,ctx.style,ctx.allowed,ctx.bound,true),
 {
     reveal(part2_tier1_initial_decoder);
     reveal(part2_tier1_configured_decoder);reveal(part2_configured_checkpoint);reveal(part2_with_ht_checkpoint);

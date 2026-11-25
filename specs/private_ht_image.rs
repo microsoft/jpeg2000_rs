@@ -43,7 +43,7 @@ pub(crate) open spec fn private_component_calls_run(context:PrivateReconstructio
 pub(crate) open spec fn private_image_reconstruction(context:PrivateImageContext,plan:PrivateHtPlanState,
     precinct:PrivateHtPrecinctState,style:Part1PrepareStyle)->PrivateReconstructionContext {
     PrivateReconstructionContext {
-        plan:plan.component,precinct,style,maximum:crate::limits::resource_decoded_bytes_limit(&context.limits),
+        plan:plan.component,precinct:seq![precinct],style,maximum:crate::limits::resource_decoded_bytes_limit(&context.limits),
     }
 }
 
@@ -112,7 +112,7 @@ pub(crate) open spec fn private_image_after_plan_value(context:PrivateImageConte
                 let packets=private_packet_decode_value(context.parts,plan.grid,plan.precinct,private_image_selection(context),&context.limits);
                 match packets.0{
                     Err(error)=>Err(error),Ok(_)=>match crate::codestream::component_coding_style_result(&context.metadata.first.component_coding_styles,0){
-                        Err(error)=>Err(error),Ok(style)=>match part2_prepare_component(plan.component,private_ht_precinct_planes(packets.1),
+                        Err(error)=>Err(error),Ok(style)=>match part2_prepare_component(plan.component,private_ht_precinct_planes(seq![packets.1]),
                             crate::decode::prepare_style_view(style),None,crate::limits::resource_decoded_bytes_limit(&context.limits)){
                             Err(error)=>Err(error),Ok(value)=>private_image_finish(context,counters,value),
                         },
@@ -181,7 +181,7 @@ pub(crate) open spec fn private_image_after_plan_value(context:PrivateImageConte
                             Err(_)=>{part2_cold_pure(result);},
                             Ok(style)=>{
                                 let reconstruction=private_image_reconstruction(context,plan,packets.1,crate::decode::prepare_style_view(style));
-                                let component=part2_prepare_component(plan.component,private_ht_precinct_planes(packets.1),
+                                let component=part2_prepare_component(plan.component,private_ht_precinct_planes(seq![packets.1]),
                                     reconstruction.style,None,reconstruction.maximum);
                                 private_component_normal(reconstruction);
                                 private_component_calls_observed(reconstruction,component);
@@ -222,10 +222,10 @@ pub(crate) open spec fn private_image_after_plan_value(context:PrivateImageConte
             private_plan_value_fields(&context.size,context.tile,context.metadata.first,context.caps,&context.limits,plan);
             private_packet_decode_value_fields(context.parts,plan.grid,plan.precinct,private_image_selection(context),&context.limits);
             let packets=private_packet_decode_value(context.parts,plan.grid,plan.precinct,private_image_selection(context),&context.limits);
-            assert(part2_precinct_decoder_planes(seq![packets.1.logical]) =~= private_ht_precinct_planes(packets.1));
+            assert(part2_precinct_decoder_planes(seq![packets.1.logical]) =~= private_ht_precinct_planes(seq![packets.1]));
             if packets.0.is_ok(){
                 if let Ok(style)=crate::codestream::component_coding_style_result(&context.metadata.first.component_coding_styles,0){
-                    if let Ok(value)=part2_prepare_component(plan.component,private_ht_precinct_planes(packets.1),
+                    if let Ok(value)=part2_prepare_component(plan.component,private_ht_precinct_planes(seq![packets.1]),
                         crate::decode::prepare_style_view(style),None,crate::limits::resource_decoded_bytes_limit(&context.limits)){
                         assert(context.prepared.push(value).skip(context.prepared.len() as int) =~= seq![value]);
                         assert(context.prepared.push(value) =~= context.prepared+seq![value]);

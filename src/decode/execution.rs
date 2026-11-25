@@ -283,6 +283,11 @@ pub(crate) fn decode_tile_parts_at(
         proof! {crate::specs::private_image_tile_observed(context,decoded_layout_tile_outcome(result));}
         return result;
     }
+    if super::private_ht::standard_eligible(size, tile, parts, profile, discard) {
+        return super::private_ht::decode_standard(
+            size, tile, parts, profile, discard, &metadata, limits, prepared, initial, mct_work,
+        );
+    }
     let first = metadata.first;
     let maximum_resolution_counts = match discard {
         None => None,

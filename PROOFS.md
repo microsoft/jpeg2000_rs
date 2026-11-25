@@ -6460,7 +6460,34 @@ The ordinary decoder/planner record remains 432 bytes; the separate native
 private record is 136 bytes. Public Tier1/planning/precinct APIs, JPIP and legacy
 storage remain unchanged. This first subset and checkpoint packing do not
 complete the remaining original #474 legacy/incremental scope or establish a
-performance benefit. Source-function coverage remains unmeasured.
+performance benefit. Source-function coverage remains unmeasured. These
+qualification statements describe the zero-DWT baseline, not the unqualified
+extension below.
+
+### Unqualified standard-DWT private trial
+
+The development trial carries resolution/subband geometry through private
+precincts and preserves orientation in the same packed primary owner. A
+concrete indexed readable view shares reconstruction with the zero-DWT path;
+standard quantization, inverse DWT and entropy helpers are reused. Existing
+cooperative-deadline builds disable the new entry as well.
+
+The trial is blocked on the literal no-COC admission requirement. The regression
+`private_ht_standard_admission_requires_main_coc_provenance_not_resolved_style_equality`
+constructs a valid main-header COC identical to COD and a same-sized ignored
+COM alternative. Both produce equal complete `CodestreamLayout` values,
+including header counts, effective component styles and tile-marker flags.
+The current governing tile entry therefore cannot distinguish them. Neither
+resolved-style equality nor rejecting functional tile-header markers proves
+main-header COC absence. A private raw-header provenance bridge would be needed;
+no public record field, pointer trick, guessed marker-count restriction or
+weakened admission contract has been substituted.
+
+The new general planning/packet allocation programs and governing proof
+composition remain unfinished. No whole-source/package verification, complete
+qualification, matched final ELF or performance result is claimed for this
+extension. Focused native geometry/orientation and early release layout checks
+are development evidence only, not a verifier or whole-image oracle pass.
 
 ### Guarded native neighbor aggregation
 

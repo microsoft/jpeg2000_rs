@@ -74,6 +74,7 @@ pub(crate) open spec fn private_subband_owner_context(context:PrivateHtSubbandCo
 pub(crate) open spec fn private_block_context(context:PrivateHtSubbandContext,geometry:(u32,u32,u16,u16))->PrivateHtInitialContext {
     PrivateHtInitialContext {
         width:geometry.2,height:geometry.3,bitplanes:context.geometry.significant_bitplanes,
+        orientation:context.geometry.orientation,
         style:context.style,allowed:context.allowed,bound:context.bound,
     }
 }

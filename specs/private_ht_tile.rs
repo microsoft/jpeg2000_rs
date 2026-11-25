@@ -63,7 +63,7 @@ pub struct PrivateHtDecoderState {
 }
 
 pub(crate) open spec fn private_ht_metadata_supported(state:Tier1DecoderState)->bool {
-    state.private_plan && matches!(state.orientation,crate::tier1::SubbandOrientation::Ll)
+    state.private_plan
         && matches!(state.style.block_coding,crate::tier1::Tier1BlockCoding::HighThroughput)
         && state.style.force_high_throughput
         && state.bitplane_state.is_none() && state.mq_context_state.is_none()
@@ -76,8 +76,9 @@ pub struct PrivateHtPrecinctState {
     pub packed:Seq<bool>,
 }
 
-pub(crate) open spec fn private_ht_precinct_planes(precinct:PrivateHtPrecinctState)->Seq<Seq<Tier1RawPlane>> {
-    seq![precinct.logical.decoders.map_values(|decoder:Tier1DecoderState|decoder.plane)]
+pub(crate) open spec fn private_ht_precinct_planes(precincts:Seq<PrivateHtPrecinctState>)->Seq<Seq<Tier1RawPlane>> {
+    precincts.map_values(|precinct:PrivateHtPrecinctState|
+        precinct.logical.decoders.map_values(|decoder:Tier1DecoderState|decoder.plane))
 }
 
 pub(crate) proof fn private_ht_selected_metadata(size:&crate::codestream::ImageSize,tile:u16,parts:Seq<Part2OwnedTilePart>,

@@ -24,6 +24,397 @@ struct PrivateHtPlan {
     precinct: PrivateHtPrecinct,
 }
 
+struct PrivateHtStandardPlan {
+    component: PlannedTileComponent,
+    grid: PacketGrid,
+    precincts: Vec<PrivateHtPrecinct>,
+}
+
+enum PrivateHtReadablePrecincts<'a> {
+    One(&'a PrivateHtPrecinct),
+    Resolutions(&'a [PrivateHtPrecinct]),
+}
+
+struct PrivateHtReadable<'a> {
+    component: &'a PlannedTileComponent,
+    precincts: PrivateHtReadablePrecincts<'a>,
+}
+
+#[cfg(verus_keep_ghost)]
+verus! {
+    impl PrivateHtReadable<'_> {
+        closed spec fn precincts_view(&self)->Seq<crate::specs::PrivateHtPrecinctState> {
+            match self.precincts {
+                PrivateHtReadablePrecincts::One(value)=>seq![value.storage_view()],
+                PrivateHtReadablePrecincts::Resolutions(values)=>values@.map_values(
+                    |value:PrivateHtPrecinct|value.storage_view()),
+            }
+        }
+    }
+}
+
+impl PrivateHtReadable<'_> {
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures match result {
+            Ok(value)=>precinct<self.precincts_view().len()
+                && decoder<self.precincts_view()[precinct as int].logical.decoders.len()
+                && value.view()==self.precincts_view()[precinct as int].logical.decoders[decoder as int],
+            Err(error)=>error==if precinct>=self.precincts_view().len(){
+                crate::specs::part1_block_placement_error(false)
+            }else{crate::specs::part1_packet_header_error()},
+        },
+    ))]
+    fn decoder(&self, precinct: usize, decoder: usize) -> Result<&PrivateHtDecoder, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof! {reveal(PrivateHtReadable::precincts_view);}
+        match self.precincts {
+            PrivateHtReadablePrecincts::One(value) => {
+                if precinct != 0 {
+                    return Err(invalid_decode());
+                }
+                #[cfg(verus_keep_ghost)]
+                proof! {value.known_fields();}
+                value.decoder(decoder)
+            }
+            PrivateHtReadablePrecincts::Resolutions(values) => {
+                let value = values.get(precinct).ok_or_else(invalid_decode)?;
+                #[cfg(verus_keep_ghost)]
+                proof! {value.known_fields();}
+                value.decoder(decoder)
+            }
+        }
+    }
+}
+
+pub(super) fn standard_eligible(
+    size: &ImageSize,
+    tile: u16,
+    parts: &[TilePartPayload<'_>],
+    profile: &codestream::CodestreamProfile,
+    discard: Option<u8>,
+) -> bool {
+    if !super::PRIVATE_HT_PRIMARY_ENABLED
+        || size.components != 1
+        || parts.len() != 1
+        || discard.unwrap_or(0) != 0
+        || !profile.part15_requires_all_ht_blocks()
+    {
+        return false;
+    }
+    let Some(first) = parts.first() else {
+        return false;
+    };
+    let Ok(style) = first.component_coding_styles.style(0) else {
+        return false;
+    };
+    let Ok(tier1) = style.tier1_coding_style() else {
+        return false;
+    };
+    let Ok(roi) = first.roi_shifts.shift(0) else {
+        return false;
+    };
+    let Ok(bounds) = size.tile_component_bounds(first.tile_index, 0) else {
+        return false;
+    };
+    let Ok(geometry) = super::geometry::derive_component_resolution_geometry_for(
+        size,
+        style,
+        0,
+        style.decomposition_levels,
+        Some(tile),
+    ) else {
+        return false;
+    };
+    matches!(tier1.block_coding, Tier1BlockCoding::HighThroughput)
+        && first.tile_index == tile
+        && style.decomposition_levels > 0
+        && style.decomposition_structure.is_none()
+        && !style.precincts_defined
+        && !matches!(style.transform, WaveletTransform::Arbitrary(_))
+        && style.equals(first.coding_style)
+        && !first.has_functional_header_marker
+        && !first.coding_style.multiple_component_transform
+        && first.multiple_component_transform.is_none()
+        && first.progression_changes.is_empty()
+        && !first.packed_packet_headers.is_present()
+        && !first.packet_lengths.is_present()
+        && roi == 0
+        && !first.has_roi_marker
+        && bounds.x0 == 0
+        && bounds.y0 == 0
+        && bounds.x1 > 0
+        && bounds.y1 > 0
+        && bounds.x1 <= 32768
+        && bounds.y1 <= 32768
+        && geometry.precincts == 1
+        && geometry.precincts_across == 1
+        && geometry.precincts_down == 1
+}
+
+fn plan_standard(
+    size: &ImageSize,
+    tile: u16,
+    first: &TilePartPayload<'_>,
+    profile: &codestream::CodestreamProfile,
+    limits: &ResourceLimits,
+) -> Result<PrivateHtStandardPlan, DecodeError> {
+    size.tile_bounds(tile)?;
+    let grid = super::geometry::derive_packet_grid_for_components(
+        size,
+        &first.component_coding_styles,
+        first.coding_style.layers,
+        limits,
+        Some(tile),
+        0,
+    )?;
+    let metadata = super::planning::prepare_component_plan_metadata(
+        size,
+        &first.component_coding_styles,
+        &first.component_quantizations,
+        &first.roi_shifts,
+        0,
+        (tile, 0),
+        profile.part15_requires_all_ht_blocks(),
+    )?;
+    let mut precincts = Vec::new();
+    let mut placements = Vec::new();
+    let mut total = 0_u64;
+    let mut resolution = 0_u8;
+    while resolution <= metadata.component_coding_style.decomposition_levels {
+        let data = super::planning::prepare_resolution_plan_metadata(
+            size,
+            metadata.component_coding_style,
+            0,
+            (tile, resolution),
+            [metadata.bounds.x0, metadata.bounds.y0],
+        )?;
+        let mut precinct = 0;
+        while precinct < data.precincts_in_resolution {
+            let origin = super::planning::derive_planned_precinct_origin(
+                data.first_precinct,
+                data.geometry.precincts_across,
+                precinct,
+                data.band_size,
+            )?;
+            let region = [origin[0], origin[1], data.band_size[0], data.band_size[1]];
+            let mut executions = if data.subband_count == 0 {
+                Vec::new()
+            } else {
+                crate::allocation::empty_with_capacity(data.subband_count)?
+            };
+            let mut decoder_index = 0_usize;
+            let mut local = 0;
+            while local < data.subband_count {
+                let subband_index = data
+                    .first_subband
+                    .checked_add(local)
+                    .ok_or_else(arithmetic_overflow)?;
+                let geometry = *metadata
+                    .subbands
+                    .get(subband_index)
+                    .ok_or_else(invalid_decode)?;
+                if let Some(lattice) = super::planning::derive_planned_subband_lattice(
+                    region,
+                    data.block_size,
+                    geometry,
+                )? {
+                    let count = u64::from(lattice.blocks[0])
+                        .checked_mul(u64::from(lattice.blocks[1]))
+                        .ok_or_else(arithmetic_overflow)?;
+                    total = total.checked_add(count).ok_or_else(arithmetic_overflow)?;
+                    if total > limits.maximum_code_blocks() {
+                        return Err(DecodeError::LimitExceeded {
+                            resource: Resource::CodeBlocks,
+                            limit: limits.maximum_code_blocks(),
+                            actual: total,
+                        });
+                    }
+                    if total > limits.maximum_work_units() {
+                        return Err(DecodeError::LimitExceeded {
+                            resource: Resource::WorkUnits,
+                            limit: limits.maximum_work_units(),
+                            actual: total,
+                        });
+                    }
+                    let mut band = plan_subband(
+                        geometry,
+                        metadata.tier1_style,
+                        region,
+                        data.block_size,
+                        profile,
+                        limits,
+                    )?;
+                    let mut index = 0;
+                    while index < band.placements.len() {
+                        let placement =
+                            band.placements.get_mut(index).ok_or_else(invalid_decode)?;
+                        placement.precinct_index = precincts.len();
+                        placement.subband_index = subband_index;
+                        placement.decoder_index = decoder_index
+                            .checked_add(index)
+                            .ok_or_else(arithmetic_overflow)?;
+                        index += 1;
+                    }
+                    decoder_index = decoder_index
+                        .checked_add(band.blocks.len())
+                        .ok_or_else(arithmetic_overflow)?;
+                    if !band.placements.is_empty() {
+                        crate::allocation::reserve_additional(
+                            &mut placements,
+                            band.placements.len(),
+                        )?;
+                    }
+                    placements.append(&mut band.placements);
+                    executions.push(crate::packet::PrivateHtSubbandExecution {
+                        orientation: geometry.orientation,
+                        across: band.across,
+                        down: band.down,
+                        maximum_zero: geometry.significant_bitplanes,
+                        decoders: band.blocks,
+                    });
+                }
+                local += 1;
+            }
+            let row = crate::packet::new_private_ht_resolution_precinct(
+                resolution,
+                metadata.tier1_style,
+                executions,
+                limits,
+            )?;
+            crate::allocation::reserve_additional(&mut precincts, 1)?;
+            precincts.push(row);
+            precinct = precinct.checked_add(1).ok_or_else(arithmetic_overflow)?;
+        }
+        resolution = resolution.checked_add(1).ok_or_else(arithmetic_overflow)?;
+    }
+    Ok(PrivateHtStandardPlan {
+        component: PlannedTileComponent {
+            component: 0,
+            x: metadata.component_x,
+            y: metadata.component_y,
+            width: metadata.component_width,
+            height: metadata.component_height,
+            output_resolution: metadata.output_resolution,
+            subbands: metadata.subbands,
+            placements,
+        },
+        grid,
+        precincts,
+    })
+}
+
+fn reconstruct_standard(
+    plan: &PrivateHtStandardPlan,
+    coding: codestream::CodingStyle,
+    limits: &ResourceLimits,
+) -> Result<PreparedTileComponent, DecodeError> {
+    reconstruct_readable(
+        &PrivateHtReadable {
+            component: &plan.component,
+            precincts: PrivateHtReadablePrecincts::Resolutions(&plan.precincts),
+        },
+        coding,
+        limits,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn decode_standard(
+    size: &ImageSize,
+    tile: u16,
+    parts: &[TilePartPayload<'_>],
+    profile: &codestream::CodestreamProfile,
+    discard: Option<u8>,
+    metadata: &super::TileDecodeMetadata<'_, '_>,
+    limits: &ResourceLimits,
+    prepared: Vec<PreparedTileComponent>,
+    initial: (u64, u64, u64),
+    mct_work: u64,
+) -> Result<DecodedLayoutTile, DecodeError> {
+    let mut prepared = prepared;
+    let mut plan = plan_standard(size, tile, metadata.first, profile, limits)?;
+    let selection = match discard {
+        None => None,
+        Some(_) => Some(metadata.resolution_counts.as_slice()),
+    };
+    let packets = initial
+        .0
+        .checked_add(match selection {
+            None => plan.grid.packet_count(),
+            Some(counts) => plan.grid.selected_packet_count(counts)?,
+        })
+        .ok_or_else(arithmetic_overflow)?;
+    if packets > limits.maximum_packets() {
+        return Err(DecodeError::LimitExceeded {
+            resource: Resource::Packets,
+            limit: limits.maximum_packets(),
+            actual: packets,
+        });
+    }
+    let precinct_count = if selection.is_some() {
+        (packets - initial.0)
+            .checked_div(u64::from(metadata.first.coding_style.layers))
+            .ok_or_else(arithmetic_overflow)?
+    } else {
+        plan.grid.total_precinct_count()?
+    };
+    let precincts = initial
+        .1
+        .checked_add(precinct_count)
+        .ok_or_else(arithmetic_overflow)?;
+    if precincts > limits.maximum_precincts() {
+        return Err(DecodeError::LimitExceeded {
+            resource: Resource::Precincts,
+            limit: limits.maximum_precincts(),
+            actual: precincts,
+        });
+    }
+    let blocks = if selection.is_some() {
+        super::execution::count_selected_component_blocks(&plan.component, initial.2)?
+    } else {
+        initial
+            .2
+            .checked_add(plan.component.placements.len() as u64)
+            .ok_or_else(arithmetic_overflow)?
+    };
+    if blocks > limits.maximum_code_blocks() {
+        return Err(DecodeError::LimitExceeded {
+            resource: Resource::CodeBlocks,
+            limit: limits.maximum_code_blocks(),
+            actual: blocks,
+        });
+    }
+    crate::packet::decode_private_ht_resolution_packets(
+        parts,
+        &plan.grid,
+        &mut plan.precincts,
+        selection,
+        limits,
+    )?;
+    let component = reconstruct_standard(
+        &plan,
+        metadata.first.component_coding_styles.style(0)?,
+        limits,
+    )?;
+    let start = prepared.len();
+    crate::allocation::reserve_additional(&mut prepared, 1)?;
+    prepared.push(component);
+    let mut work = mct_work;
+    super::execution::finish_prepared_tile(
+        prepared.get_mut(start..).ok_or_else(invalid_decode)?,
+        size,
+        None,
+        metadata.standard,
+        limits,
+        &mut work,
+    )?;
+    Ok(DecodedLayoutTile {
+        prepared,
+        counters: (packets, precincts, blocks),
+        mct_work: work,
+    })
+}
+
 #[cfg(verus_keep_ghost)]
 verus! {
     closed spec fn private_native_subband_context(geometry:SubbandGeometry,band:[u32;4],block:[u32;2],
@@ -71,10 +462,10 @@ verus! {
             self.precinct.invariant()
         }
     }
-    spec fn private_reconstruction_context(plan:&PrivateHtPlan,coding:codestream::CodingStyle,limits:&ResourceLimits)
+    spec fn private_reconstruction_context(plan:&PrivateHtReadable<'_>,coding:codestream::CodingStyle,limits:&ResourceLimits)
         ->crate::specs::PrivateReconstructionContext {
         crate::specs::PrivateReconstructionContext {
-            plan:super::prepare_plan_view(&plan.component),precinct:plan.precinct.storage_view(),
+            plan:super::prepare_plan_view(plan.component),precinct:plan.precincts_view(),
             style:super::prepare_style_view(coding),maximum:crate::limits::resource_decoded_bytes_limit(limits),
         }
     }
@@ -293,6 +684,7 @@ fn append_private_block(
         width,
         height,
         state.geometry.significant_bitplanes,
+        state.geometry.orientation,
         style,
         profile.part15_allows_multiple_ht_sets(),
         profile.part15_magnitude_bound(),
@@ -743,16 +1135,16 @@ fn plan(
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::private_place_result(old(working)@,plan.component.subbands@,
-            crate::specs::private_ht_precinct_planes(plan.precinct.storage_view()),placement,reversible,
+            crate::specs::private_ht_precinct_planes(plan.precincts_view()),placement,reversible,
             crate::limits::resource_decoded_bytes_limit(limits),(result,final(working)@)),
         result!=Err(DecodeError::AllocationFailed) ==> (result,final(working)@)==crate::specs::part1_prepare_placement(
-            old(working)@,plan.component.subbands@,crate::specs::private_ht_precinct_planes(plan.precinct.storage_view()),
+            old(working)@,plan.component.subbands@,crate::specs::private_ht_precinct_planes(plan.precincts_view()),
             placement,reversible,crate::limits::resource_decoded_bytes_limit(limits)),
         final(working).bands.len()==old(working).bands.len(),
 ))]
 fn place_private_block(
     working: &mut super::PrepareWorking,
-    plan: &PrivateHtPlan,
+    plan: &PrivateHtReadable<'_>,
     placement: ProgressionCodeBlockPlacement,
     reversible: bool,
     limits: &ResourceLimits,
@@ -760,12 +1152,11 @@ fn place_private_block(
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost initial=working@;
-        let ghost planes=crate::specs::private_ht_precinct_planes(plan.precinct.storage_view());
+        let ghost planes=crate::specs::private_ht_precinct_planes(plan.precincts_view());
         let ghost maximum=crate::limits::resource_decoded_bytes_limit(limits);
     }
     #[cfg(verus_keep_ghost)]
     proof! {
-        plan.precinct.known_fields();
         crate::specs::private_place_normal(initial,plan.component.subbands@,planes,placement,reversible,maximum);
         reveal(crate::specs::part1_prepare_placement);
     }
@@ -777,10 +1168,7 @@ fn place_private_block(
         .subbands
         .get(placement.subband_index)
         .ok_or_else(invalid_decode)?;
-    if placement.precinct_index != 0 {
-        return Err(invalid_decode());
-    }
-    let decoder = plan.precinct.decoder(placement.decoder_index)?;
+    let decoder = plan.decoder(placement.precinct_index, placement.decoder_index)?;
     let (width, height) = decoder.dimensions();
     if placement
         .x
@@ -855,15 +1243,14 @@ fn place_private_block(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    requires plan.component.output_resolution==0,
     ensures crate::specs::private_component_result(private_reconstruction_context(plan,coding,limits),super::prepared_component_outcome(result)),
         super::prepared_component_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
             super::prepared_component_outcome(result)==crate::specs::part2_prepare_component(super::prepare_plan_view(&plan.component),
-                crate::specs::private_ht_precinct_planes(plan.precinct.storage_view()),super::prepare_style_view(coding),None,
+                crate::specs::private_ht_precinct_planes(plan.precincts_view()),super::prepare_style_view(coding),None,
                 crate::limits::resource_decoded_bytes_limit(limits)),
 ))]
-fn reconstruct(
-    plan: &PrivateHtPlan,
+fn reconstruct_readable(
+    plan: &PrivateHtReadable<'_>,
     coding: codestream::CodingStyle,
     limits: &ResourceLimits,
 ) -> Result<PreparedTileComponent, DecodeError> {
@@ -963,7 +1350,7 @@ fn reconstruct(
     covered?;
     let folded = super::reconstruction::reconstruct_prepare_working(
         &working.bands,
-        &plan.component,
+        plan.component,
         coding,
         reversible,
         None,
@@ -971,7 +1358,7 @@ fn reconstruct(
     );
     #[cfg(verus_keep_ghost)]
     proof! {crate::specs::private_component_folded(context,reversible,selected,initial,working@,super::prepare_fold_outcome(folded));}
-    super::reconstruction::finish_prepared_component(&plan.component, folded?, fraction)
+    super::reconstruction::finish_prepared_component(plan.component, folded?, fraction)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -1118,10 +1505,14 @@ fn decode_planned(
         if let Err(error)=style_result{assert(crate::specs::part2_cold_prefix(root,prefix,Err(error)));}
     }
     let coding = style_result?;
-    let reconstructed = reconstruct(&plan, coding, limits);
+    let readable = PrivateHtReadable {
+        component: &plan.component,
+        precincts: PrivateHtReadablePrecincts::One(&plan.precinct),
+    };
+    let reconstructed = reconstruct_readable(&readable, coding, limits);
     #[cfg(verus_keep_ghost)]
     proof! {
-        let context=private_reconstruction_context(&plan,coding,limits);
+        let context=private_reconstruction_context(&readable,coding,limits);
         crate::specs::private_component_calls_observed(context,super::prepared_component_outcome(reconstructed));
         let child=|events|crate::specs::private_component_calls_run(context,events);
         let next=|value,rest|crate::specs::private_image_after_component(ctx,counters,value,rest);

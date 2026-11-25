@@ -192,12 +192,17 @@ The implementation contains:
 - Legacy MQ and raw-bypass Tier-1 passes, coding-style routing, and Maxshift undo.
 - HT cleanup, significance propagation, magnitude refinement, placeholder and
   replacement pass sets, and mixed legacy/HT routing.
-  A private packed-primary optimization applies only to the single-component,
+  The qualified private packed-primary baseline applies only to the single-component,
   single-part, zero-DWT, one-origin-zero-precinct HT-only subset described in
   [PROOFS.md](PROOFS.md#private-one-shot-ht-primary-storage). ROI-coded inputs,
   public/JPIP coefficient owners and other layouts retain wide storage.
   Existing cooperative-deadline builds use the wide path; this does not add a
   format-support claim.
+  The standard-DWT private-owner development trial is **unqualified**: its
+  literal no-COC admission requirement fails on a redundant main-header COC.
+  Resolved layout/style equality and the existing tile-header marker flag do
+  not retain that main-header provenance. The trial is not an adoption or a
+  performance claim; see [PROOFS.md](PROOFS.md#unqualified-standard-dwt-private-trial).
 - Reversible 5/3 and fixed-point irreversible 9/7 synthesis.
   Odd-origin high-only singleton operators use arithmetic half in the
   retained-assertion engineering profile. Actual encoded singleton-tile

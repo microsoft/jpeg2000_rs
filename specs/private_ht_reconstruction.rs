@@ -2,7 +2,7 @@ use super::*;
 verus! {
 
 pub struct PrivateReconstructionContext {
-    pub plan:Part1PreparePlan,pub precinct:PrivateHtPrecinctState,
+    pub plan:Part1PreparePlan,pub precinct:Seq<PrivateHtPrecinctState>,
     pub style:Part1PrepareStyle,pub maximum:u64,
 }
 
