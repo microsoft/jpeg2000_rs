@@ -320,3 +320,29 @@ See [per-case initial results](data/c12-summary.csv).
   pipeline from the tracked row/ownership work, profile the remaining passes
   on high-precision inputs, and obtain range/proof qualification before
   introducing a second internal arithmetic representation.
+
+## C7: exact work accounting versus unsafe coarse precharging
+
+- **Coverage:** #289/#359 establish cooperative checkpoint semantics;
+  #472/#485 already cover exact admissible HT field batching. General
+  amortized accounting remains outside that narrower work.
+- **Hypothesis:** partly confirmed. [MQ decisions](../../src/mq.rs#L564)
+  and renormalization shifts call [the exact counter](../../src/mq.rs#L755).
+  There is **no per-decision deadline-clock read** in this function to remove.
+  Native deadline checkpoints are separately gated.
+- **Stage share / ceiling:** first-pass standalone MQ samples range
+  3.91-37.35% across A/B. Work charging is only an unisolated subset; assigning
+  the entire MQ share to accounting would be false attribution.
+- **Prototype:** none. Precharging a conservative pass maximum as observed
+  work would change tight-budget failures and partial/error states. A viable
+  experiment needs an admissible-bound fast path with exact final charges,
+  exact fallback near frontiers, and bounds covering actual pass/style work.
+- **Correctness/verification:** no accounting or checkpoint changed; the
+  measured C2/C12 branches preserve these calls and pass deadline controls.
+  No new overshoot bound or wall-clock SLA was measured. Exact-state proof
+  execution is currently blocked, so no coarsened policy is presented as safe.
+- **Effort/risk:** M-L/high, including termination, malformed-prefix state,
+  overflow, precise work refusal and cancellation granularity.
+- **Recommendation:** **needs more data**. Isolate real accounting cost
+  before implementation, derive/check the bound, and verify exact budget/error
+  behavior rather than replacing checks with `debug_assert!`.
