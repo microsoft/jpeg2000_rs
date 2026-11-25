@@ -103,7 +103,7 @@ def main():
                          "L1-dcache-load-misses:u,LLC-load-misses:u",
                          "--", *base, "1", "0", "0"], work / f"count-{repeat}", env)
     with (output / "stages.csv").open("w") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
     write_json(output / "COMPLETE.json", {

@@ -57,7 +57,7 @@ def main():
     write_json(output / "provenance.json", provenance)
     raw_rows, summaries = [], []
     with (output / "raw.csv").open("w") as stream:
-        writer = csv.DictWriter(stream, fieldnames=["config", "case", "class", "backend", "round", "sample", "ns"])
+        writer = csv.DictWriter(stream, fieldnames=["config", "case", "class", "backend", "round", "sample", "ns"], lineterminator="\n")
         writer.writeheader()
         for config in options.configs.split(","):
             metadata = json.loads((baseline / config / "build.json").read_text())
@@ -135,7 +135,7 @@ def main():
                     raise ValueError("expected the six supplied #299 controls")
                 write_json(output / config / "299.json", numerical)
     with (output / "summary.csv").open("w") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(summaries[0]))
+        writer = csv.DictWriter(stream, fieldnames=list(summaries[0]), lineterminator="\n")
         writer.writeheader()
         writer.writerows(summaries)
     write_json(output / "COMPLETE.json", {"observations": len(raw_rows), "summaries": summaries})

@@ -163,3 +163,57 @@ No GitHub issue or PR has been filed and no branch merged or released.
 Full corpus, stage-share, paired prototype, numerical, proof and determinism
 evidence remain to be collected; missing cells will stay explicitly unmeasured
 rather than be filled with historical issue numbers.
+
+## Completed first-pass experiment: C2 count-to-context lookup
+
+This section records the completed first pass. A full rerun with explicit
+output-consumption barriers before both end timestamps is in progress; the
+first-pass evidence remains preserved rather than being overwritten.
+
+- **Coverage:** remainder of #447/#457. This is only branchy count-to-context
+  mapping, **not** stripe-packed flags, flag-mask-to-context lookup, or
+  32/64-block specialization.
+- **Hypothesis:** partly confirmed.
+  [The current mapping](../../src/tier1/state.rs#L213) branches over neighbor
+  counts; the compact path already maintains incremental neighbor flags.
+- **Stage share:** sampled generic Tier-1 shared/legacy self time spans
+  48.41-66.63% on A/B inputs. This broad parent bucket includes ownership and
+  pass work, not an isolated context timer or a strict wall-time ceiling.
+- **Prototype:** `perf/eval-c2-context-lut`, `edd777d`; 57 inserted/7 removed
+  lines, including a focused count-class/orientation test. A const-generated
+  128-byte table preserves every public count class via saturation and a
+  masked in-range index. It does not change coefficient storage.
+- **Correctness:** all 22 image/configuration dumps exactly match paired
+  controls. The decoder's default all-target suite passes 1,383 library and
+  six example tests on both Rust 1.93.1 and actual MSRV 1.88.0; five doctests
+  pass on each version. Seven focused cooperative-deadline controls pass
+  with MSRV. Four original #299 irreversible controls remain max 1 with
+  2/85/5/322 differing samples before and after; both reversible controls
+  remain exact. Cross-target execution is not tested.
+- **Verification:** **not run**, not a theorem failure. Local `cargo verus`
+  is absent, the pinned workflow requires x86, and prototype push was denied
+  HTTP 403 to `telecos`, preventing exact-ref workflow dispatch. No proof,
+  contract, check, verifier pin or resource policy was removed.
+- **Effort/risk:** S native prototype; M proof follow-through; medium
+  maintenance risk. Stripe representation/block specialization remains L
+  and is not evaluated by this small experiment.
+- **Recommendation:** **needs more data for C2 overall; do not adopt this
+  lookup on the legacy evidence.** Intended A/B cases do not improve. The
+  generic HT signal is not enough for adoption: it does not repeat under
+  the consumer profile, and whole-process HT instructions increase rather
+  than decrease. Broader stripe/block work is still unmeasured.
+
+Positive change means slower; these are class geometric means of paired
+per-image after/before medians, not historical issue timings.
+
+| Class subset | Generic change | Consumer change |
+|---|---:|---:|
+| A | +0.665% | +0.741% |
+| B | +0.523% | +0.273% |
+| E | -3.680% | -0.366% |
+
+Generic noisy-lossless gray/RGB instructions rise 1.667%/1.667%;
+HT instructions rise 0.170-0.182%. The apparent generic HT time improvement
+is therefore retained as an unexplained signal, **not attributed as a
+context-kernel win**. Per-case medians, IQR/noise decisions and all controls
+are in [the first-pass table](data/c2-summary.csv).

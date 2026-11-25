@@ -203,7 +203,7 @@ def summarize(rows, output):
             "iqr_ms": (quartiles[2] - quartiles[0]) / 1e6,
         })
     with (output / "summary.csv").open("w") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(summaries[0]))
+        writer = csv.DictWriter(stream, fieldnames=list(summaries[0]), lineterminator="\n")
         writer.writeheader()
         writer.writerows(summaries)
     lines = ["# Matched in-memory smoke baseline", "",
@@ -283,7 +283,7 @@ def main():
     })
     rows = []
     with (output / "raw.csv").open("w") as stream:
-        writer = csv.DictWriter(stream, fieldnames=["config", "case", "class", "backend", "mode", "round", "sample", "ns"])
+        writer = csv.DictWriter(stream, fieldnames=["config", "case", "class", "backend", "mode", "round", "sample", "ns"], lineterminator="\n")
         writer.writeheader()
         for config in configs:
             if options.reuse_builds:
