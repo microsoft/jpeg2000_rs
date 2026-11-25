@@ -753,6 +753,10 @@ impl<'a> MqDecoder<'a> {
             mq_decoder_view(old(self))),
     ))]
     fn charge_work(&mut self) -> Result<(), DecodeError> {
+        if self.work_units < self.maximum_work_units {
+            self.work_units += 1;
+            return Ok(());
+        }
         self.work_units = match self.work_units.checked_add(1) {
             Some(work) => work,
             None => return Err(mq_error(self.byte_index, MalformedKind::ArithmeticOverflow)),
@@ -926,6 +930,17 @@ mod tests {
 
     #[test]
     fn first_errors_and_partial_mutations_are_not_transactional() {
+        let mut decoder = supplied_state(&[]);
+        decoder.work_units = u64::MAX - 1;
+        assert_eq!(decoder.charge_work(), Ok(()));
+        assert_eq!(decoder.work_units, u64::MAX);
+        let before = snapshot(&decoder);
+        assert_eq!(
+            decoder.charge_work(),
+            Err(mq_error(0, MalformedKind::ArithmeticOverflow))
+        );
+        assert_eq!(snapshot(&decoder), before);
+
         let mut decoder = supplied_state(&[]);
         decoder.work_units = u64::MAX;
         let before = snapshot(&decoder);
