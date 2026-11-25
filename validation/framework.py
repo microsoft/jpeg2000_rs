@@ -8003,7 +8003,10 @@ _PLANE_ROLE_NATIVE_ORDER = {
     ("src/packet/private_ht.rs", "new_private_ht_resolution_precinct"): (
         "let mut precinct = PrivateHtPrecinct { resolution, precinct: precinct_number, states: Vec::new()", "while index < executions.len()",
         "admit_private_resolution_execution(", "prepare_precinct_contexts(",
-        "reserve_additional(", "precinct.decoders.append(", "tag_tree_new(", "subbands.push(",
+        "reserve_additional(", "precinct.decoders.append(",
+        "let inclusion_result = super::tag_tree::tag_tree_new(",
+        "let zero_result = super::tag_tree::tag_tree_new(",
+        "precinct.subbands.push(PacketSubbandState {",
     ),
     ("src/packet/private_ht.rs", "decode_private_ht_resolution_packets"): (
         "prepare_private_resolution_input(", "progression_tile_progress_new(", "run_private_resolution_tile(",
