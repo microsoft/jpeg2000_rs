@@ -346,3 +346,37 @@ See [per-case initial results](data/c12-summary.csv).
 - **Recommendation:** **needs more data**. Isolate real accounting cost
   before implementation, derive/check the bound, and verify exact budget/error
   behavior rather than replacing checks with `debug_assert!`.
+
+## C8: scratch reuse after excluding tracked ownership changes
+
+- **Coverage:** #470/#471/#476/#477/#480 already cover major transaction,
+  row, HT metadata, assembly and color surfaces. #421/#422 replay reuse is
+  expressly excluded. A generic reuse proposal must not relabel those tasks.
+- **Hypothesis:** partly confirmed. The
+  [scalar column fallback](../../src/transform/levels.rs#L502) owns a new
+  destination and per-column results. This is different from the shipped
+  row-wise standard path. Its independent fallback frequency/cost is not
+  established by the current ordinary 8-bit corpus.
+- **Stage share / ceiling:** first-pass A/B allocation/copy/zero self samples
+  span 0.35-5.81%. Inlined copying, page faults and memory traffic can be
+  charged to callers, so this bucket is not a valid cap on all reuse gains.
+- **Measured allocation evidence:** a separate first-pass DHAT run of one
+  smooth-gray full decode observes 4,607 Rust heap blocks / 204,881,150
+  allocated bytes, with 87,293,748 bytes live at the global peak. This includes
+  startup/input and output work, not only DWT. It establishes allocation
+  volume, **not attribution of that volume to untracked scratch**. The C
+  conversion allocation actually receives 8,388,608 bytes of writes; merely
+  allocating the equivalent-format output was not accepted as a proxy.
+- **Prototype:** none on residual fallback/cross-call reuse. Normal hot
+  ownership work remains assigned to existing trackers.
+- **Correctness/verification:** no scratch lifetime, zeroing, refusal trace
+  or public API changed. A new owner model must document changed physical
+  allocation sites and prove complete overwrite before read; phantom refusal
+  events or capacity assumptions from equal sequences are not acceptable.
+  Exact-source verification is unavailable.
+- **Effort/risk:** M/medium for a bounded residual kernel, L for a new
+  cross-call decoder API. High-precision/arbitrary-kernel reach needs a
+  representative workload first.
+- **Recommendation:** **needs more data** on genuinely residual reuse;
+  prefer already tracked owner/copy elimination over an unmeasured global
+  scratch abstraction.
