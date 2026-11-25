@@ -8737,6 +8737,7 @@
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_loop_normal"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_normal"},
         {"path": "src/decode/tile_part_index.rs", "symbol": "entries_view"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "entry_view_at"},
         {"path": "src/decode/tile_part_index.rs", "symbol": "optional_index_matches"},
         {"path": "src/decode/tile_part_index.rs", "symbol": "index_preparation_outcome"},
         {"path": "src/decode/tile_part_index.rs", "symbol": "tile_index_slots"},

@@ -74,6 +74,7 @@ pub(crate) open spec fn part2_packet_value_run(parts: Seq<Part2OwnedTilePart>, g
                             part2_index_prefix_normal(input.parts, count as nat, count as nat,
                                 |events| part2_full_decode_run(&input.size,input.parts,input.capabilities,limits,count,0,initial,events),
                                 part2_full_layout_tiles(&input.size,input.parts,input.capabilities,limits,count,0,initial));
+                            part2_decode_eta(|events| part2_layout_decode_run(input, None, limits, events), result);
                         },
                 },
                 Some(selection) => {
@@ -94,6 +95,7 @@ pub(crate) open spec fn part2_packet_value_run(parts: Seq<Part2OwnedTilePart>, g
                                     |events| part2_selected_decode_run(&input.size, input.parts, input.capabilities,
                                         selection.0, [selection.1[0], selection.1[1], selection.1[2], selection.1[3]],
                                         selection.2, limits, 0, initial, events), result);
+                                part2_decode_eta(|events| part2_layout_after_selection_run(input, selection, limits, events), result);
                             }
                         },
                     }

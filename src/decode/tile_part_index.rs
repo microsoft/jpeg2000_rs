@@ -21,6 +21,13 @@ verus! {
         entries.map_values(|entry: TilePartIndexEntry| (entry.head, entry.count))
     }
 
+    proof fn entry_view_at(entries: Seq<TilePartIndexEntry>, position: int)
+        requires 0 <= position < entries.len(),
+        ensures entries_view(entries)[position] == (entries[position].head, entries[position].count),
+    {
+        reveal(entries_view);
+    }
+
     pub(super) closed spec fn optional_index_matches(
         parts: Seq<crate::specs::Part2OwnedTilePart>, index: &Option<TilePartIndex>,
     ) -> bool {
@@ -166,9 +173,11 @@ pub(super) fn prepare_tile_part_index(
     #[cfg(verus_keep_ghost)]
     proof! {
         assert forall|tile: int| 0 <= tile < slots implies
-            #[trigger] entries_view(entries@)[tile] == (
-                crate::specs::part2_index_next(source, tile as u16, position as nat) as usize,
-                crate::specs::part2_collected_part_count(source, tile as u16, position as nat) as usize) by {
+            #[trigger] entries_view(entries@)[tile].0 as nat
+                == crate::specs::part2_index_next(source, tile as u16, position as nat)
+                && entries_view(entries@)[tile].1 as nat
+                    == crate::specs::part2_collected_part_count(source, tile as u16, position as nat) by {
+            entry_view_at(entries@, tile);
             reveal_with_fuel(crate::specs::part2_index_next, 1);
             reveal_with_fuel(crate::specs::part2_collected_part_count, 1);
         }
@@ -179,12 +188,13 @@ pub(super) fn prepare_tile_part_index(
             source == codestream::tile_parts_owned_view(parts@),
             crate::specs::part2_prepare_tile_index_result(source, slots as nat, selected_count as nat, Ok(())),
             forall|tile: int| 0 <= tile < slots ==>
-                #[trigger] entries_view(entries@)[tile] == (
-                    crate::specs::part2_index_next(source, tile as u16, position as nat) as usize,
-                    crate::specs::part2_collected_part_count(source, tile as u16, position as nat) as usize),
-            forall|i: int| position <= i < parts.len() ==> #[trigger] next@[i] ==
+                #[trigger] entries_view(entries@)[tile].0 as nat
+                    == crate::specs::part2_index_next(source, tile as u16, position as nat)
+                    && entries_view(entries@)[tile].1 as nat
+                        == crate::specs::part2_collected_part_count(source, tile as u16, position as nat),
+            forall|i: int| position <= i < parts.len() ==> #[trigger] next@[i] as nat ==
                 if (source[i].tile_index as nat) < slots {
-                    crate::specs::part2_index_next(source, source[i].tile_index, (i + 1) as nat) as usize
+                    crate::specs::part2_index_next(source, source[i].tile_index, (i + 1) as nat)
                 } else { parts.len() },
             forall|i: int| 0 <= i < position ==> #[trigger] next@[i] == parts.len(),
         decreases position,
@@ -205,7 +215,10 @@ pub(super) fn prepare_tile_part_index(
             let entry = entries[tile];
             #[cfg(verus_keep_ghost)]
             proof! {
+                entry_view_at(entries@, tile as int);
                 crate::specs::part2_index_next_bounds(source, parts[position as int].tile_index, (position + 1) as nat);
+                assert(entry.count as nat == crate::specs::part2_collected_part_count(
+                    source, source[position as int].tile_index, (position + 1) as nat));
                 assert(entry.count < usize::MAX);
             }
             next[position] = entry.head;
@@ -217,12 +230,26 @@ pub(super) fn prepare_tile_part_index(
         #[cfg(verus_keep_ghost)]
         proof! {
             assert forall|selected: int| 0 <= selected < slots implies
-                #[trigger] entries_view(entries@)[selected] == (
-                    crate::specs::part2_index_next(source, selected as u16, position as nat) as usize,
-                    crate::specs::part2_collected_part_count(source, selected as u16, position as nat) as usize) by {
+                #[trigger] entries_view(entries@)[selected].0 as nat
+                    == crate::specs::part2_index_next(source, selected as u16, position as nat)
+                    && entries_view(entries@)[selected].1 as nat
+                        == crate::specs::part2_collected_part_count(source, selected as u16, position as nat) by {
+                entry_view_at(before_entries, selected);
+                entry_view_at(entries@, selected);
                 crate::specs::part2_index_next_bounds(source, selected as u16, (position + 1) as nat);
                 reveal_with_fuel(crate::specs::part2_index_next, 1);
                 reveal_with_fuel(crate::specs::part2_collected_part_count, 1);
+            }
+            assert forall|i: int| position <= i < parts.len() implies #[trigger] next@[i] as nat ==
+                if (source[i].tile_index as nat) < slots {
+                    crate::specs::part2_index_next(source, source[i].tile_index, (i + 1) as nat)
+                } else { parts.len() } by {
+                if i == position && tile < slots {
+                    entry_view_at(before_entries, tile as int);
+                    assert(next@[i] == before_entries[tile as int].head);
+                } else {
+                    assert(next@[i] == before_next[i]);
+                }
             }
         }
     }
@@ -248,6 +275,11 @@ pub(super) fn collect_tile_parts_with_index<'data>(
     proof! {
         reveal(entries_view);
         reveal(optional_index_matches);
+        assert(match index {
+            None => true,
+            Some(value) => crate::specs::part2_index_matches(
+                codestream::tile_parts_owned_view(parts@), entries_view(value.entries@), value.next@),
+        });
     }
     let index = match index {
         None => return super::execution::collect_tile_parts(parts, tile),
@@ -263,7 +295,12 @@ pub(super) fn collect_tile_parts_with_index<'data>(
         let ghost mut prefix = Seq::<crate::specs::Part2JpipSnapshotEvent>::empty();
     }
     #[cfg(verus_keep_ghost)]
-    proof! { crate::specs::part2_index_next_bounds(source, tile, 0); }
+    proof! {
+        entry_view_at(index.entries@, tile as int);
+        crate::specs::part2_index_next_bounds(source, tile, 0);
+        assert(entry.count as nat == crate::specs::part2_collected_part_count(source, tile, 0));
+        assert(entry.head as nat == crate::specs::part2_index_next(source, tile, 0));
+    }
     let count = entry.count;
     let reserved = if count == 0 {
         Ok(Vec::new())
@@ -349,7 +386,15 @@ pub(super) fn collect_tile_parts_with_index<'data>(
                 },
             }
         }
-        output.push(copied?);
+        let part = copied?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost copied_value = codestream::tile_part_owned_view(&part); }
+        output.push(part);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(copied_value == source[previous_position as int]);
+            assert(codestream::tile_parts_owned_view(output@) =~= before.push(copied_value));
+        }
         let following = index.next[position];
         #[cfg(verus_keep_ghost)]
         proof! {

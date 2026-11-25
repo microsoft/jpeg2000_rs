@@ -12281,7 +12281,7 @@ def validate_normative_coverage(
                     "if count == 0 { Ok(Vec::new()) }", "crate::allocation::empty_with_capacity(count)",
                     "let mut position = entry.head", "while position < parts.len()",
                     "checkpoint_periodic(output.len())?", "let part = &parts[position]",
-                    "let copied = part.try_duplicate()", "output.push(copied?)",
+                    "let copied = part.try_duplicate()", "let part = copied?", "output.push(part)",
                     "let following = index.next[position]", "position = following",
                     "part2_collected_parts_run(source, tile, events)",
                     "part2_payload_copy_run(source[position as int], events)",
@@ -12305,10 +12305,10 @@ def validate_normative_coverage(
                     "collect_tile_parts_with_index(&layout.tile_parts, tile, &part_index)",
                 )),
                 ("specs/tile_part_index.rs", "part2_index_matches", (
-                    "next.len() == parts.len()", "entries[tile] == (",
-                    "part2_index_next(parts, tile as u16, 0)",
-                    "part2_collected_part_count(parts, tile as u16, 0)",
-                    "parts[position].tile_index as nat", "next[position] ==",
+                    "next.len() == parts.len()",
+                    "entries[tile].0 as nat == part2_index_next(parts, tile as u16, 0)",
+                    "entries[tile].1 as nat == part2_collected_part_count(parts, tile as u16, 0)",
+                    "parts[position].tile_index as nat", "next[position] as nat ==",
                     "part2_index_next(parts, parts[position].tile_index, (position + 1) as nat)",
                 )),
                 ("specs/tile_part_index.rs", "part2_index_capacity_run", (

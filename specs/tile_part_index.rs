@@ -35,13 +35,12 @@ pub(crate) open spec fn part2_index_matches(
 ) -> bool {
     entries.len() <= u16::MAX as nat + 1 && next.len() == parts.len()
         && (forall|tile: int| 0 <= tile < entries.len() ==>
-            #[trigger] entries[tile] == (
-                part2_index_next(parts, tile as u16, 0) as usize,
-                part2_collected_part_count(parts, tile as u16, 0) as usize))
+            #[trigger] entries[tile].0 as nat == part2_index_next(parts, tile as u16, 0)
+                && entries[tile].1 as nat == part2_collected_part_count(parts, tile as u16, 0))
         && (forall|position: int| 0 <= position < parts.len() ==>
-            #[trigger] next[position] == if (parts[position].tile_index as nat) < entries.len() {
-                part2_index_next(parts, parts[position].tile_index, (position + 1) as nat) as usize
-            } else { parts.len() as usize })
+            #[trigger] next[position] as nat == if (parts[position].tile_index as nat) < entries.len() {
+                part2_index_next(parts, parts[position].tile_index, (position + 1) as nat)
+            } else { parts.len() })
 }
 
 pub(crate) proof fn part2_index_skip(
@@ -158,6 +157,10 @@ pub(crate) proof fn part2_prepare_tile_index_normal(
         part2_index_capacity_observed(parts, slots, true, Ok(()));
         let child = |events| part2_index_capacity_run(parts, slots, false, events);
         let next = |_: (), events| part2_index_capacity_run(parts, slots, true, events);
+        let links = |events| part2_index_capacity_run(parts, slots, true, events);
+        let after = |events| next((), events);
+        assert forall|events| #[trigger] after(events) == links(events) by {}
+        part2_cold_framed_extensional(links, after, Ok(()));
         part2_cold_bind(child, next, Ok(()), Ok(()));
         part2_decode_eta(|events| part2_jpip_snapshot_bind(child(events), next), Ok(()));
     }
@@ -172,11 +175,19 @@ pub(crate) proof fn part2_index_prefix_normal<T>(
     ensures part2_cold_framed(|events| part2_jpip_snapshot_bind(
         part2_prepare_tile_index_run(parts, slots, selected_count, events),
         |_: (), rest| next(rest)), result),
+        forall|run: spec_fn(Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<T>|
+            (forall|events| #[trigger] run(events) == part2_jpip_snapshot_bind(
+                part2_prepare_tile_index_run(parts, slots, selected_count, events),
+                |_: (), rest| next(rest))) ==> #[trigger] part2_cold_framed(run, result),
 {
     part2_prepare_tile_index_normal(parts, slots, selected_count);
     let child = |events| part2_prepare_tile_index_run(parts, slots, selected_count, events);
     let finish = |_: (), rest| next(rest);
+    let after = |events| finish((), events);
+    assert forall|events| #[trigger] after(events) == next(events) by {}
+    part2_cold_framed_extensional(next, after, result);
     part2_cold_bind(child, finish, Ok(()), result);
+    part2_decode_eta(|events| part2_jpip_snapshot_bind(child(events), finish), result);
 }
 
 pub(crate) open spec fn part2_index_tile_slots(size: &crate::codestream::ImageSize) -> nat {
@@ -188,6 +199,8 @@ pub(crate) proof fn part2_index_selection_slots(
 )
     requires part2_validate_selection(size, requested).is_ok(),
     ensures size.8 as nat * size.9 as nat <= u16::MAX as nat + 1,
-{}
+{
+    reveal(part2_validate_selection);
+}
 
 }

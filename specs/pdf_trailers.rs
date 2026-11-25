@@ -852,6 +852,7 @@ pub(crate) proof fn part2_trailer_layout_normal(
                     part2_index_prefix_normal(input.parts, part2_index_tile_slots(&input.size), selection.0.len(),
                         |events| part2_trailer_selected_run(&input.size, input.parts, input.capabilities,
                             selection.0, region, selection.2, limits, 0, initial, 0, events), result);
+                    part2_decode_eta(|events| part2_trailer_after_selection_run(input, selection, limits, events), result);
                 },
             }
             let child = |events| part2_validate_selection_run(size, requested, events);
