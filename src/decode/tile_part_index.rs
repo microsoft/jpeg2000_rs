@@ -17,7 +17,7 @@ pub(super) struct TilePartIndex {
 
 #[cfg(verus_keep_ghost)]
 verus! {
-    open spec fn entries_view(entries: Seq<TilePartIndexEntry>) -> Seq<(usize, usize)> {
+    pub(super) open spec fn entries_view(entries: Seq<TilePartIndexEntry>) -> Seq<(usize, usize)> {
         entries.map_values(|entry: TilePartIndexEntry| (entry.head, entry.count))
     }
 
