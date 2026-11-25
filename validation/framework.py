@@ -18428,8 +18428,22 @@ def validate_normative_coverage(
                 exact_color_crop_requires = (reference["path"], reference["symbol"]) == (
                     "src/color/crop.rs", "crop_plane") and re.search(
                     r"\brequires\s+x\s*<=\s*x1\s*,\s*y\s*<=\s*y1\s*,\s*ensures\b", contract)
+                index_preconditions = {
+                    ("src/decode/tile_part_index.rs", "prepare_tile_part_index"):
+                    r"slots\s*<=\s*u16::MAX\s+as\s+usize\s*\+\s*1",
+                    ("src/decode/tile_part_index.rs", "reserve_index_values"):
+                    r"elements\s*==\s*if\s+_links\s*\{\s*_parts\.len\(\)\s*\}"
+                    r"\s*else\s*\{\s*_slots\s*\}",
+                    ("src/decode/tile_part_index.rs", "collect_tile_parts_with_index"):
+                    _coverage_call("optional_index_matches",
+                                   _coverage_call("codestream::tile_parts_owned_view", "parts@"), "index"),
+                }
+                index_precondition = index_preconditions.get((reference["path"], reference["symbol"]))
+                exact_index_requires = index_precondition is not None and re.search(
+                    r"\brequires\s+" + index_precondition + r"\s*,\s*ensures\b", contract)
                 if relation is None or (re.search(r"\brequires\b", contract) and not (
-                        exact_copy_phase_requires or exact_prepare_band_requires or exact_color_crop_requires)):
+                    exact_copy_phase_requires or exact_prepare_band_requires or exact_color_crop_requires
+                    or exact_index_requires)):
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid storage relation")
                 if mutating:
                     state_result = relation

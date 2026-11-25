@@ -9687,6 +9687,23 @@ class FrameworkTests(WorkingFiles):
             with self.subTest(path=relative, mutation=pattern), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "stable copy tile index"):
                 framework.validate_normative_coverage(data)
+        source = framework.ROOT / "src/decode/tile_part_index.rs"
+        original = read_text(source)
+        for pattern, replacement in (
+            (r"requires slots <= u16::MAX as usize \+ 1", "requires slots <= usize::MAX"),
+            (r"requires elements == if _links", "requires elements <= if _links"),
+            (r"requires optional_index_matches\(\s*codestream::tile_parts_owned_view\(parts@\),\s*index\)",
+             "requires true"),
+        ):
+            changed, count = re.subn(pattern, replacement, original, count=1)
+            self.assertEqual(count, 1, pattern)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(precondition=pattern), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "invalid storage relation"):
+                framework.validate_normative_coverage(data)
 
     def test_inventory_selection_storage_rejects_misbound_capacity_and_erased_stages(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
