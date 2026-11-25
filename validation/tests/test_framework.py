@@ -971,6 +971,37 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "ordered main-header storage"):
                 framework.validate_normative_coverage(coverage)
 
+    def test_inventory_jpip_snapshot_projection_binds_actual_filter_and_typed_lemma(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == "part9-packet-reframing"
+        ]
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        mutations = (
+            ("src/jpip/progression.rs",
+             "crate::codestream::tile_parts_owned_view(layout.tile_parts@), tile_number)",
+             "crate::codestream::tile_parts_owned_view(layout.tile_parts@), 0)"),
+            ("src/jpip/progression_proof_support.rs",
+             "layout_parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == tile)",
+             "layout_parts.filter(|part: crate::specs::Part2OwnedTilePart| true)"),
+            ("src/jpip/progression_proof_support.rs",
+             "jpip_filter_projection(source, keep, project, predicate)",
+             "jpip_filter_projection(source, Seq::empty(), project, predicate)"),
+        )
+        for relative, before, after in mutations:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "projection"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_jpip_ordinal_frame_binds_actual_match_prevalue_and_matrix_write(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [

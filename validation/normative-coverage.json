@@ -19767,6 +19767,7 @@
         {"path": "src/decode/planning.rs", "symbol": "ProgressionTilePlan::precincts"},
         {"path": "src/decode/planning.rs", "symbol": "ProgressionTilePlan::precincts_mut"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_filter_projection"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_collected_tile_parts"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_parsed_packet_value"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_parsed_packet_row"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_parsed_packet_matrix"},

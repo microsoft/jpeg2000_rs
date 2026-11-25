@@ -940,9 +940,6 @@ impl DatabinCache {
                 assert(filtered.remaining()
                     == source.remaining().subrange(0, keep.len() as int).filter_index(|index: int| keep[index]));
                 assert(tile_parts@ == source.remaining().filter_index(|index: int| keep[index]));
-                let project = |part: &crate::codestream::TilePartPayload<'_>|
-                    crate::codestream::tile_part_owned_view(part);
-                let predicate = |part: crate::specs::Part2OwnedTilePart| part.tile_index == tile_number;
                 assert(source.remaining().map_values(|part: &crate::codestream::TilePartPayload<'_>|
                     crate::codestream::tile_part_owned_view(part))
                     =~= crate::codestream::tile_parts_owned_view(layout.tile_parts@));
@@ -950,10 +947,8 @@ impl DatabinCache {
                     implies keep[index] == (crate::codestream::tile_part_owned_view(
                         #[trigger] source.remaining()[index]).tile_index == tile_number) by {
                 }
-                super::jpip_filter_projection(source.remaining(), keep, project, predicate);
-                assert(tile_parts@.map_values(project) == source.remaining().map_values(project).filter(predicate));
-                assert(tile_parts@.map_values(project)
-                    == crate::codestream::tile_parts_owned_view(layout.tile_parts@).filter(predicate));
+                super::jpip_snapshot_collected_tile_parts(source.remaining(), keep, tile_parts@,
+                    crate::codestream::tile_parts_owned_view(layout.tile_parts@), tile_number);
             }
             #[cfg(verus_keep_ghost)]
             proof_decl! {

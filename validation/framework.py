@@ -13653,6 +13653,7 @@ def validate_normative_coverage(
                     ("src/decode/planning.rs", "ProgressionTilePlan::precincts"),
                     ("src/decode/planning.rs", "ProgressionTilePlan::precincts_mut"),
                     ("src/jpip/progression_proof_support.rs", "jpip_filter_projection"),
+                    ("src/jpip/progression_proof_support.rs", "jpip_snapshot_collected_tile_parts"),
                     ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_value"),
                     ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_row"),
                     ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_matrix"),
@@ -13773,12 +13774,28 @@ def validate_normative_coverage(
             input_fragments = (
                 "let tile_parts_iterator = layout.tile_parts.iter().filter(",
                 "let tile_parts: Vec<_> = tile_parts_iterator.collect()",
-                "super::jpip_filter_projection(source.remaining(), keep, project, predicate)",
-                "assert(tile_parts@.map_values(project) == "
-                "crate::codestream::tile_parts_owned_view(layout.tile_parts@).filter(predicate))",
+                "super::jpip_snapshot_collected_tile_parts(source.remaining(), keep, tile_parts@, "
+                "crate::codestream::tile_parts_owned_view(layout.tile_parts@), tile_number)",
             )
             if any("".join(fragment.split()) not in compact for fragment in input_fragments):
                 raise ValueError("automatic inputs require the actual selected-tile order and complete payload projection")
+            typed_projection = source_text((ROOT / "src/jpip/progression_proof_support.rs").resolve())
+            start = typed_projection.find("pub(crate) proof fn jpip_snapshot_collected_tile_parts")
+            end = typed_projection.find("pub proof fn jpip_filter_projection", start)
+            proof_boundary = typed_projection[start:end] if start >= 0 and end > start else ""
+            boundary_compact = "".join(proof_boundary.split())
+            projection_fragments = (
+                "requires keep.len() == source.len()",
+                "collected == source.filter_index(|index: int| keep[index])",
+                "crate::codestream::tile_part_owned_view(part)) == layout_parts",
+                "keep[index] == (crate::codestream::tile_part_owned_view(#[trigger] source[index]).tile_index == tile)",
+                "ensures collected.map_values(",
+                "== layout_parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == tile)",
+                "jpip_filter_projection(source, keep, project, predicate)",
+            )
+            if (any("".join(fragment.split()) not in boundary_compact for fragment in projection_fragments)
+                    or re.search(r"\b(?:assume|admit|external_body|rlimit|spinoff_prover)\b", proof_boundary)):
+                raise ValueError("automatic inputs require the exact typed projection proof boundary and original budget/trust")
         if entry["id"] == "part2-explicit-eight-bit-esrgb-compatibility":
             lib = source_text((ROOT / "src/lib.rs").resolve())
             decode = source_text((ROOT / "src/decode.rs").resolve())
