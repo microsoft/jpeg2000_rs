@@ -35,6 +35,11 @@ index allocation prefix before their unchanged collection/copy events.
 Multi-tile nth-allocation frontiers therefore change explicitly; no dummy
 reservation or old-request-number equivalence is claimed.
 
+The fallible payload-copy helper has narrowly targeted inline control to
+avoid a large success-`Result` materialization at collection call boundaries.
+This does not change its body, contract, layout, copy order or failure model;
+actual emitted-code inspection and fresh qualification remain separate checks.
+
 The buffers are sized from actual parsed layout tile/part cardinalities,
 already admitted by the existing resource limits, not encoded `TNsot`
 claims. Existing logical parser/planning/packet/output budgets are unchanged.

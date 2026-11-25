@@ -26,6 +26,11 @@ rejects changed selection gating, buffer dimensions/order, links/counts,
 copy/fallback behavior, omitted periodic checks and disconnected governing
 root prefixes. No benchmark or adoption result follows from these controls.
 
+For the payload-copy inline control, inspect fresh matched release dataflow
+in both indexed and fallback collectors before full qualification. Require
+removal of the extra result-to-plain payload materialization; an annotation
+or absent immediate alone is not evidence, nor a latency/adoption result.
+
 ### Reached JP2 file-type storage
 
 `cargo test --lib actual_raw_file_type` checks primary/minor/ordered brands,
