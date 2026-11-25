@@ -21,3 +21,11 @@ The probe differs from the original local probe (`6a8d974209aca3dbdeb6c7a4a29a7f
 only by explicitly binding `std::alloc::System`; native probe SHA-256 is
 `d8646e85db9c851ac093f3bd097aa92a70b25606ccdc2e1b641db16d6c2002be`.
 There is no allocator pooling or instrumentation.
+
+The selected-parts helper also explicitly admits the ordered
+`f4b2b7b29d38fa31bd74263913462bb67d6e5e4e` /
+`2743436c341a679ce62162f3fc3ef72807b98dee` pair, with the original defaults
+and earlier approved pairs unchanged. This remains the **32×1/512-call**
+cohort. The separate [seeded32 scaling helper](../native-index-scaling/README.md)
+qualifies the actual fixed-pixel COPY-index target using all 13 paths and
+its distinct six-call protocol; neither replaces the original consumer gates.

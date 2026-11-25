@@ -23,6 +23,8 @@ REVISION_PAIRS = {
     (BASELINE, CANDIDATE),
     ("f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
      "9e2881fc6e057ecaa9b1b003a7519f9e28bbee1b"),
+    ("f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+     "2743436c341a679ce62162f3fc3ef72807b98dee"),
 }
 SCOPE = "selected-parts-481"
 PROBE = native.HERE / "native-selected-parts-probe.rs"

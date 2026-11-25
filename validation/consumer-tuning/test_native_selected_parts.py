@@ -114,12 +114,12 @@ class SelectedPartsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "fixture hash"):
             selected.command([], "probe", "preflight", ("grouped", "full"), self.evidence)
 
-    def check_integrated_pair_binding(self):
+    def check_integrated_pair_binding(self, candidate="9e2881fc6e057ecaa9b1b003a7519f9e28bbee1b",
+                                      output_name="integrated"):
         baseline = "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e"
-        candidate = "9e2881fc6e057ecaa9b1b003a7519f9e28bbee1b"
         options = SimpleNamespace(
             baseline=baseline, candidate=candidate, pairs=8, arch=selected.native.platform.machine(),
-            output=self.evidence / "integrated", qualify_only=True,
+            output=self.evidence / output_name, qualify_only=True,
         )
         tool = {"command": [sys.executable], "returncode": 0}
 
@@ -165,3 +165,11 @@ class SelectedPartsTests(unittest.TestCase):
         with patch.object(selected.native.platform, "machine", return_value=arch), \
                 patch.dict(os.environ, {"RUNNER_ARCH": selected.native.ARCH[arch][1]}):
             self.check_integrated_pair_binding()
+
+    def test_exact_index_inline_pair_binding_on_both_native_architectures(self):
+        for arch in selected.native.ARCH:
+            with self.subTest(arch=arch), \
+                    patch.object(selected.native.platform, "machine", return_value=arch), \
+                    patch.dict(os.environ, {"RUNNER_ARCH": selected.native.ARCH[arch][1]}):
+                self.check_integrated_pair_binding(
+                    "2743436c341a679ce62162f3fc3ef72807b98dee", f"index-{arch}")

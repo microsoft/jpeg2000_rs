@@ -1,0 +1,313 @@
+{
+  "schema": 1,
+  "scope": "First-party fixed-pixel native index scaling only; not historical310x8/41PDF or65-workload qualification.",
+  "license": "Repository MIT; first-party authored PGM and derived codestreams.",
+  "source": {
+    "path": "seeded32.pgm",
+    "bytes": 1037,
+    "sha256": "2d90e72ea5bacbac55fd8bdef05309f54beca92e52977939eef1d79295d58fd9",
+    "width": 32,
+    "height": 32,
+    "channels": 1,
+    "precision": 8,
+    "signed": false,
+    "seed": "0x48103232",
+    "recipe": "state=(1664525*state+1013904223) mod 2^32; sample=state>>24; 1024 raster samples",
+    "distinct_samples": 249
+  },
+  "encoder": {
+    "program": "opj_compress",
+    "version": "OpenJPEG v2.4.0",
+    "binary_sha256": "8b0901e43e2bf72cba2748183f032dfe5064b1dec8082b3b93e2eb1ee3597c71",
+    "help_sha256": "5734e118a7ece5ca85758993e46f9f7df14c34f1a27c6ba4c342154dbbc6314a",
+    "openjp2_library_sha256": "9d0cbdee4fa3f44d4eb90cc304f3d34067baec1daad431af4b5f39b529f8bb83",
+    "commands": [
+      {
+        "K": 1,
+        "argv": [
+          "opj_compress",
+          "-i",
+          "seeded32.pgm",
+          "-o",
+          "k0001-encoder.j2k",
+          "-n",
+          "1",
+          "-r",
+          "4,2,1",
+          "-p",
+          "LRCP",
+          "-TP",
+          "L",
+          "-t",
+          "32,32"
+        ],
+        "returncode": 0
+      },
+      {
+        "K": 4,
+        "argv": [
+          "opj_compress",
+          "-i",
+          "seeded32.pgm",
+          "-o",
+          "k0004-encoder.j2k",
+          "-n",
+          "1",
+          "-r",
+          "4,2,1",
+          "-p",
+          "LRCP",
+          "-TP",
+          "L",
+          "-t",
+          "16,16"
+        ],
+        "returncode": 0
+      },
+      {
+        "K": 16,
+        "argv": [
+          "opj_compress",
+          "-i",
+          "seeded32.pgm",
+          "-o",
+          "k0016-encoder.j2k",
+          "-n",
+          "1",
+          "-r",
+          "4,2,1",
+          "-p",
+          "LRCP",
+          "-TP",
+          "L",
+          "-t",
+          "8,8"
+        ],
+        "returncode": 0
+      },
+      {
+        "K": 64,
+        "argv": [
+          "opj_compress",
+          "-i",
+          "seeded32.pgm",
+          "-o",
+          "k0064-encoder.j2k",
+          "-n",
+          "1",
+          "-r",
+          "4,2,1",
+          "-p",
+          "LRCP",
+          "-TP",
+          "L",
+          "-t",
+          "4,4"
+        ],
+        "returncode": 0
+      },
+      {
+        "K": 256,
+        "argv": [
+          "opj_compress",
+          "-i",
+          "seeded32.pgm",
+          "-o",
+          "k0256-encoder.j2k",
+          "-n",
+          "1",
+          "-r",
+          "4,2,1",
+          "-p",
+          "LRCP",
+          "-TP",
+          "L",
+          "-t",
+          "2,2"
+        ],
+        "returncode": 0
+      },
+      {
+        "K": 1024,
+        "argv": [
+          "opj_compress",
+          "-i",
+          "seeded32.pgm",
+          "-o",
+          "k1024-encoder.j2k",
+          "-n",
+          "1",
+          "-r",
+          "4,2,1",
+          "-p",
+          "LRCP",
+          "-TP",
+          "L",
+          "-t",
+          "1,1"
+        ],
+        "returncode": 0
+      }
+    ],
+    "execution": "Previously generated with existing pinned OpenJPEG2.4.0; copied byte-for-byte, never encoded by this helper."
+  },
+  "reordering": "Only whole SOT/Psot physical part order changed. Main header/EOC and every per-tile part byte/order preserved; no TLM/PLM/PLT/PPM/PPT. Actual SOT counts and byte identity independently audited before freezing.",
+  "nominal_layers": 3,
+  "actual_parts_per_tile": 3,
+  "fixtures": [
+    {
+      "id": "k0001-grouped",
+      "path": "k0001-grouped.j2k",
+      "sha256": "73b26936b07418aff3cdca7929280c29fb35e50b1e34a3b6394654d82088c18d",
+      "bytes": 1240,
+      "K": 1,
+      "P": 3,
+      "order": "grouped",
+      "tile_side": 32,
+      "parts_per_tile": 3,
+      "encoder_output_sha256": "73b26936b07418aff3cdca7929280c29fb35e50b1e34a3b6394654d82088c18d"
+    },
+    {
+      "id": "k0001-interleaved",
+      "path": "k0001-interleaved.j2k",
+      "sha256": "73b26936b07418aff3cdca7929280c29fb35e50b1e34a3b6394654d82088c18d",
+      "bytes": 1240,
+      "K": 1,
+      "P": 3,
+      "order": "interleaved",
+      "tile_side": 32,
+      "parts_per_tile": 3,
+      "encoder_output_sha256": "73b26936b07418aff3cdca7929280c29fb35e50b1e34a3b6394654d82088c18d"
+    },
+    {
+      "id": "k0004-grouped",
+      "path": "k0004-grouped.j2k",
+      "sha256": "25f9d03837f674064826634613cff4719dd4199c55107dc6dc9fb3537624f5a0",
+      "bytes": 1399,
+      "K": 4,
+      "P": 12,
+      "order": "grouped",
+      "tile_side": 16,
+      "parts_per_tile": 3,
+      "encoder_output_sha256": "25f9d03837f674064826634613cff4719dd4199c55107dc6dc9fb3537624f5a0"
+    },
+    {
+      "id": "k0004-interleaved",
+      "path": "k0004-interleaved.j2k",
+      "sha256": "29abcc7a7dcddbe0b79faf5feedf9dd4ee934015e307d8fd86f73b1959822f11",
+      "bytes": 1399,
+      "K": 4,
+      "P": 12,
+      "order": "interleaved",
+      "tile_side": 16,
+      "parts_per_tile": 3,
+      "encoder_output_sha256": "25f9d03837f674064826634613cff4719dd4199c55107dc6dc9fb3537624f5a0"
+    },
+    {
+      "id": "k0016-grouped",
+      "path": "k0016-grouped.j2k",
+      "sha256": "a25216ba11044d8843b41e438f51cbf8d89daa08ee7eeebd9ff74a46ee8268fc",
+      "bytes": 2024,
+      "K": 16,
+      "P": 48,
+      "order": "grouped",
+      "tile_side": 8,
+      "parts_per_tile": 3,
+      "encoder_output_sha256": "a25216ba11044d8843b41e438f51cbf8d89daa08ee7eeebd9ff74a46ee8268fc"
+    },
+    {
+      "id": "k0016-interleaved",
+      "path": "k0016-interleaved.j2k",
+      "sha256": "c4532ce749ee810e2865102be8ad11b16d32e43fe863fd4f646d218d3bceade5",
+      "bytes": 2024,
+      "K": 16,
+      "P": 48,
+      "order": "interleaved",
+      "tile_side": 8,
+      "parts_per_tile": 3,
+      "encoder_output_sha256": "a25216ba11044d8843b41e438f51cbf8d89daa08ee7eeebd9ff74a46ee8268fc"
+    },
+    {
+      "id": "k0064-grouped",
+      "path": "k0064-grouped.j2k",
+      "sha256": "cf572ac3830dff0fe21bb567d583f49c87dc16fb2569aa04963d03a6c661e617",
+      "bytes": 4294,
+      "K": 64,
+      "P": 192,
+      "order": "grouped",
+      "tile_side": 4,
+      "parts_per_tile": 3,
+      "encoder_output_sha256": "cf572ac3830dff0fe21bb567d583f49c87dc16fb2569aa04963d03a6c661e617"
+    },
+    {
+      "id": "k0064-interleaved",
+      "path": "k0064-interleaved.j2k",
+      "sha256": "dc6c14939841c045fcaf46b1327f9ad4b985b7ee39a0ce94b55ec56f4348bd67",
+      "bytes": 4294,
+      "K": 64,
+      "P": 192,
+      "order": "interleaved",
+      "tile_side": 4,
+      "parts_per_tile": 3,
+      "encoder_output_sha256": "cf572ac3830dff0fe21bb567d583f49c87dc16fb2569aa04963d03a6c661e617"
+    },
+    {
+      "id": "k0256-grouped",
+      "path": "k0256-grouped.j2k",
+      "sha256": "2342c7b4657048d2960055267f2da6e18814b2ec5eb01f87042628c9383f1126",
+      "bytes": 13447,
+      "K": 256,
+      "P": 768,
+      "order": "grouped",
+      "tile_side": 2,
+      "parts_per_tile": 3,
+      "encoder_output_sha256": "2342c7b4657048d2960055267f2da6e18814b2ec5eb01f87042628c9383f1126"
+    },
+    {
+      "id": "k0256-interleaved",
+      "path": "k0256-interleaved.j2k",
+      "sha256": "152a155cdc4f343136fd02efea60a9fb4ba54c785a7f91173807b3a9828f619f",
+      "bytes": 13447,
+      "K": 256,
+      "P": 768,
+      "order": "interleaved",
+      "tile_side": 2,
+      "parts_per_tile": 3,
+      "encoder_output_sha256": "2342c7b4657048d2960055267f2da6e18814b2ec5eb01f87042628c9383f1126"
+    },
+    {
+      "id": "k1024-grouped",
+      "path": "k1024-grouped.j2k",
+      "sha256": "9d2bd8a4d4ef80debf31f20697681e8a34db70acda7b7b275bc607e3abc665e4",
+      "bytes": 50089,
+      "K": 1024,
+      "P": 3072,
+      "order": "grouped",
+      "tile_side": 1,
+      "parts_per_tile": 3,
+      "encoder_output_sha256": "9d2bd8a4d4ef80debf31f20697681e8a34db70acda7b7b275bc607e3abc665e4"
+    },
+    {
+      "id": "k1024-interleaved",
+      "path": "k1024-interleaved.j2k",
+      "sha256": "ddbc2e17f9f876193ef4681ecf100047bc067c261c0c202a09a91218e73646b0",
+      "bytes": 50089,
+      "K": 1024,
+      "P": 3072,
+      "order": "interleaved",
+      "tile_side": 1,
+      "parts_per_tile": 3,
+      "encoder_output_sha256": "9d2bd8a4d4ef80debf31f20697681e8a34db70acda7b7b275bc607e3abc665e4"
+    }
+  ],
+  "roi": {
+    "fixture": "k1024-interleaved",
+    "region": [
+      31,
+      31,
+      1,
+      1
+    ],
+    "validated_selected_count": 1
+  }
+}
