@@ -1,0 +1,55 @@
+{
+  "commit": "fe3ca8f1994066e9aacfe897dd699842a940bf6a",
+  "workflow": "https://github.com/microsoft/jpeg2000_rs/actions/runs/45708509798",
+  "conclusion": "success",
+  "receipts": {
+    "source": {
+      "results": {
+        "documented_rust_only_adapters": 5,
+        "source_function_coverage": "not-measured",
+        "verified_project_functions": 10308,
+        "verus_errors": 0,
+        "verus_verified_obligations": 6371
+      },
+      "known_proof_boundary": {
+        "lifetime_analysis": "disabled by --no-lifetime for this stable-release workflow; this report does not verify lifetimes; Rust borrow checking is checked separately by Cargo",
+        "termination": []
+      },
+      "verus": {
+        "commit": "426d8b01e7ffb910a36c15e1f870ff985bb61eef",
+        "profile": "release",
+        "toolchain": "1.98.1-x86_64-unknown-linux-gnu (overridden by environment variable RUSTUP_TOOLCHAIN)",
+        "version": "0.2026.10.04.426d8b0",
+        "workflow_flags": [
+          "--no-lifetime"
+        ]
+      },
+      "matched_source_files": 401,
+      "receipt_sha256": "cb9f4600f89f377dcd67c5e7f42716587940fbe83f7d1d331715153a6812c33a"
+    },
+    "package": {
+      "results": {
+        "documented_rust_only_adapters": 5,
+        "source_function_coverage": "not-measured",
+        "verified_project_functions": 10308,
+        "verus_errors": 0,
+        "verus_verified_obligations": 6371
+      },
+      "known_proof_boundary": {
+        "lifetime_analysis": "disabled by --no-lifetime for this stable-release workflow; this report does not verify lifetimes; Rust borrow checking is checked separately by Cargo",
+        "termination": []
+      },
+      "verus": {
+        "commit": "426d8b01e7ffb910a36c15e1f870ff985bb61eef",
+        "profile": "release",
+        "toolchain": "1.98.1-x86_64-unknown-linux-gnu (overridden by environment variable RUSTUP_TOOLCHAIN)",
+        "version": "0.2026.10.04.426d8b0",
+        "workflow_flags": [
+          "--no-lifetime"
+        ]
+      },
+      "matched_source_files": 401,
+      "receipt_sha256": "5e412aae64bb88e2ba28684c76fa5ac82bc18e89b1eebaf2fb02e529eef9b402"
+    }
+  }
+}

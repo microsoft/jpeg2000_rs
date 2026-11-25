@@ -1,0 +1,46 @@
+{
+  "scope": "Separate verified runtime variant,not the originalliteral14percentresult",
+  "representative_timing": {
+    "argv": [
+      "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-followup-20261125/timing-harness/tools/bench-vs-openjpeg/compare.py",
+      "--baseline",
+      "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-20261125/current-expanded-timings",
+      "--candidate-source",
+      "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-followup-20261125/c2-proof-repair",
+      "--output",
+      "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-followup-20261125/paired-c2-proof-variant",
+      "--configs",
+      "generic,consumer",
+      "--case",
+      "^(day-small-gray-lossless|day-small-rgb-lossless|day-small-gray16-lossless|day-small-gray-lossy-r40|day-small-rgb-lossy-r10|day-small-gray16-lossy-r40|style-b32-m0|style-b32-m1|style-b64-m8|thumb-32-rgb|structure-tile256)$",
+      "--cpu",
+      "3",
+      "--numerical-299",
+      "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-evaluation-evidence/numerical-299"
+    ],
+    "commit": "fe3ca8f1994066e9aacfe897dd699842a940bf6a",
+    "source_tree": "98ab9541a599db9bd18c3aa84ce9f775427eef6e",
+    "control": "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-20261125/current-expanded-timings",
+    "cpu": 3,
+    "method": "three warmups, >=15 iterations AND >=2 seconds; reversed fresh-process pairs"
+  },
+  "qualification": {
+    "scope": "Exact output/error regression against recorded f4 controls; not normative conformance",
+    "candidate_commit": "fe3ca8f1994066e9aacfe897dd699842a940bf6a",
+    "reference_decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+    "binary_sha256": "70bf24d7e70297991e7711c7cfd2742c7bb29458508f48c86bf52c95b56554f8",
+    "qualifier_sha256": "bd9bd517ff29c463516f595f22e8266a7b742e28f2b5ffa410dc24be56ddf30a",
+    "cpu": 3,
+    "maximum_address_space": 8589934592,
+    "driver_scope": "New container-aware driver, separately built; original timing binaries not relabeled"
+  },
+  "qualification_complete": {
+    "all_matched": true,
+    "requests": 134,
+    "matched_outputs": 127,
+    "unchanged_refusals": 7
+  },
+  "full_arm65": "running",
+  "x86_generic_v3": "https://github.com/microsoft/jpeg2000_rs/actions/runs/45711245733",
+  "normal_ci": "https://github.com/microsoft/jpeg2000_rs/actions/runs/45710713971"
+}

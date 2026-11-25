@@ -14,6 +14,10 @@ are still incomplete.
 
 ## Executive summary
 
+The [remaining-candidate follow-up](remaining-candidates-followup.md) records
+the new isolated experiments and ongoing qualification; it does not overwrite
+the earlier dated evidence snapshots.
+
 - The provisional uncovered list was outdated: #469-#483 already track most
   proposed ownership, HT, wavelet, color and threading work.
 - Rust is **not faster than OpenJPEG** on any measured class subset.

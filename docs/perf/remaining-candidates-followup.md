@@ -119,8 +119,28 @@ test-only golden data. An explicit mask/neighbor equivalence lemma is added,
 without assumptions or higher solver budgets. Full 1,386 tests, five doctests,
 Clippy and actual MSRV pass. Its
 [proof run 45708509798](https://github.com/microsoft/jpeg2000_rs/actions/runs/45708509798)
-and **new paired timing** are pending; the initial 14% is not attributed to
-this changed runtime.
+now passes **source and actual package: 6,371 obligations / zero errors each**,
+with all 401 implementation/model hashes independently matched and unchanged
+lifetime-disabled/five-adapter boundary.
+
+The **separate** 24,762-sample / 88-process representative run improves A/C/D
+by about **7.50-7.99%** in both profiles; B's approximately +0.40% is within
+combined IQR for every sampled image. Original #299 controls remain exact.
+This is not the first variant's 14% result.
+
+All 134 full/selected/conformance outcomes match for this variant too.
+A full 65-case generic/consumer ARM paired escalation is running. An explicit
+same-host generic/**x86-64-v3** 57-case paired study and three-repeat guest
+instruction comparison are dispatched in
+[run 45711245733](https://github.com/microsoft/jpeg2000_rs/actions/runs/45711245733);
+its harness/control-build clocks are not speed evidence. Normal cross-platform/
+MSRV/quality CI on the actual candidate source is separately running in
+[45710713971](https://github.com/microsoft/jpeg2000_rs/actions/runs/45710713971).
+No Go claim is made before those gates complete.
+
+[Distinct variant paired samples summary](data/followup-c2-proof-variant-paired.csv),
+[class changes](data/followup-c2-proof-variant-classes.csv) and
+[exact source/package receipts](data/followup-c2-proof-variant-verification.json).
 
 ## C4: exact floating-product alternative
 

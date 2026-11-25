@@ -1,0 +1,9 @@
+config,corpus_class,cases,change_percent
+generic,A,3,-7.748305895179319
+generic,B,3,0.4258561808953898
+generic,C,3,-7.52512307934542
+generic,D,2,-7.986191214377758
+consumer,A,3,-7.5012501563427865
+consumer,B,3,0.39889984755745456
+consumer,C,3,-7.760118413711991
+consumer,D,2,-7.895575060020987
