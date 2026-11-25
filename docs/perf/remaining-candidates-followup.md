@@ -17,7 +17,7 @@ Every experiment branches from that exact main:
 
 | Scope | Branch | Initial measured/verified source |
 |---|---|---|
-| C11 counting only | `perf/eval-c11-support-mask` | `c0316ac`; subsequent odd-origin admission fix `509a7c4` |
+| C11 counting only | `perf/eval-c11-support-mask` | counts `c0316ac`; origin fix `509a7c4`; multilevel/scope tests `088ebb7` |
 | C2 direct cached flags | `perf/eval-c2-direct-flags` | `a24966f` |
 | C7 exact charge guard | `perf/eval-c7-exact-charge` | `46a9bb8` |
 | C4 exact binary64 product | `perf/eval-c4-exact-f64` | `137fda7` |
@@ -147,8 +147,10 @@ lossless guest instructions decrease 14.8-18.0%; the measured B representative
 is effectively unchanged. However, the **v3 B class exceeds the 1% slowdown
 guard**: 16 of 18 images are within combined IQR, but two are outside it.
 This is not dismissed as noise or erased by averaging with another host.
-A targeted repeat of all 18 B images and four A/C/D controls is required before
-a retention decision. The first matrix is preserved regardless of that result.
+A targeted repeat of all 18 B images and four A/C/D controls is running in
+[45723942345](https://github.com/microsoft/jpeg2000_rs/actions/runs/45723942345)
+before a retention decision. The first matrix is preserved regardless of that
+result.
 See the complete [114 image/profile summaries](data/followup-c2-proof-variant-x86-paired.csv),
 [eight class results](data/followup-c2-proof-variant-x86-classes.csv),
 [independent artifact/raw validation](data/followup-c2-proof-variant-x86-validation.json),
@@ -157,7 +159,7 @@ and [stable instruction comparisons](data/followup-c2-proof-variant-x86-instruct
 Normal CI on the actual
 candidate source completed successfully in
 [45710713971](https://github.com/microsoft/jpeg2000_rs/actions/runs/45710713971):
-all nine required jobs pass, including Rust 1.88, Linux/macOS/Windows tests and
+all nine regular jobs pass, including Rust 1.88, Linux/macOS/Windows tests and
 independent numerical checks, generated decoder validation, and quality/package
 audit. Six unrelated optional jobs are skipped, not claimed as passes. All four
 uploaded numerical/validation ZIPs match their server SHA256 digests. Full ARM
