@@ -37,8 +37,10 @@ work-charge change, new decoder knob, or measured optimization speedup**.
 The separable 5/3 mask reverses predict/update dependencies, including symmetric
 boundaries and odd origins, then propagates required LL support through levels.
 Tests compare masked/unmasked public inverse-5/3 results over every small interval,
-including singleton and odd-origin boundaries. An actual `(3,5)`-origin encoded
-full/selected probe also passes. Additional multidimensional validation is pending.
+including singleton and odd-origin boundaries, and real 2D inverse-kernel crops
+through three levels and both origin parities. An actual `(3,5)`-origin encoded
+full/selected probe also passes. Registered/non-isotropic layouts outside the
+first model are explicitly refused.
 Unsupported 9/7 is explicitly refused rather than given an unproven halo.
 
 Observed encoded bytes/passes outside complete support-expanded code-blocks:
@@ -76,7 +78,14 @@ strict Clippy/formatting and actual Rust 1.88 checks pass.
 passes **source and actual package: 6,363 obligations / zero errors each**.
 All 401 implementation/model input hashes were independently matched to this
 source. Existing five Rust-only adapters and `--no-lifetime` remain explicit;
-source-function coverage is not measured. Paired performance is pending.
+source-function coverage is not measured.
+
+The 24,245 paired samples / 88 measured processes show class changes between
+about **-1.43% and +0.24%**, below retention thresholds and mostly within combined
+IQR. Representative whole-process instruction reductions are about 0.24-1.11%.
+**No-go for this guard alone**, not a claim that every exact batching design
+has been exhausted. All 134 full/selected/conformance outcomes, including the
+seven existing refusals, and all original #299 controls remain unchanged.
 
 ## C2: direct cached-significance contexts
 
@@ -95,7 +104,23 @@ deadline controls and actual Rust 1.88 checks pass.
 translates the literal tables but fails production verification: table/cleanup
 postconditions and solver-resource failures, **nine errors**. Package
 verification is not qualified. No proof, rlimit or pin is weakened to obtain
-a pass. Paired performance is pending; no adoption recommendation is made.
+a pass.
+
+The 25,589 paired samples / 88 processes are promising: lossless A/C/D subsets
+improve about **11.5-14.0%** in both profiles; lossy B is within noise.
+Representative lossless instruction reductions are about **16.8-19.7%**.
+All 134 output/error outcomes and original #299 controls are unchanged, but
+the failed proofs prevent a Go recommendation.
+
+A separate **runtime variant**, `perf/eval-c2-direct-flags-proofs` at `fe3ca8f`,
+keeps mask candidacy/deferred sign summaries but computes contexts using existing
+verified arithmetic rather than runtime literal arrays. Original arrays remain
+test-only golden data. An explicit mask/neighbor equivalence lemma is added,
+without assumptions or higher solver budgets. Full 1,386 tests, five doctests,
+Clippy and actual MSRV pass. Its
+[proof run 45708509798](https://github.com/microsoft/jpeg2000_rs/actions/runs/45708509798)
+and **new paired timing** are pending; the initial 14% is not attributed to
+this changed runtime.
 
 ## C4: exact floating-product alternative
 
@@ -114,7 +139,14 @@ deadline controls, strict Clippy/formatting and actual Rust 1.88 checks pass.
 [Pinned run 45701331499](https://github.com/microsoft/jpeg2000_rs/actions/runs/45701331499)
 fails at the frontend: `std::f64::floor` is unsupported. No suggested
 `assume_specification` or proof erasure is introduced. Source/package proofs
-therefore do not pass. Paired performance and original #299 replay are pending.
+therefore do not pass.
+
+The 24,164 paired samples / 88 processes show lossy B **4.90% slower generic /
+5.38% slower consumer**, with about 8.49-8.60% more instructions. Final measured
+ELF disassembly shows scalar integer/float conversions and `fmul`/`fadd`/
+`fcvtms`, not a SIMD benefit. All 134 outcomes and original #299 maximum/count
+statistics are unchanged. **No-go for this exact-product variant**; this does
+not disprove a different whole-plane float pipeline.
 
 ## Measurement and remaining qualification
 
@@ -124,8 +156,18 @@ three warmups and at least 15 iterations **and** two seconds, with two reversed
 fresh-process rounds. Cases include actual 16-bit input, BYPASS/VSC, tiled
 layout and thumbnail overhead. No candidates are stacked.
 
-Exact full/selected/conformance before/after qualification, separate hardware
-counters and final code-generation evidence remain pending. The seven existing
-baseline conformance refusals must stay unchanged, not be reclassified as a
-pass or “fixed” by relaxing limits. No Go issue, merge, release change or
-publication has occurred.
+All first-round medians reproduce from **73,998** raw samples over 264
+full-protocol processes. Separate three-repeat hardware counters and final
+consuming-ELF code generation are retained, never mixed with uninstrumented
+timing. Every variant matches all **134** recorded outcomes: 65 full images,
+12 real selected requests and 57 external conformance vectors. The seven
+existing refusals preserve exact exit/error text; this is regression
+qualification, not a normative conformance pass.
+
+See [paired medians/IQRs](data/followup-paired-summary.csv),
+[class changes](data/followup-class-summary.csv),
+[original #299 before/after statistics](data/followup-299.csv),
+[402 exact regression outcomes](data/followup-qualification.csv),
+[hardware instruction summaries](data/followup-instruction-summary.csv) and
+[runtime/source scope](data/followup-runtime-provenance.json).
+No Go issue, merge, release change or publication has occurred.

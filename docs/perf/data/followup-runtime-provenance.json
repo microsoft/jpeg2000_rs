@@ -1,0 +1,136 @@
+{
+  "scope": "Three independently paired runtime prototypes; ARM64 representative A-D only, not a Go or x86 claim",
+  "prototypes": [
+    {
+      "candidate": "c7-exact-charge",
+      "timing": {
+        "argv": [
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-followup-20261125/timing-harness/tools/bench-vs-openjpeg/compare.py",
+          "--baseline",
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-20261125/current-expanded-timings",
+          "--candidate-source",
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-followup-20261125/c7-exact-charge",
+          "--output",
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-followup-20261125/paired-c7-exact-charge",
+          "--configs",
+          "generic,consumer",
+          "--case",
+          "^(day-small-gray-lossless|day-small-rgb-lossless|day-small-gray16-lossless|day-small-gray-lossy-r40|day-small-rgb-lossy-r10|day-small-gray16-lossy-r40|style-b32-m0|style-b32-m1|style-b64-m8|thumb-32-rgb|structure-tile256)$",
+          "--cpu",
+          "3",
+          "--numerical-299",
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-evaluation-evidence/numerical-299"
+        ],
+        "commit": "46a9bb888c0ed241f1b9fa4de194b789989b8b10",
+        "source_tree": "eecc0c936c80b9ec6e2bbbe2b3bf2a4f65b6d8bc",
+        "control": "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-20261125/current-expanded-timings",
+        "cpu": 3,
+        "method": "three warmups, >=15 iterations AND >=2 seconds; reversed fresh-process pairs"
+      },
+      "qualification": {
+        "scope": "Exact output/error regression against recorded f4 controls; not normative conformance",
+        "candidate_commit": "46a9bb888c0ed241f1b9fa4de194b789989b8b10",
+        "reference_decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+        "binary_sha256": "d655a0fa8c25a5ac7ae57b39cf2abf0973b917deb8b4aa72d080a1ad95bb10cf",
+        "qualifier_sha256": "bd9bd517ff29c463516f595f22e8266a7b742e28f2b5ffa410dc24be56ddf30a",
+        "cpu": 3,
+        "maximum_address_space": 8589934592,
+        "driver_scope": "New container-aware driver, separately built; original timing binaries not relabeled"
+      },
+      "complete": {
+        "all_matched": true,
+        "requests": 134,
+        "matched_outputs": 127,
+        "unchanged_refusals": 7
+      }
+    },
+    {
+      "candidate": "c2-direct-flags",
+      "timing": {
+        "argv": [
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-followup-20261125/timing-harness/tools/bench-vs-openjpeg/compare.py",
+          "--baseline",
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-20261125/current-expanded-timings",
+          "--candidate-source",
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-followup-20261125/c2-direct-flags",
+          "--output",
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-followup-20261125/paired-c2-direct-flags",
+          "--configs",
+          "generic,consumer",
+          "--case",
+          "^(day-small-gray-lossless|day-small-rgb-lossless|day-small-gray16-lossless|day-small-gray-lossy-r40|day-small-rgb-lossy-r10|day-small-gray16-lossy-r40|style-b32-m0|style-b32-m1|style-b64-m8|thumb-32-rgb|structure-tile256)$",
+          "--cpu",
+          "3",
+          "--numerical-299",
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-evaluation-evidence/numerical-299"
+        ],
+        "commit": "a24966fe9cf629a97fb9326487fc77a7a3a5e39f",
+        "source_tree": "9593ced105fb05401bfd8d5db2dfbc3335526c33",
+        "control": "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-20261125/current-expanded-timings",
+        "cpu": 3,
+        "method": "three warmups, >=15 iterations AND >=2 seconds; reversed fresh-process pairs"
+      },
+      "qualification": {
+        "scope": "Exact output/error regression against recorded f4 controls; not normative conformance",
+        "candidate_commit": "a24966fe9cf629a97fb9326487fc77a7a3a5e39f",
+        "reference_decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+        "binary_sha256": "fa33f35f288b51a446c0b21c6c50d496cffe88fd2ae3af11b66cd563214cb60c",
+        "qualifier_sha256": "bd9bd517ff29c463516f595f22e8266a7b742e28f2b5ffa410dc24be56ddf30a",
+        "cpu": 3,
+        "maximum_address_space": 8589934592,
+        "driver_scope": "New container-aware driver, separately built; original timing binaries not relabeled"
+      },
+      "complete": {
+        "all_matched": true,
+        "requests": 134,
+        "matched_outputs": 127,
+        "unchanged_refusals": 7
+      }
+    },
+    {
+      "candidate": "c4-exact-f64",
+      "timing": {
+        "argv": [
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-followup-20261125/timing-harness/tools/bench-vs-openjpeg/compare.py",
+          "--baseline",
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-20261125/current-expanded-timings",
+          "--candidate-source",
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-followup-20261125/c4-exact-f64",
+          "--output",
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-followup-20261125/paired-c4-exact-f64",
+          "--configs",
+          "generic,consumer",
+          "--case",
+          "^(day-small-gray-lossless|day-small-rgb-lossless|day-small-gray16-lossless|day-small-gray-lossy-r40|day-small-rgb-lossy-r10|day-small-gray16-lossy-r40|style-b32-m0|style-b32-m1|style-b64-m8|thumb-32-rgb|structure-tile256)$",
+          "--cpu",
+          "3",
+          "--numerical-299",
+          "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-evaluation-evidence/numerical-299"
+        ],
+        "commit": "137fda79fbe561ed4bb60e5bf491a8942d7d48f6",
+        "source_tree": "61b34e05d24497749db062b95f3d54631d7f8236",
+        "control": "/home/sergiog/.copilot/session-state/bb065d26-4095-4383-ad86-e989b50faffe/files/perf-20261125/current-expanded-timings",
+        "cpu": 3,
+        "method": "three warmups, >=15 iterations AND >=2 seconds; reversed fresh-process pairs"
+      },
+      "qualification": {
+        "scope": "Exact output/error regression against recorded f4 controls; not normative conformance",
+        "candidate_commit": "137fda79fbe561ed4bb60e5bf491a8942d7d48f6",
+        "reference_decoder_commit": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+        "binary_sha256": "2857c6e4be47ad604ba613111298892ef807686bebb7eb5fba2aab5c588a0c52",
+        "qualifier_sha256": "bd9bd517ff29c463516f595f22e8266a7b742e28f2b5ffa410dc24be56ddf30a",
+        "cpu": 3,
+        "maximum_address_space": 8589934592,
+        "driver_scope": "New container-aware driver, separately built; original timing binaries not relabeled"
+      },
+      "complete": {
+        "all_matched": true,
+        "requests": 134,
+        "matched_outputs": 127,
+        "unchanged_refusals": 7
+      }
+    }
+  ],
+  "original_299": "Allsix controls exact before/after in bothprofiles for every variant",
+  "baseline_refusals": "Allseven unchanged exactly; not a new conformance pass"
+}

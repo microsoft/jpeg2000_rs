@@ -1,0 +1,149 @@
+{
+  "scope": "Final measured generic consuming ELF, not library pre-LTO assembly; new disassembly tooling only",
+  "capstone": "5.0.6",
+  "pyelftools": "0.32",
+  "binaries": [
+    {
+      "variant": "base",
+      "binary_sha256": "fa6424a8a4b693966f541a7ac33b8da538acaafe04464fc1b8fce41ff4b6dd9b",
+      "text_bytes": 576080,
+      "functions": {
+        "mq-decode": {
+          "bytes": 572,
+          "instructions": 143,
+          "assembly_sha256": "5f8c15e8934101e94fb60f96eccd0617a64ea2e52276bf43ee9ba840bb81c542"
+        },
+        "mq-renormalize": {
+          "bytes": 476,
+          "instructions": 119,
+          "assembly_sha256": "f39d64d8531c23c7e409a2fb65de81d4c9ea478031252801d56e49c755e066ca"
+        },
+        "compact-rows": {
+          "bytes": 1740,
+          "instructions": 435,
+          "assembly_sha256": "8a3dd0869494955e97a1c49ee12335c8a5a3011cde52d9c81c643c4c8de856ad"
+        },
+        "compact-pass": {
+          "bytes": 1860,
+          "instructions": 465,
+          "assembly_sha256": "2b46db84486d35e2446670d5461f212d765e21394ed98c518c7fff1aa77fb2ef"
+        },
+        "inverse97": {
+          "bytes": 1400,
+          "instructions": 350,
+          "assembly_sha256": "7478feffd3d0a580a08cbc9c96c08647e570bd0e316e708af0077953a85351a0"
+        },
+        "inverse-lift": {
+          "status": "no standalone symbol; may be inlined"
+        }
+      }
+    },
+    {
+      "variant": "c7",
+      "binary_sha256": "df2f4a34c8e50a5892a2864b04c5bec7ecafd60952d7c46155271e4ea92a209b",
+      "text_bytes": 576096,
+      "functions": {
+        "mq-decode": {
+          "bytes": 584,
+          "instructions": 146,
+          "assembly_sha256": "b60d3a2869f6285a13fb15111ca6e964e547ab537924e338fadf11b028b5cfb5"
+        },
+        "mq-renormalize": {
+          "bytes": 472,
+          "instructions": 118,
+          "assembly_sha256": "d4aad1008dddc44d95ebc19c20e20f0de54093658c28a15b6180653b6ea27563"
+        },
+        "compact-rows": {
+          "bytes": 1740,
+          "instructions": 435,
+          "assembly_sha256": "8c409defd107fdf9c91201485b1cf80fb5a037521c3b90fa1f94dee739731300"
+        },
+        "compact-pass": {
+          "bytes": 1860,
+          "instructions": 465,
+          "assembly_sha256": "c6c19e510cad4128a3ee29087a7a13071205d71d8a8d3b699c944ef06b90e21d"
+        },
+        "inverse97": {
+          "bytes": 1400,
+          "instructions": 350,
+          "assembly_sha256": "d9175a3efbf39989413a6f1c574c5365f3bfb6df5e2f61c15dd6a1403d623562"
+        },
+        "inverse-lift": {
+          "status": "no standalone symbol; may be inlined"
+        }
+      }
+    },
+    {
+      "variant": "c2",
+      "binary_sha256": "a08e7952af90d813b974e1c100b465c126761cd339f1114e1100b4c83410453a",
+      "text_bytes": 575680,
+      "functions": {
+        "mq-decode": {
+          "bytes": 572,
+          "instructions": 143,
+          "assembly_sha256": "811dd24091b55390095a5f339efdb12436736ee834979724b04418f26ee9cf9e"
+        },
+        "mq-renormalize": {
+          "bytes": 476,
+          "instructions": 119,
+          "assembly_sha256": "a5645094dbc355e672f79d2b2ccb671c3ebbe25b476e82a457e9e98e62c6e225"
+        },
+        "compact-rows": {
+          "bytes": 1340,
+          "instructions": 335,
+          "assembly_sha256": "91eaf31b42b32dfc4aaba362b8602c9492ec61e4b09ebb33e097988fe6e00551"
+        },
+        "compact-pass": {
+          "bytes": 1852,
+          "instructions": 463,
+          "assembly_sha256": "c1aa0e28e2aee306de0907b2b9e87b080cafba92f83d2b924c3919638990a2b6"
+        },
+        "inverse97": {
+          "bytes": 1400,
+          "instructions": 350,
+          "assembly_sha256": "6aac70a8ef310a9064cf679b0389a34baf4253c727a37bf6529ea86f86eca4dd"
+        },
+        "inverse-lift": {
+          "status": "no standalone symbol; may be inlined"
+        }
+      }
+    },
+    {
+      "variant": "c4",
+      "binary_sha256": "5e2bac73177eddd2bf4f8e07a8e15286f0584762df6c059f7fe86b3637ad3961",
+      "text_bytes": 576912,
+      "functions": {
+        "mq-decode": {
+          "bytes": 572,
+          "instructions": 143,
+          "assembly_sha256": "219b36798e33ac4674a9c2ad5afe24feeecf015bbe6193d97cb542fd5e0b4ca1"
+        },
+        "mq-renormalize": {
+          "bytes": 476,
+          "instructions": 119,
+          "assembly_sha256": "a12471279dcc5115a1214e52ccd457b017fedb1ead054e14a1d3b74424f9e0fb"
+        },
+        "compact-rows": {
+          "bytes": 1740,
+          "instructions": 435,
+          "assembly_sha256": "904ed9d70159e5e338b9c02c151c423013b49c136ff5836963df78253f06cb2b"
+        },
+        "compact-pass": {
+          "bytes": 1860,
+          "instructions": 465,
+          "assembly_sha256": "c5ccf663a6583c3fae29da053135d5edb6cf492adc92a83e8984d6fdca259c32"
+        },
+        "inverse97": {
+          "bytes": 1388,
+          "instructions": 347,
+          "assembly_sha256": "c719a4f299620777be56d4edcc16888c16a57e67c56597c97f14917770994d08"
+        },
+        "inverse-lift": {
+          "bytes": 736,
+          "instructions": 184,
+          "assembly_sha256": "b23ca4771d6c0aaed3323ab0a389cf8ab44b03e1952cecbb6cc7f3ccbdde2b0e"
+        }
+      }
+    }
+  ]
+}
