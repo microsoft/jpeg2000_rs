@@ -195,7 +195,7 @@ pub(super) fn prepare_tile_part_index(
             forall|i: int| position <= i < parts.len() ==> #[trigger] next@[i] as nat ==
                 if (source[i].tile_index as nat) < slots {
                     crate::specs::part2_index_next(source, source[i].tile_index, (i + 1) as nat)
-                } else { parts.len() },
+                } else { parts.len() as nat },
             forall|i: int| 0 <= i < position ==> #[trigger] next@[i] == parts.len(),
         decreases position,
     ))]
@@ -243,7 +243,7 @@ pub(super) fn prepare_tile_part_index(
             assert forall|i: int| position <= i < parts.len() implies #[trigger] next@[i] as nat ==
                 if (source[i].tile_index as nat) < slots {
                     crate::specs::part2_index_next(source, source[i].tile_index, (i + 1) as nat)
-                } else { parts.len() } by {
+                } else { parts.len() as nat } by {
                 if i == position && tile < slots {
                     entry_view_at(before_entries, tile as int);
                     assert(next@[i] == before_entries[tile as int].head);
