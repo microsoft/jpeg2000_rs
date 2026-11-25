@@ -7,8 +7,10 @@ Decoder baseline: `54abff44a778b6c210d580770286a531370550b6` (`origin/main` at s
 Coverage is verified, an available ARM64 matrix is reproducible, and two
 isolated experiments were tested and measured. Other uncovered mechanisms have
 explicit needs-more-data cards. C12 now passes exact-source/package Verus;
-C2 fails pinned Verus compilation and stays rejected. Native x86-64/v3,
-cross-target execution and the full A-G corpus remain unqualified.
+C2 fails pinned Verus compilation and stays rejected. Scoped native x86-64/v3
+timing, actual AVX2 arithmetic and 57-stream cross-target output checks are
+verified; full A-G/normative qualification and remaining structural prototypes
+are still incomplete.
 
 ## Executive summary
 
@@ -637,7 +639,9 @@ Remaining gates:
 - [x] Exact-source Verus attempted on both: C12 source/package pass; C2 const-table
   compilation fails and the prototype remains rejected (Section 8).
 - [ ] Complete A-G corpus, isolated stage-wall timers and residual attribution.
-- [ ] Native x86-64/v3/AVX2, cross-target determinism and missing precision cases.
+- [x] Scoped native x86-64/v3/AVX2 and canonical 57-stream cross-target output
+  checks, including actual 12/16-bit inputs; auxiliary counter/export failures
+  remain explicit rather than promoted into a green workflow.
 - [ ] Remaining uncovered prototypes after proof/numerical/error prerequisites.
 
 **The complete prompt's definition of done is not met.** This report uses its
@@ -1040,3 +1044,28 @@ See [sampled stages](data/expanded-current-arm64-stages.csv),
 [raw counters](data/expanded-current-arm64-counters.csv),
 [counter/IPC summaries](data/expanded-current-arm64-counter-summary.csv) and
 [request/build/scope provenance](data/expanded-current-arm64-profiles-provenance.json).
+
+### 8.5 Continuation snapshot
+
+The refreshed companions are named
+`performance-evaluation-expanded-20261125.tar.gz` (with payload index and SHA256
+sidecar), `performance-evaluation-branches-20261125.bundle`,
+`REPRODUCE-expanded-20261125.txt`, and `reproduce-expanded-20261125.sh`.
+They do not overwrite the earlier 24-November snapshot. The bundle retains
+both source controls and isolated experiments; it requires the original frozen
+baseline history. The session wrapper pins the original timing harness and
+expanded decoder in fresh detached worktrees.
+
+Current ARM64 full/selected/replay and final x86 timing together contain
+**1,314,170 authoritative continuation samples**, kept in their separate
+source/corpus/request sessions, not pooled into one latency result. The first
+x86 artifact and failed/superseded diagnostics remain separately labeled.
+The allowlist excludes authentication, caches, full pixel dumps, restricted-use
+external vectors and local raw `perf.data` host identity. Text profiles/counters,
+hashes, original hosted artifact ZIPs and exact-source proof receipts are retained.
+
+This continuation closes the measured corpus/ISA/crop/verification-access gates
+described above, but **does not complete the original full prompt**: baseline
+conformance/compatibility, remaining full-corpus cells and structural
+model/error-policy/proof prerequisites remain unresolved. No go stack or go
+issue is justified, and no production default changed.
