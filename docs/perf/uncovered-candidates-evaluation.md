@@ -217,3 +217,45 @@ HT instructions rise 0.170-0.182%. The apparent generic HT time improvement
 is therefore retained as an unexplained signal, **not attributed as a
 context-kernel win**. Per-case medians, IQR/noise decisions and all controls
 are in [the first-pass table](data/c2-summary.csv).
+
+## Completed first-pass experiment: C12 MQ inlining hints
+
+The same definitive rerun caveat applies to these preserved first-pass results.
+
+- **Coverage:** remainder beyond #290/#248/#269 and the already tracked HT
+  reader inlining. This is not a new MQ algorithm or a repeat of discarded
+  early-MPS/renormalization experiments from #448.
+- **Hypothesis:** ghost/spec/proof bodies are already
+  [cfg-excluded](../../src/lib.rs#L77) in ordinary execution. Runtime
+  arithmetic/resource checks are functional error behavior, not presumed
+  proof-only overhead. The measured experiment only exposes four existing
+  [MQ helpers](../../src/mq.rs#L564) to cross-unit inlining.
+- **Stage share:** generic noisy-lossless gray/RGB samples attribute
+  37.35%/34.94% to standalone MQ symbols. This is not the share of function-call
+  overhead or work accounting alone.
+- **Prototype:** `perf/eval-c12-mq-inline`, `aa1e5ba`; four `#[inline]`
+  attributes, with no arithmetic, state, checks or proof-contract changes.
+- **Correctness:** 22 paired dumps are exact; #299 statistics remain
+  max 1 with 2/85/5/322 differing irreversible samples and exact reversible
+  controls. Both Rust versions pass 1,382 default library tests, six example
+  tests and five doctests; seven MSRV deadline controls pass. Cross-target
+  execution remains untested.
+- **Verification:** not run for the same missing local verifier / denied
+  prototype-push reasons. No passing baseline proof receipt is substituted.
+- **Effort/risk:** S; low native semantic risk, but fresh verification is
+  still required for any retained source.
+- **Recommendation:** **no-go for retaining these measured hints.** Intended
+  legacy gains are within noise and no targeted-stage gain is established.
+  This does not reject every possible DWT/output inlining experiment or
+  authorize removing guards under stronger, unproved caller assumptions.
+
+| Class subset | Generic change | Consumer change |
+|---|---:|---:|
+| A | -0.136% | +0.055% |
+| B | +0.560% | -0.112% |
+| E | -0.686% | -0.098% |
+
+Noisy-lossless gray/RGB whole-process user instructions decrease only
+0.244%/0.238%. Generic executable `.text` shrinks 496 bytes; consumer `.text`
+shrinks 16 bytes, not a whole-ELF/debug-information claim.
+See [per-case initial results](data/c12-summary.csv).
