@@ -165,10 +165,18 @@ fn run() -> Result<(), Box<dyn Error>> {
     {
         return Err("this first experiment requires one unit-sampled component".into());
     }
+    let image_x1 = size
+        .x_origin
+        .checked_add(size.width)
+        .ok_or("image x extent overflow")?;
+    let image_y1 = size
+        .y_origin
+        .checked_add(size.height)
+        .ok_or("image y extent overflow")?;
     if requested.x.start < size.x_origin
         || requested.y.start < size.y_origin
-        || requested.x.end > size.width
-        || requested.y.end > size.height
+        || requested.x.end > image_x1
+        || requested.y.end > image_y1
     {
         return Err("window is outside the image reference grid".into());
     }
