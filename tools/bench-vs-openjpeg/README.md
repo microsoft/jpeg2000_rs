@@ -177,6 +177,9 @@ Unsupported native ISA instructions remain recorded failures, never zero counts.
 `collect.py --work WORK --output FRESH_SIBLING_DIRECTORY` performs this
 portable evidence collection with a hashed index and an explicit completion
 indicator. It refuses to overwrite a collection or place it inside its source.
+Build-cache detection is structural: a real configuration or case named
+`consumer`/`cargo` must not be discarded. Completed collections are checked
+for omitted per-process and instruction evidence before the index is issued.
 
 For a completed full-protocol matrix, independently verify all raw sample
 counts/durations, worker/cap metadata, case coverage and reproducible summary

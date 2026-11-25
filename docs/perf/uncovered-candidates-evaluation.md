@@ -740,10 +740,30 @@ NASA originals (7.4MB total) are now vendored outside the decoder package with
 separate credit, public-domain notice and mandatory hash checks. No alternate
 identity, remote-access bypass or relaxed hash check is used.
 [Run 45593985345](https://github.com/microsoft/jpeg2000_rs/actions/runs/45593985345)
-uses those offline sources and records CPU/instruction observations separately
-from uninstrumented timing on the same host/binaries. Results are still
-pending, not claimed. Decoder package contents remain exactly 417 files;
-no tool, report or photograph is packaged.
+completed successfully on an AMD EPYC 7763: 617,271 timing samples and 32
+successful representative instruction outcomes. Its original 115,108,389-byte
+artifact ZIP matches SHA256
+`a17fdf65071b44e1489e522a660dc698c5efcf36d28bac91a3943f981625c303`;
+all 4,341 retained members match their index hashes.
+Independent analysis nevertheless found a **collector bug**: basename-based
+cache pruning omitted the real `consumer` configuration's per-process/build
+metadata while retaining its timing CSV. This incomplete four-profile artifact
+is diagnostic, not promoted as a fully qualified matrix.
+
+Cache pruning now recognizes actual Git/CMake/Cargo markers instead of
+configuration names, explicitly checks retained process/instruction evidence,
+and is regression-tested on `consumer` and a legitimate case named `cargo`.
+A real collect/analyze round trip of the complete ARM64 matrix preserves all
+1,170 process records and reproduces all 665,567 samples/medians/IQRs.
+The x86 matrix must be rerun on one host rather than fabricate lost metadata
+or splice profiles from different machines. Decoder package contents remain
+exactly 417 files; no tool, report or photograph is packaged.
+
+All 57 cross-host source pixel hashes match, but three encoded 9/7 RGB
+streams differ between encoders: day r10/r40 and night r10. Cross-target
+output comparisons must use canonical matching stream bytes; those three
+cases require an explicit same-stream ARM64 replay, not an assumption that
+matching source pixels imply matching compressed inputs.
 
 Window qualification now also compares each backend's actual selected output
 with its own full-decode crop, before any timing. A real 32-square integration

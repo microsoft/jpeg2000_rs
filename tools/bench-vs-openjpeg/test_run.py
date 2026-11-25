@@ -62,7 +62,10 @@ class ComparisonTests(unittest.TestCase):
             work, output = root / "work", root / "evidence"
             for name in ["timings/COMPLETE.json", "timings/raw.csv", "corpus/test.j2k",
                          "timings/generic/cargo/cache.json", "timings/rust-dump.stdout",
-                         "input/conformance/restricted-use.j2k"]:
+                         "timings/generic/cargo/.rustc_info.json", "input/conformance/COPYRIGHT",
+                         "input/conformance/restricted-use.j2k", "timings/consumer/build.json",
+                         "timings/consumer/case/rust-typed-r0.json",
+                         "timings/consumer/cargo/rust-typed-r0.json"]:
                 path = work / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b"fixture")
@@ -72,7 +75,9 @@ class ComparisonTests(unittest.TestCase):
             index = json.loads((output / "INDEX.json").read_text())
             self.assertTrue(index["timing_matrix_complete"])
             self.assertEqual({entry["path"] for entry in index["entries"]},
-                             {"timings/COMPLETE.json", "timings/raw.csv", "corpus/test.j2k"})
+                             {"timings/COMPLETE.json", "timings/raw.csv", "corpus/test.j2k",
+                              "timings/consumer/build.json", "timings/consumer/case/rust-typed-r0.json",
+                              "timings/consumer/cargo/rust-typed-r0.json"})
             self.assertTrue(all(entry["sha256"] == sha(b"fixture") for entry in index["entries"]))
             self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
             command[-1] = work / "nested"
