@@ -185,6 +185,11 @@ reversed-order baseline/candidate processes with the full protocol. Its short
 control build-check clocks are not speed evidence. Three-repeat Callgrind
 guest-instruction comparisons and final candidate disassembly remain separate.
 No native/AVX-512 instrumentation is substituted for the explicit v3 row.
+For a targeted confirmation, `uncovered_case` selects cases by regex; its default
+preserves the full 57-case cohort. Include the four representative counter cases
+when comparing their instruction counts. The selected regex is recorded in
+the artifact, and baseline/candidate v3 disassembly is retained. Keep repeated
+sessions separate and retain the original matrix, including any regressions.
 
 `collect.py --work WORK --output FRESH_SIBLING_DIRECTORY` performs this
 portable evidence collection with a hashed index and an explicit completion

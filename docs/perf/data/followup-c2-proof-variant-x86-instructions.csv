@@ -1,0 +1,9 @@
+config,case,baseline_ir,candidate_ir,change_percent,scope
+generic,day-small-gray-lossless,3912775245,3326096771,-14.993922146427806,"three-repeat whole-process Callgrind, not a stage timer"
+generic,day-small-gray-lossy-r40,1248234914,1248235603,5.519794328279204e-05,"three-repeat whole-process Callgrind, not a stage timer"
+generic,style-b32-m0,148297054,125298167,-15.508660745209413,"three-repeat whole-process Callgrind, not a stage timer"
+generic,structure-tile256,9807154910,8037607331,-18.04343456628442,"three-repeat whole-process Callgrind, not a stage timer"
+x86-64-v3,day-small-gray-lossless,3858248979,3286430155,-14.820682312425749,"three-repeat whole-process Callgrind, not a stage timer"
+x86-64-v3,day-small-gray-lossy-r40,1180523783,1180525984,0.00018644266484013627,"three-repeat whole-process Callgrind, not a stage timer"
+x86-64-v3,style-b32-m0,145899464,123436930,-15.395898918449758,"three-repeat whole-process Callgrind, not a stage timer"
+x86-64-v3,structure-tile256,9630038376,7895900339,-18.00759217452157,"three-repeat whole-process Callgrind, not a stage timer"

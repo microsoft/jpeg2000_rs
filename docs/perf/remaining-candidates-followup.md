@@ -129,18 +129,39 @@ combined IQR for every sampled image. Original #299 controls remain exact.
 This is not the first variant's 14% result.
 
 All 134 full/selected/conformance outcomes match for this variant too.
-A full 65-case generic/consumer ARM paired escalation is running. An explicit
-same-host generic/**x86-64-v3** 57-case paired study and three-repeat guest
-instruction comparison are dispatched in
-[run 45711245733](https://github.com/microsoft/jpeg2000_rs/actions/runs/45711245733);
-its harness/control-build clocks are not speed evidence. Normal CI on the actual
+A full 65-case generic/consumer ARM paired escalation is running. The explicit
+same-host generic/**x86-64-v3** 57-case paired study completed successfully in
+[run 45711245733](https://github.com/microsoft/jpeg2000_rs/actions/runs/45711245733).
+Its original 112,599,565-byte ZIP matches the server SHA256; all 4,741 indexed
+payloads, 100,185 samples / 456 full-protocol processes / 114 summaries and
+48 original Callgrind Ir outcomes were independently verified. The separate
+short control-build clocks are not speed evidence.
+
+| Hosted profile | A (6 images) | B (18) | C (14) | D (19) |
+|---|---:|---:|---:|---:|
+| Generic | -8.393% | +0.361% | -5.190% | -9.368% |
+| x86-64-v3 | -9.686% | **+1.416%** | -5.461% | -10.435% |
+
+All 114 outputs match the same-profile current-main control. Representative
+lossless guest instructions decrease 14.8-18.0%; the measured B representative
+is effectively unchanged. However, the **v3 B class exceeds the 1% slowdown
+guard**: 16 of 18 images are within combined IQR, but two are outside it.
+This is not dismissed as noise or erased by averaging with another host.
+A targeted repeat of all 18 B images and four A/C/D controls is required before
+a retention decision. The first matrix is preserved regardless of that result.
+See the complete [114 image/profile summaries](data/followup-c2-proof-variant-x86-paired.csv),
+[eight class results](data/followup-c2-proof-variant-x86-classes.csv),
+[independent artifact/raw validation](data/followup-c2-proof-variant-x86-validation.json),
+and [stable instruction comparisons](data/followup-c2-proof-variant-x86-instructions.csv).
+
+Normal CI on the actual
 candidate source completed successfully in
 [45710713971](https://github.com/microsoft/jpeg2000_rs/actions/runs/45710713971):
 all nine required jobs pass, including Rust 1.88, Linux/macOS/Windows tests and
 independent numerical checks, generated decoder validation, and quality/package
 audit. Six unrelated optional jobs are skipped, not claimed as passes. All four
 uploaded numerical/validation ZIPs match their server SHA256 digests. Full ARM
-and hosted paired timing gates remain pending; no Go claim is made yet.
+and v3 B confirmation gates remain pending; no Go claim is made yet.
 
 [Distinct variant paired samples summary](data/followup-c2-proof-variant-paired.csv),
 [class changes](data/followup-c2-proof-variant-classes.csv) and

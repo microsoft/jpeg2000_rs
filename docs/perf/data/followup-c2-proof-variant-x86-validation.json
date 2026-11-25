@@ -1,0 +1,72 @@
+{
+  "candidate": "fe3ca8f1994066e9aacfe897dd699842a940bf6a",
+  "summaries": 114,
+  "samples": 100185,
+  "full_protocol_processes": 456,
+  "indexed_payloads_checked": 4741,
+  "counter_outcomes_checked": 48,
+  "original_299_before_after_checks": 0,
+  "classes": [
+    {
+      "config": "generic",
+      "class": "A",
+      "images": 6,
+      "change_percent": -8.393466051648469,
+      "inside_combined_iqr": 0
+    },
+    {
+      "config": "generic",
+      "class": "B",
+      "images": 18,
+      "change_percent": 0.3612182788011342,
+      "inside_combined_iqr": 18
+    },
+    {
+      "config": "generic",
+      "class": "C",
+      "images": 14,
+      "change_percent": -5.19029057430731,
+      "inside_combined_iqr": 8
+    },
+    {
+      "config": "generic",
+      "class": "D",
+      "images": 19,
+      "change_percent": -9.367838740534406,
+      "inside_combined_iqr": 1
+    },
+    {
+      "config": "x86-64-v3",
+      "class": "A",
+      "images": 6,
+      "change_percent": -9.685878410932292,
+      "inside_combined_iqr": 0
+    },
+    {
+      "config": "x86-64-v3",
+      "class": "B",
+      "images": 18,
+      "change_percent": 1.4162291878333733,
+      "inside_combined_iqr": 16
+    },
+    {
+      "config": "x86-64-v3",
+      "class": "C",
+      "images": 14,
+      "change_percent": -5.461292350574121,
+      "inside_combined_iqr": 8
+    },
+    {
+      "config": "x86-64-v3",
+      "class": "D",
+      "images": 19,
+      "change_percent": -10.43517321930355,
+      "inside_combined_iqr": 2
+    }
+  ],
+  "scope": "Independent raw/summary/command/hash checks; exact_output is the captured runner comparison, not retained full pixels or a formal conformance claim.",
+  "workflow_run": 45711245733,
+  "workflow_head": "3d498015846a2631291ebc505ee6eb6468aea2ea",
+  "artifact_sha256": "1f6cf8fdcddd61e32f25434326bc079fa9f1295b8dc50df4e1adac3896c7ecc5",
+  "artifact_bytes": 112599565
+}

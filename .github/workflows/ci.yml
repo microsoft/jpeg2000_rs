@@ -47,6 +47,10 @@ on:
       native_candidate:
         description: Same-repository candidate commit (40 lowercase hex; native-comparison or uncovered-candidate)
         type: string
+      uncovered_case:
+        description: Case regex for an uncovered-candidate confirmation (default is the full 57-case cohort)
+        type: string
+        default: '^(?!roi8k|day-large)'
       native_pairs:
         description: Paired fresh processes per case (native-comparison only)
         type: choice
@@ -78,8 +82,9 @@ jobs:
         if: inputs.consumer_benchmark_scope == 'uncovered-candidate'
         env:
           CANDIDATE: ${{ inputs.native_candidate }}
+          CASE: ${{ inputs.uncovered_case }}
         run: |
-          python3 -c 'import os,re; value=os.environ["CANDIDATE"]; assert re.fullmatch("[0-9a-f]{40}",value), "candidate must be a complete lowercase commit SHA"'
+          python3 -c 'import os,re; value=os.environ["CANDIDATE"]; assert re.fullmatch("[0-9a-f]{40}",value), "candidate must be a complete lowercase commit SHA"; assert os.environ["CASE"], "case regex must not be empty"; re.compile(os.environ["CASE"])'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         if: inputs.consumer_benchmark_scope == 'uncovered-candidate'
         with:
@@ -121,6 +126,7 @@ jobs:
           RUSTUP_TOOLCHAIN: 1.93.1
           STUDY: ${{ inputs.consumer_benchmark_scope }}
           CANDIDATE: ${{ inputs.native_candidate }}
+          CASE: ${{ inputs.uncovered_case }}
         run: |
           TOOL="$GITHUB_WORKSPACE/evaluation/tools/bench-vs-openjpeg"
           test "$(git -C decoder rev-parse HEAD)" = f4b2b7b29d38fa31bd74263913462bb67d6e5e4e
@@ -132,17 +138,19 @@ jobs:
             python3 "$TOOL/run.py" --output "$WORK/build-check" \
               --openjpeg-source "$RUNNER_TEMP/openjpeg254" --decoder-source "$GITHUB_WORKSPACE/decoder" \
               --corpus-manifest "$WORK/corpus/manifest.json" --cpu "$CPU" \
-              --configs generic,x86-64-v3 --case '^(?!roi8k|day-large)' \
+              --configs generic,x86-64-v3 --case "$CASE" \
               --iterations 2 --minimum-ms 0 --warmups 0
             python3 "$TOOL/compare.py" --baseline "$WORK/build-check" \
               --candidate-source "$GITHUB_WORKSPACE/candidate-decoder" \
               --output "$WORK/paired" --configs generic,x86-64-v3 --cpu "$CPU"
             objdump -d -C "$WORK/paired/x86-64-v3/cargo/release/bench-vs-openjpeg" \
               > "$WORK/x86-64-v3-candidate-final.asm"
+            objdump -d -C "$WORK/build-check/x86-64-v3/cargo/release/bench-vs-openjpeg" \
+              > "$WORK/x86-64-v3-baseline-final.asm"
             python3 "$TOOL/count_variant.py" --comparison "$WORK/paired" \
               --baseline "$WORK/build-check" --output "$WORK/candidate-counters" \
               --counter-backend callgrind --cpu "$CPU"
-            echo "Paired57-case generic/v3 candidate study. Short control build-check timings are not speed evidence; paired timings use the full protocol." \
+            printf 'Paired generic/v3 candidate study, case regex: %s. Short control build-check timings are not speed evidence; paired timings use the full protocol.\n' "$CASE" \
               > "$WORK/SCOPE.txt"
             exit 0
           fi
