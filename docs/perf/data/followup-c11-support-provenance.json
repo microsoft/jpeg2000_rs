@@ -1,0 +1,11 @@
+{
+  "commit": "c0316ac6f3a5ffdea01964f6f535067f6dcfabb1",
+  "binary_sha256": "6d5deabd938e895828ad29b050b45c7be750bb57da9cedf8f5319025aea0b25a",
+  "scope": "Counting-only selected-tile entropy; every selected block still decoded; not timing or proof-qualified pruning",
+  "source_control": "f4b2b7b29d38fa31bd74263913462bb67d6e5e4e",
+  "interpretation": "Counts only: every block in selected tiles was decoded; outside bytes/passes are observed quantities, not skipped MQ decisions, wall-time gains or proof-qualified pruning.",
+  "validation": "Exhaustive small1D intervals, both origin parities/singletons; actual8Kmiddle/edge/odd/full; actualoffset(3,5)full/selected integration; full0outside and9/7explicitrefusal.",
+  "offset_source_commit": "509a7c4cfc6d86b14448bcfed5182fb878a05ac3",
+  "offset_binary_sha256": "b1d473953fa74eb7f6e8d5113107f1f67568773f12eafcc24157a435cb5a6531",
+  "offset_input_sha256": "52abb436a812638524e936e88924dbdab4fd0d15d04ea4f90a9a663e3d0a51e1"
+}

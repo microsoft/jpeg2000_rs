@@ -264,6 +264,29 @@ configuration; `--profile-iterations 1` bounds collection on long 8K requests
 while retaining at least two seconds of sampled decoding. It does not shorten
 or replace the separately validated uninstrumented timing protocol.
 
+## Isolated variant qualification
+
+For exact output/error regression against an expanded control, its selected
+requests and an already acquired conformance inventory:
+
+```sh
+python3 tools/bench-vs-openjpeg/qualify_variant.py --candidate-source CANDIDATE \
+  --baseline COMPLETE_FULL_MATRIX --partial COMPLETE_PARTIAL_ROOT \
+  --conformance EXISTING_CONFORMANCE_INVENTORY --output FRESH_QUALIFICATION
+```
+
+This separately builds the container-aware generic driver, hashes every input
+and complete output, and requires baseline refusals to preserve their exit
+status and error text. Matching pixel stdout is removed only after comparison
+and hash recording; mismatches stay available. Matching existing refusals is
+regression evidence, not normative conformance.
+
+After an isolated paired comparison, separate three-repeat process counters
+can be collected using `count_variant.py --comparison COMPLETE_COMPARISON
+--baseline COMPLETE_FULL_MATRIX --output FRESH_COUNTERS --perf PERF --cpu CPU`.
+It verifies both executable identities, alternates process order and preserves
+unsupported event markers; these are not timed-stage or uninstrumented samples.
+
 An isolated prototype can be compared without changing the baseline or stacking
 other candidates:
 

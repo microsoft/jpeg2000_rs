@@ -15,6 +15,7 @@ from qualify import crop_dump
 from conformance import decode_blob
 from analyze import validate_samples
 from profile_baseline import main as profile_main
+from qualify_variant import outcome
 import base64
 import hashlib
 
@@ -25,6 +26,13 @@ def dump(width, height, values, signed=0, precision=8):
 
 
 class ComparisonTests(unittest.TestCase):
+    def test_variant_qualification_distinguishes_existing_refusals_from_regressions(self):
+        self.assertEqual(outcome(0, "a", "", 0, "a", ""), "matched")
+        self.assertEqual(outcome(0, "a", "", 0, "b", ""), "changed-output")
+        self.assertEqual(outcome(1, None, "limit", 1, None, "limit"), "matched-baseline-refusal")
+        self.assertEqual(outcome(1, None, "limit", 1, None, "different"), "changed-error")
+        self.assertEqual(outcome(1, None, "limit", 0, "a", ""), "changed-process-outcome")
+
     def test_selected_profile_uses_hash_bound_reused_binary_and_actual_request(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

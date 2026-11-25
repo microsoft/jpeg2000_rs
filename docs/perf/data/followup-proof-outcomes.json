@@ -1,0 +1,39 @@
+{
+  "c2": {
+    "head": "a24966fe9cf629a97fb9326487fc77a7a3a5e39f",
+    "conclusion": "failure",
+    "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/45701323795",
+    "failure": "Production proof fails: context-table and cleanup postconditions plus rlimit failures,9 errors. No budget/pin changes or proof deletion."
+  },
+  "c4": {
+    "head": "137fda79fbe561ed4bb60e5bf491a8942d7d48f6",
+    "conclusion": "failure",
+    "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/45701331499",
+    "failure": "Pinned Verus does not support std::f64::floor; module-only frontend fails, production/package verification skipped. No assume_specification introduced."
+  },
+  "c7": {
+    "head": "46a9bb888c0ed241f1b9fa4de194b789989b8b10",
+    "conclusion": "success",
+    "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/45699273869",
+    "source": {
+      "documented_rust_only_adapters": 5,
+      "source_function_coverage": "not-measured",
+      "verified_project_functions": 10305,
+      "verus_errors": 0,
+      "verus_verified_obligations": 6363
+    },
+    "package": {
+      "documented_rust_only_adapters": 5,
+      "source_function_coverage": "not-measured",
+      "verified_project_functions": 10305,
+      "verus_errors": 0,
+      "verus_verified_obligations": 6363
+    },
+    "boundary": {
+      "lifetime_analysis": "disabled by --no-lifetime for this stable-release workflow; this report does not verify lifetimes; Rust borrow checking is checked separately by Cargo",
+      "termination": []
+    },
+    "source_receipt_sha256": "1720f11bf0d64503e97383ac8b562ca58221716b16804cbf71fb1c4cf7a05700",
+    "package_receipt_sha256": "237c2445fb389f0e6f2949735bb67b34e4032676b3ad5289669cd6d763f5491f"
+  }
+}
