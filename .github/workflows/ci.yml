@@ -34,6 +34,7 @@ on:
           - zune-acceptance
           - native-comparison
           - uncovered-evaluation
+          - uncovered-instructions
       consumer_evidence_run:
         description: Prior actual-zune run for fixed-corpus artifact execution
         required: false
@@ -59,7 +60,7 @@ permissions:
 jobs:
   uncovered-evaluation:
     name: Optional uncovered evaluation (native x86-64)
-    if: github.event_name == 'workflow_dispatch' && inputs.consumer_benchmark && inputs.consumer_benchmark_scope == 'uncovered-evaluation'
+    if: github.event_name == 'workflow_dispatch' && inputs.consumer_benchmark && (inputs.consumer_benchmark_scope == 'uncovered-evaluation' || inputs.consumer_benchmark_scope == 'uncovered-instructions')
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
@@ -85,6 +86,13 @@ jobs:
           WORK: ${{ runner.temp }}/uncovered-evaluation
         run: |
           mkdir -p "$WORK"
+          lscpu > "$WORK/hardware.stdout"
+          cp /etc/os-release "$WORK/os.stdout"
+          if ! valgrind --version > "$WORK/valgrind-probe.stdout" 2> "$WORK/valgrind-probe.stderr"; then
+            sudo apt-get update
+            sudo apt-get install -y valgrind
+          fi
+          ldd --version > "$WORK/libc.stdout"
           git clone --depth 1 --branch v2.5.4 https://github.com/uclouvain/openjpeg.git "$RUNNER_TEMP/openjpeg254"
           test "$(git -C "$RUNNER_TEMP/openjpeg254" rev-parse HEAD)" = 6c4a29b00211eb0430fa0e5e890f1ce5c80f409f
           cmake -S "$RUNNER_TEMP/openjpeg254" -B "$RUNNER_TEMP/encoder254" \
@@ -98,12 +106,26 @@ jobs:
         env:
           WORK: ${{ runner.temp }}/uncovered-evaluation
           RUSTUP_TOOLCHAIN: 1.93.1
+          STUDY: ${{ inputs.consumer_benchmark_scope }}
         run: |
           TOOL="$GITHUB_WORKSPACE/evaluation/tools/bench-vs-openjpeg"
           test "$(git -C decoder rev-parse HEAD)" = f4b2b7b29d38fa31bd74263913462bb67d6e5e4e
           python3 "$TOOL/corpus.py" --output "$WORK/corpus" --assets "$WORK/assets" \
             --encoder "$RUNNER_TEMP/encoder254/bin/opj_compress"
           CPU=$(python3 -c 'import os; print(min(os.sched_getaffinity(0)))')
+          if [ "$STUDY" = uncovered-instructions ]; then
+            python3 "$TOOL/run.py" --output "$WORK/timings" \
+              --openjpeg-source "$RUNNER_TEMP/openjpeg254" --decoder-source "$GITHUB_WORKSPACE/decoder" \
+              --corpus-manifest "$WORK/corpus/manifest.json" --cpu "$CPU" \
+              --configs generic,consumer,x86-64-v3,native \
+              --case '^(day-small-gray-lossless|day-small-gray-lossy-r40|style-b32-m0|structure-untiled)$' \
+              --iterations 1 --minimum-ms 0 --warmups 0
+            python3 "$TOOL/instructions.py" --baseline "$WORK/timings" \
+              --output "$WORK/instructions" --cpu "$CPU"
+            echo "Instrumented representative A-D process counts; shortened build-check timings are not speed evidence." \
+              > "$WORK/SCOPE.txt"
+            exit 0
+          fi
           python3 "$TOOL/run.py" --output "$WORK/timings" \
             --openjpeg-source "$RUNNER_TEMP/openjpeg254" --decoder-source "$GITHUB_WORKSPACE/decoder" \
             --corpus-manifest "$WORK/corpus/manifest.json" \
@@ -112,6 +134,8 @@ jobs:
             > "$WORK/x86-64-v3-final.asm"
           echo "This hosted scope excludes large/8K cases; canonical input hashes must match before cross-host pooling." \
             > "$WORK/SCOPE.txt"
+          python3 "$TOOL/instructions.py" --baseline "$WORK/timings" \
+            --output "$WORK/instructions" --cpu "$CPU"
       - name: Collect raw observations, canonical inputs and disassembly
         if: always()
         env:

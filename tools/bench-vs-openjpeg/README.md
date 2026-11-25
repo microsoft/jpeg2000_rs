@@ -153,6 +153,10 @@ No default CI behavior changes. Artifacts retain canonical encoded inputs,
 raw observations, outcomes, metadata and v3 final-binary disassembly, not
 build caches or full pixel dumps. Cross-host pooling requires matching input
 hashes; independently regenerated lossy streams are not presumed identical.
+The separate `uncovered-instructions` scope builds the same four configurations
+and records Callgrind process instruction counts for one declared representative
+of each A-D family. Its shortened build checks are not timing evidence.
+Unsupported native ISA instructions remain recorded failures, never zero counts.
 
 `collect.py --work WORK --output FRESH_SIBLING_DIRECTORY` performs this
 portable evidence collection with a hashed index and an explicit completion

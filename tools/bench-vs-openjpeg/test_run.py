@@ -9,6 +9,7 @@ import unittest
 from run import capture, check_source, compare_dumps, execute, load_corpus, read_dump, sha
 from profile_baseline import parse_report
 from corpus import coding_header, precision_payload
+from instructions import callgrind_instructions
 
 
 def dump(width, height, values, signed=0, precision=8):
@@ -17,6 +18,13 @@ def dump(width, height, values, signed=0, precision=8):
 
 
 class ComparisonTests(unittest.TestCase):
+    def test_instruction_summary_uses_ir_event_and_refuses_incomplete_evidence(self):
+        self.assertEqual(callgrind_instructions("events: Dr Ir\nsummary: 5 123\n"), 123)
+        for text in ["events: Ir\n", "summary: 123\n",
+                     "events: Ir\nsummary: 1\nsummary: 2\n"]:
+            with self.assertRaises(ValueError):
+                callgrind_instructions(text)
+
     def test_collection_preserves_inputs_and_raw_results_without_caches_or_dumps(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
