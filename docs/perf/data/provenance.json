@@ -1,0 +1,23 @@
+{
+  "baseline_commit": "54abff44a778b6c210d580770286a531370550b6",
+  "c2_commit": "edd777d27cedf56083a18a5a92e7725c1d460fff",
+  "c12_commit": "aa1e5ba24ed27fe29c501b2e4455b3d6c530b67e",
+  "head_source": "perf-headtohead-20261124",
+  "paired_sources": [
+    "perf-final-20261124/c2",
+    "perf-final-20261124/c12"
+  ],
+  "profiles_source": "perf-head-profiles-20261124",
+  "source_and_binary_flags": "per-configuration build/build-reference JSON and verbose Cargo/CMake receipts",
+  "thread_environment": {
+    "OPJ_NUM_THREADS": "0",
+    "BENCH_OPENJPEG_THREADS": "1"
+  },
+  "output": "Rust actual TypedImage planar 64-bit; OpenJPEG converted within timer",
+  "partial_status": "full corpus, x86/v3 and exact Verus remain unqualified",
+  "exports_sha256": {
+    "issues.json": "d6de78abf0ef498482ca247409b67215a1a36f68e0a89682ab37d1a2708c4bf6",
+    "prs.json": "c85c94626283b0e9ffa51a5d34eec1fc22236daff7c4e0e444a9f38e536a3e38",
+    "perf-remote-heads.txt": "5e1e30ff5a316a21736c9186f853d6774351144282bd098c75e28bd8a5380962"
+  }
+}

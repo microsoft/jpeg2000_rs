@@ -1,0 +1,178 @@
+case,class,backend,stage,sampled_self_percent
+smooth-gray-lossless-j2k,A,rust,DWT,6.75
+smooth-gray-lossless-j2k,A,rust,other,4.16
+smooth-gray-lossless-j2k,A,rust,allocation/copy/zero,1.55
+smooth-gray-lossless-j2k,A,rust,dequant/placement,5.21
+smooth-gray-lossless-j2k,A,rust,reconstruction other,1.93
+smooth-gray-lossless-j2k,A,rust,assembly,1.6400000000000001
+smooth-gray-lossless-j2k,A,rust,typed/output/color,1.16
+smooth-gray-lossless-j2k,A,rust,MQ,11.190000000000001
+smooth-gray-lossless-j2k,A,rust,parsing/Tier2/planning,0.1
+smooth-gray-lossless-j2k,A,rust,Tier1 shared/legacy,66.37
+smooth-gray-lossless-j2k,A,openjpeg,other,1.35
+smooth-gray-lossless-j2k,A,openjpeg,DWT,40.5
+smooth-gray-lossless-j2k,A,openjpeg,Tier1 shared/legacy,57.78
+smooth-gray-lossless-j2k,A,openjpeg,TCD reconstruction unresolved,0.36
+smooth-gray-lossy-j2k,B,rust,allocation/copy/zero,2.17
+smooth-gray-lossy-j2k,B,rust,dequant/placement,5.119999999999999
+smooth-gray-lossy-j2k,B,rust,reconstruction other,1.77
+smooth-gray-lossy-j2k,B,rust,assembly,1.78
+smooth-gray-lossy-j2k,B,rust,typed/output/color,1.67
+smooth-gray-lossy-j2k,B,rust,MQ,4.14
+smooth-gray-lossy-j2k,B,rust,Tier1 shared/legacy,61.769999999999996
+smooth-gray-lossy-j2k,B,rust,DWT,18.72
+smooth-gray-lossy-j2k,B,rust,other,2.8700000000000006
+smooth-gray-lossy-j2k,B,openjpeg,other,2.8899999999999992
+smooth-gray-lossy-j2k,B,openjpeg,DWT,54.879999999999995
+smooth-gray-lossy-j2k,B,openjpeg,Tier1 shared/legacy,29.71
+smooth-gray-lossy-j2k,B,openjpeg,TCD reconstruction unresolved,12.5
+noisy-gray-lossless-j2k,A,rust,DWT,2.19
+noisy-gray-lossless-j2k,A,rust,Tier1 shared/legacy,56.910000000000004
+noisy-gray-lossless-j2k,A,rust,allocation/copy/zero,0.51
+noisy-gray-lossless-j2k,A,rust,parsing/Tier2/planning,0.06
+noisy-gray-lossless-j2k,A,rust,dequant/placement,2.2399999999999998
+noisy-gray-lossless-j2k,A,rust,reconstruction other,0.38
+noisy-gray-lossless-j2k,A,rust,assembly,0.48
+noisy-gray-lossless-j2k,A,rust,typed/output/color,0.29
+noisy-gray-lossless-j2k,A,rust,MQ,36.129999999999995
+noisy-gray-lossless-j2k,A,rust,other,0.7800000000000002
+noisy-gray-lossless-j2k,A,openjpeg,DWT,3.7800000000000002
+noisy-gray-lossless-j2k,A,openjpeg,Tier1 shared/legacy,95.69999999999999
+noisy-gray-lossless-j2k,A,openjpeg,TCD reconstruction unresolved,0.3
+noisy-gray-lossless-j2k,A,openjpeg,other,0.22
+noisy-gray-lossy-j2k,B,rust,allocation/copy/zero,7.3999999999999995
+noisy-gray-lossy-j2k,B,rust,parsing/Tier2/planning,0.33
+noisy-gray-lossy-j2k,B,rust,dequant/placement,6.640000000000001
+noisy-gray-lossy-j2k,B,rust,reconstruction other,1.77
+noisy-gray-lossy-j2k,B,rust,assembly,1.76
+noisy-gray-lossy-j2k,B,rust,typed/output/color,1.35
+noisy-gray-lossy-j2k,B,rust,MQ,11.1
+noisy-gray-lossy-j2k,B,rust,Tier1 shared/legacy,49.04
+noisy-gray-lossy-j2k,B,rust,DWT,18.67
+noisy-gray-lossy-j2k,B,rust,other,1.9000000000000001
+noisy-gray-lossy-j2k,B,openjpeg,allocation/copy/zero,0.09
+noisy-gray-lossy-j2k,B,openjpeg,other,3.0999999999999988
+noisy-gray-lossy-j2k,B,openjpeg,DWT,38.04
+noisy-gray-lossy-j2k,B,openjpeg,parsing/Tier2/planning,0.09
+noisy-gray-lossy-j2k,B,openjpeg,Tier1 shared/legacy,49.879999999999995
+noisy-gray-lossy-j2k,B,openjpeg,TCD reconstruction unresolved,8.85
+smooth-rgb-lossless-j2k,A,rust,DWT,7.32
+smooth-rgb-lossless-j2k,A,rust,other,3.3000000000000007
+smooth-rgb-lossless-j2k,A,rust,allocation/copy/zero,1.8000000000000003
+smooth-rgb-lossless-j2k,A,rust,dequant/placement,5.68
+smooth-rgb-lossless-j2k,A,rust,reconstruction other,1.6
+smooth-rgb-lossless-j2k,A,rust,assembly,1.76
+smooth-rgb-lossless-j2k,A,rust,MCT,0.27
+smooth-rgb-lossless-j2k,A,rust,typed/output/color,1.21
+smooth-rgb-lossless-j2k,A,rust,MQ,10.770000000000001
+smooth-rgb-lossless-j2k,A,rust,parsing/Tier2/planning,0.12
+smooth-rgb-lossless-j2k,A,rust,Tier1 shared/legacy,66.17999999999999
+smooth-rgb-lossless-j2k,A,openjpeg,allocation/copy/zero,0.22
+smooth-rgb-lossless-j2k,A,openjpeg,other,4.670000000000001
+smooth-rgb-lossless-j2k,A,openjpeg,DWT,33.730000000000004
+smooth-rgb-lossless-j2k,A,openjpeg,MCT,0.54
+smooth-rgb-lossless-j2k,A,openjpeg,MQ,0.11
+smooth-rgb-lossless-j2k,A,openjpeg,Tier1 shared/legacy,58.629999999999995
+smooth-rgb-lossless-j2k,A,openjpeg,TCD reconstruction unresolved,2.16
+smooth-rgb-lossy-j2k,B,rust,other,3.77
+smooth-rgb-lossy-j2k,B,rust,allocation/copy/zero,2.26
+smooth-rgb-lossy-j2k,B,rust,parsing/Tier2/planning,0.24000000000000002
+smooth-rgb-lossy-j2k,B,rust,dequant/placement,4.859999999999999
+smooth-rgb-lossy-j2k,B,rust,reconstruction other,1.69
+smooth-rgb-lossy-j2k,B,rust,assembly,1.7
+smooth-rgb-lossy-j2k,B,rust,MCT,0.79
+smooth-rgb-lossy-j2k,B,rust,typed/output/color,1.43
+smooth-rgb-lossy-j2k,B,rust,MQ,5.09
+smooth-rgb-lossy-j2k,B,rust,Tier1 shared/legacy,61.01999999999999
+smooth-rgb-lossy-j2k,B,rust,DWT,17.22
+smooth-rgb-lossy-j2k,B,openjpeg,allocation/copy/zero,0.1
+smooth-rgb-lossy-j2k,B,openjpeg,other,6.889999999999998
+smooth-rgb-lossy-j2k,B,openjpeg,DWT,45.64
+smooth-rgb-lossy-j2k,B,openjpeg,MCT,2.43
+smooth-rgb-lossy-j2k,B,openjpeg,Tier1 shared/legacy,34.47
+smooth-rgb-lossy-j2k,B,openjpeg,TCD reconstruction unresolved,10.45
+noisy-rgb-lossless-j2k,A,rust,DWT,1.82
+noisy-rgb-lossless-j2k,A,rust,allocation/copy/zero,0.4
+noisy-rgb-lossless-j2k,A,rust,Tier1 shared/legacy,56.650000000000006
+noisy-rgb-lossless-j2k,A,rust,other,1.1000000000000003
+noisy-rgb-lossless-j2k,A,rust,dequant/placement,2.12
+noisy-rgb-lossless-j2k,A,rust,reconstruction other,0.38
+noisy-rgb-lossless-j2k,A,rust,assembly,0.47
+noisy-rgb-lossless-j2k,A,rust,MCT,0.05
+noisy-rgb-lossless-j2k,A,rust,typed/output/color,0.32
+noisy-rgb-lossless-j2k,A,rust,MQ,36.629999999999995
+noisy-rgb-lossless-j2k,A,rust,parsing/Tier2/planning,0.04
+noisy-rgb-lossless-j2k,A,openjpeg,allocation/copy/zero,0.03
+noisy-rgb-lossless-j2k,A,openjpeg,other,0.5100000000000001
+noisy-rgb-lossless-j2k,A,openjpeg,DWT,3.66
+noisy-rgb-lossless-j2k,A,openjpeg,MCT,0.06
+noisy-rgb-lossless-j2k,A,openjpeg,Tier1 shared/legacy,95.44
+noisy-rgb-lossless-j2k,A,openjpeg,TCD reconstruction unresolved,0.28
+noisy-rgb-lossy-j2k,B,rust,other,3.3500000000000014
+noisy-rgb-lossy-j2k,B,rust,allocation/copy/zero,3.84
+noisy-rgb-lossy-j2k,B,rust,parsing/Tier2/planning,0.32
+noisy-rgb-lossy-j2k,B,rust,dequant/placement,6.86
+noisy-rgb-lossy-j2k,B,rust,reconstruction other,1.86
+noisy-rgb-lossy-j2k,B,rust,assembly,1.79
+noisy-rgb-lossy-j2k,B,rust,MCT,1.07
+noisy-rgb-lossy-j2k,B,rust,typed/output/color,1.55
+noisy-rgb-lossy-j2k,B,rust,MQ,11.379999999999999
+noisy-rgb-lossy-j2k,B,rust,Tier1 shared/legacy,49.53
+noisy-rgb-lossy-j2k,B,rust,DWT,18.47
+noisy-rgb-lossy-j2k,B,openjpeg,other,4.0600000000000005
+noisy-rgb-lossy-j2k,B,openjpeg,allocation/copy/zero,0.1
+noisy-rgb-lossy-j2k,B,openjpeg,DWT,36.31999999999999
+noisy-rgb-lossy-j2k,B,openjpeg,MCT,0.87
+noisy-rgb-lossy-j2k,B,openjpeg,Tier1 shared/legacy,48.980000000000004
+noisy-rgb-lossy-j2k,B,openjpeg,TCD reconstruction unresolved,9.66
+ht-gray8-lossless,E,rust,DWT,7.67
+ht-gray8-lossless,E,rust,allocation/copy/zero,4.22
+ht-gray8-lossless,E,rust,Tier1 shared/legacy,11.24
+ht-gray8-lossless,E,rust,parsing/Tier2/planning,0.33
+ht-gray8-lossless,E,rust,dequant/placement,6.26
+ht-gray8-lossless,E,rust,reconstruction other,1.62
+ht-gray8-lossless,E,rust,assembly,1.3
+ht-gray8-lossless,E,rust,typed/output/color,1.19
+ht-gray8-lossless,E,rust,Tier1 HT,60.16
+ht-gray8-lossless,E,rust,other,6.070000000000002
+ht-gray8-lossless,E,openjpeg,allocation/copy/zero,0.45
+ht-gray8-lossless,E,openjpeg,other,2.999999999999999
+ht-gray8-lossless,E,openjpeg,Tier1 HT,80.81
+ht-gray8-lossless,E,openjpeg,DWT,0.15
+ht-gray8-lossless,E,openjpeg,Tier1 shared/legacy,15.59
+ht-large-rgb,E,rust,other,5.2
+ht-large-rgb,E,rust,DWT,6.87
+ht-large-rgb,E,rust,allocation/copy/zero,4.42
+ht-large-rgb,E,rust,dequant/placement,7.15
+ht-large-rgb,E,rust,reconstruction other,1.63
+ht-large-rgb,E,rust,assembly,1.7
+ht-large-rgb,E,rust,MCT,0.27
+ht-large-rgb,E,rust,typed/output/color,1.16
+ht-large-rgb,E,rust,parsing/Tier2/planning,0.07
+ht-large-rgb,E,rust,Tier1 shared/legacy,11.719999999999999
+ht-large-rgb,E,rust,Tier1 HT,59.83
+ht-large-rgb,E,openjpeg,other,5.210000000000003
+ht-large-rgb,E,openjpeg,allocation/copy/zero,0.44
+ht-large-rgb,E,openjpeg,Tier1 HT,57.3
+ht-large-rgb,E,openjpeg,DWT,29.4
+ht-large-rgb,E,openjpeg,MCT,0.65
+ht-large-rgb,E,openjpeg,Tier1 shared/legacy,5.51
+ht-large-rgb,E,openjpeg,TCD reconstruction unresolved,1.51
+ht-rgb8-lossy,E,rust,allocation/copy/zero,4.17
+ht-rgb8-lossy,E,rust,other,4.99
+ht-rgb8-lossy,E,rust,parsing/Tier2/planning,0.2
+ht-rgb8-lossy,E,rust,dequant/placement,8.06
+ht-rgb8-lossy,E,rust,reconstruction other,1.17
+ht-rgb8-lossy,E,rust,assembly,1.56
+ht-rgb8-lossy,E,rust,MCT,0.58
+ht-rgb8-lossy,E,rust,typed/output/color,0.87
+ht-rgb8-lossy,E,rust,Tier1 shared/legacy,11.26
+ht-rgb8-lossy,E,rust,Tier1 HT,50.589999999999996
+ht-rgb8-lossy,E,rust,DWT,16.6
+ht-rgb8-lossy,E,openjpeg,other,4.399999999999999
+ht-rgb8-lossy,E,openjpeg,Tier1 HT,41.76
+ht-rgb8-lossy,E,openjpeg,allocation/copy/zero,0.09
+ht-rgb8-lossy,E,openjpeg,DWT,41.75
+ht-rgb8-lossy,E,openjpeg,MCT,0.18
+ht-rgb8-lossy,E,openjpeg,Tier1 shared/legacy,1.08
+ht-rgb8-lossy,E,openjpeg,TCD reconstruction unresolved,10.75

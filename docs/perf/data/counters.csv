@@ -1,0 +1,23 @@
+case,backend,cycles,instructions,branches,branch-misses,L1-dcache-load-misses,LLC-load-misses
+smooth-gray-lossless-j2k,rust,295377641,1131534397,186441072,575132,3704207,<not supported>
+smooth-gray-lossless-j2k,openjpeg,40563647,98605052,17247419,355629,2961340,<not supported>
+smooth-gray-lossy-j2k,rust,281805556,1178579841,265562315,477146,4451950,<not supported>
+smooth-gray-lossy-j2k,openjpeg,39994153,118628590,16938924,301946,721997,<not supported>
+noisy-gray-lossless-j2k,rust,1045781989,3040999356,545428333,20743949,3634974,<not supported>
+noisy-gray-lossless-j2k,openjpeg,357979169,492479643,89735639,14066802,2997596,<not supported>
+noisy-gray-lossy-j2k,rust,278607132,978130917,222065225,1539516,4028012,<not supported>
+noisy-gray-lossy-j2k,openjpeg,53872128,127043035,17759528,838992,728639,<not supported>
+smooth-rgb-lossless-j2k,rust,855225853,3258977104,531889619,1976399,11064841,<not supported>
+smooth-rgb-lossless-j2k,openjpeg,118942406,275760149,48990578,1328843,8891526,<not supported>
+smooth-rgb-lossy-j2k,rust,869680713,3547522666,781475462,2291573,13040699,<not supported>
+smooth-rgb-lossy-j2k,openjpeg,132334567,372739422,53750932,1437357,2186880,<not supported>
+noisy-rgb-lossless-j2k,rust,3220675906,9463935441,1687428324,62709605,10818288,<not supported>
+noisy-rgb-lossless-j2k,openjpeg,1084691399,1504175342,274681877,42602759,9008691,<not supported>
+noisy-rgb-lossy-j2k,rust,825198615,2926223031,669714009,5187572,12053889,<not supported>
+noisy-rgb-lossy-j2k,openjpeg,164751973,385674385,53064415,2758658,2171316,<not supported>
+ht-gray8-lossless,rust,70713715,251455481,55520938,661690,897943,<not supported>
+ht-gray8-lossless,openjpeg,10245982,25860160,2932066,109940,745493,<not supported>
+ht-large-rgb,rust,495706523,1777800161,391107916,3721271,5991035,<not supported>
+ht-large-rgb,openjpeg,61102054,179425636,19709380,510965,5000574,<not supported>
+ht-rgb8-lossy,rust,237553104,867142237,197715141,1819965,2648760,<not supported>
+ht-rgb8-lossy,openjpeg,37763228,121490368,13553608,224696,580640,<not supported>
