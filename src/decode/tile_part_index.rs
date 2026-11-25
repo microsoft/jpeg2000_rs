@@ -200,6 +200,8 @@ pub(super) fn prepare_tile_part_index(
         decreases position,
     ))]
     while position > 0 {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost suffix_start = position; }
         position -= 1;
         #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
         crate::deadline::checkpoint_periodic(position)?;
@@ -216,6 +218,13 @@ pub(super) fn prepare_tile_part_index(
             #[cfg(verus_keep_ghost)]
             proof! {
                 entry_view_at(entries@, tile as int);
+                assert(suffix_start == position + 1);
+                assert(tile as u16 == source[position as int].tile_index);
+                assert(entries_view(entries@)[tile as int].0 as nat
+                    == crate::specs::part2_index_next(source, tile as u16, suffix_start as nat));
+                assert(entries_view(entries@)[tile as int].1 as nat
+                    == crate::specs::part2_collected_part_count(source, tile as u16, suffix_start as nat));
+                assert(entry.count == entries@[tile as int].count);
                 crate::specs::part2_index_next_bounds(source, parts[position as int].tile_index, (position + 1) as nat);
                 assert(entry.count as nat == crate::specs::part2_collected_part_count(
                     source, source[position as int].tile_index, (position + 1) as nat));
@@ -246,6 +255,9 @@ pub(super) fn prepare_tile_part_index(
                 } else { parts.len() as nat } by {
                 if i == position && tile < slots {
                     entry_view_at(before_entries, tile as int);
+                    assert(entries_view(before_entries)[tile as int].0 as nat
+                        == crate::specs::part2_index_next(
+                            source, source[position as int].tile_index, suffix_start as nat));
                     assert(next@[i] == before_entries[tile as int].head);
                 } else {
                     assert(next@[i] == before_next[i]);
@@ -297,6 +309,13 @@ pub(super) fn collect_tile_parts_with_index<'data>(
     #[cfg(verus_keep_ghost)]
     proof! {
         entry_view_at(index.entries@, tile as int);
+        assert(crate::specs::part2_index_matches(source, entries_view(index.entries@), index.next@));
+        assert(entries_view(index.entries@)[tile as int].0 as nat
+            == crate::specs::part2_index_next(source, tile, 0));
+        assert(entries_view(index.entries@)[tile as int].1 as nat
+            == crate::specs::part2_collected_part_count(source, tile, 0));
+        assert(entry.head == index.entries@[tile as int].head);
+        assert(entry.count == index.entries@[tile as int].count);
         crate::specs::part2_index_next_bounds(source, tile, 0);
         assert(entry.count as nat == crate::specs::part2_collected_part_count(source, tile, 0));
         assert(entry.head as nat == crate::specs::part2_index_next(source, tile, 0));
