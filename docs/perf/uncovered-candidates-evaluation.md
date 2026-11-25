@@ -259,3 +259,34 @@ Noisy-lossless gray/RGB whole-process user instructions decrease only
 0.244%/0.238%. Generic executable `.text` shrinks 496 bytes; consumer `.text`
 shrinks 16 bytes, not a whole-ELF/debug-information claim.
 See [per-case initial results](data/c12-summary.csv).
+
+## C4-97: uncovered floating-point / representation alternatives
+
+- **Coverage:** #433/#434 already provide bounded signed-32-bit operand
+  multiplication; #451 supplies row-wise layout, and #473 tracks residual
+  fixed-Q16/narrow-lane vectorization. None is a missing new C4 prototype.
+- **Hypothesis:** partly false. [The present fixed multiply](../../src/transform/wavelets.rs#L410)
+  has an unchecked-within-proved-bounds product plus the original checked
+  fallback. It is not uniformly a checked wide multiply. The separate
+  generic row-wise 5/3 loop demonstrably emits NEON `add .2d` and `ssra .2d`;
+  this does not establish vectorized 9/7 or AVX2.
+- **Stage share / ceiling:** first-pass generic B DWT self shares are
+  17.41-18.31%, versus much larger Tier-1 work. Removing all DWT cannot
+  recover more than its sampled CPU portion; these whole-process samples
+  are not exact decode-wall-time bounds.
+- **Prototype:** none for the uncovered float/whole-plane representation.
+  Preserving the public centered-Q16 reconstruction API while retaining
+  float values through MCT/output needs a new range, rounding and refinement
+  argument, not only different lifting constants.
+- **Correctness:** no 9/7 source change; no float before/after statistics
+  exist. The supplied #299 controls were replayed for the actual C2/C12
+  changes, not substituted for an unbuilt float experiment. Native 16-bit,
+  signed, high-precision and cross-target qualification is still missing.
+- **Verification:** no C4 source/proof changed. Exact-source verifier access
+  is blocked; existing integer contracts are not asserted to prove a float
+  pipeline. Its pinned-tool support has not been qualified.
+- **Effort/risk:** L/high, especially public reconstruction headroom,
+  numeric fallback boundaries and independently unresolved #299/#187 rules.
+- **Recommendation:** **needs more data**. First restore proof execution,
+  qualify representative precision/geometry inputs, and keep the already
+  tracked integer/SIMD work separate. No unmeasured float speedup is claimed.
