@@ -7743,6 +7743,31 @@ _HT_EXPONENT_TESTS = {
     ("src/decode/tests.rs", "ht_cleanup_scratch_storage_raw_selected_jph_rows_and_automatic_restore_real_image"),
 }
 _PLANE_ROLE_GUARDS = {
+    ("specs/private_ht_tile.rs", "private_ht_eligible"): (
+        "!crate::decode::PRIVATE_HT_PRIMARY_ENABLED", "parts.len()!=1", "part2_profile_force_ht(caps)",
+        "style.decomposition_levels==0", "style.decomposition_structure.is_none()", "!style.precincts_defined",
+        "first.multiple_component_transform.is_none()", "roi==0", "!first.has_roi_marker",
+        "geometry.precincts==1", "geometry.precincts_across==1", "geometry.precincts_down==1",
+    ),
+    ("specs/cold_tile_metadata.rs", "part2_tile_after_metadata_run"): (
+        "if private_ht_eligible(size,tile,parts,caps,discard)", "private_image_run(PrivateImageContext",
+        "else{part2_jpip_snapshot_bind(part2_grid_plan_run(",
+    ),
+    ("specs/private_ht_primary.rs", "private_primary_copy_run"): (
+        "source.0.coefficients.len()+1", "PrivatePrimaryPhase::Snapshot",
+        "part2_decoder_plane_run(source.0,crate::tier1::HtRefinementCopyRole::PacketStaging,false,calls)",
+    ),
+    ("specs/private_ht_decoder.rs", "private_ht_body_run"): (
+        "private_ht_stage_run(before,calls)", "private_ht_body_after_stage(",
+    ),
+    ("specs/private_ht_image.rs", "private_image_after_plan"): (
+        "part2_planned_tile_accounting(private_plan_public_view(", "private_packet_value_run(",
+        "private_image_after_packets(",
+    ),
+    ("specs/private_ht_reconstruction.rs", "private_place_run"): (
+        "part2_extraction_place_admit(", "part2_extraction_run(plane,true,calls)",
+        "part2_extraction_place_after_coefficients_run(",
+    ),
     ("specs/cold_ht_exponents.rs", "part2_ht_exponent_count"): (
         "(metadata.width as nat+1)/2+1",
     ),
@@ -7860,6 +7885,42 @@ _PLANE_ROLE_GUARDS = {
     ),
 }
 _PLANE_ROLE_NATIVE_ORDER = {
+    ("src/decode/private_ht.rs", "eligible"): (
+        "!super::PRIVATE_HT_PRIMARY_ENABLED", "size.components != 1", "parts.len() != 1",
+        "discard.unwrap_or(0) != 0", "profile.part15_requires_all_ht_blocks()",
+        "style.decomposition_levels == 0", "!first.has_roi_marker", "geometry.precincts == 1",
+    ),
+    ("src/decode/private_ht.rs", "plan"): (
+        "derive_packet_grid_for_components(", "prepare_component_plan_metadata(", "private_region(",
+        "plan_subband(", "new_private_ht_precinct(",
+    ),
+    ("src/decode/private_ht.rs", "decode"): (
+        "let planned = plan(", "decode_planned(",
+    ),
+    ("src/decode/private_ht.rs", "decode_planned"): (
+        "account_private_plan(", ".decode_tile(", "reconstruct(", "reserve_additional(&mut prepared, 1)",
+        "prepared.push(component)", "prepared.get_mut(start..)", "finish_prepared_tile(",
+    ),
+    ("src/decode/private_ht.rs", "place_private_block"): (
+        "plan.precinct.decoder(", "decoder.dimensions()", "decoder.collect()", "inverse_quantize_magnitudes(",
+        "quantized.fraction_bits()", "write_quantized_block(",
+    ),
+    ("src/tier1/private_ht.rs", "new_private_ht_decoder"): (
+        "!style.force_high_throughput", "let initialized = private_initial(width, height)", "let primary = initialized?",
+        "PrivateHtDecoder {", "primary,",
+    ),
+    ("src/tier1/private_ht.rs", "PrivateHtDecoder::decode"): (
+        "let copied = self.stage()", "let converted = staged.into_wide()",
+        "crate::packet::private_ht_body(", "let retained_result = from_wide(wide)", "*self = retained",
+    ),
+    ("src/tier1/private_ht.rs", "PrivateHtDecoder::collect"): (
+        "self.dimensions()", "crate::allocation::empty_with_capacity(count)", "self.prepare_cell(x, y)",
+        "output.push(value)", "Ok(output)",
+    ),
+    ("src/tier1/ht_checkpoint.rs", "private_initial"): (
+        "count > 4096", "crate::allocation::empty_with_capacity(count + 1)",
+        "geometry_word(width, height)", "words.push(header)", "words.push(empty)",
+    ),
     ("src/tier1/state.rs", "CodeBlockPlane::duplicate"): (
         "code_block_plane_from_dimensions(self.width, self.height, role)", "let mut output = output_result?", "output.coefficients.len() != self.coefficients.len()", "while index < self.coefficients.len()",
     ),
@@ -7915,6 +7976,8 @@ _PLANE_ROLE_NATIVE_ORDER = {
         "roi_shifts, 0, false, 74, false, false, limits,",
     ),
     ("src/decode/execution.rs", "decode_tile_parts_at"): (
+        "if super::private_ht::eligible(size, tile, parts, profile, discard)",
+        "super::private_ht::decode(",
         "let plan_result = plan_progression_tile_at_selected(",
         "profile.part15_requires_all_ht_blocks(), true, limits,",
     ),
@@ -20154,6 +20217,12 @@ def validate_normative_coverage(
                         raise ValueError("HT exponent storage requires actual zero-filled metadata-count owners at the original field frontiers")
                 if compact.count("crate::allocation::filled_values(0_u8,exponent_count)") != 2:
                     raise ValueError("HT exponent storage cannot duplicate or hoist a scratch-owner request")
+        primary_cfg = "".join(source_text((ROOT / "src/decode.rs").resolve()).split())
+        if any(fragment not in primary_cfg for fragment in (
+            '#[cfg(not(feature="cooperative-deadlines"))]pub(crate)constPRIVATE_HT_PRIMARY_ENABLED:bool=true;',
+            '#[cfg(feature="cooperative-deadlines")]pub(crate)constPRIVATE_HT_PRIMARY_ENABLED:bool=false;',
+        )):
+            raise ValueError("private HT primary requires the existing cooperative-deadlines fallback gate")
         for entry in coverage["requirements"]:
             if entry["id"] == "part15-complete-actual-cleanup-plane":
                 if not _HT_EXPONENT_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):

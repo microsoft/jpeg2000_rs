@@ -8,6 +8,12 @@ pub(crate) open spec fn part2_plane_duplicate_run(plane:Tier1RawPlane,role:crate
 pub closed spec fn part1_plane_duplicate_storage_result(plane:Tier1RawPlane,role:crate::tier1::CoefficientStorageRole,result:Result<Tier1RawPlane,crate::DecodeError>)->bool {
     part2_tier1_storage_framed(|calls|part2_plane_duplicate_run(plane,role,calls),result)
 }
+pub(crate) proof fn part2_plane_duplicate_frames(plane:Tier1RawPlane,role:crate::tier1::CoefficientStorageRole,result:Result<Tier1RawPlane,crate::DecodeError>)
+    requires part1_plane_duplicate_storage_result(plane,role,result),
+    ensures part2_tier1_storage_framed(|calls|part2_plane_duplicate_run(plane,role,calls),result),
+{
+    reveal(part1_plane_duplicate_storage_result);
+}
 pub(crate) proof fn part2_plane_duplicate_normal(plane:Tier1RawPlane,role:crate::tier1::CoefficientStorageRole)
     ensures part1_plane_duplicate_storage_result(plane,role,tier1_duplicate_plane(plane)),
 {

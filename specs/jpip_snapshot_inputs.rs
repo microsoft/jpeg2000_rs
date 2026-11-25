@@ -5,6 +5,11 @@ use super::*;
 verus! {
 
 pub enum Part2JpipSnapshotEvent {
+    PrivateOwnerCapacity {context:PrivateOwnerCapacityContext,elements:usize,succeeded:bool},
+    PrivateDecoderInitial {context:PrivateHtInitialContext,calls:Seq<Part2Tier1StorageEvent>},
+    PrivatePrecinctTree {context:PrivatePrecinctInitialContext,inclusion:bool,calls:Seq<Part2TagStorageEvent>},
+    PrivateTilePlaneCalls {params:Part1TilePacketParameters,initial:PrivateTileExecution,calls:Seq<Part2Tier1StorageEvent>},
+    PrivateComponentPlaneCalls {context:PrivateReconstructionContext,calls:Seq<Part2Tier1StorageEvent>},
     ExplicitSelectionCapacity {source:Part2TileSelection,elements:nat,succeeded:bool},
     ColorOutputCapacity {context:Part2ColorOutputCapacity,elements:nat,succeeded:bool},
     NltRegionCapacity {context:Part2NltRegionAppendContext,elements:nat,succeeded:bool},

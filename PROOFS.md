@@ -6413,17 +6413,54 @@ own width and height. Snapshot and refinement skip that header when counting
 or copying cells; they use the encoded dimensions, not the current output's.
 An empty packed buffer denotes a raw empty 0×0 checkpoint, distinct from
 absence. The packed cleanup constructor always emits a header.
-The private routing bit is set only after the original dense constructor
-succeeds. Public planning and JPIP leave it disabled. All packet transactions
+In the ordinary planner's checkpoint path, the private routing bit is set only
+after the original dense constructor succeeds. Public planning and JPIP leave
+it disabled. All packet transactions
 continue to snapshot and roll back in the original order; a snapshot of a
 packed checkpoint materializes the same dense checkpoint copy as before.
 
-The current decoder output and public coefficient slices remain dense.
+Outside the separate primary path below, current decoder output remains dense;
+public coefficient slices always remain dense.
 Refinement loads every checkpoint field into the dense output allocation it
 already requires, then reads the initial significance flags before modifying
 that output. No additional dense materialization is needed for replay. This
 does not narrow the current output, the refinement discovery plane, or the
 legacy replay owner, and does not change entropy replay frequency.
+
+### Private one-shot HT primary storage
+
+The one-shot image entry has a separate private planning, precinct and
+reconstruction chain. Its initial subset requires an HT-only CAP profile,
+pure HT component coding, one component and tile part, zero DWT levels,
+one origin-zero precinct, and no ROI marker/shift, POC, packed headers,
+packet lengths or MCT. Both ordinary full resolution and `Some(0)` selection
+use this chain. Other inputs retain the ordinary wide path. Compiling the
+existing `cooperative-deadlines` feature disables this private entry, preserving
+the established cooperative reconstruction policy rather than asserting clock
+equivalence for different loops.
+
+The real primary owner is packed from construction and between contributions.
+Retention examines actual coefficient limbs, flags and legacy bitplane fields;
+it never admits by nominal component precision. Values outside the word codec
+remain losslessly wide. Independent geometry is retained, including a 2×1
+cleanup checkpoint over a 1×1 current output.
+
+Each contribution still performs the real checked outer staging transaction,
+then materializes a real one-block wide bridge for the unchanged staged
+entropy kernel. Successful results are retained before publication; failure
+preserves the prior primary. Reconstruction reads private cells by value and
+allocates actual signed-magnitude and quantization buffers. Neither these
+bridges nor extraction are zero-cost, and no empty public dense plane stands
+in for private storage.
+
+The private logical projections connect to the existing wide semantic model.
+Separate ordered allocation programs describe word copies, wide temporaries,
+private container reservations and readable extraction through tile return.
+The ordinary decoder/planner record remains 432 bytes; the separate native
+private record is 136 bytes. Public Tier1/planning/precinct APIs, JPIP and legacy
+storage remain unchanged. This first subset and checkpoint packing do not
+complete the remaining original #474 legacy/incremental scope or establish a
+performance benefit. Source-function coverage remains unmeasured.
 
 ### Guarded native neighbor aggregation
 

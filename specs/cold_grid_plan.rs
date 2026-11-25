@@ -108,7 +108,8 @@ pub(crate) proof fn part2_tile_after_grid_plan_normal(size:&crate::codestream::I
 }
 pub(crate) proof fn part2_tile_grid_plan_error(size:&crate::codestream::ImageSize,tile:u16,parts:Seq<Part2OwnedTilePart>,caps:Option<(u32,Seq<u16>)>,
     discard:Option<u8>,limits:&crate::ResourceLimits,prepared:Seq<Part1AssemblyTile>,initial:(u64,u64,u64),work:u64,metadata:Part2TileDecodeMetadata,error:crate::DecodeError)
-    requires part2_tile_decode_metadata_owned(parts,crate::codestream::image_size_component_count(size),discard)==Ok(metadata),
+    requires !private_ht_eligible(size,tile,parts,caps,discard),
+        part2_tile_decode_metadata_owned(parts,crate::codestream::image_size_component_count(size),discard)==Ok(metadata),
         part2_tile_metadata_result(parts,crate::codestream::image_size_component_count(size),discard,Ok(metadata)),
         part2_grid_plan_result(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,
             (tile,match discard {None=>0u8,Some(level)=>level}),(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps),true),limits,Err(error)),

@@ -465,6 +465,7 @@ pub(crate) use bit_reader::{
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod body;
 pub use body::decode_code_block_contribution_body;
+pub(crate) use body::decode_code_block_contribution_body_staged as private_ht_body;
 #[cfg(test)]
 use body::{
     decode_code_block_contribution_body_staged, decode_ht_segment_body,
@@ -498,6 +499,8 @@ use multi_packet::read_multi_packet_header_slot;
 pub use multi_packet::{decode_multi_code_block_packet, decode_single_code_block_packet};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod precinct;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod private_ht;
 #[cfg(any(test, verus_keep_ghost))]
 pub(crate) use precinct::prepare_precinct_contexts;
 pub(crate) use precinct::{decode_jpip_precinct_packet, packet_precinct_from_subbands};
@@ -506,6 +509,9 @@ use precinct::{
     decode_jpip_precinct_packet_inner, decode_precinct_contribution_headers,
     decode_precinct_packet, decode_precinct_packet_payload, decode_precinct_packet_payload_prefix,
 };
+#[cfg(verus_keep_ghost)]
+pub(crate) use private_ht::private_precinct_outcome;
+pub(crate) use private_ht::{PrivateHtPrecinct, new_private_ht_precinct};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod progression;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]

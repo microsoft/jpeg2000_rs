@@ -8146,6 +8146,176 @@ fn top_level_jph_decodes_cleanup_only_ht_coefficients() {
     codestream[cod + 9] = 0;
     codestream[cod + 12] = 0x40;
 
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&codestream, &limits).unwrap();
+    let active = super::private_ht::eligible(
+        &layout.info.image_size,
+        0,
+        &layout.tile_parts,
+        &layout.info.profile,
+        None,
+    );
+    assert_eq!(active, !cfg!(feature = "cooperative-deadlines"));
+    assert_eq!(
+        super::private_ht::eligible(
+            &layout.info.image_size,
+            0,
+            &layout.tile_parts,
+            &layout.info.profile,
+            Some(0),
+        ),
+        active
+    );
+    let mut roi = parse_layout(&codestream, &limits).unwrap();
+    roi.tile_parts[0].has_roi_marker = true;
+    assert!(!super::private_ht::eligible(
+        &roi.info.image_size,
+        0,
+        &roi.tile_parts,
+        &roi.info.profile,
+        None,
+    ));
+    assert!(!super::private_ht::eligible(
+        &layout.info.image_size,
+        0,
+        &layout.tile_parts[..0],
+        &layout.info.profile,
+        None,
+    ));
+    assert!(!super::private_ht::eligible(
+        &layout.info.image_size,
+        0,
+        &layout.tile_parts,
+        &layout.info.profile,
+        Some(1),
+    ));
+    let mut transformed = parse_layout(&codestream, &limits).unwrap();
+    transformed.tile_parts[0]
+        .coding_style
+        .multiple_component_transform = true;
+    assert!(!super::private_ht::eligible(
+        &transformed.info.image_size,
+        0,
+        &transformed.tile_parts,
+        &transformed.info.profile,
+        None,
+    ));
+    if active {
+        for discard in [None, Some(0)] {
+            let metadata =
+                super::execution::prepare_tile_decode_metadata(&layout.tile_parts, 1, discard)
+                    .unwrap();
+            let prefix = || PreparedTileComponent {
+                component: u16::MAX,
+                x: 7,
+                y: 9,
+                width: 0,
+                height: 0,
+                fraction_bits: 3,
+                samples: Vec::new(),
+            };
+            let private = super::private_ht::decode(
+                &layout.info.image_size,
+                0,
+                &layout.tile_parts,
+                &layout.info.profile,
+                discard,
+                &metadata,
+                &limits,
+                vec![prefix()],
+                (0, 0, 0),
+                0,
+            )
+            .unwrap();
+            let first = &layout.tile_parts[0];
+            let wide_plan = super::planning::plan_progression_tile_at_selected(
+                &layout.info.image_size,
+                0,
+                first.coding_style,
+                &first.component_coding_styles,
+                &first.component_quantizations,
+                &first.roi_shifts,
+                0,
+                layout.info.profile.part15_allows_multiple_ht_sets(),
+                layout.info.profile.part15_magnitude_bound(),
+                layout.info.profile.part15_requires_all_ht_blocks(),
+                true,
+                &limits,
+            )
+            .unwrap();
+            let selection = discard.map(|_| metadata.resolution_counts.as_slice());
+            let expected_counters =
+                super::execution::account_planned_tile(&wide_plan, selection, (0, 0, 0), &limits)
+                    .unwrap();
+            let wide = super::execution::decode_planned_tile_components(
+                wide_plan,
+                &layout.tile_parts,
+                first,
+                &layout.info.image_size,
+                (false, false),
+                selection,
+                &limits,
+                vec![prefix()],
+                0,
+            )
+            .unwrap();
+            assert_eq!(private.prepared, wide.prepared);
+            assert_eq!(private.counters, expected_counters);
+            for restricted in [
+                limits.with_maximum_work_units(1).unwrap(),
+                limits.with_maximum_decoded_bytes(1).unwrap(),
+            ] {
+                let actual = super::private_ht::decode(
+                    &layout.info.image_size,
+                    0,
+                    &layout.tile_parts,
+                    &layout.info.profile,
+                    discard,
+                    &metadata,
+                    &restricted,
+                    Vec::new(),
+                    (0, 0, 0),
+                    0,
+                );
+                let expected = super::planning::plan_progression_tile_at_selected(
+                    &layout.info.image_size,
+                    0,
+                    first.coding_style,
+                    &first.component_coding_styles,
+                    &first.component_quantizations,
+                    &first.roi_shifts,
+                    0,
+                    layout.info.profile.part15_allows_multiple_ht_sets(),
+                    layout.info.profile.part15_magnitude_bound(),
+                    layout.info.profile.part15_requires_all_ht_blocks(),
+                    true,
+                    &restricted,
+                )
+                .and_then(|plan| {
+                    super::execution::account_planned_tile(
+                        &plan,
+                        selection,
+                        (0, 0, 0),
+                        &restricted,
+                    )?;
+                    super::execution::decode_planned_tile_components(
+                        plan,
+                        &layout.tile_parts,
+                        first,
+                        &layout.info.image_size,
+                        metadata.standard,
+                        selection,
+                        &restricted,
+                        Vec::new(),
+                        0,
+                    )
+                });
+                assert!(actual.is_err());
+                assert_eq!(actual.err(), expected.err());
+            }
+        }
+    }
+
     let mut jph = jp2_for_codestream(&codestream, 1, 1);
     jph[20..24].copy_from_slice(b"jph ");
     jph[28..32].copy_from_slice(b"jph ");

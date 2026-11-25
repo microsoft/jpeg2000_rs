@@ -402,7 +402,7 @@ pub(super) fn prepare_code_block_contribution_body(
             crate::limits::resource_code_block_pass_limit(limits), crate::limits::resource_code_block_byte_limit(limits),
             crate::limits::resource_input_byte_limit(limits), crate::limits::resource_work_limit(limits)),
 ))]
-pub(super) fn decode_code_block_contribution_body_staged(
+pub(crate) fn decode_code_block_contribution_body_staged(
     decoder: &mut Tier1CodeBlockDecoder,
     contribution: &CodeBlockContribution,
     body: &[u8],
