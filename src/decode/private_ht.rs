@@ -1337,10 +1337,15 @@ fn decode_standard_planned(
         crate::specs::private_ht_standard_selected_metadata(size,_tile,context.parts,context.caps,discard,context.metadata);
         crate::packet::private_resolution_owners_known_fields(plan.precincts@);
     }
-    let selection = match discard {
-        None => None,
-        Some(_) => Some(metadata.resolution_counts.as_slice()),
+    let selection = if discard.is_some() {
+        Some(metadata.resolution_counts.as_slice())
+    } else {
+        None
     };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::packet::packet_selection_view(selection)==crate::specs::private_image_selection(context));
+    }
     let accounted = account_standard_plan(&plan, metadata.first, selection, initial, limits);
     #[cfg(verus_keep_ghost)]
     proof! {if let Err(error)=accounted {assert(crate::specs::part2_cold_prefix(root,prefix,Err(error)));}}
