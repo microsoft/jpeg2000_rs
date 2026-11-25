@@ -162,8 +162,12 @@ fn run() -> Result<(), Box<dyn Error>> {
     if size.components != 1
         || size.component(0)?.x_subsampling != 1
         || size.component(0)?.y_subsampling != 1
+        || size.component(0)?.x_registration != 0
+        || size.component(0)?.y_registration != 0
     {
-        return Err("this first experiment requires one unit-sampled component".into());
+        return Err(
+            "this first experiment requires one unregistered unit-sampled component".into(),
+        );
     }
     let image_x1 = size
         .x_origin
@@ -213,6 +217,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         let style = first.component_coding_styles.style(0)?;
         if style.transform != WaveletTransform::Reversible5x3
             || style.decomposition_structure.is_some()
+            || style.maximum_isotropic_reduction() != style.decomposition_levels
         {
             return Err(
                 "this mask experiment only models standard isotropic reversible 5/3".into(),
@@ -334,7 +339,113 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use jpeg2000_decoder::transform::inverse_5_3;
+    use jpeg2000_decoder::transform::{WaveletBand, WaveletLevel, inverse_5_3, inverse_level_5_3};
+    use std::collections::BTreeMap;
+
+    type Bands = BTreeMap<(usize, usize), (Rect, Vec<i64>)>;
+
+    fn make_band<'a>(area: &Rect, samples: &'a [i64]) -> WaveletBand<'a> {
+        WaveletBand {
+            width: area.x.end - area.x.start,
+            height: area.y.end - area.y.start,
+            samples,
+        }
+    }
+
+    fn reconstruct(canvas: &Rect, levels: usize, bands: &Bands) -> Vec<i64> {
+        if levels == 0 {
+            return bands[&(0, 0)].1.clone();
+        }
+        let low_canvas = Rect {
+            x: canvas.x.start.div_ceil(2)..canvas.x.end.div_ceil(2),
+            y: canvas.y.start.div_ceil(2)..canvas.y.end.div_ceil(2),
+        };
+        let low = reconstruct(&low_canvas, levels - 1, bands);
+        let hl = &bands[&(levels, 1)];
+        let lh = &bands[&(levels, 2)];
+        let hh = &bands[&(levels, 3)];
+        inverse_level_5_3(
+            WaveletLevel {
+                ll: make_band(&low_canvas, &low),
+                hl: make_band(&hl.0, &hl.1),
+                lh: make_band(&lh.0, &lh.1),
+                hh: make_band(&hh.0, &hh.1),
+                output_width: canvas.x.end - canvas.x.start,
+                output_height: canvas.y.end - canvas.y.start,
+                low_pass_first_x: canvas.x.start & 1 == 0,
+                low_pass_first_y: canvas.y.start & 1 == 0,
+            },
+            &ResourceLimits::default(),
+        )
+        .unwrap()
+        .samples()
+        .to_vec()
+    }
+
+    #[test]
+    fn multilevel_two_dimensional_masks_preserve_real_inverse_kernel_crops() {
+        for ox in 0..2 {
+            for oy in 0..2 {
+                let canvas = Rect {
+                    x: ox..ox + 13,
+                    y: oy..oy + 11,
+                };
+                for levels in 1..=3 {
+                    let mut bands = Bands::new();
+                    for (level, entries) in support53(canvas.clone(), canvas.clone(), levels)
+                        .into_iter()
+                        .enumerate()
+                    {
+                        for (orientation, area) in entries.into_iter().enumerate() {
+                            if let Some(area) = area {
+                                let count =
+                                    (area.x.end - area.x.start) * (area.y.end - area.y.start);
+                                let values = (0..count)
+                                    .map(|i| {
+                                        (i64::from(i) * 31
+                                            + level as i64 * 17
+                                            + orientation as i64 * 13)
+                                            % 127
+                                            - 63
+                                    })
+                                    .collect();
+                                bands.insert((level, orientation), (area, values));
+                            }
+                        }
+                    }
+                    let expected = reconstruct(&canvas, usize::from(levels), &bands);
+                    for (x, y, w, h) in [(0, 0, 1, 1), (1, 3, 7, 5), (11, 9, 2, 2), (0, 0, 13, 11)]
+                    {
+                        let requested = Rect {
+                            x: ox + x..ox + x + w,
+                            y: oy + y..oy + y + h,
+                        };
+                        let mask = support53(canvas.clone(), requested.clone(), levels);
+                        let mut masked = bands.clone();
+                        for (&(level, orientation), (area, values)) in &mut masked {
+                            let width = area.x.end - area.x.start;
+                            for (i, value) in values.iter_mut().enumerate() {
+                                let px = area.x.start + i as u32 % width;
+                                let py = area.y.start + i as u32 / width;
+                                if !mask[level][orientation]
+                                    .as_ref()
+                                    .is_some_and(|r| r.x.contains(&px) && r.y.contains(&py))
+                                {
+                                    *value = 0;
+                                }
+                            }
+                        }
+                        let actual = reconstruct(&canvas, usize::from(levels), &masked);
+                        for row in requested.y.start - oy..requested.y.end - oy {
+                            let start = (row * 13 + requested.x.start - ox) as usize;
+                            let end = start + (requested.x.end - requested.x.start) as usize;
+                            assert_eq!(actual[start..end], expected[start..end]);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn support_preserves_every_small_interval_including_odd_origins_and_singletons() {
