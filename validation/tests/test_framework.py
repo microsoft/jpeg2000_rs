@@ -10544,7 +10544,7 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_flags", "Err(error)=>Some((Err(error),calls))", "Err(error)=>Some((Err(error),Seq::empty()))"),
             ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance", "empty_with_capacity(count)", "empty_with_capacity(1)"),
             ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance", "coefficients[index].significant", "coefficients[index].negative"),
-            ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane", "ht_collect_cleanup_significance(cleanup_plane.coefficients())", "ht_collect_cleanup_significance(output.coefficients())"),
+            ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane", "ht_collect_cleanup_significance(output.coefficients())", "ht_collect_cleanup_significance(&[])"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()
@@ -12332,7 +12332,7 @@ class FrameworkTests(WorkingFiles):
         original_coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         cases = (
             ("decode_ht_refinement_plane", "ht_refinement_plane", "ht_plane_outcome", None,
-             ((r"code_block_plane_view\(cleanup_plane\)", "code_block_plane_view(unrelated)"),
+             ((r"cleanup_plane\.view\(\)", "unrelated.view()"),
               (r"resource_work_limit\(limits\)", "resource_work_limit(unrelated)"))),
             ("HtRefinementPlaneState::magnitude_sample", "ht_magref_sample", None, "ht_refinement_core_view",
              ((r"magnitude_value\(delta\)", "magnitude_limbs(delta)"),)),
