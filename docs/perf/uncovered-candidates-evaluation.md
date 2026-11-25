@@ -636,3 +636,55 @@ Remaining gates:
 **The complete prompt's definition of done is not met.** This report uses its
 explicit blocked-candidate reporting fallback, without fabricated measurements,
 weakened proof/safety guarantees, or claims that missing cells passed.
+
+## 8. Continuation on 25 November
+
+The user enabled JIT at 08:51 UTC. Both the session GitHub CLI credential and
+the repository's existing noninteractive Git credential still authenticate as
+`telecos` with read access; repository API reports `push: false`, and the exact
+two prototype refs still receive HTTP 403. No write permission or proof-workflow
+success is inferred from host JIT activation. Corpus work continues separately.
+
+Incremental coverage refresh read all 12 changed records in full:
+91 issues /394 PRs, including new #492/#493. #485/#486/#488/#489 and their
+qualification/integration #490/#491 are now merged; #472/#477/#479/#483 are
+closed. Current merged main is `f4b2b7b29d38fa31bd74263913462bb67d6e5e4e`.
+It is kept in a separate clean worktree, not substituted for the frozen `54abff4`
+control. #492 continues the tracked private HT checkpoint work; #493 continues
+tracked requested-sYCC geometry reuse. Its separate MCT investigation reports
+that proposed plane-pointer/bounds work is already hoisted, not a missing patch.
+
+Prepared an expanded 68-input corpus using pinned OpenJPEG 2.5.4:
+
+| Family | Encoded cases | Actual coverage |
+|---|---:|---|
+| A | 8 | Two NASA photographs, 1.5MP RGB/gray, original 20.7MP RGB/gray, derived 12/16-bit gray |
+| B | 24 | Same source variants, 9/7 at 10/40/100:1 |
+| C | 14 | Actual 32/64 blocks and each individual coding-mode switch |
+| D | 19 | Untiled/256/512/1024, five progressions, precincts, layers, RGB/gray thumbnails |
+| F inputs | 3 | Actual 8192-square gray, tiled/untiled 5/3 and untiled 9/7 |
+
+Both original photographs have independently inspected PD-USGov-NASA source
+pages and pinned download hashes. The generator records attribution, original
+and derived hashes, Pillow version, every encoder command, and parsed SIZ/COD
+properties. High-precision low bits are explicitly synthetic and the 8K raster
+is resampled; neither is misrepresented as native sensor capture.
+
+All 68 expanded inputs complete full preflight on the frozen control and
+OpenJPEG, with exact independent-source recovery on every reversible case,
+including ERTERM/SEGMARK, actual 12/16-bit precision and all 8K streams.
+The inventory retains every refusal, crash, mismatch and numeric observation;
+acceptance is not normative numerical/conformance qualification. In particular,
+new photographic 9/7 inputs expose pre-existing cross-decoder maxima of 2-6 on
+some 8-bit cases and up to 10 on derived 16-bit gray. These are not an approved
+new tolerance, an optimization regression, or a substitute for #299's original
+four controls. Both decoders receive the same recorded 8GiB OS address-space cap,
+separate from unchanged library resource limits.
+
+The tooling now imports hash-bound external manifests, checks complete
+little-endian 8/16-bit independent source oracles, and retains exact request
+bindings. Eleven focused Python tests pass. No new decoder runtime, model,
+proof, package default, release branch or acceptance tolerance changed.
+A selected-case end-to-end smoke builds and records the actual clean
+`f4b2b7b` decoder source separately; its shortened iterations are not speed
+evidence. Full current-main timing is the next step.

@@ -84,6 +84,52 @@ The source/encoding recipes are in
 [`validation/consumer-tuning`](../../validation/consumer-tuning/README.md).
 Do not promote this subset's class geometric means to full A-G qualification.
 
+## Expanded photographic and coding corpus
+
+The optional preparer uses Pillow 12.0.0, outside the decoder package:
+
+```sh
+python3 -m pip install -r tools/bench-vs-openjpeg/requirements-corpus.txt
+python3 tools/bench-vs-openjpeg/corpus.py --output /absolute/fresh/corpus \
+  --assets /absolute/photo-cache --encoder /absolute/openjpeg254/opj_compress
+```
+
+It uses two hash-verified original NASA/JSC photographs with inspected
+public-domain source pages, records credit/license and every encoding command/hash, and checks
+actual SIZ/COD properties rather than treating encoder arguments as proof.
+Inputs cover 1.5MP and 20.7MP RGB/grayscale; 12/16-bit derived gray; 10/40/100:1
+9/7; 32/64 blocks and each mode switch; tiling, precincts, progression,
+layers and thumbnails; and 8K gray. High-precision low bits are explicitly
+synthetic, and 8K is resampled, not represented as native sensor capture.
+`--groups ABCDF` can select preparation families.
+
+Preflight every input with the same binaries before timing. The inventory
+retains nonzero exits, crashes, stderr, output mismatches and numerical
+differences; refused files are never counted as speedups:
+
+```sh
+python3 tools/bench-vs-openjpeg/qualify.py --manifest /corpus/manifest.json \
+  --rust /baseline/generic/cargo/release/bench-vs-openjpeg \
+  --openjpeg /baseline/generic/bench-openjpeg --output /fresh/qualification \
+  --qualified-manifest /corpus/qualified-generic.json --cpu 3
+python3 tools/bench-vs-openjpeg/run.py --output /fresh/expanded-timings \
+  --corpus-manifest /corpus/qualified-generic.json --configs generic \
+  --reuse-builds /baseline --openjpeg-source /openjpeg-2.5.4 --cpu 3
+```
+
+Qualification exits nonzero if any case fails, even though its full inventory
+and accepted-subset manifest are saved. The latter is not full-cohort or
+normative conformance qualification. Use matching `--reduce`/`--window`
+requests in both commands. Independent lossless source hashes use interleaved
+little-endian 8/16-bit samples; the decoded comparison stays planar 64-bit.
+Both preflight and timed decoder processes have the same default 8GiB OS
+address-space safety cap, recorded separately from unchanged library limits.
+`--maximum-address-space` changes that tooling cap; zero disables it.
+Use `--decoder-source /absolute/clean/committed/worktree` to build a separately
+recorded decoder revision, such as a newer merged main. It cannot be combined
+with `--reuse-builds`: an old executable must never be relabelled as new source.
+The original frozen control and new-main measurements remain separate.
+
 To rerun the available baseline, both committed isolated experiments, separate
 profiles/counters, and reduced/windowed checks sequentially with one command:
 

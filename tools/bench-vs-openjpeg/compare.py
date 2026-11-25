@@ -11,7 +11,7 @@ import statistics
 import subprocess
 import sys
 
-from run import HERE, compare_dumps, execute, sha, write_json
+from run import compare_dumps, execute, make_consumer, sha, write_json
 
 
 def main():
@@ -36,13 +36,7 @@ def main():
     output = options.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     consumer = output / "consumer"
-    consumer.mkdir()
-    (consumer / "Cargo.toml").write_text(
-        '[package]\nname="bench-vs-openjpeg"\nversion="0.0.0"\nedition="2024"\n'
-        'publish=false\n[workspace]\n[dependencies]\njpeg2000-decoder={path=' +
-        json.dumps(str(source)) + ',default-features=false}\n'
-        '[[bin]]\nname="bench-vs-openjpeg"\npath=' +
-        json.dumps(str(HERE / "src/main.rs")) + "\n")
+    make_consumer(consumer, source)
     cases = [c for c in json.loads((baseline / "corpus.json").read_text())["cases"]
              if re.search(options.case, c["id"])]
     if not cases:
