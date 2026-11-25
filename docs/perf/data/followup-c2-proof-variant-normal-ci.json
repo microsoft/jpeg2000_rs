@@ -1,0 +1,26 @@
+{
+  "run": 45710713971,
+  "url": "https://github.com/microsoft/jpeg2000_rs/actions/runs/45710713971",
+  "head_sha": "fe3ca8f1994066e9aacfe897dd699842a940bf6a",
+  "status": "completed",
+  "conclusion": "success",
+  "successful_jobs": [
+    "Minimum supported Rust (1.88.0)",
+    "Test (windows-latest)",
+    "Native numerical (macos-latest)",
+    "Generated decoder validation",
+    "Native numerical (ubuntu-latest)",
+    "Native numerical (windows-latest)",
+    "Test (macos-latest)",
+    "Test (ubuntu-latest)",
+    "Quality and package audit"
+  ],
+  "skipped_optional_jobs": 6,
+  "artifact_server_digests_independently_matched": {
+    "decoder-validation": "sha256:0ab787b7b011d85fff1dc203ae5cc61c89949a6831ae6c3f81608eb150960fb5",
+    "native-numerics-macos-latest": "sha256:50c296bba351d1382f51e76500a07fe4c766d7076fa6a7ef6ebce386147047a7",
+    "native-numerics-windows-latest": "sha256:947cd1dafda188d70acc7466d40c37f98cdaf801acab4a2a202a74aa80f40972",
+    "native-numerics-ubuntu-latest": "sha256:d01a5271a642452b99aea184dcd0f1a1e2e3bb41b8a83382d758a9618b421e83"
+  },
+  "scope": "Normal candidate CI, not a timing or normative external-conformance qualification. Full job/step receipt and original artifact ZIPs retained in the follow-up evidence."
+}

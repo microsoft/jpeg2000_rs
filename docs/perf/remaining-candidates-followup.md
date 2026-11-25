@@ -133,14 +133,22 @@ A full 65-case generic/consumer ARM paired escalation is running. An explicit
 same-host generic/**x86-64-v3** 57-case paired study and three-repeat guest
 instruction comparison are dispatched in
 [run 45711245733](https://github.com/microsoft/jpeg2000_rs/actions/runs/45711245733);
-its harness/control-build clocks are not speed evidence. Normal cross-platform/
-MSRV/quality CI on the actual candidate source is separately running in
-[45710713971](https://github.com/microsoft/jpeg2000_rs/actions/runs/45710713971).
-No Go claim is made before those gates complete.
+its harness/control-build clocks are not speed evidence. Normal CI on the actual
+candidate source completed successfully in
+[45710713971](https://github.com/microsoft/jpeg2000_rs/actions/runs/45710713971):
+all nine required jobs pass, including Rust 1.88, Linux/macOS/Windows tests and
+independent numerical checks, generated decoder validation, and quality/package
+audit. Six unrelated optional jobs are skipped, not claimed as passes. All four
+uploaded numerical/validation ZIPs match their server SHA256 digests. Full ARM
+and hosted paired timing gates remain pending; no Go claim is made yet.
 
 [Distinct variant paired samples summary](data/followup-c2-proof-variant-paired.csv),
 [class changes](data/followup-c2-proof-variant-classes.csv) and
 [exact source/package receipts](data/followup-c2-proof-variant-verification.json).
+Also retained are this variant's own
+[134 output/error checks](data/followup-c2-proof-variant-qualification.csv),
+[instruction counts](data/followup-c2-proof-variant-instructions.csv), and
+[completed normal-CI receipt](data/followup-c2-proof-variant-normal-ci.json).
 
 ## C4: exact floating-product alternative
 
