@@ -17,11 +17,11 @@ pub(super) struct TilePartIndex {
 
 #[cfg(verus_keep_ghost)]
 verus! {
-    pub(super) open spec fn entries_view(entries: Seq<TilePartIndexEntry>) -> Seq<(usize, usize)> {
+    closed spec fn entries_view(entries: Seq<TilePartIndexEntry>) -> Seq<(usize, usize)> {
         entries.map_values(|entry: TilePartIndexEntry| (entry.head, entry.count))
     }
 
-    pub(super) open spec fn optional_index_matches(
+    pub(super) closed spec fn optional_index_matches(
         parts: Seq<crate::specs::Part2OwnedTilePart>, index: &Option<TilePartIndex>,
     ) -> bool {
         match index {
@@ -89,6 +89,11 @@ pub(super) fn prepare_tile_part_index(
     slots: usize,
     selected_count: usize,
 ) -> Result<Option<TilePartIndex>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(entries_view);
+        reveal(optional_index_matches);
+    }
     if selected_count <= 1 {
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -239,6 +244,11 @@ pub(super) fn collect_tile_parts_with_index<'data>(
     tile: u16,
     index: &Option<TilePartIndex>,
 ) -> Result<Vec<TilePartPayload<'data>>, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(entries_view);
+        reveal(optional_index_matches);
+    }
     let index = match index {
         None => return super::execution::collect_tile_parts(parts, tile),
         Some(index) => index,
