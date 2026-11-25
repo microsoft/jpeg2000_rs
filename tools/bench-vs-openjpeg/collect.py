@@ -52,21 +52,25 @@ def main():
     complete = work / "COMPLETE.json"
     if not complete.exists():
         complete = work / "timings" / "COMPLETE.json"
-    if complete.exists():
-        retained = {item["path"] for item in entries}
-        matrix = complete.parent
+    retained = {item["path"] for item in entries}
+    for matrix in [work, work / "timings", work / "build-check", work / "paired"]:
+        if not (matrix / "COMPLETE.json").is_file():
+            continue
         for pattern in ["*.csv", "*.json", "*/build*.json", "*/*/correctness.json",
                         "*/*/*-r*.json", "*/*/*-r*.stdout", "*/*/*-r*.stderr"]:
             for path in matrix.glob(pattern):
                 if str(path.relative_to(work)) not in retained:
                     raise ValueError(f"collection omitted matrix evidence: {path.relative_to(work)}")
-        for path in (work / "instructions").rglob("*"):
+    for counter_root in [work / "instructions", work / "candidate-counters"]:
+        for path in counter_root.rglob("*"):
             if path.is_file() and path.suffix in {".json", ".stdout", ".stderr", ".out"} \
                     and str(path.relative_to(work)) not in retained:
                 raise ValueError(f"collection omitted instruction evidence: {path.relative_to(work)}")
     write_json(output / "INDEX.json", dict(
         scope="Measured observations and canonical encoded inputs; not a full A-G conformance claim",
         timing_matrix_complete=complete.exists(), entries=entries,
+        paired_matrix_complete=(work / "paired/COMPLETE.json").is_file(),
+        control_build_check_complete=(work / "build-check/COMPLETE.json").is_file(),
         omitted="Build caches, full pixel dumps, PNM intermediates and downloaded JPEG originals"))
     print(f"Collected {len(entries)} files; timing matrix complete: {complete.exists()}")
 

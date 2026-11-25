@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 
 from run import execute, sha, write_json
+from instructions import callgrind_instructions
 
 
 def main():
@@ -16,6 +17,8 @@ def main():
     parser.add_argument("--baseline", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--perf", default="perf")
+    parser.add_argument("--counter-backend", choices=["perf", "callgrind"], default="perf")
+    parser.add_argument("--valgrind", default=os.environ.get("VALGRIND", "valgrind"))
     parser.add_argument("--cpu", type=int, default=min(os.sched_getaffinity(0)))
     parser.add_argument("--case", default="^(day-small-gray-lossless|day-small-gray-lossy-r40|style-b32-m0|structure-tile256)$")
     options = parser.parse_args()
@@ -51,22 +54,32 @@ def main():
                 for backend in order:
                     prefix = output / config / case["id"] / f"{backend}-{repeat}"
                     prefix.parent.mkdir(parents=True, exist_ok=True)
-                    counter = prefix.parent / f"{prefix.name}-counters.csv"
-                    execute(
-                        [options.perf, "stat", "-x", ";", "-o", counter, "-e",
-                         "cycles:u,instructions:u,branches:u,branch-misses:u,L1-dcache-load-misses:u,LLC-load-misses:u",
-                         "--", "taskset", "-c", options.cpu, binaries[backend], case["path"],
-                         "typed", "0", "-", "1", "0", "0"], prefix, env,
-                        maximum_address_space=8 * 1024**3)
+                    decode = [binaries[backend], case["path"], "typed", "0", "-", "1", "0", "0"]
+                    instructions = None
+                    if options.counter_backend == "perf":
+                        counter = prefix.parent / f"{prefix.name}-counters.csv"
+                        execute(
+                            [options.perf, "stat", "-x", ";", "-o", counter, "-e",
+                             "cycles:u,instructions:u,branches:u,branch-misses:u,L1-dcache-load-misses:u,LLC-load-misses:u",
+                             "--", "taskset", "-c", options.cpu, *decode], prefix, env,
+                            maximum_address_space=8 * 1024**3)
+                    else:
+                        counter = prefix.parent / f"{prefix.name}-callgrind.out"
+                        execute(
+                            ["taskset", "-c", options.cpu, options.valgrind, "--tool=callgrind",
+                             f"--callgrind-out-file={counter}", *decode], prefix, env)
+                        instructions = callgrind_instructions(counter.read_text())
                     records.append(dict(config=config, case=case["id"], backend=backend,
                                         repeat=repeat, binary_sha256=identities[backend],
-                                        input_sha256=case["sha256"], counter_file=str(counter.relative_to(output))))
+                                        input_sha256=case["sha256"], counter_file=str(counter.relative_to(output)),
+                                        instructions=instructions))
     if not records:
         raise ValueError("comparison has no bound executable configurations")
     write_json(output / "COMPLETE.json", dict(
         scope="Separate whole-process user-space counters, startup/input/one decode/drop included; not timed-stage counts",
         comparison_provenance=json.loads((comparison / "provenance.json").read_text()),
         records=records, unsupported="Keep literal unsupported markers; never zero-fill",
+        counter_backend=options.counter_backend,
         collector_sha256=sha(Path(__file__).read_bytes())))
 
 

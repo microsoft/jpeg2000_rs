@@ -178,6 +178,13 @@ The separate `uncovered-instructions` scope builds the same four configurations
 and records Callgrind process instruction counts for one declared representative
 of each A-D family. Its shortened build checks are not timing evidence.
 Unsupported native ISA instructions remain recorded failures, never zero counts.
+The `uncovered-candidate` scope requires `native_candidate` as a complete
+same-repository commit SHA. It separately checks out that source, builds a
+generic/v3 current-main control on the declared 57-case cohort, then measures
+reversed-order baseline/candidate processes with the full protocol. Its short
+control build-check clocks are not speed evidence. Three-repeat Callgrind
+guest-instruction comparisons and final candidate disassembly remain separate.
+No native/AVX-512 instrumentation is substituted for the explicit v3 row.
 
 `collect.py --work WORK --output FRESH_SIBLING_DIRECTORY` performs this
 portable evidence collection with a hashed index and an explicit completion
@@ -286,6 +293,9 @@ can be collected using `count_variant.py --comparison COMPLETE_COMPARISON
 --baseline COMPLETE_FULL_MATRIX --output FRESH_COUNTERS --perf PERF --cpu CPU`.
 It verifies both executable identities, alternates process order and preserves
 unsupported event markers; these are not timed-stage or uninstrumented samples.
+Use `--counter-backend callgrind` where hosted hardware counters are unavailable;
+its original profiles and parsed instruction counts are retained, and any tool
+failure remains a nonzero result.
 
 An isolated prototype can be compared without changing the baseline or stacking
 other candidates:

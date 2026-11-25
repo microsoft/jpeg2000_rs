@@ -16,6 +16,7 @@ from conformance import decode_blob
 from analyze import validate_samples
 from profile_baseline import main as profile_main
 from qualify_variant import outcome
+from count_variant import main as count_variant_main
 import base64
 import hashlib
 
@@ -26,6 +27,39 @@ def dump(width, height, values, signed=0, precision=8):
 
 
 class ComparisonTests(unittest.TestCase):
+    def test_variant_callgrind_backend_preserves_bound_binary_and_parsed_guest_instructions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            baseline, comparison = root / "baseline", root / "comparison"
+            for path in [baseline, comparison]:
+                path.mkdir()
+                (path / "COMPLETE.json").write_text("{}")
+                binary = path / "generic/cargo/release/bench-vs-openjpeg"
+                binary.parent.mkdir(parents=True)
+                binary.write_bytes(b"fixture")
+            encoded = root / "input.j2k"
+            encoded.write_bytes(b"input")
+            (baseline / "corpus.json").write_text(json.dumps(dict(cases=[
+                dict(id="fixture", path=str(encoded), sha256=sha(b"input"))])))
+            (comparison / "generic/binaries.json").write_text(json.dumps(dict(
+                baseline=sha(b"fixture"), candidate=sha(b"fixture"))))
+            (comparison / "provenance.json").write_text("{}")
+            arguments = ["count_variant.py", "--comparison", str(comparison),
+                         "--baseline", str(baseline), "--output", str(root / "output"),
+                         "--counter-backend", "callgrind", "--case", "fixture"]
+
+            def execute_counter(command, *args, **kwargs):
+                path = next(str(x).split("=", 1)[1] for x in command
+                            if str(x).startswith("--callgrind-out-file="))
+                Path(path).write_text("events: Ir\nsummary: 12345\n")
+                self.assertIn("--tool=callgrind", command)
+
+            with patch.object(sys, "argv", arguments), patch("count_variant.execute", side_effect=execute_counter):
+                count_variant_main()
+            result = json.loads((root / "output/COMPLETE.json").read_text())
+            self.assertEqual(len(result["records"]), 6)
+            self.assertTrue(all(x["instructions"] == 12345 for x in result["records"]))
+
     def test_variant_qualification_distinguishes_existing_refusals_from_regressions(self):
         self.assertEqual(outcome(0, "a", "", 0, "a", ""), "matched")
         self.assertEqual(outcome(0, "a", "", 0, "b", ""), "changed-output")
