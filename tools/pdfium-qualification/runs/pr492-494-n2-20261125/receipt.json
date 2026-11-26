@@ -7,17 +7,24 @@
       "differences": 0,
       "represented_outcomes": 7563,
       "actual_processes": 7563
+    },
+    "PR492": {
+      "source": "557960d2e36526d82fd0971c3dc5463219880c7b",
+      "functional_gate": "PASS",
+      "differences": 0,
+      "represented_outcomes": 7563,
+      "actual_processes": 5042
     }
   },
   "image_requests_per_source": 310,
   "image_configurations_per_source": 2480,
   "pdfs_per_source": 41,
   "configurations_per_source": 2521,
-  "represented_backend_outcomes": 7563,
-  "actual_functional_processes": 7563,
+  "represented_backend_outcomes": 15126,
+  "actual_functional_processes": 12605,
   "cpp_control": "Fresh immutable common-base capture reused after per-source binary/input identity checks.",
   "independent_reference_controls_per_source": 10,
-  "targeted_tests": 23,
+  "targeted_tests": 46,
   "environment": {
     "cpu": "Neoverse-N2 ARM64",
     "shared_host": true,
@@ -32,17 +39,27 @@
   "replacement_gate": false,
   "files": {
     "Base/build-audit.json": "c954d8ec6575d558ee3dff1baa2d5ede213ae8c6edfeddc88cccaf1b6a94e039",
+    "Base/diagnostic-parity.json": "013fe0bcbff8aa336e896128f0622ec2bd347cb67044b8992c095cd357ab560f",
     "Base/ffi-tests.xml": "afeb02777fd1d0cdcb4c72922cf4b4ae95c9dae3d0524f019ef01ba2116aa95a",
     "Base/functional-gate.json": "4c378f8b53578d014d8261949ef3bf6ee0d6055f1eb6a02633799d43056b6712",
     "Base/functionality.json": "730d6d555e0484182e91b0c9ee5a42a295609e1271155c827324558012c53142",
     "Base/references.json": "d3d1be1988c223ebad8220fcf4987d16d08788d6a648591cb6efe8ba173d8eb2",
     "Base/shim-tests.xml": "6af7226f23fb7a5a7055c8d9bc5362047d4e09338e7f69c7da04c2607ff8c0d8",
-    "README.md": "f0c81756a9d520e3693aec788e1c77b5f89a83d8dfe275d4edb99c6ea26eefe1",
-    "actual-command-projections.json.gz": "cd7b499ba0abb00fdbedb29f217c545dca55f2987ff21770d520643723ca87e6",
+    "PR492/build-audit.json": "b0e3fa871ff9f19f9e07f72ffb8e2f99de7001d63482339130f48dea7739ab4a",
+    "PR492/comparison-gate.json": "779a01c460e7616737a99d6f3b674fcbaebbf540cab7ef2fd110cea29432b2e8",
+    "PR492/diagnostic-parity.json": "013fe0bcbff8aa336e896128f0622ec2bd347cb67044b8992c095cd357ab560f",
+    "PR492/ffi-tests.xml": "75a22a454daa20cae5a308a24bb12d482f8e4d46558abf10b0564b60a0732278",
+    "PR492/functional-gate.json": "483c69978a8825c8ef1b00b7c709240f600572b5b842723760a4a5b226826ce7",
+    "PR492/functionality.json": "730d6d555e0484182e91b0c9ee5a42a295609e1271155c827324558012c53142",
+    "PR492/references.json": "d3d1be1988c223ebad8220fcf4987d16d08788d6a648591cb6efe8ba173d8eb2",
+    "PR492/shim-tests.xml": "5d4a5521c342dee9d619a11a6d5c07e5022a3bce43226b5b17b477012a296db9",
+    "README.md": "1eae89eff82ae4a6eb40b6e70e9f3efa6e724400165a397d10a2e3fd05cca1b2",
+    "actual-command-projections.json.gz": "2a0e7dbbe074edf1206f63446da19fdd274847a17e29b180dfc39413f185b290",
+    "diagnostic-parity.json": "aca06388a746a0bebf9e54c2e2f719c18ab8cf4e2e7ae00754f120a2c5a127df",
     "environment.json": "86f37da113cded4f0ab38f1ebe94588ff70b7d46b4dd8ba762ad9c2c0e02cb2b",
     "input-verification.json": "841419474cf522e603ed10d574711add8197756419ec742066753d3f9edc8fb4",
     "native-tests.json": "f4ab06dcff09323040ff4dc22e6fc6f6d3a18ab2b8d512a5c410d8e77d2a76f8",
-    "sources.json": "71835cc16e3338ec6bd1aa5c3bbc5738cf52d258635f9668009bff1778b3888e",
-    "targeted-tests.json": "f9360190833d00c62f4a7c71a810bf9a07c1cea5651cc30128a09ca4ae8d81b1"
+    "sources.json": "47ed66f3ca52a33a11b684b1e60d77e9b2b8f5de951679dd9353c4d6dbe7b2cb",
+    "targeted-tests.json": "4f1a895d0ce4a7d45d658c6142d148bc6bd109b996e4330dfcc6aed704a615fc"
   }
 }

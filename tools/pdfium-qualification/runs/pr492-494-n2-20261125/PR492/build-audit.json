@@ -1,0 +1,24 @@
+{
+  "openjpeg": {
+    "c_cpp_o3_native_thinlto_commands": 1232,
+    "final_lto_opt": 3,
+    "pdf_jpx_lenient": true,
+    "binary_sha256": "b7a74c7901802caefe44b380bc9b3d1779d530b6b9c8462ba7fd0cba9d295b53"
+  },
+  "shim": {
+    "c_cpp_o3_native_thinlto_commands": 1215,
+    "final_lto_opt": 3,
+    "pdf_jpx_lenient": true,
+    "binary_sha256": "ba9188b1fbb3c9dc384630f00ae071fb48885d6d7319f8a18666badeedba855e",
+    "core_archive_sha256": "640e6189131635b9729ec1f2f22ccb8becb7d1bef99f5c21987c7a323432c0c0",
+    "same_revision_c_shim_sha256": "51e11b379f91d5434c0b554828dee83918e321ed58aa0b2248035fb0dfb61aad"
+  },
+  "ffi": {
+    "c_cpp_o3_native_thinlto_commands": 1214,
+    "final_lto_opt": 3,
+    "pdf_jpx_lenient": true,
+    "binary_sha256": "4876e71632350717e4903b6c2778e2e480370d8a21e1c4bd62f0f69cfd67b59b",
+    "core_archive_sha256": "640e6189131635b9729ec1f2f22ccb8becb7d1bef99f5c21987c7a323432c0c0"
+  },
+  "crate_source": "557960d2e36526d82fd0971c3dc5463219880c7b"
+}
