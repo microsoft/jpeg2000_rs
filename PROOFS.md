@@ -15,6 +15,42 @@ contracts and models. Exact run counts and source/tool hashes belong in fresh
 CI artifacts, not committed result snapshots. Independent model-to-standard
 review and official conformance testing remain separate.
 
+## Decode-local stable copy collection index
+
+The private [position index](src/decode/tile_part_index.rs) is constructed
+after existing layout/effective-selection admission, only for more than one
+validated selected tile. Full-one, selected-one and ROI-one calls retain the
+actual original collector without an index reservation or part classifier.
+One head/count buffer and one actual-part next-position buffer are reserved
+fallibly. Reverse physical traversal produces increasing source-position
+chains; it does not sort ordinals, move source owners or validate later or
+unselected payload metadata.
+
+The indexed collector retains the original count-capacity branch,
+`try_duplicate` order, owned `Vec<TilePartPayload>` and downstream slice ABI.
+The [source model](specs/tile_part_index.rs) requires exact stable-filter
+equality, link bounds/progress and source-qualified capacity responses.
+Actual full, selected and PDF-trailer governing roots include the once-only
+index allocation prefix before their unchanged collection/copy events.
+Multi-tile nth-allocation frontiers therefore change explicitly; no dummy
+reservation or old-request-number equivalence is claimed.
+
+The fallible payload-copy helper has narrowly targeted inline control to
+avoid a large success-`Result` materialization at collection call boundaries.
+This does not change its body, contract, layout, copy order or failure model;
+actual emitted-code inspection and fresh qualification remain separate checks.
+
+The buffers are sized from actual parsed layout tile/part cardinalities,
+already admitted by the existing resource limits, not encoded `TNsot`
+claims. Existing logical parser/planning/packet/output budgets are unchanged.
+These stage-local limits are not allocator capacity or total live-heap
+theorems. New reservations use the existing typed physical-failure boundary;
+initialization and traversal retain bounded cooperative deadline polls.
+An index never survives its current layout/selection call or crosses a PDF
+repair/retry. The five existing Rust-only adapters, `--no-lifetime` boundary
+and solver policy remain unchanged. Fresh source/archive run receipts, not
+this description, establish qualification of a particular commit.
+
 ## POC endpoint intersection and authoritative JP2 image header
 
 The #456 POC reader retains declared endpoints, including zero's specified
@@ -6401,6 +6437,30 @@ fill, short spans, insufficient budget and wider payloads still use the
 checked bit path. MagSgn operates on a separate substream; the MEL/VLC
 claims and their ordering are unchanged.
 
+### Private HT cleanup checkpoint storage
+
+Full-image plans may retain the HT cleanup checkpoint in the existing compact
+word format. The actual reconstructed magnitude limbs, raw legacy bitplane
+field and flags determine whether the checkpoint fits; otherwise the original
+wide copy is retained. The storage model accounts separately for the packed
+word request or the original dense request, at the same cleanup frontier.
+The packed owner reserves one additional word in the same allocation for its
+own width and height. Snapshot and refinement skip that header when counting
+or copying cells; they use the encoded dimensions, not the current output's.
+An empty packed buffer denotes a raw empty 0×0 checkpoint, distinct from
+absence. The packed cleanup constructor always emits a header.
+The private routing bit is set only after the original dense constructor
+succeeds. Public planning and JPIP leave it disabled. All packet transactions
+continue to snapshot and roll back in the original order; a snapshot of a
+packed checkpoint materializes the same dense checkpoint copy as before.
+
+The current decoder output and public coefficient slices remain dense.
+Refinement loads every checkpoint field into the dense output allocation it
+already requires, then reads the initial significance flags before modifying
+that output. No additional dense materialization is needed for replay. This
+does not narrow the current output, the refinement discovery plane, or the
+legacy replay owner, and does not change entropy replay frequency.
+
 ### Guarded native neighbor aggregation
 
 Tier 1 neighbor summaries can aggregate significant/sign flags from three
@@ -8128,3 +8188,8 @@ compare all native image fields and first errors across raw empty/reordered/
 duplicate parts, zero/overflow/count-cap geometry, reductions/regions/sets
 and unchanged limits. Raw parser/typed final/file/F2/F4/final F8 and hosted/
 main/publication remain separate.
+
+The JP2 instruction parser unfolds each opaque scalar record in a local
+proof assertion, retaining its exact geometry-before-lifetime error order
+without exposing that definition throughout the instruction loop. Runtime
+bodies, contracts, invariants, resource budgets and proof boundaries are unchanged.

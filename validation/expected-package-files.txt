@@ -204,6 +204,7 @@ specs/spatial_grid_composition.rs
 specs/tag_tree.rs
 specs/tile_header_traversal.rs
 specs/tile_part.rs
+specs/tile_part_index.rs
 src/allocation.rs
 src/codestream/coding_markers.rs
 src/codestream/coding_style.rs
@@ -278,6 +279,7 @@ src/decode/reconstruction.rs
 src/decode/selection.rs
 src/decode/spatial.rs
 src/decode/tests.rs
+src/decode/tile_part_index.rs
 src/decode.rs
 src/error.rs
 src/image/arithmetic.rs
@@ -387,6 +389,7 @@ src/refinement.rs
 src/tier1/coding.rs
 src/tier1/compact_legacy.rs
 src/tier1/contributions.rs
+src/tier1/ht_checkpoint.rs
 src/tier1/ht_cleanup.rs
 src/tier1/ht_cleanup_readers.rs
 src/tier1/ht_contributions.rs

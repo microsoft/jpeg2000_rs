@@ -159,7 +159,7 @@ impl CompactPlane {
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures super::coefficient_raw_view(result)==crate::specs::compact_coefficient(value),
 ))]
-fn unpack_word(value: u64) -> CoefficientState {
+pub(super) fn unpack_word(value: u64) -> CoefficientState {
     let bp = (value & BP_MASK) >> BP_SHIFT;
     let coefficient = CoefficientState {
         magnitude: value & MAG,
@@ -177,6 +177,80 @@ fn unpack_word(value: u64) -> CoefficientState {
         assert(super::coefficient_raw_view(coefficient).limbs =~= crate::specs::compact_coefficient(value).limbs);
     }
     coefficient
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::compact_packable_coefficient(super::coefficient_raw_view(coefficient)),
+))]
+pub(super) fn packable(coefficient: CoefficientState) -> bool {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(super::coefficient_raw_view); }
+    coefficient.magnitude <= MAG
+        && coefficient.magnitude_high[0] == 0
+        && coefficient.magnitude_high[1] == 0
+        && coefficient.magnitude_high[2] == 0
+        && coefficient.magnitude_high[3] == 0
+        && coefficient.magnitude_high[4] == 0
+        && match coefficient.legacy_bitplane {
+            None => true,
+            Some(bp) => bp < 63,
+        }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires crate::specs::compact_packable_coefficient(super::coefficient_raw_view(coefficient)),
+    ensures crate::specs::compact_coefficient(result) == super::coefficient_raw_view(coefficient),
+))]
+pub(super) fn pack_word(coefficient: CoefficientState) -> u64 {
+    let bp = match coefficient.legacy_bitplane {
+        Some(value) => u64::from(value),
+        None => 63,
+    };
+    let mag = coefficient.magnitude;
+    let significant = coefficient.significant;
+    let negative = coefficient.negative;
+    let is_refined = coefficient.refined;
+    let sig = if significant { SIG } else { 0 };
+    let neg = if negative { NEG } else { 0 };
+    let refined = if is_refined { REFINED } else { 0 };
+    let word = mag | (bp << BP_SHIFT) | sig | neg | refined;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(super::coefficient_raw_view);
+        assert(mag <= 0xffff_ffff && bp <= 63);
+        assert(SIG==1u64<<38 && NEG==1u64<<39 && REFINED==1u64<<40) by(compute);
+        assert(sig == if significant { 1u64 << 38 } else { 0 });
+        assert(neg == if negative { 1u64 << 39 } else { 0 });
+        assert(refined == if is_refined { 1u64 << 40 } else { 0 });
+        assert(word & 0xffff_ffffu64 == mag
+            && ((word >> 32) & 63) == bp
+            && ((word & (1u64 << 38)) != 0) == significant
+            && ((word & (1u64 << 39)) != 0) == negative
+            && ((word & (1u64 << 40)) != 0) == is_refined) by(bit_vector)
+            requires mag <= 0xffff_ffff, bp <= 63,
+                sig == (if significant { 1u64 << 38 } else { 0 }),
+                neg == (if negative { 1u64 << 39 } else { 0 }),
+                refined == (if is_refined { 1u64 << 40 } else { 0 }),
+                word == mag | (bp << 32) | sig | neg | refined;
+        assert(crate::specs::compact_coefficient(word).limbs =~= super::coefficient_raw_view(coefficient).limbs);
+        let packed = crate::specs::compact_coefficient(word);
+        let raw = super::coefficient_raw_view(coefficient);
+        match coefficient.legacy_bitplane {
+            None => {
+                assert(bp==63);
+                assert(packed.legacy_bitplane.is_none());
+            },
+            Some(index) => {
+                assert(index<63 && bp as u16==index);
+                assert(packed.legacy_bitplane==Some(index));
+            },
+        }
+        assert(packed.legacy_bitplane==raw.legacy_bitplane);
+        assert(packed.significant==raw.significant);
+        assert(packed.negative==raw.negative);
+        assert(packed.refined==raw.refined);
+    }
+    word
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -1283,12 +1357,11 @@ impl Tier1CodeBlockDecoder {
         #[cfg(verus_keep_ghost)] ghost_decoded: Ghost<u32>,
     ) -> Result<(), DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof_decl! {let ghost before=self.compact_view(packed);}
+        proof_decl! {let ghost before=self.compact_view(packed);let ghost native_before=*self;}
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(Tier1CodeBlockDecoder::compact_view);
-            reveal(super::tier1_decoder_state);
-            reveal(super::legacy_bitplane_option_view);
+            self.compact_metadata();
             crate::specs::compact_phase_shape(ghost_top@,ghost_decoded@,packed.width,packed.height,packed.entries@,
                 self.bitplane,super::legacy_bitplane_option_view(&self.bitplane_state));
         }
@@ -1296,15 +1369,27 @@ impl Tier1CodeBlockDecoder {
             let constructed = packed.initial_state(self.bitplane);
             #[cfg(verus_keep_ghost)]
             proof! {crate::specs::part2_legacy_ensure_observed(before,super::legacy_bitplane_outcome(constructed));}
-            self.bitplane_state = Some(constructed?);
-        } else {
+            let new_state = constructed?;
             #[cfg(verus_keep_ghost)]
-            proof! {crate::specs::part2_legacy_ensure_present(before);}
+            proof! {
+                let state=super::legacy_bitplane_view(&new_state);
+                assert(crate::specs::part1_legacy_bitplane_initial(before.plane,before.bitplane)==Ok(state));
+                crate::specs::compact_phase_prepare(ghost_top@,ghost_decoded@,packed.width,packed.height,packed.entries@,
+                    self.bitplane,before.bitplane_state,state);
+            }
+            self.bitplane_state = Some(new_state);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                Self::compact_native_store(native_before,*self);
+                reveal(super::legacy_bitplane_option_view);
+            }
+            return Ok(());
         }
         #[cfg(verus_keep_ghost)]
         proof! {
+            crate::specs::part2_legacy_ensure_present(before);
             crate::specs::compact_phase_prepare(ghost_top@,ghost_decoded@,packed.width,packed.height,packed.entries@,
-                self.bitplane,before.bitplane_state,super::legacy_bitplane_option_view(&self.bitplane_state)->Some_0);
+                self.bitplane,before.bitplane_state,before.bitplane_state->Some_0);
         }
         Ok(())
     }

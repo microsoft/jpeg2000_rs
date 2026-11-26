@@ -139,6 +139,7 @@ impl Clone for Tier1CodeBlockDecoder {
     fn clone(&self) -> Self {
         Self {
             plane: self.plane.clone(),
+            private_plan: self.private_plan,
             orientation: self.orientation,
             style: self.style,
             maximum_passes: self.maximum_passes,
@@ -182,6 +183,7 @@ impl Tier1CodeBlockDecoder {
                 proof! {if let Err(error)=copied{crate::specs::part2_ht_duplicate_primary_error(before,role,error);}}
                 copied?
             },
+            private_plan: self.private_plan,
             orientation: self.orientation,
             style: self.style,
             maximum_passes: self.maximum_passes,
@@ -213,13 +215,16 @@ impl Tier1CodeBlockDecoder {
                     None
                 }
                 Some(source) => {
-                    let copied = source.try_duplicate_raw(role, true, false);
+                    let copied = source.try_duplicate_for_storage(role);
                     #[cfg(verus_keep_ghost)]
                     proof! {
-                        crate::specs::part2_decoder_cleanup_observed(code_block_plane_view(source),role,super::code_block_plane_outcome(copied));
+                        crate::specs::part2_decoder_cleanup_observed(source.view(),role,super::code_block_plane_outcome(copied));
                         if let Err(error)=copied{crate::specs::part2_ht_duplicate_cleanup_error(before,role,error);}
                     }
-                    Some(copied?)
+                    let copied = copied?;
+                    #[cfg(verus_keep_ghost)]
+                    proof! { super::ht_checkpoint::checkpoint_wide_view(copied); }
+                    Some(super::ht_checkpoint::HtCleanupCheckpoint::Wide(copied))
                 }
             },
             ht_refinement_data: {
@@ -277,6 +282,7 @@ pub(crate) fn tier1_decoder_from_dimensions(
             proof! {if let Err(error)=result{crate::specs::part2_tier1_initial_plane_error(width,height,significant_bitplanes,orientation,style,error);}}
             result?
         },
+        private_plan: false,
         orientation,
         style,
         maximum_passes,
@@ -325,6 +331,44 @@ pub(crate) fn tier1_configured_decoder(
     let mut decoder = initial_result?;
     decoder.set_multiple_ht_sets_allowed(allow_multiple_ht_sets);
     decoder.set_ht_magnitude_bound(ht_magnitude_bound)?;
+    Ok(decoder)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures crate::specs::part2_tier1_configured_checkpoint_result(width,height,significant_bitplanes,
+        orientation,style,allow_multiple_ht_sets,ht_magnitude_bound,pack_ht_checkpoint,tier1_initial_decoder_outcome(result)),
+        tier1_initial_decoder_outcome(result)!=Err(DecodeError::AllocationFailed) ==>
+        tier1_initial_decoder_outcome(result)==crate::specs::part2_configured_checkpoint(
+            width,height,significant_bitplanes,orientation,style,allow_multiple_ht_sets,ht_magnitude_bound,pack_ht_checkpoint),
+))]
+pub(crate) fn tier1_configured_decoder_with_checkpoint(
+    width: u16,
+    height: u16,
+    significant_bitplanes: u16,
+    orientation: SubbandOrientation,
+    style: Tier1CodingStyle,
+    allow_multiple_ht_sets: bool,
+    ht_magnitude_bound: u8,
+    pack_ht_checkpoint: bool,
+) -> Result<Tier1CodeBlockDecoder, DecodeError> {
+    let configured = tier1_configured_decoder(
+        width,
+        height,
+        significant_bitplanes,
+        orientation,
+        style,
+        allow_multiple_ht_sets,
+        ht_magnitude_bound,
+    );
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(tier1_decoder_state);
+        crate::specs::part2_tier1_configured_checkpoint_observed(width,height,significant_bitplanes,orientation,
+            style,allow_multiple_ht_sets,ht_magnitude_bound,pack_ht_checkpoint,tier1_initial_decoder_outcome(configured));
+    }
+    let mut decoder = configured?;
+    decoder.private_plan = pack_ht_checkpoint && style.block_coding.uses_high_throughput();
     Ok(decoder)
 }
 

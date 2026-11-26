@@ -150,14 +150,14 @@ verus! {
         requires crate::specs::part2_jpip_snapshot_tile_root(root),root.tile<root.headers.len(),root.tile<=u16::MAX as nat,parts.len()>0,
             parts==root.layout.parts.filter(|part:crate::specs::Part2OwnedTilePart|part.tile_index==root.tile as u16),
             crate::specs::part2_grid_plan_result(&root.layout.size,parts[0].coding_style,&parts[0].component_coding_styles,parts[0].component_quantizations,&parts[0].roi_shifts,
-                (root.tile as u16,0),(false,74,false),root.input.limits,Err(error)),
+                (root.tile as u16,0),(false,74,false,false),root.input.limits,Err(error)),
         ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache,root.input.stream,root.input.selected,root.input.components,root.input.limits,Err(error)),
     {
         reveal(crate::specs::part2_grid_plan_result);
         reveal(crate::specs::part2_jpip_snapshot_tile);
         let run=|events|crate::specs::part2_jpip_grid_plan(root.input,root.tile as usize,root.layout,events);
         crate::specs::part2_decode_eta(|events|crate::specs::part2_grid_plan_run(&root.layout.size,parts[0].coding_style,&parts[0].component_coding_styles,parts[0].component_quantizations,&parts[0].roi_shifts,
-            (root.tile as u16,0),(false,74,false),root.input.limits,events),Err(error));
+            (root.tile as u16,0),(false,74,false,false),root.input.limits,events),Err(error));
         let calls=crate::specs::part2_cold_witness(run,Err(error));
         crate::specs::part2_cold_prefix_at(run,calls,Err(error),Seq::empty());
         assert(calls+Seq::empty() =~= calls);
@@ -173,14 +173,14 @@ verus! {
         ensures forall|error: DecodeError|
             crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
                 &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
-                (root.tile as u16, 0), (false, 74, false), root.input.limits) == Err(error)
+                (root.tile as u16, 0), (false, 74, false, false), root.input.limits) == Err(error)
             ==> crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
                 root.input.selected, root.input.components, root.input.limits, Err(error)),
     {
         assert forall|error: DecodeError|
             crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
                 &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
-                (root.tile as u16, 0), (false, 74, false), root.input.limits) == Err(error)
+                (root.tile as u16, 0), (false, 74, false, false), root.input.limits) == Err(error)
             implies crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
                 root.input.selected, root.input.components, root.input.limits, Err(error)) by {
             jpip_snapshot_plan_error(root, parts, error);
@@ -196,7 +196,7 @@ verus! {
             parts == root.layout.parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == root.tile as u16),
             crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
                 &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
-                (root.tile as u16, 0), (false, 74, false), root.input.limits) == Ok(plan),
+                (root.tile as u16, 0), (false, 74, false, false), root.input.limits) == Ok(plan),
         ensures forall|error: DecodeError|
             crate::specs::part1_progression_iterator_initial(plan.grid, parts[0].coding_style.progression_order,
                 parts[0].progression_changes, crate::limits::resource_work_limit(root.input.limits)) == Err(error)
@@ -221,7 +221,7 @@ verus! {
             parts == root.layout.parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == root.tile as u16),
             crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
                 &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
-                (root.tile as u16, 0), (false, 74, false), root.input.limits) == Ok(plan),
+                (root.tile as u16, 0), (false, 74, false, false), root.input.limits) == Ok(plan),
             crate::specs::part1_progression_iterator_initial(plan.grid, parts[0].coding_style.progression_order,
                 parts[0].progression_changes, crate::limits::resource_work_limit(root.input.limits)) == Ok(iterator),
         ensures forall|error: DecodeError|
@@ -347,7 +347,7 @@ verus! {
             parts == root.layout.parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == root.tile as u16),
             crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
                 &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
-                (root.tile as u16, 0), (false, 74, false), root.input.limits) == Err(error),
+                (root.tile as u16, 0), (false, 74, false, false), root.input.limits) == Err(error),
         ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
             root.input.selected, root.input.components, root.input.limits, Err(error)),
     {
@@ -363,7 +363,7 @@ verus! {
             parts == root.layout.parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == root.tile as u16),
             crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
                 &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
-                (root.tile as u16, 0), (false, 74, false), root.input.limits) == Ok(plan),
+                (root.tile as u16, 0), (false, 74, false, false), root.input.limits) == Ok(plan),
             crate::specs::part1_progression_iterator_initial(plan.grid, parts[0].coding_style.progression_order,
                 parts[0].progression_changes, crate::limits::resource_work_limit(root.input.limits)) == Err(error),
         ensures crate::specs::part2_jpip_automatic_snapshot_result(root.input.cache, root.input.stream,
@@ -382,7 +382,7 @@ verus! {
             parts == root.layout.parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == root.tile as u16),
             crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
                 &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
-                (root.tile as u16, 0), (false, 74, false), root.input.limits) == Ok(plan),
+                (root.tile as u16, 0), (false, 74, false, false), root.input.limits) == Ok(plan),
             crate::specs::part1_progression_iterator_initial(plan.grid, parts[0].coding_style.progression_order,
                 parts[0].progression_changes, crate::limits::resource_work_limit(root.input.limits)) == Ok(iterator),
             crate::specs::part2_jpip_snapshot_order(iterator, crate::limits::resource_work_limit(root.input.limits), 0,
@@ -638,7 +638,7 @@ verus! {
             |part: crate::specs::Part2OwnedTilePart| part.tile_index == root.tile as u16)
         && crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
             &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
-            (root.tile as u16, 0), (false, 74, false), root.input.limits) == Ok(plan)
+            (root.tile as u16, 0), (false, 74, false, false), root.input.limits) == Ok(plan)
         && crate::specs::part1_progression_iterator_initial(plan.grid, parts[0].coding_style.progression_order,
             parts[0].progression_changes, crate::limits::resource_work_limit(root.input.limits)) == Ok(iterator)
         && crate::specs::part2_jpip_snapshot_order(iterator, crate::limits::resource_work_limit(root.input.limits),
@@ -715,7 +715,7 @@ verus! {
                     parts.len() != 0,
                     crate::specs::part2_progression_tile_plan_owned(&root.layout.size, parts[0].coding_style,
                         &parts[0].component_coding_styles, parts[0].component_quantizations, &parts[0].roi_shifts,
-                        (root.tile as u16, 0), (false, 74, false), root.input.limits) == Ok(plan),
+                        (root.tile as u16, 0), (false, 74, false, false), root.input.limits) == Ok(plan),
                     crate::specs::part1_progression_iterator_initial(plan.grid, parts[0].coding_style.progression_order,
                         parts[0].progression_changes, crate::limits::resource_work_limit(root.input.limits)) == Ok(iterator),
                     crate::specs::part2_jpip_snapshot_order(iterator, crate::limits::resource_work_limit(root.input.limits),

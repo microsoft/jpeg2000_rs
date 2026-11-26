@@ -417,7 +417,7 @@ pub(crate) open spec fn part2_trailer_tile_after_metadata_run(
     part2_jpip_snapshot_bind(
         part2_grid_plan_run(size, metadata.first.coding_style, &metadata.first.component_coding_styles,
             metadata.first.component_quantizations, &metadata.first.roi_shifts, (tile, discard),
-            (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps)), limits, events),
+            (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps), true), limits, events),
         |plan: Part2ProgressionTilePlan, rest|
             part2_trailer_tile_after_plan_run(size, parts, metadata, limits, prepared, initial, work, discarded, plan, rest))
 }
@@ -462,7 +462,7 @@ pub(crate) open spec fn part2_trailer_tile_after_metadata_value(
 ) -> Result<(Part2DecodedLayoutTile, u8), crate::DecodeError> {
     match part2_progression_tile_plan_owned(size, metadata.first.coding_style, &metadata.first.component_coding_styles,
         metadata.first.component_quantizations, &metadata.first.roi_shifts, (tile, discard),
-        (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps)), limits) {
+        (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps), true), limits) {
         Err(error) => Err(error),
         Ok(plan) => part2_trailer_tile_after_plan_value(size, parts, metadata, limits, prepared, initial, work, discarded, plan),
     }
@@ -513,7 +513,7 @@ pub(crate) proof fn part2_trailer_tile_plan_actual(
 )
     requires part2_grid_plan_result(size, metadata.first.coding_style, &metadata.first.component_coding_styles,
         metadata.first.component_quantizations, &metadata.first.roi_shifts, (tile, discard),
-        (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps)), limits, plan),
+        (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps), true), limits, plan),
         match plan {
             Err(error) => result == Err(error),
             Ok(value) => part2_cold_framed(
@@ -524,7 +524,7 @@ pub(crate) proof fn part2_trailer_tile_plan_actual(
 {
     part2_grid_plan_frames(size, metadata.first.coding_style, &metadata.first.component_coding_styles,
         metadata.first.component_quantizations, &metadata.first.roi_shifts, (tile, discard),
-        (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps)), limits, plan);
+        (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps), true), limits, plan);
     if let Ok(value) = plan {
         part2_decode_eta(
             |events| part2_trailer_tile_after_plan_run(size, parts, metadata, limits, prepared, initial, work, discarded, value, events), result);
@@ -532,7 +532,7 @@ pub(crate) proof fn part2_trailer_tile_plan_actual(
     part2_cold_bind(
         |events| part2_grid_plan_run(size, metadata.first.coding_style, &metadata.first.component_coding_styles,
             metadata.first.component_quantizations, &metadata.first.roi_shifts, (tile, discard),
-            (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps)), limits, events),
+            (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps), true), limits, events),
         |value: Part2ProgressionTilePlan, rest|
             part2_trailer_tile_after_plan_run(size, parts, metadata, limits, prepared, initial, work, discarded, value, rest),
         plan, result);
@@ -599,10 +599,10 @@ pub(crate) proof fn part2_trailer_tile_after_metadata_normal(
 {
     part2_grid_plan_normal(size, metadata.first.coding_style, &metadata.first.component_coding_styles,
         metadata.first.component_quantizations, &metadata.first.roi_shifts, (tile, discard),
-        (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps)), limits);
+        (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps), true), limits);
     let plan = part2_progression_tile_plan_owned(size, metadata.first.coding_style, &metadata.first.component_coding_styles,
         metadata.first.component_quantizations, &metadata.first.roi_shifts, (tile, discard),
-        (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps)), limits);
+        (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps), true), limits);
     if let Ok(value) = plan {
         part2_trailer_tile_after_plan_normal(size, parts, metadata, limits, prepared, initial, work, discarded, value);
     }
@@ -784,8 +784,10 @@ pub(crate) open spec fn part2_trailer_after_selection_run(
     if selection.1.len() != 4 { Some((Err(part1_block_placement_error(false)), events)) }
     else {
         let initial = Part2DecodedLayoutTile { prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0 };
-        part2_trailer_selected_run(&input.size, input.parts, input.capabilities, selection.0,
-            [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0, initial, 0, events)
+        part2_jpip_snapshot_bind(
+            part2_prepare_tile_index_run(input.parts, part2_index_tile_slots(&input.size), selection.0.len(), events),
+            |_: (), rest| part2_trailer_selected_run(&input.size, input.parts, input.capabilities, selection.0,
+                [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0, initial, 0, rest))
     }
 }
 
@@ -847,6 +849,10 @@ pub(crate) proof fn part2_trailer_layout_normal(
                     part2_trailer_selected_normal(&input.size, input.parts, input.capabilities, selection.0, region, selection.2, limits, 0, initial, 0);
                     part2_decode_eta(
                         |events| part2_trailer_selected_run(&input.size, input.parts, input.capabilities, selection.0, region, selection.2, limits, 0, initial, 0, events), result);
+                    part2_index_prefix_normal(input.parts, part2_index_tile_slots(&input.size), selection.0.len(),
+                        |events| part2_trailer_selected_run(&input.size, input.parts, input.capabilities,
+                            selection.0, region, selection.2, limits, 0, initial, 0, events), result);
+                    part2_decode_eta(|events| part2_trailer_after_selection_run(input, selection, limits, events), result);
                 },
             }
             let child = |events| part2_validate_selection_run(size, requested, events);

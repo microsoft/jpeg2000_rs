@@ -8656,11 +8656,15 @@
     },
     {
       "id": "part2-complete-native-owned-tile-collection",
-      "topic": "Complete actual same-order owned TilePartPayload copy and ordered per-tile source collection: every raw quantization/progression/MCT/Part2/kernel/nonlinear/registration/length/header/flag/data field derives from actual owners. Public manual Clone APIs retain their existing infallible type and field semantics. Internal collection counts matching parts, reserves once and fallibly duplicates ONLY selected owners, intentionally avoiding allocation for unselected clones. Precise source-qualified capacity and nested copy calls retain typed refusals, every successful value/duplicate order, borrows and arbitrary event tails; no defaults, normalized metadata, allocator availability premise, supplied copies or codec-result bank. Full/selected decoding and PDF trailer recovery compose the reached collection stage. Whole raw-parser/file/F2/F4/final F8, lifetime-enabled replay and publication remain separate.",
+      "topic": "Complete actual same-order owned TilePartPayload copy and ordered per-tile source collection: every raw quantization/progression/MCT/Part2/kernel/nonlinear/registration/length/header/flag/data field derives from actual owners. Public manual Clone APIs retain their existing infallible type and field semantics. More than one validated selected tile builds one fallible source-qualified head/count buffer and actual-part next-position buffer; reverse physical traversal proves exact stable filter equality without validating later/unselected metadata. Count-one/full-one/ROI-one retains the actual original collector with no index allocation or classifier. Indexed collection retains the same count-capacity branch, fallible nested copies, owned Vec and slice ABI. Exact index allocation/refusal prefixes precede unchanged collection capacity/copy events at the actual full/selected/PDF-trailer governing roots. No fake old nth-request equivalence, normalized metadata, allocator/capacity premise, supplied copies or codec-result bank. Logical counters and first nonphysical errors remain unchanged on successful allocation; existing parser-admitted tile/actual-part bounds size the new private buffers. Whole raw-parser/file/F2/F4/final F8, lifetime-enabled replay and publication remain separate.",
       "implementation_refs": [
         {"path": "src/decode/execution.rs", "symbol": "decode_layout"},
         {"path": "src/decode/execution.rs", "symbol": "decode_layout_selected"},
         {"path": "src/decode/execution.rs", "symbol": "collect_tile_parts"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "prepare_tile_part_index"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "reserve_index_values"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "collect_tile_parts_with_index"},
+        {"path": "src/decode/pdf_trailers.rs", "symbol": "decode_trailer_layout"},
         {"path": "src/codestream/tiles.rs", "symbol": "TilePartPayload::clone"},
         {"path": "src/codestream/tiles.rs", "symbol": "TilePartPayload::try_duplicate"},
         {"path": "src/codestream/extensions.rs", "symbol": "Part2Extensions::clone"},
@@ -8682,6 +8686,15 @@
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_loop_run"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_run"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_result"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_next"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_matches"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_capacity_run"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_capacity_result"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_prepare_tile_index_run"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_prepare_tile_index_result"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_layout_decode_run"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_layout_after_selection_run"},
+        {"path": "specs/pdf_trailers.rs", "symbol": "part2_trailer_after_selection_run"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collection_duplicate_step"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collection_duplicate_tail"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collections_duplicate_requests"},
@@ -8692,7 +8705,10 @@
         {"path": "specs/cold_mct_copy.rs", "symbol": "part2_payload_duplicate_tail"}
       ],
       "contract_refs": [
-        {"path": "src/decode/execution.rs", "symbol": "collect_tile_parts"}
+        {"path": "src/decode/execution.rs", "symbol": "collect_tile_parts"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "prepare_tile_part_index"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "reserve_index_values"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "collect_tile_parts_with_index"}
       ],
       "proof_refs": [
         {"path": "src/codestream/tiles.rs", "symbol": "TilePartPayload::clone"},
@@ -8720,6 +8736,18 @@
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_count_matches"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_loop_normal"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_normal"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "entries_view"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "entry_view_at"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "optional_index_matches"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "index_preparation_outcome"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "tile_index_slots"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_next_bounds"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_skip"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_capacity_observed"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_capacity_normal"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_prepare_tile_index_normal"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_prefix_normal"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_selection_slots"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collection_duplicate_advance"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part2_payload_duplicate_advance"}
       ],
@@ -8727,7 +8755,12 @@
         {"path": "src/codestream/tests.rs", "symbol": "actual_owned_tile_part_clone_preserves_every_raw_field_and_independent_nested_buffers"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_ordered_tile_collection_copies_raw_non_normalized_fields_and_retains_duplicate_order"},
         {"path": "src/codestream/tests.rs", "symbol": "collected_payload_copy_refusals_restore_all_raw_nested_owners_and_borrows"},
-        {"path": "src/codestream/tests.rs", "symbol": "collected_payload_storage_empty_first_later_refusals_restore_order_and_sources"}
+        {"path": "src/codestream/tests.rs", "symbol": "collected_payload_storage_empty_first_later_refusals_restore_order_and_sources"},
+        {"path": "src/decode/tests.rs", "symbol": "stable_copy_index_preserves_grouped_interleaved_raw_order_and_unselected_metadata"},
+        {"path": "src/decode/tests.rs", "symbol": "stable_copy_index_real_buffer_and_old_copy_refusals_restore_sources_and_retry"},
+        {"path": "src/decode/tests.rs", "symbol": "stable_copy_index_single_selection_skips_both_buffers_and_keeps_real_old_collection"},
+        {"path": "src/decode/tests.rs", "symbol": "stable_copy_index_deadline_remains_distinct_from_real_buffer_refusal_and_restores_scope"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_count_recovery_decodes_complete_interleaved_tiles_and_reports_only_counts"}
       ]
     },
     {
@@ -9642,10 +9675,11 @@
     },
     {
       "id": "part2-complete-native-codeblock-planning",
-      "topic": "Complete actual per-codeblock checked lattice/clipping/u16 dimension Result and configured decoder initial-state Result from raw grid/clip/block coordinates, bits/orientation/style/HT policy. Original nominal-axis arithmetic and clipped narrowing remain; zero dimensions are deliberately forwarded to the real decoder initializer rather than normalized here. Actual decoder initialization precedes multiple-set and magnitude-bound policy, including allocation/admission/error order. The real tile loop consumes both producers; no supplied placement/decoder/geometry result, admitted dimensions or successful allocation/budget premise. Whole tile-plan and F2/F4/F8 joins remain separate.",
+      "topic": "Complete actual per-codeblock lattice, clipping, checked dimensions and configured decoder state. Dense constructor admission and allocation precede later HT mode, which changes only private checkpoint retention, never the current output. The real tile loop consumes both producers and the actual initial storage tape.",
       "implementation_refs": [
         {"path": "src/decode/planning.rs", "symbol": "plan_progression_tile_at_selected"},
-        {"path": "src/decode/planning.rs", "symbol": "append_planned_codeblock"}
+        {"path": "src/decode/planning.rs", "symbol": "append_planned_codeblock"},
+        {"path": "src/tier1/contributions.rs", "symbol": "tier1_configured_decoder_with_checkpoint"}
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_planned_codeblock_geometry"},
@@ -9661,6 +9695,8 @@
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_initial_run"},
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_initial_storage_result"},
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_checkpoint_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_checkpoint_result"},
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_configured_storage_result"},
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_admit"},
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_run"}
@@ -9671,6 +9707,7 @@
       ],
       "proof_refs": [
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_initial_decoder_outcome"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_checkpoint_observed"},
         {"path": "src/tier1/contributions.rs", "symbol": "tier1_decoder_from_dimensions"},
         {"path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::set_multiple_ht_sets_allowed"},
         {"path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::set_ht_magnitude_bound"},
@@ -15495,7 +15532,7 @@
     },
     {
       "id": "part15-cleanup-only-actual-symbol-caller",
-      "topic": "Explicit absent-refinement actual symbol-caller composition from supplied parsed segments through real metadata/numeric/duplicate producers and complete decoder state, including ordered partial accounting errors; public byte preflight and refinement/mixed sequences remain open",
+      "topic": "Explicit absent-refinement actual symbol-caller composition through real metadata/numeric/cleanup checkpoint producers and complete decoder state, including ordered partial accounting errors and private packed versus public wide checkpoint allocation",
       "contract_refs": [
         {"path": "src/tier1/ht_cleanup.rs", "symbol": "prepare_ht_cleanup_symbols"},
         {"path": "src/tier1/ht_contributions.rs", "symbol": "Tier1CodeBlockDecoder::store_ht_coefficient_symbols"},
@@ -15503,7 +15540,8 @@
       ],
       "implementation_refs": [
         {"path": "src/tier1/ht_contributions.rs", "symbol": "Tier1CodeBlockDecoder::decode_ht_coefficient_symbols"},
-        {"path": "src/tier1/ht_cleanup.rs", "symbol": "prepare_ht_cleanup_symbols"}
+        {"path": "src/tier1/ht_cleanup.rs", "symbol": "prepare_ht_cleanup_symbols"},
+        {"path": "src/tier1/ht_checkpoint.rs", "symbol": "retain_ht_cleanup"}
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "ht_cleanup_prepare"},
@@ -15514,7 +15552,9 @@
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part1_plane_duplicate_storage_result"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_run"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_result"},
-        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_after_metadata"}
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_after_metadata"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_run"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_selected"}
       ],
       "proof_refs": [
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_state"},
@@ -15527,7 +15567,9 @@
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_normal"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_after_normal"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_metadata_error"},
-        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_metadata_join"}
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_metadata_join"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_packed"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_wide"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_caller_composes_real_metadata_numeric_duplicate_and_complete_decoder_state"},
@@ -15538,7 +15580,13 @@
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_caller_preserves_metadata_before_native_pass_error_order_and_full_failure_frame"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_caller_metadata_work_failure_retains_every_decoder_field"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_caller_accounting_failures_preserve_ordered_commits_not_rollback"},
-        {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_duplicate_preserves_full_raw_coefficients_and_rejects_bad_shapes"}
+        {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_duplicate_preserves_full_raw_coefficients_and_rejects_bad_shapes"},
+        {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_preserves_replay_and_replacement_state"},
+        {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_uses_actual_fields_and_refuses_real_allocations"},
+        {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_expired_materialization_leaves_source_exact"},
+        {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_does_not_skip_dense_initial_allocation_or_snapshot"},
+        {"path": "src/tier1/tests.rs", "symbol": "checkpoint_header_replays_geometry_independent_of_current_output"},
+        {"path": "src/tier1/ht_checkpoint.rs", "symbol": "checkpoint_header_snapshot_keeps_full_raw_dimensions_and_payload"}
       ]
     },
     {
@@ -15958,6 +16006,8 @@
         {"path": "src/color/conversion.rs", "symbol": "convert_color_channel"},
         {"path": "src/color/conversion.rs", "symbol": "convert_alpha_channel"},
         {"path": "src/color/conversion.rs", "symbol": "convert_sycc_pixel"},
+        {"path": "src/color/conversion.rs", "symbol": "convert_sycc_row_pixel"},
+        {"path": "src/color/conversion.rs", "symbol": "plan_sycc_rows"},
         {"path": "src/color/admission.rs", "symbol": "validate_components"},
         {"path": "src/color/admission.rs", "symbol": "validate_component_index"}
       ],
@@ -15982,6 +16032,8 @@
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_channels_error"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_alphas_error"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_sycc_error"},
+        {"path": "src/color/conversion.rs", "symbol": "sycc_row_indices"},
+        {"path": "src/color/conversion.rs", "symbol": "sycc_pixel_routing"},
         {"path": "proofs/production_impl/mod.rs", "symbol": "production_color_validation_error"}
       ],
       "spec_refs": [
@@ -16024,7 +16076,9 @@
         {"path": "src/color/tests.rs", "symbol": "color_storage_layout_first_later_alpha_refusal_and_association_priority_restore"},
         {"path": "src/color/tests.rs", "symbol": "complete_color_conversion_matches_independent_registered_planes_and_metadata"},
         {"path": "src/color/tests.rs", "symbol": "complete_color_admission_matches_wide_checked_count_and_limit_model"},
-        {"path": "src/color/tests.rs", "symbol": "complete_color_conversion_preserves_format_metadata_budget_and_sample_error_priority"}
+        {"path": "src/color/tests.rs", "symbol": "complete_color_conversion_preserves_format_metadata_budget_and_sample_error_priority"},
+        {"path": "src/color/tests.rs", "symbol": "sycc_registered_rows_restart_at_edges_and_keep_signed38_rounding"},
+        {"path": "src/color/tests.rs", "symbol": "sycc_row_plan_leaves_late_sample_and_owner_refusals_in_place"}
       ],
       "topic": "Complete actual typed JP2 color converter: format and CDEF selection, component validation, exact output admission, all raster/color/alpha samples and metadata, and every typed first failure"
     },
@@ -18184,6 +18238,10 @@
       ],
       "id": "part2-pinned-color-normalization",
       "implementation_refs": [
+        {
+          "path": "src/color/normalization.rs",
+          "symbol": "nominal_at_index"
+        },
         {
           "path": "src/color/normalization.rs",
           "symbol": "nominal_component_at"

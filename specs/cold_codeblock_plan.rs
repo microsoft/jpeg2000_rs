@@ -2,12 +2,12 @@
 use super::*;
 verus! {
 pub(crate) open spec fn part2_tier1_cell_context(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,geometry:(u32,u32,u16,u16))->Part2Tier1CallContext {
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),before:Part2PlannedCodeBlocks,geometry:(u32,u32,u16,u16))->Part2Tier1CallContext {
     Part2Tier1CallContext {width:geometry.2,height:geometry.3,significant:subband.significant_bitplanes,orientation:subband.orientation,style,
-        allowed:policy.0,bound:policy.1,grid,clip,block,indices,before}
+        allowed:policy.0,bound:policy.1,pack_ht_checkpoint:policy.2,grid,clip,block,indices,before}
 }
 pub(crate) open spec fn part2_codeblock_growth_context(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),before:Part2PlannedCodeBlocks,
     geometry:(u32,u32,u16,u16),placements:bool)->Part2PlanningCapacityContext {
     Part2PlanningCapacityContext::CodeBlockGrowth {
         cell:part2_tier1_cell_context(grid,clip,block,subband,style,policy,indices,before,geometry),
@@ -15,7 +15,7 @@ pub(crate) open spec fn part2_codeblock_growth_context(grid:[u32;4],clip:[u32;4]
     }
 }
 pub(crate) open spec fn part2_codeblock_after_decoder_growth_run(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),before:Part2PlannedCodeBlocks,
     geometry:(u32,u32,u16,u16),events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks> {
     if geometry.0<subband.x0 || geometry.1<subband.y0 {Some((Err(part1_block_placement_error(true)),events))}
     else {part2_jpip_snapshot_bind(
@@ -23,14 +23,14 @@ pub(crate) open spec fn part2_codeblock_after_decoder_growth_run(grid:[u32;4],cl
         |_:(),rest|Some((part2_planned_codeblock_cell(grid,clip,block,subband,style,policy,indices,before),rest)))}
 }
 pub(crate) open spec fn part2_codeblock_after_decoder_run(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),before:Part2PlannedCodeBlocks,
     geometry:(u32,u32,u16,u16),events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks> {
     part2_jpip_snapshot_bind(
         part2_planning_capacity_run(part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,geometry,false),events),
         |_:(),rest|part2_codeblock_after_decoder_growth_run(grid,clip,block,subband,style,policy,indices,before,geometry,rest))
 }
 pub(crate) open spec fn part2_codeblock_cell_run(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks> {
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),before:Part2PlannedCodeBlocks,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks> {
     match part2_planned_codeblock_geometry(grid,clip,block) {
         Err(error)=>Some((Err(error),events)),
         Ok(geometry)=>part2_jpip_snapshot_bind(part2_tier1_call_run(part2_tier1_cell_context(grid,clip,block,subband,style,policy,indices,before,geometry),events),
@@ -39,11 +39,11 @@ pub(crate) open spec fn part2_codeblock_cell_run(grid:[u32;4],clip:[u32;4],block
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_codeblock_cell_result(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,result:Result<Part2PlannedCodeBlocks,crate::DecodeError>)->bool {
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),before:Part2PlannedCodeBlocks,result:Result<Part2PlannedCodeBlocks,crate::DecodeError>)->bool {
     part2_cold_framed(|events|part2_codeblock_cell_run(grid,clip,block,subband,style,policy,indices,before,events),result)
 }
 pub(crate) proof fn part2_codeblock_after_decoder_normal(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,geometry:(u32,u32,u16,u16))
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),before:Part2PlannedCodeBlocks,geometry:(u32,u32,u16,u16))
     requires part2_planned_codeblock_geometry(grid,clip,block)==Ok(geometry),
         part2_tier1_configured_decoder(geometry.2,geometry.3,subband.significant_bitplanes,subband.orientation,style,policy.0,policy.1).is_ok(),
     ensures part2_cold_framed(
@@ -70,7 +70,7 @@ pub(crate) proof fn part2_codeblock_after_decoder_normal(grid:[u32;4],clip:[u32;
         |_:(),rest|part2_codeblock_after_decoder_growth_run(grid,clip,block,subband,style,policy,indices,before,geometry,rest)),result);
 }
 pub(crate) proof fn part2_codeblock_cell_normal(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks)
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),before:Part2PlannedCodeBlocks)
     ensures part2_codeblock_cell_result(grid,clip,block,subband,style,policy,indices,before,part2_planned_codeblock_cell(grid,clip,block,subband,style,policy,indices,before)),
 {
     reveal(part2_codeblock_cell_result);
@@ -80,7 +80,7 @@ pub(crate) proof fn part2_codeblock_cell_normal(grid:[u32;4],clip:[u32;4],block:
         Ok(geometry)=>{
             let context=part2_tier1_cell_context(grid,clip,block,subband,style,policy,indices,before,geometry);
             part2_tier1_call_normal(context);
-            let decoder=part2_tier1_configured_decoder(geometry.2,geometry.3,subband.significant_bitplanes,subband.orientation,style,policy.0,policy.1);
+            let decoder=part2_with_ht_checkpoint(part2_tier1_configured_decoder(geometry.2,geometry.3,subband.significant_bitplanes,subband.orientation,style,policy.0,policy.1),policy.2);
             if decoder.is_ok(){
                 part2_codeblock_after_decoder_normal(grid,clip,block,subband,style,policy,indices,before,geometry);
                 part2_decode_eta(|events|part2_codeblock_after_decoder_run(grid,clip,block,subband,style,policy,indices,before,geometry,events),result);
@@ -91,9 +91,9 @@ pub(crate) proof fn part2_codeblock_cell_normal(grid:[u32;4],clip:[u32;4],block:
     }
 }
 pub(crate) proof fn part2_codeblock_cell_decoder_observed(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,geometry:(u32,u32,u16,u16),result:Result<Tier1DecoderState,crate::DecodeError>)
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),before:Part2PlannedCodeBlocks,geometry:(u32,u32,u16,u16),result:Result<Tier1DecoderState,crate::DecodeError>)
     requires part2_planned_codeblock_geometry(grid,clip,block)==Ok(geometry),
-        part1_tier1_configured_storage_result(geometry.2,geometry.3,subband.significant_bitplanes,subband.orientation,style,policy.0,policy.1,result),
+        part2_tier1_configured_checkpoint_result(geometry.2,geometry.3,subband.significant_bitplanes,subband.orientation,style,policy.0,policy.1,policy.2,result),
     ensures match result {Err(error)=>part2_codeblock_cell_result(grid,clip,block,subband,style,policy,indices,before,Err(error)),Ok(_)=>true},
 {
     let context=part2_tier1_cell_context(grid,clip,block,subband,style,policy,indices,before,geometry);
@@ -105,10 +105,10 @@ pub(crate) proof fn part2_codeblock_cell_decoder_observed(grid:[u32;4],clip:[u32
     }
 }
 pub(crate) proof fn part2_codeblock_cell_growth_refused(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),before:Part2PlannedCodeBlocks,
     geometry:(u32,u32,u16,u16),decoder:Tier1DecoderState,placements:bool,error:crate::DecodeError)
     requires part2_planned_codeblock_geometry(grid,clip,block)==Ok(geometry),
-        part1_tier1_configured_storage_result(geometry.2,geometry.3,subband.significant_bitplanes,subband.orientation,style,policy.0,policy.1,Ok(decoder)),
+        part2_tier1_configured_checkpoint_result(geometry.2,geometry.3,subband.significant_bitplanes,subband.orientation,style,policy.0,policy.1,policy.2,Ok(decoder)),
         part2_planning_capacity_result(part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,geometry,placements),Err(error)),
         placements ==> geometry.0>=subband.x0 && geometry.1>=subband.y0
             && part2_planning_capacity_result(part2_codeblock_growth_context(grid,clip,block,subband,style,policy,indices,before,geometry,false),Ok(())),
@@ -137,7 +137,7 @@ pub(crate) proof fn part2_codeblock_cell_growth_refused(grid:[u32;4],clip:[u32;4
         Ok(decoder),Err(error));
 }
 pub(crate) proof fn part2_codeblock_cell_frames(grid:[u32;4],clip:[u32;4],block:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),before:Part2PlannedCodeBlocks,result:Result<Part2PlannedCodeBlocks,crate::DecodeError>)
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),before:Part2PlannedCodeBlocks,result:Result<Part2PlannedCodeBlocks,crate::DecodeError>)
     requires part2_codeblock_cell_result(grid,clip,block,subband,style,policy,indices,before,result),
     ensures part2_cold_framed(|events|part2_codeblock_cell_run(grid,clip,block,subband,style,policy,indices,before,events),result),
         forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks>|
@@ -146,7 +146,7 @@ pub(crate) proof fn part2_codeblock_cell_frames(grid:[u32;4],clip:[u32;4],block:
 {reveal(part2_codeblock_cell_result);part2_decode_eta(|events|part2_codeblock_cell_run(grid,clip,block,subband,style,policy,indices,before,events),result);}
 #[verifier::opaque]
 pub(crate) open spec fn part2_codeblock_columns_run(grid:[u32;4],clip:[u32;4],across:u32,subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),row:u32,column:nat,before:Part2PlannedCodeBlocks,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks>
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),row:u32,column:nat,before:Part2PlannedCodeBlocks,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks>
     decreases if column<across{(across as int-column) as nat}else{0nat},
 {
     if column>=across{Some((Ok(before),events))}else{
@@ -156,7 +156,7 @@ pub(crate) open spec fn part2_codeblock_columns_run(grid:[u32;4],clip:[u32;4],ac
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_codeblock_rows_run(grid:[u32;4],clip:[u32;4],blocks:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),row:nat,before:Part2PlannedCodeBlocks,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks>
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),row:nat,before:Part2PlannedCodeBlocks,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks>
     decreases if row<blocks[1]{(blocks[1] as int-row) as nat}else{0nat},
 {
     if row>=blocks[1]{Some((Ok(before),events))}else{
@@ -165,7 +165,7 @@ pub(crate) open spec fn part2_codeblock_rows_run(grid:[u32;4],clip:[u32;4],block
     }
 }
 pub(crate) proof fn part2_codeblock_columns_normal(grid:[u32;4],clip:[u32;4],across:u32,subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),row:u32,column:nat,before:Part2PlannedCodeBlocks)
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),row:u32,column:nat,before:Part2PlannedCodeBlocks)
     ensures part2_cold_framed(|events|part2_codeblock_columns_run(grid,clip,across,subband,style,policy,indices,row,column,before,events),
         part2_planned_codeblock_columns(grid,clip,across,subband,style,policy,indices,row,column,before)),
     decreases if column<across{(across as int-column) as nat}else{0nat},
@@ -186,7 +186,7 @@ pub(crate) proof fn part2_codeblock_columns_normal(grid:[u32;4],clip:[u32;4],acr
     }
 }
 pub(crate) proof fn part2_codeblock_rows_normal(grid:[u32;4],clip:[u32;4],blocks:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),row:nat,before:Part2PlannedCodeBlocks)
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),row:nat,before:Part2PlannedCodeBlocks)
     ensures part2_cold_framed(|events|part2_codeblock_rows_run(grid,clip,blocks,subband,style,policy,indices,row,before,events),
         part2_planned_codeblock_rows(grid,clip,blocks,subband,style,policy,indices,row,before)),
     decreases if row<blocks[1]{(blocks[1] as int-row) as nat}else{0nat},
@@ -206,7 +206,7 @@ pub(crate) proof fn part2_codeblock_rows_normal(grid:[u32;4],clip:[u32;4],blocks
     }
 }
 pub(crate) proof fn part2_codeblock_owner_start(grid:[u32;4],clip:[u32;4],blocks:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
     total:u64,selected:bool,limits:&crate::ResourceLimits,next:u64)->(prefix:Seq<Part2JpipSnapshotEvent>)
     requires part2_codeblock_owner_admit(blocks,total,selected,limits)==Ok(next),
         part2_planning_capacity_result(part2_codeblock_owner_context(grid,clip,blocks,subband,style,policy,indices,placements,total,selected),Ok(())),
@@ -225,14 +225,14 @@ pub(crate) proof fn part2_codeblock_owner_start(grid:[u32;4],clip:[u32;4],blocks
     prefix
 }
 pub(crate) proof fn part2_codeblock_rows_step(grid:[u32;4],clip:[u32;4],blocks:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),row:nat,before:Part2PlannedCodeBlocks)
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),row:nat,before:Part2PlannedCodeBlocks)
     requires row<blocks[1],
     ensures forall|events:Seq<Part2JpipSnapshotEvent>| #[trigger] part2_codeblock_rows_run(grid,clip,blocks,subband,style,policy,indices,row,before,events)
         ==part2_jpip_snapshot_bind(part2_codeblock_columns_run(grid,clip,blocks[0],subband,style,policy,indices,row as u32,0,before,events),
             |after:Part2PlannedCodeBlocks,rest|part2_codeblock_rows_run(grid,clip,blocks,subband,style,policy,indices,row+1,after,rest)),
 {reveal_with_fuel(part2_codeblock_rows_run,1);}
 pub(crate) proof fn part2_codeblock_columns_step(grid:[u32;4],clip:[u32;4],blocks:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),row:u32,column:nat,before:Part2PlannedCodeBlocks)
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),row:u32,column:nat,before:Part2PlannedCodeBlocks)
     requires column<blocks[0],
     ensures forall|events:Seq<Part2JpipSnapshotEvent>|
         part2_jpip_snapshot_bind(#[trigger] part2_codeblock_columns_run(grid,clip,blocks[0],subband,style,policy,indices,row,column,before,events),
@@ -254,12 +254,12 @@ pub(crate) proof fn part2_codeblock_columns_step(grid:[u32;4],clip:[u32;4],block
     }
 }
 pub(crate) proof fn part2_codeblock_columns_end(grid:[u32;4],clip:[u32;4],across:u32,subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize),row:u32,column:nat,before:Part2PlannedCodeBlocks)
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize),row:u32,column:nat,before:Part2PlannedCodeBlocks)
     requires column>=across,
     ensures forall|events:Seq<Part2JpipSnapshotEvent>| #[trigger] part2_codeblock_columns_run(grid,clip,across,subband,style,policy,indices,row,column,before,events)==Some((Ok(before),events)),
 {reveal_with_fuel(part2_codeblock_columns_run,1);}
 pub(crate) proof fn part2_codeblock_owner_join(grid:[u32;4],clip:[u32;4],blocks:[u32;2],subband:crate::decode::SubbandGeometry,
-    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
+    style:crate::tier1::Tier1CodingStyle,policy:(bool,u8,bool),indices:(usize,usize,usize),placements:Seq<crate::decode::ProgressionCodeBlockPlacement>,
     total:u64,selected:bool,limits:&crate::ResourceLimits,
     root:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2PlannedCodeBlocks>,result:Result<Part2PlannedCodeBlocks,crate::DecodeError>)
     requires part2_cold_framed(root,result),forall|events| #[trigger] root(events)==part2_codeblock_owner_run(grid,clip,blocks,subband,style,policy,indices,placements,total,selected,limits,events),

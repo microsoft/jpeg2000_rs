@@ -467,6 +467,23 @@ fn pdf_count_recovery_decodes_complete_interleaved_tiles_and_reports_only_counts
         .filter_map(|(i, value)| (value == [255, 144]).then_some(i))
         .collect();
     assert_eq!(starts.len(), 12);
+    let mut grouped = damaged[..starts[0]].to_vec();
+    for tile in 0..2 {
+        for &start in &starts {
+            if damaged[start + 5] == tile {
+                grouped.extend_from_slice(&damaged[start..start + 15]);
+            }
+        }
+    }
+    grouped.extend_from_slice(&[255, 217]);
+    for input in [damaged.as_slice(), grouped.as_slice(), damaged.as_slice()] {
+        let recovered = {
+            let transient = input.to_vec();
+            crate::decode_pdf_compatible(&transient, &options, &selection).unwrap()
+        };
+        assert_eq!(recovered.image, expected);
+        assert_eq!(recovered.recovery.corrected_tile_part_count_fields, 12);
+    }
     let mut truncated = damaged.clone();
     truncated.pop();
     let missing_eoc = &damaged[..damaged.len() - 2];

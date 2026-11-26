@@ -994,7 +994,7 @@ impl DatabinCache {
             #[cfg(verus_keep_ghost)]
             proof! {
                 crate::specs::part2_grid_plan_public_equivalent(&layout.info.image_size,tile_part.coding_style,&tile_part.component_coding_styles,
-                    &tile_part.component_quantizations,&tile_part.roi_shifts,(tile_number,0),(false,74,false),limits);
+                    &tile_part.component_quantizations,&tile_part.roi_shifts,(tile_number,0),(false,74,false,false),limits);
                 if let Err(error)=plan_result {super::jpip_snapshot_grid_plan_error(current_root,native_parts,error);}
             }
             let mut plan=plan_result?;
@@ -1005,7 +1005,7 @@ impl DatabinCache {
                 assert(crate::specs::part2_progression_tile_plan(&layout.info.image_size,
                     tile_part.coding_style, &tile_part.component_coding_styles,
                     &tile_part.component_quantizations, &tile_part.roi_shifts,
-                    (tile_number, 0), (false, 74, false), limits)
+                    (tile_number, 0), (false, 74, false, false), limits)
                     == Ok(crate::decode::progression_plan_view(&plan)));
             }
             maximum_layers = maximum_layers.max(tile_part.coding_style.layers);

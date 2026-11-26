@@ -15,6 +15,18 @@ pub(crate) open spec fn compact_plane(width:usize,height:usize,words:Seq<u64>)->
     Tier1RawPlane {width:width as u16,height:height as u16,
         coefficients:words.map_values(|word:u64|compact_coefficient(word))}
 }
+
+pub(crate) open spec fn compact_packable_coefficient(value:Tier1RawCoefficient)->bool {
+    value.limbs.len()==6 && value.limbs[0]<=u32::MAX
+    && value.limbs[1]==0 && value.limbs[2]==0 && value.limbs[3]==0
+    && value.limbs[4]==0 && value.limbs[5]==0
+    && (value.legacy_bitplane.is_none() || value.legacy_bitplane.get_Some_0()<63)
+}
+
+pub(crate) open spec fn compact_packable_plane(plane:Tier1RawPlane)->bool {
+    forall |i:int| 0<=i<plane.coefficients.len() ==>
+        #[trigger] compact_packable_coefficient(plane.coefficients[i])
+}
 pub(crate) open spec fn compact_bulk_commit(before:Tier1RawPlane,words:Seq<u64>)->((),Tier1RawPlane) {
     ((),Tier1RawPlane {coefficients:words.map_values(|word:u64|compact_coefficient(word)),..before})
 }

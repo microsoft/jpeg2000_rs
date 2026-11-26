@@ -2048,9 +2048,16 @@ class FrameworkTests(WorkingFiles):
         )
 
     def test_inventory_binds_actual_owned_payload_copy_and_ordered_tile_collection(self):
+        recipes = framework._TILE_COLLECTION_CONTRACTS | {
+            key: framework._COLD_RESULT_CONTRACTS[key]
+            for key in (
+                ("src/decode/tile_part_index.rs", "prepare_tile_part_index"),
+                ("src/decode/tile_part_index.rs", "reserve_index_values"),
+            )
+        }
         self._assert_complete_packet_contract_bindings(
             {"part2-complete-native-owned-tile-collection"},
-            framework._TILE_COLLECTION_CONTRACTS, 1,
+            recipes, 4,
         )
 
     def test_contract_method_resolution_handles_clone_trait_and_rejects_other_or_ambiguous_impls(self):
@@ -9622,6 +9629,82 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "collected payload storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
 
+    def test_inventory_stable_copy_index_binds_buffers_order_old_fallback_and_governing_roots(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part2-complete-native-owned-tile-collection")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        mutations = (
+            ("src/decode/tile_part_index.rs", r"if selected_count <= 1", "if selected_count < 1"),
+            ("src/decode/tile_part_index.rs",
+             r"reserve_index_values\(parts,\s*slots,\s*true,\s*parts\.len\(\)\)",
+             "reserve_index_values(parts, slots, true, slots)"),
+            ("src/decode/tile_part_index.rs", r"position -= 1", "position = 0"),
+            ("src/decode/tile_part_index.rs", r"next\[position\] = entry\.head",
+             "next[position] = parts.len()"),
+            ("src/decode/tile_part_index.rs", r"count: entry\.count \+ 1", "count: entry.count"),
+            ("src/decode/tile_part_index.rs",
+             r"None\s*=>\s*return super::execution::collect_tile_parts\(parts,\s*tile\)",
+             "None => return Ok(Vec::new())"),
+            ("src/decode/tile_part_index.rs", r"let count = entry\.count", "let count = 1"),
+            ("src/decode/tile_part_index.rs", r"let copied = part\.try_duplicate\(\)",
+             "let copied = Ok(part.clone())"),
+            ("src/decode/tile_part_index.rs", r"position = following", "position += 1"),
+            ("src/decode/tile_part_index.rs", r"checkpoint_periodic\(next\.len\(\)\)",
+             "checkpoint_periodic(1)"),
+            ("src/decode/tile_part_index.rs", r"checkpoint_periodic\(output\.len\(\)\)",
+             "checkpoint_periodic(1)"),
+            ("src/decode/execution.rs",
+             r"prepare_tile_part_index\(\s*&layout\.tile_parts,\s*slots,\s*selection\.tiles\.len\(\)\s*,?\s*\)",
+             "prepare_tile_part_index(&layout.tile_parts, slots, slots)"),
+            ("src/decode/pdf_trailers.rs",
+             r"prepare_tile_part_index\(\s*&layout\.tile_parts,\s*slots,\s*selection\.tiles\.len\(\)\s*,?\s*\)",
+             "prepare_tile_part_index(&layout.tile_parts, slots, slots)"),
+            ("specs/tile_part_index.rs", r"source != parts \|\| tile_slots != slots",
+             "false || tile_slots != slots"),
+            ("specs/tile_part_index.rs",
+             r"part2_index_capacity_run\(parts,\s*slots,\s*false,\s*events\)",
+             "part2_index_capacity_run(parts, slots, true, events)"),
+            ("specs/tile_part_index.rs", r"events\.drop_first\(\)", "events"),
+            ("specs/cold_decode_packets.rs",
+             r"part2_prepare_tile_index_run\(input\.parts,\s*count as nat,\s*count as nat,\s*events\)",
+             "Some((Ok(()), events))"),
+            ("specs/pdf_trailers.rs",
+             r"part2_prepare_tile_index_run\(input\.parts,\s*part2_index_tile_slots\(&input\.size\),\s*selection\.0\.len\(\),\s*events\)",
+             "Some((Ok(()), events))"),
+        )
+        for relative, pattern, replacement in mutations:
+            source = framework.ROOT / relative
+            original = read_text(source)
+            changed, count = re.subn(pattern, replacement, original, count=1)
+            self.assertEqual(count, 1, (relative, pattern))
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(path=relative, mutation=pattern), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "stable copy tile index"):
+                framework.validate_normative_coverage(data)
+        source = framework.ROOT / "src/decode/tile_part_index.rs"
+        original = read_text(source)
+        for pattern, replacement in (
+            (r"requires slots <= u16::MAX as usize \+ 1", "requires slots <= usize::MAX"),
+            (r"requires elements == if _links", "requires elements <= if _links"),
+            (r"requires optional_index_matches\(\s*codestream::tile_parts_owned_view\(parts@\),\s*index\)",
+             "requires true"),
+        ):
+            changed, count = re.subn(pattern, replacement, original, count=1)
+            self.assertEqual(count, 1, pattern)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(precondition=pattern), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "invalid storage relation"):
+                framework.validate_normative_coverage(data)
+
     def test_inventory_selection_storage_rejects_misbound_capacity_and_erased_stages(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         entry = next(item for item in coverage["requirements"]
@@ -9970,7 +10053,7 @@ class FrameworkTests(WorkingFiles):
             ("src/tier1/state.rs", "CodeBlockPlane::try_duplicate_raw", "width: self.width", "width: 1"),
             ("src/tier1/state.rs", "CodeBlockPlane::clone", "self.coefficients.clone()", "Vec::new()"),
             ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate", "self.plane.try_duplicate_raw(role, false, false)", "self.plane.try_duplicate_raw(role, true, false)"),
-            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate", "source.try_duplicate_raw(role, true, false)", "source.try_duplicate_raw(role, false, false)"),
+            ("src/tier1/ht_checkpoint.rs", "HtCleanupCheckpoint::try_duplicate_for_storage", "plane.try_duplicate_raw(role, true, false)", "plane.try_duplicate_raw(role, false, false)"),
         )
         for relative, symbol, before, after in cases:
             source = framework.ROOT / relative
@@ -10544,7 +10627,7 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_flags", "Err(error)=>Some((Err(error),calls))", "Err(error)=>Some((Err(error),Seq::empty()))"),
             ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance", "empty_with_capacity(count)", "empty_with_capacity(1)"),
             ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance", "coefficients[index].significant", "coefficients[index].negative"),
-            ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane", "ht_collect_cleanup_significance(cleanup_plane.coefficients())", "ht_collect_cleanup_significance(output.coefficients())"),
+            ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane", "ht_collect_cleanup_significance(output.coefficients())", "ht_collect_cleanup_significance(&[])"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()
@@ -10953,6 +11036,44 @@ class FrameworkTests(WorkingFiles):
         ]
         with self.assertRaisesRegex(ValueError, "remaining plane storage requires bounded"):
             framework.validate_normative_coverage(missing)
+
+    def test_inventory_ht_checkpoint_binds_private_mode_packed_tape_and_refinement_source(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part15-cleanup-only-actual-symbol-caller")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/tier1/ht_cleanup.rs", "retain_ht_cleanup(&output, private_plan)",
+             "retain_ht_cleanup(&output, true)"),
+            ("src/tier1/ht_contributions.rs", "decode_ht_refinement_plane(\n                cleanup_plane.read(),",
+             "decode_ht_refinement_plane(\n                fake_cleanup,"),
+            ("src/tier1/ht_checkpoint.rs", "words.push(pack_word(source.coefficients[index]))", "words.push(0)"),
+            ("specs/cold_tier1_planes.rs", "actual!=source || elements!=source.coefficients.len()+1",
+             "actual!=source || elements!=source.coefficients.len()"),
+            ("src/tier1/ht_checkpoint.rs", "geometry_word(source.width, source.height)", "geometry_word(source.width, source.width)"),
+            ("src/tier1/ht_checkpoint.rs", "&self.words[1..]", "&self.words[..]"),
+            ("src/tier1/ht_checkpoint.rs", "return (0, 0, &[])", "return (1, 0, &[])"),
+            ("src/tier1/ht_checkpoint.rs", "code_block_plane_from_dimensions(width, height, role)",
+             "code_block_plane_from_dimensions(height, width, role)"),
+            ("src/decode/planning.rs", "        false,\n        74,\n        false,\n        false,\n        limits,",
+             "        false,\n        74,\n        false,\n        true,\n        limits,"),
+            ("src/decode/execution.rs", "        profile.part15_requires_all_ht_blocks(),\n        true,\n        limits,",
+             "        profile.part15_requires_all_ht_blocks(),\n        false,\n        limits,"),
+            ("src/tier1/contributions.rs", "decoder.private_plan = pack_ht_checkpoint && style.block_coding.uses_high_throughput();",
+             "decoder.private_plan = pack_ht_checkpoint;"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(source=relative), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "remaining plane storage"):
+                framework.validate_normative_coverage(data)
 
     def test_inventory_nested_packet_precinct_storage_requires_primitive_calls_roles_and_prior_owners(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
@@ -12294,7 +12415,7 @@ class FrameworkTests(WorkingFiles):
         original_coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         cases = (
             ("decode_ht_refinement_plane", "ht_refinement_plane", "ht_plane_outcome", None,
-             ((r"code_block_plane_view\(cleanup_plane\)", "code_block_plane_view(unrelated)"),
+             ((r"cleanup_plane\.view\(\)", "unrelated.view()"),
               (r"resource_work_limit\(limits\)", "resource_work_limit(unrelated)"))),
             ("HtRefinementPlaneState::magnitude_sample", "ht_magref_sample", None, "ht_refinement_core_view",
              ((r"magnitude_value\(delta\)", "magnitude_limbs(delta)"),)),

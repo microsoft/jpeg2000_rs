@@ -21,9 +21,11 @@ pub(crate) open spec fn part2_packet_value_run(parts: Seq<Part2OwnedTilePart>, g
         selection: Part2ValidatedSelection, limits: &crate::ResourceLimits,
         events: Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part1DecodedImageModel> {
         if selection.1.len() != 4 { Some((Err(part1_block_placement_error(false)), events)) }
-        else { part2_selected_decode_run(&input.size, input.parts, input.capabilities, selection.0,
-            [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0,
-            Part2DecodedLayoutTile { prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0 }, events) }
+        else { part2_jpip_snapshot_bind(
+            part2_prepare_tile_index_run(input.parts, part2_index_tile_slots(&input.size), selection.0.len(), events),
+            |_: (), rest| part2_selected_decode_run(&input.size, input.parts, input.capabilities, selection.0,
+                [selection.1[0], selection.1[1], selection.1[2], selection.1[3]], selection.2, limits, 0,
+                Part2DecodedLayoutTile { prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0 }, rest)) }
     }
     pub(crate) open spec fn part2_layout_decode_run(input: Part2DecoderLayoutInput, requested: Option<Part2DecodeSelection>,
         limits: &crate::ResourceLimits, events: Seq<Part2JpipSnapshotEvent>) -> Part2ColdRun<Part1DecodedImageModel> {
@@ -35,7 +37,10 @@ pub(crate) open spec fn part2_packet_value_run(parts: Seq<Part2OwnedTilePart>, g
                     Err(error) => Some((Err(error), events)),
                     Ok(count) => if count > u16::MAX as u64 + 1 {
                         Some((Err(crate::DecodeError::MalformedInput { offset: 0, kind: crate::MalformedKind::InvalidImageGeometry }), events))
-                    } else { part2_full_decode_run(&input.size, input.parts, input.capabilities, limits, count, 0, initial, events) },
+                    } else { part2_jpip_snapshot_bind(
+                        part2_prepare_tile_index_run(input.parts, count as nat, count as nat, events),
+                        |_: (), rest| part2_full_decode_run(
+                            &input.size, input.parts, input.capabilities, limits, count, 0, initial, rest)) },
                 },
                 Some(selection) => part2_jpip_snapshot_bind(
                     part2_validate_selection_run(crate::codestream::selection_geometry_view(&input.size), selection, events),
@@ -66,6 +71,10 @@ pub(crate) open spec fn part2_packet_value_run(parts: Seq<Part2OwnedTilePart>, g
                             part2_full_decode_normal(&input.size, input.parts, input.capabilities, limits, count, 0, initial);
                             part2_decode_eta(|events|part2_full_decode_run(&input.size,input.parts,input.capabilities,limits,count,0,initial,events),
                                 part2_full_layout_tiles(&input.size,input.parts,input.capabilities,limits,count,0,initial));
+                            part2_index_prefix_normal(input.parts, count as nat, count as nat,
+                                |events| part2_full_decode_run(&input.size,input.parts,input.capabilities,limits,count,0,initial,events),
+                                part2_full_layout_tiles(&input.size,input.parts,input.capabilities,limits,count,0,initial));
+                            part2_decode_eta(|events| part2_layout_decode_run(input, None, limits, events), result);
                         },
                 },
                 Some(selection) => {
@@ -82,6 +91,11 @@ pub(crate) open spec fn part2_packet_value_run(parts: Seq<Part2OwnedTilePart>, g
                                 part2_decode_eta(|events| part2_selected_decode_run(&input.size, input.parts, input.capabilities,
                                     selection.0, [selection.1[0], selection.1[1], selection.1[2], selection.1[3]],
                                     selection.2, limits, 0, initial, events), result);
+                                part2_index_prefix_normal(input.parts, part2_index_tile_slots(&input.size), selection.0.len(),
+                                    |events| part2_selected_decode_run(&input.size, input.parts, input.capabilities,
+                                        selection.0, [selection.1[0], selection.1[1], selection.1[2], selection.1[3]],
+                                        selection.2, limits, 0, initial, events), result);
+                                part2_decode_eta(|events| part2_layout_after_selection_run(input, selection, limits, events), result);
                             }
                         },
                     }
@@ -269,10 +283,10 @@ pub(crate) proof fn part2_tile_decode_components_actual(size: &crate::codestream
     requires part2_tile_decode_metadata_owned(parts, crate::codestream::image_size_component_count(size), discard) == Ok(metadata),
         part2_progression_tile_plan_owned(size, metadata.first.coding_style, &metadata.first.component_coding_styles,
             metadata.first.component_quantizations, &metadata.first.roi_shifts, (tile, match discard { None => 0u8, Some(levels) => levels }),
-            (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps)), limits) == Ok(plan),
+            (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps), true), limits) == Ok(plan),
         part2_planned_tile_accounting(plan, match discard { None => None, Some(_) => Some(metadata.resolution_counts) }, initial, limits) == Ok(counters),
         part2_grid_plan_result(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,
-            (tile,match discard {None=>0u8,Some(level)=>level}),(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps)),limits,Ok(plan)),
+            (tile,match discard {None=>0u8,Some(level)=>level}),(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps),true),limits,Ok(plan)),
         part2_tile_metadata_result(parts,crate::codestream::image_size_component_count(size),discard,Ok(metadata)),
         part2_planned_decode_result(plan, parts, metadata.first, size, metadata.standard, match discard { None => None, Some(_) => Some(metadata.resolution_counts) },
             limits, prepared, work, result),
@@ -289,10 +303,10 @@ pub(crate) proof fn part2_tile_decode_components_actual(size: &crate::codestream
     part2_decode_eta(|events|part2_jpip_snapshot_bind(part2_planned_decode_run(plan,parts,metadata.first,size,metadata.standard,maximum,limits,prepared,work,events),finish),final_result);
     reveal(part2_grid_plan_result);
     part2_grid_plan_frames(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,
-        (tile,match discard {None=>0u8,Some(level)=>level}),(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps)),limits,Ok(plan));
+        (tile,match discard {None=>0u8,Some(level)=>level}),(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps),true),limits,Ok(plan));
     part2_decode_eta(|events|part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,plan,events),final_result);
     part2_cold_bind(|events|part2_grid_plan_run(size,metadata.first.coding_style,&metadata.first.component_coding_styles,metadata.first.component_quantizations,&metadata.first.roi_shifts,
-        (tile,match discard {None=>0u8,Some(level)=>level}),(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps)),limits,events),
+        (tile,match discard {None=>0u8,Some(level)=>level}),(part2_profile_multiple_sets(caps),part2_profile_magnitude_bound(caps),part2_profile_force_ht(caps),true),limits,events),
         |plan:Part2ProgressionTilePlan,rest|part2_tile_after_grid_plan(size,parts,metadata,discard,limits,prepared,initial,work,plan,rest),Ok(plan),final_result);
     part2_decode_eta(|events|part2_tile_after_metadata_run(size,tile,parts,caps,discard,limits,prepared,initial,work,metadata,events),final_result);
     part2_tile_metadata_frames(parts,crate::codestream::image_size_component_count(size),discard,Ok(metadata));
