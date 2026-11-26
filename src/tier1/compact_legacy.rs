@@ -1221,15 +1221,13 @@ impl CompactPlane {
         orientation: SubbandOrientation,
         causal: bool,
     ) -> Result<Tier1PassStatistics, DecodeError> {
-        #[cfg(verus_keep_ghost)]
-        proof_decl! { let ghost expected_kind = kind; }
-        let kind = match KIND {
+        let pass_kind = match KIND {
             0 => Tier1PassKind::SignificancePropagation,
             1 => Tier1PassKind::MagnitudeRefinement,
             _ => Tier1PassKind::Cleanup,
         };
         #[cfg(verus_keep_ghost)]
-        proof! { assert(kind == expected_kind); }
+        proof! { assert(pass_kind == kind); }
         let mut stats = ht_statistics_zero();
         let mut stripe = 0;
         #[cfg(verus_keep_ghost)]
@@ -1247,6 +1245,7 @@ impl CompactPlane {
         }
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant stripe<=self.height,self.ready(state),self.width==old(self).width,self.height==old(self).height,
+                pass_kind==kind,
                 crate::specs::compact_bitplane_flags_frame(super::legacy_bitplane_view(old(state)),super::legacy_bitplane_view(state)),
                 initial==old(self).frame(old(state),old(decoder),crate::specs::tier1_statistics_zero()),
                 goal==crate::specs::compact_pass_model(initial.plane,initial.state,initial.symbols,kind,orientation,causal),
@@ -1269,6 +1268,7 @@ impl CompactPlane {
             let mut x = 0;
             #[cfg_attr(verus_keep_ghost, verus_spec(
                 invariant x<=self.width,stripe<self.height,0<rows<=4,stripe+rows<=self.height,
+                    pass_kind==kind,
                     self.ready(state),self.width==old(self).width,self.height==old(self).height,
                     crate::specs::compact_bitplane_flags_frame(super::legacy_bitplane_view(old(state)),super::legacy_bitplane_view(state)),
                     initial==old(self).frame(old(state),old(decoder),crate::specs::tier1_statistics_zero()),
@@ -1286,7 +1286,7 @@ impl CompactPlane {
                 self.column(
                     state,
                     decoder,
-                    (kind, orientation, causal),
+                    (pass_kind, orientation, causal),
                     (x, stripe, rows),
                     &mut stats,
                 )?;
@@ -1312,7 +1312,7 @@ impl CompactPlane {
             reveal(crate::specs::part1_legacy_stripes);
             if kind is MagnitudeRefinement{crate::specs::compact_frontier_finished(self.width,self.height,self.entries@,super::legacy_bitplane_view(state));}
         }
-        match kind {
+        match pass_kind {
             Tier1PassKind::SignificancePropagation => {
                 state.significance_propagation_complete = true
             }
