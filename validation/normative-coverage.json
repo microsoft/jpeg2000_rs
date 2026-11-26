@@ -15557,8 +15557,8 @@
         {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "PackedRow::narrow"},
         {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "PackedRow::bounded"},
         {"path": "src/tier1/private_ht.rs", "symbol": "PrivateHtDecoder::primary_slices"},
-        {"path": "src/tier1/compact_legacy.rs", "symbol": "compact_word_reconstructed_magnitude"},
-        {"path": "src/tier1/compact_legacy.rs", "symbol": "compact_word_reconstructed_negative"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "compact_word_reconstructed_magnitude"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "compact_word_reconstructed_negative"},
         {"path": "src/packet/private_ht.rs", "symbol": "new_private_ht_resolution_precinct"},
         {"path": "src/packet/private_ht.rs", "symbol": "decode_private_ht_resolution_packets"},
         {"path": "src/codestream/coding_style.rs", "symbol": "effective_coding_styles_equal"}

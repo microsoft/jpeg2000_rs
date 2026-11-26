@@ -103,7 +103,8 @@ fn preflight<P: ReadablePlane>(
     }
     let mut row = 0;
     #[cfg_attr(verus_keep_ghost, verus_spec(
-        invariant row<=height,width==plane.raw_plane().width,height==plane.raw_plane().height,
+        invariant plane.plane_valid(),
+            row<=height,width==plane.raw_plane().width,height==plane.raw_plane().height,
             width>0,height>0,count==(width as int)*(height as int),area==(destination.width as int)*(destination.height as int),
             original==working_subband_view(*destination),
             crate::specs::part2_fused_shape(original,plane.raw_plane(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits)),
@@ -203,7 +204,8 @@ fn write<P: ReadablePlane>(
     proof! {crate::specs::part2_fused_geometry(original,plane.raw_plane(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible);}
     let mut row = 0;
     #[cfg_attr(verus_keep_ghost, verus_spec(
-        invariant row<=height,width==plane.raw_plane().width,height==plane.raw_plane().height,
+        invariant plane.plane_valid(),
+            row<=height,width==plane.raw_plane().width,height==plane.raw_plane().height,
             original==working_subband_view(*old(destination)),
             values==crate::specs::part2_fused_values(plane.raw_plane(),quantizer.roi_shift,quantizer.step,quantizer.reversible),
             crate::specs::part2_fused_write_admit(original,plane.raw_plane(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible),

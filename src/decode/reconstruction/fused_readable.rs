@@ -1,10 +1,61 @@
 use crate::DecodeError;
-use crate::tier1::{
-    CodeBlockPlane, CoefficientState, PrivateHtDecoder, compact_word_reconstructed_magnitude,
-    compact_word_reconstructed_negative,
-};
+use crate::tier1::{CodeBlockPlane, CoefficientState, PrivateHtDecoder};
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
+
+const PACKED_MAG: u64 = u32::MAX as u64;
+const PACKED_BP_SHIFT: u32 = 32;
+const PACKED_BP_MASK: u64 = 63 << PACKED_BP_SHIFT;
+const PACKED_SIG: u64 = 1 << 38;
+const PACKED_NEG: u64 = 1 << 39;
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures Some(result)==crate::specs::part2_narrow_magnitude(crate::specs::compact_coefficient(value)),
+))]
+#[inline]
+fn compact_word_reconstructed_magnitude(value: u64) -> u64 {
+    if value & PACKED_SIG == 0 {
+        return 0;
+    }
+    let bp = (value & PACKED_BP_MASK) >> PACKED_BP_SHIFT;
+    let magnitude = value & PACKED_MAG;
+    let midpoint = if bp == 63 {
+        0
+    } else {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(bp == ((value >> 32) & 63) && bp < 63) by(bit_vector)
+                requires bp == (value & (63u64 << 32)) >> 32, bp != 63;
+        }
+        crate::refinement::tier1_midpoint_delta(bp as u16)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(bp == ((value >> 32) & 63) && bp <= 63) by(bit_vector)
+            requires bp == (value & (63u64 << 32)) >> 32;
+        assert(magnitude <= 0xffff_ffffu64) by(bit_vector)
+            requires magnitude == value & 0xffff_ffffu64;
+        if bp == 63 || bp == 0 {
+            assert(midpoint == 0u64);
+        } else {
+            let shift: u64 = (bp - 1) as u64;
+            assert(midpoint == (1u64 << shift));
+            assert((1u64 << shift) <= (1u64 << 61)) by(bit_vector)
+                requires shift < 62u64;
+        }
+        assert(magnitude as int + midpoint as int <= u64::MAX as int);
+    }
+    magnitude + midpoint
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == (crate::specs::compact_coefficient(value).significant
+        && crate::specs::compact_coefficient(value).negative),
+))]
+#[inline]
+fn compact_word_reconstructed_negative(value: u64) -> bool {
+    (value & PACKED_SIG != 0) && (value & PACKED_NEG != 0)
+}
 
 pub(super) type WidePlane<'a> = &'a CodeBlockPlane;
 pub(super) type WideRow<'a> = &'a [CoefficientState];
