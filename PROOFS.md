@@ -8188,3 +8188,8 @@ compare all native image fields and first errors across raw empty/reordered/
 duplicate parts, zero/overflow/count-cap geometry, reductions/regions/sets
 and unchanged limits. Raw parser/typed final/file/F2/F4/final F8 and hosted/
 main/publication remain separate.
+
+The JP2 instruction parser unfolds each opaque scalar record in a local
+proof assertion, retaining its exact geometry-before-lifetime error order
+without exposing that definition throughout the instruction loop. Runtime
+bodies, contracts, invariants, resource budgets and proof boundaries are unchanged.

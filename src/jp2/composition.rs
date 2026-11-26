@@ -878,7 +878,22 @@ pub(super) fn parse_instruction_set(
             assert(source_width == if have_source_region { crate::specs::part2_composition_word_at(box_ref.payload@, source_start + 8) } else { 0 });
             assert(source_height == if have_source_region { crate::specs::part2_composition_word_at(box_ref.payload@, source_start + 12) } else { 0 });
             assert(cursor == record_end);
-            reveal(crate::specs::part2_instruction_record);
+            assert(crate::specs::part2_instruction_record(super::box_reference_view(box_ref),
+                composition, offset, flags, tick, position as nat) ==
+                if target_width == 0 || target_height == 0
+                    || (have_source_region && (source_width == 0 || source_height == 0)) {
+                    Err(DecodeError::MalformedInput {offset, kind: MalformedKind::InvalidImageGeometry})
+                } else if life_value as nat * tick as nat > u32::MAX as nat {
+                    Err(crate::specs::part2_palette_arithmetic_error(offset))
+                } else {
+                    Ok(CompositionInstruction {
+                        target_x, target_y, target_width, target_height,
+                        life: (life_value as nat * tick as nat) as u32, persistent, next_reuse,
+                        source_x, source_y, source_width, source_height,
+                    })
+                }) by {
+                reveal(crate::specs::part2_instruction_record);
+            }
         }
         if cursor != record_end {
             return Err(DecodeError::malformed(
@@ -903,7 +918,6 @@ pub(super) fn parse_instruction_set(
         )?;
         #[cfg(verus_keep_ghost)]
         proof! {
-            reveal(crate::specs::part2_instruction_record);
             assert(crate::specs::part2_instruction_record(super::box_reference_view(box_ref),
                 composition, offset, flags, tick, position as nat) == Ok(CompositionInstruction {
                     target_x, target_y, target_width, target_height, life, persistent, next_reuse,
