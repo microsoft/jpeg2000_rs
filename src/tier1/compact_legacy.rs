@@ -180,6 +180,50 @@ pub(super) fn unpack_word(value: u64) -> CoefficientState {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures Some(result)==crate::specs::part2_narrow_magnitude(crate::specs::compact_coefficient(value)),
+))]
+#[inline]
+pub(crate) fn compact_word_reconstructed_magnitude(value: u64) -> u64 {
+    if value & SIG == 0 {
+        return 0;
+    }
+    let bp = (value & BP_MASK) >> BP_SHIFT;
+    let magnitude = value & MAG;
+    let midpoint = if bp == 63 {
+        0
+    } else {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(bp == ((value >> 32) & 63) && bp < 63) by(bit_vector)
+                requires bp == (value & (63u64 << 32)) >> 32, bp != 63;
+        }
+        crate::refinement::tier1_midpoint_delta(bp as u16)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(bp == ((value >> 32) & 63) && bp <= 63) by(bit_vector)
+            requires bp == (value & (63u64 << 32)) >> 32;
+        assert(magnitude <= 0xffff_ffffu64) by(bit_vector)
+            requires magnitude == value & 0xffff_ffffu64;
+        assert(midpoint <= (1u64 << 61)) by(bit_vector)
+            requires bp == 63 ==> midpoint == 0u64,
+                bp == 0 ==> midpoint == 0u64,
+                (0 < bp && bp < 63) ==> midpoint == (1u64 << ((bp - 1) as u64));
+        assert(magnitude as int + midpoint as int <= u64::MAX as int);
+    }
+    magnitude + midpoint
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == (crate::specs::compact_coefficient(value).significant
+        && crate::specs::compact_coefficient(value).negative),
+))]
+#[inline]
+pub(crate) fn compact_word_reconstructed_negative(value: u64) -> bool {
+    (value & SIG != 0) && (value & NEG != 0)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::compact_packable_coefficient(super::coefficient_raw_view(coefficient)),
 ))]
 pub(super) fn packable(coefficient: CoefficientState) -> bool {

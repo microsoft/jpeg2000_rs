@@ -239,9 +239,9 @@ def _coverage_function_header(
             trait_scope = r"(?:Clone[ \t]+for[ \t]+)?"
         if symbol == "JpipByteView::as_ref":
             trait_scope = r"AsRef[ \t]*<[ \t]*\[[ \t]*u8[ \t]*\][ \t]*>[ \t]+for[ \t]+"
-        if owner in {"WidePlane", "PrivatePlane"}:
+        if owner in {"WidePlane", "PackedPlane", "PrivatePlane"}:
             trait_scope = r"(?:ReadablePlane[ \t]+for[ \t]+)?"
-        if owner in {"WideRow", "PrivateRow"}:
+        if owner in {"WideRow", "PackedRow", "PrivateRow"}:
             trait_scope = r"(?:ReadableRow[ \t]+for[ \t]+)?"
         if implementation_ranges is None:
             implementation_ranges = {}
@@ -295,17 +295,21 @@ def _validate_static_fused_readers(source_text):
     compact = "".join(reader.split())
     required = (
         "pub(super)typeWidePlane<'a>=&'aCodeBlockPlane;",
-        "pub(super)typePrivatePlane<'a>=&'aPrivateHtDecoder;",
         "pub(super)typeWideRow<'a>=&'a[CoefficientState];",
+        "pub(super)typePackedRow<'a>=&'a[u64];",
+        "pub(super)structPackedPlane<'a>",
         "typeRow:ReadableRow;",
         "ensuresresult.valid(),result.raw_row()==self.raw_plane().coefficients.subrange(startasint,endasint),",
     )
     if any(fragment not in compact for fragment in required):
         raise ValueError("remaining plane storage private HT primary static fused readers require actual borrowed types and complete row projection")
-    for symbol in ("from_wide", "from_private"):
+    for symbol in ("from_wide",):
         body = _coverage_function_body(reader, _coverage_function_header(reader, symbol, module_scope=True))
         if body is None or "".join(body.split()) != "plane":
             raise ValueError("remaining plane storage private HT primary static fused readers require unchanged borrowed plane producers")
+    packed_body = _coverage_function_body(reader, _coverage_function_header(reader, "from_packed", module_scope=True))
+    if packed_body is None or "".join(packed_body.split()) != "PackedPlane{width,height,words,decoder,}":
+        raise ValueError("remaining plane storage private HT primary static fused readers require unchanged borrowed plane producers")
     fused = source_text((ROOT / "src/decode/reconstruction/fused.rs").resolve())
     for symbol in ("preflight", "write", "place_readable"):
         header = _coverage_function_header(fused, symbol, module_scope=True)
@@ -7812,13 +7816,15 @@ _PRIVATE_STANDARD_HT_TESTS = {
 _PRIVATE_STANDARD_HT_IMPL = {
     ("src/decode/reconstruction/fused.rs", "place_private"),
     ("src/decode/reconstruction/fused.rs", "place_readable"),
-    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::coefficient"),
     ("src/decode/reconstruction/fused_readable.rs", "WidePlane::row"),
     ("src/decode/reconstruction/fused_readable.rs", "WideRow::narrow"),
     ("src/decode/reconstruction/fused_readable.rs", "WideRow::bounded"),
-    ("src/decode/reconstruction/fused_readable.rs", "PrivatePlane::row"),
-    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::narrow"),
-    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::bounded"),
+    ("src/decode/reconstruction/fused_readable.rs", "PackedPlane::row"),
+    ("src/decode/reconstruction/fused_readable.rs", "PackedRow::narrow"),
+    ("src/decode/reconstruction/fused_readable.rs", "PackedRow::bounded"),
+    ("src/tier1/private_ht.rs", "PrivateHtDecoder::primary_slices"),
+    ("src/tier1/compact_legacy.rs", "compact_word_reconstructed_magnitude"),
+    ("src/tier1/compact_legacy.rs", "compact_word_reconstructed_negative"),
     ("src/decode/execution.rs", "decode_tile_parts_at"),
     ("src/decode/private_ht.rs", "standard_eligible"),
     ("src/decode/private_ht.rs", "standard_component_eligible"),
@@ -8162,7 +8168,9 @@ _PLANE_ROLE_NATIVE_ORDER = {
         "super::reconstruction::fused::place_private(decoder,destination,geometry,placement.x,placement.y,reversible,limits,)",
     ),
     ("src/decode/reconstruction/fused.rs", "place_private"): (
-        "place_readable(readable::from_private(plane),destination,geometry,x,y,reversible,limits,)",
+        "match plane.primary_slices()",
+        "place_readable(readable::from_wide(wide),destination,geometry,x,y,reversible,limits,)",
+        "place_readable(readable::from_packed(width,height,words,plane),destination,geometry,x,y,reversible,limits,)",
     ),
     ("src/decode/reconstruction/fused.rs", "place_readable"): (
         "x.checked_add(width)", "if let Some(quantizer) = preflight(", "return write(",
@@ -8183,20 +8191,17 @@ _PLANE_ROLE_NATIVE_ORDER = {
         "crate::transform::quantize_bounded_magnitude(magnitude,negative,quantizer.step,quantizer.reversible,)",
         "visited[column] = true",
     ),
-    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::coefficient"): (
-        "self.decoder.raw_coefficient(self.start + index)",
-    ),
     ("src/decode/reconstruction/fused_readable.rs", "WidePlane::coefficient_count"): (
         "self.coefficients().len()",
     ),
-    ("src/decode/reconstruction/fused_readable.rs", "PrivatePlane::coefficient_count"): (
-        "PrivateHtDecoder::coefficient_count(self)",
+    ("src/decode/reconstruction/fused_readable.rs", "PackedPlane::coefficient_count"): (
+        "self.words.len()",
     ),
     ("src/decode/reconstruction/fused_readable.rs", "WidePlane::row"): (
         "&self.coefficients()[start..end]",
     ),
-    ("src/decode/reconstruction/fused_readable.rs", "PrivatePlane::row"): (
-        "PrivateRow { decoder: self, start, end, }",
+    ("src/decode/reconstruction/fused_readable.rs", "PackedPlane::row"): (
+        "&self.words[start..end]",
     ),
     ("src/decode/reconstruction/fused_readable.rs", "WideRow::narrow"): (
         "let coefficient = &self[index]", "Ok(coefficient.narrow_reconstructed_magnitude())",
@@ -8205,20 +8210,20 @@ _PLANE_ROLE_NATIVE_ORDER = {
         "let coefficient = &self[index]", "coefficient.reconstructed_magnitude_bounded()",
         "coefficient.reconstructed_negative()",
     ),
-    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::narrow"): (
-        "let coefficient = self.coefficient(index)?", "coefficient.narrow_reconstructed_magnitude()",
+    ("src/decode/reconstruction/fused_readable.rs", "PackedRow::narrow"): (
+        "let word = self[index]", "Ok(Some(compact_word_reconstructed_magnitude(word)))",
     ),
-    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::bounded"): (
-        "let coefficient = self.coefficient(index)?", "coefficient.reconstructed_magnitude_bounded()",
-        "coefficient.reconstructed_negative()",
+    ("src/decode/reconstruction/fused_readable.rs", "PackedRow::bounded"): (
+        "let word = self[index]", "compact_word_reconstructed_magnitude(word)",
+        "compact_word_reconstructed_negative(word)",
     ),
     ("src/decode/reconstruction/fused_readable.rs", "from_wide"): ("plane",),
-    ("src/decode/reconstruction/fused_readable.rs", "from_private"): ("plane",),
+    ("src/decode/reconstruction/fused_readable.rs", "from_packed"): ("PackedPlane {", "width,", "height,", "words,", "decoder,",),
     ("src/decode/reconstruction/fused_readable.rs", "WidePlane::collect"): (
         "super::collect_prepare_coefficients(self)",
     ),
-    ("src/decode/reconstruction/fused_readable.rs", "PrivatePlane::collect"): (
-        "PrivateHtDecoder::collect(self)",
+    ("src/decode/reconstruction/fused_readable.rs", "PackedPlane::collect"): (
+        "PrivateHtDecoder::collect(self.decoder)",
     ),
     ("src/tier1/private_ht.rs", "new_private_ht_decoder"): (
         "!style.force_high_throughput", "let initialized = private_initial(width, height)", "let primary = initialized?",

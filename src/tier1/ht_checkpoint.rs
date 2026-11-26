@@ -64,6 +64,11 @@ pub(super) enum HtCheckpointRef<'a> {
     Packed(&'a PackedCleanup),
 }
 
+pub(crate) enum PrivatePrimarySlices<'a> {
+    Wide(&'a CodeBlockPlane),
+    Packed(u16, u16, &'a [u64]),
+}
+
 #[cfg(verus_keep_ghost)]
 verus! {
     impl PackedCleanup {
@@ -317,6 +322,28 @@ impl HtCleanupCheckpoint {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures match result {
+            PrivatePrimarySlices::Wide(plane) => code_block_plane_view(plane) == self.view(),
+            PrivatePrimarySlices::Packed(width, height, words) =>
+                width == self.view().width
+                && height == self.view().height
+                && self.view().coefficients == words@.map_values(|word:u64|crate::specs::compact_coefficient(word)),
+        },
+    ))]
+    #[inline]
+    pub(super) fn private_slices(&self) -> PrivatePrimarySlices<'_> {
+        #[cfg(verus_keep_ghost)]
+        proof! {reveal(HtCleanupCheckpoint::view);}
+        match self {
+            Self::Wide(plane) => PrivatePrimarySlices::Wide(plane),
+            Self::Packed(plane) => {
+                let (width, height, cells) = plane.header_and_cells();
+                PrivatePrimarySlices::Packed(width, height, cells)
+            }
+        }
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures result.0==self.view().width,result.1==self.view().height,
     ))]
     pub(super) fn private_dimensions(&self) -> (u16, u16) {
@@ -331,6 +358,7 @@ impl HtCleanupCheckpoint {
         }
     }
 
+    #[cfg(test)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures result==self.view().coefficients.len(),
             forall|i:int|0<=i<self.view().coefficients.len() ==> #[trigger] self.view().coefficients[i].limbs.len()==6,

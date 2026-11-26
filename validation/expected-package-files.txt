@@ -190,6 +190,7 @@ specs/pdf_jpx.rs
 specs/pdf_present_tile.rs
 specs/pdf_tile_count.rs
 specs/pdf_trailers.rs
+specs/persistent_tile_configuration.rs
 specs/private_ht_decoder.rs
 specs/private_ht_image.rs
 specs/private_ht_packet.rs
@@ -197,10 +198,13 @@ specs/private_ht_packet_decode.rs
 specs/private_ht_plan.rs
 specs/private_ht_primary.rs
 specs/private_ht_reconstruction.rs
+specs/private_ht_standard_image.rs
+specs/private_ht_standard_packet.rs
+specs/private_ht_standard_plan.rs
+specs/private_ht_standard_precinct.rs
 specs/private_ht_storage.rs
 specs/private_ht_tile.rs
 specs/private_ht_tile_loop.rs
-specs/persistent_tile_configuration.rs
 specs/progression_coverage.rs
 specs/raw_decode.rs
 specs/raw_layout.rs
@@ -285,6 +289,7 @@ src/decode/private_ht.rs
 src/decode/proof_support.rs
 src/decode/raw_typed_result_tests.rs
 src/decode/reconstruction/fused.rs
+src/decode/reconstruction/fused_readable.rs
 src/decode/reconstruction/fused_tests.rs
 src/decode/reconstruction.rs
 src/decode/selection.rs

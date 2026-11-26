@@ -11082,9 +11082,9 @@ class FrameworkTests(WorkingFiles):
             ("src/decode/private_ht.rs", "super::reconstruction::fused::place_private(", "super::reconstruction::write_quantized_block("),
             ("src/decode/reconstruction/fused.rs", "if let Some(quantizer) = preflight(", "if let Some(quantizer) = bypass_preflight("),
             ("src/decode/reconstruction/fused_readable.rs", "coefficient.reconstructed_magnitude_bounded()", "0"),
-            ("src/decode/reconstruction/fused_readable.rs", "self.decoder.raw_coefficient(self.start + index)", "self.decoder.raw_coefficient(index)"),
-            ("src/decode/reconstruction/fused_readable.rs", "PrivateHtDecoder::coefficient_count(self)", "0"),
-            ("src/decode/reconstruction/fused_readable.rs", "PrivateHtDecoder::collect(self)", "Ok(Vec::new())"),
+            ("src/decode/reconstruction/fused_readable.rs", "&self.words[start..end]", "&self.words[0..end]"),
+            ("src/decode/reconstruction/fused_readable.rs", "self.words.len()", "0"),
+            ("src/decode/reconstruction/fused_readable.rs", "PrivateHtDecoder::collect(self.decoder)", "Ok(Vec::new())"),
             ("src/tier1/private_ht.rs", "let copied = self.stage()", "let copied = self.into_wide()"),
             ("src/tier1/private_ht.rs", "let converted = staged.into_wide()", "let converted = staged.stage()"),
             ("src/tier1/private_ht.rs", "*self = retained", "drop(retained)"),
@@ -11106,8 +11106,8 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "remaining plane storage|private HT primary"):
                 framework.validate_normative_coverage(data)
         scoped_mutations = (
-            ("src/decode/reconstruction/fused_readable.rs", "from_private",
-             "plane", "other"),
+            ("src/decode/reconstruction/fused_readable.rs", "from_packed",
+             "words,", "other,"),
             ("src/decode/execution.rs", "decode_tile_parts_at",
              "if super::private_ht::standard_eligible(", "if false && super::private_ht::standard_eligible("),
             ("src/codestream/coding_style.rs", "effective_coding_styles_equal",

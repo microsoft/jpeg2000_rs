@@ -616,6 +616,23 @@ impl PrivateHtDecoder {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures match result {
+            super::ht_checkpoint::PrivatePrimarySlices::Wide(plane) =>
+                super::code_block_plane_view(plane) == self.view().plane,
+            super::ht_checkpoint::PrivatePrimarySlices::Packed(width, height, words) =>
+                width == self.view().plane.width
+                && height == self.view().plane.height
+                && self.view().plane.coefficients == words@.map_values(|word:u64|crate::specs::compact_coefficient(word)),
+        },
+    ))]
+    #[inline]
+    pub(crate) fn primary_slices(&self) -> super::ht_checkpoint::PrivatePrimarySlices<'_> {
+        #[cfg(verus_keep_ghost)]
+        proof! {reveal(PrivateHtDecoder::view);}
+        self.primary.private_slices()
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures result.0==self.view().plane.width,result.1==self.view().plane.height,
     ))]
     pub(crate) fn dimensions(&self) -> (u16, u16) {
@@ -624,6 +641,7 @@ impl PrivateHtDecoder {
         self.primary.private_dimensions()
     }
 
+    #[cfg(test)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures result==self.view().plane.coefficients.len(),
             forall|i:int|0<=i<self.view().plane.coefficients.len() ==> #[trigger] self.view().plane.coefficients[i].limbs.len()==6,
@@ -634,6 +652,7 @@ impl PrivateHtDecoder {
         self.primary.private_coefficient_count()
     }
 
+    #[cfg(test)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures super::coefficient_raw_outcome(result)==
             if index<self.view().plane.coefficients.len(){Ok(self.view().plane.coefficients[index as int])}

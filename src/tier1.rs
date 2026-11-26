@@ -566,6 +566,7 @@ mod ht_cleanup;
 pub use ht_cleanup::complete_ht_kappa;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod ht_checkpoint;
+pub(crate) use ht_checkpoint::PrivatePrimarySlices;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod private_ht;
 #[cfg(test)]
@@ -588,6 +589,9 @@ mod ht_refinement_readers;
 mod ht_segments;
 pub use ht_segments::parse_ht_block_segments;
 mod compact_legacy;
+pub(crate) use compact_legacy::{
+    compact_word_reconstructed_magnitude, compact_word_reconstructed_negative,
+};
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod legacy_passes;
 pub use legacy_passes::decode_cleanup_pass;

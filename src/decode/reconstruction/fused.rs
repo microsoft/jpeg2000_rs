@@ -20,7 +20,8 @@ struct Quantizer {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    requires x as int+plane.raw_plane().width as int<=geometry.width,
+    requires plane.plane_valid(),
+        x as int+plane.raw_plane().width as int<=geometry.width,
         y as int+plane.raw_plane().height as int<=geometry.height,
     ensures match result{
         Ok(Some(quantizer))=>crate::specs::part2_fused_eligible(working_subband_view(*destination),plane.raw_plane(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits))
@@ -175,7 +176,8 @@ fn preflight<P: ReadablePlane>(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    requires crate::specs::part2_fused_write_admit(working_subband_view(*old(destination)),plane.raw_plane(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible),
+    requires plane.plane_valid(),
+        crate::specs::part2_fused_write_admit(working_subband_view(*old(destination)),plane.raw_plane(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible),
     ensures result==Ok(()),working_subband_view(*final(destination))==crate::specs::part2_fused_rows(
         working_subband_view(*old(destination)),crate::specs::part2_fused_values(plane.raw_plane(),quantizer.roi_shift,quantizer.step,quantizer.reversible),
         plane.raw_plane().width as u32,x,y,plane.raw_plane().height as nat),
@@ -286,6 +288,7 @@ fn write<P: ReadablePlane>(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires plane.plane_valid(),
     ensures crate::specs::part2_fused_band_result(working_subband_view(*old(destination)),plane.raw_plane(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits),
             (result,working_subband_view(*final(destination)))),
         result!=Err(DecodeError::AllocationFailed) ==>
@@ -411,15 +414,26 @@ pub(in crate::decode) fn place_private(
     reversible: bool,
     limits: &ResourceLimits,
 ) -> Result<(), DecodeError> {
-    place_readable(
-        readable::from_private(plane),
-        destination,
-        geometry,
-        x,
-        y,
-        reversible,
-        limits,
-    )
+    match plane.primary_slices() {
+        crate::tier1::PrivatePrimarySlices::Wide(wide) => place_readable(
+            readable::from_wide(wide),
+            destination,
+            geometry,
+            x,
+            y,
+            reversible,
+            limits,
+        ),
+        crate::tier1::PrivatePrimarySlices::Packed(width, height, words) => place_readable(
+            readable::from_packed(width, height, words, plane),
+            destination,
+            geometry,
+            x,
+            y,
+            reversible,
+            limits,
+        ),
+    }
 }
 
 #[cfg(test)]
