@@ -10193,8 +10193,8 @@ class FrameworkTests(WorkingFiles):
             ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay", "self.legacy_segment = Some(segment)", "self.legacy_segment = None"),
             ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay", "restored?", "let ignored = restored"),
             ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::decode_legacy_replay",
-             "self.decode_legacy_segment_with_compact(&segment.input, segment.passes, limits, false)",
-             "self.decode_legacy_segment_with_compact(&segment.input, segment.passes, limits, true)"),
+             "self.decode_legacy_segment_with_compact(&segment.input, segment.passes, limits, true)",
+             "self.decode_legacy_segment_with_compact(&segment.input, segment.passes, limits, false)"),
             ("src/packet/body.rs", "decode_legacy_code_block_segment", "decoded?", "let ignored = decoded"),
         )
         for relative, symbol, before, after in cases:

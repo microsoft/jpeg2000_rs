@@ -660,7 +660,7 @@ impl Tier1CodeBlockDecoder {
         // Layer boundaries can truncate an unterminated arithmetic segment.
         // Replay its bounded prefix so virtual end-fill is never resumed as real input.
         let decoded =
-            self.decode_legacy_segment_with_compact(&segment.input, segment.passes, limits, false);
+            self.decode_legacy_segment_with_compact(&segment.input, segment.passes, limits, true);
         #[cfg(verus_keep_ghost)]
         proof! {crate::specs::part2_legacy_replay_segment_observed(before_replay,input@,replay_passes,super::legacy_storage_limits(limits),(Ok(()),restore_state),(decoded,tier1_decoder_state(self)));}
         decoded?;
