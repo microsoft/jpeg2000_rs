@@ -2769,6 +2769,10 @@ _TILE_COLLECTION_CONTRACTS = {
         "part2_collect_tile_parts", _coverage_call("collected_tile_parts_outcome", r"\1"), None,
         _coverage_call("codestream::tile_parts_owned_view", "parts@") + r"\s*,\s*tile",
     ),
+    ("src/decode/tile_part_index.rs", "collect_tile_parts_with_index"): (
+        "part2_collect_tile_parts", _coverage_call("collected_tile_parts_outcome", r"\1"), None,
+        _coverage_call("codestream::tile_parts_owned_view", "parts@") + r"\s*,\s*tile",
+    ),
 }
 
 _RAW_TILE_DECODING_CONTRACTS = {
@@ -5589,6 +5593,12 @@ _COLD_RESULT_MODELS = {
     "part2_collect_tile_parts": (
         "part2_collected_parts_result", "specs/decoder_input.rs", "part2_collected_parts_normal",
     ),
+    "part2_prepare_tile_index_run": (
+        "part2_prepare_tile_index_result", "specs/tile_part_index.rs", "part2_prepare_tile_index_normal",
+    ),
+    "part2_index_capacity_run": (
+        "part2_index_capacity_result", "specs/tile_part_index.rs", "part2_index_capacity_normal",
+    ),
     "part2_select_intersecting_tiles": (
         "part2_select_tiles_result", "specs/decoder_input.rs", "part2_select_tiles_normal",
     ),
@@ -6208,6 +6218,18 @@ _COLD_RESULT_CONTRACTS = {
 } | {
     ("src/jpip/precinct.rs", "validate_precinct_codestream"): (
         "part2_jpip_validate_precinct_cold_result", r"bytes@\s*,\s*layers\s*,\s*limits\s*,\s*\1",
+    ),
+    ("src/decode/tile_part_index.rs", "prepare_tile_part_index"): (
+        "part2_prepare_tile_index_result",
+        _coverage_call("codestream::tile_parts_owned_view", "parts@")
+        + r"\s*,\s*slots\s+as\s+nat\s*,\s*selected_count\s+as\s+nat\s*,\s*"
+        + _coverage_call("index_preparation_outcome", r"\1"),
+    ),
+    ("src/decode/tile_part_index.rs", "reserve_index_values"): (
+        "part2_index_capacity_result",
+        _coverage_call("codestream::tile_parts_owned_view", "_parts@")
+        + r"\s*,\s*_slots\s+as\s+nat\s*,\s*_links\s*,\s*"
+        + _coverage_call("crate::allocation::inspection_capacity_outcome", r"\1"),
     ),
 }
 _COLD_RESULT_CONTRACTS.update(_LEGACY_PACKET_STORAGE_CONTRACTS)
@@ -12312,6 +12334,100 @@ def validate_normative_coverage(
                     raise ValueError("collected payload storage must not use allocating Clone")
                 if symbol == "collect_tile_parts" and body.index("if part.tile_index") > body.index("part.try_duplicate"):
                     raise ValueError("collected payload storage must filter before duplicating owners")
+            for relative, symbol, required in (
+                ("src/decode/tile_part_index.rs", "prepare_tile_part_index", (
+                    "if selected_count <= 1", "return Ok(None)",
+                    "let reserved: Result<Vec<TilePartIndexEntry>, DecodeError> = reserve_index_values(parts, slots, false, slots)",
+                    "let reserved: Result<Vec<usize>, DecodeError> = reserve_index_values(parts, slots, true, parts.len())",
+                    "checkpoint_periodic(entries.len())?", "checkpoint_periodic(next.len())?",
+                    "while position > 0", "position -= 1", "checkpoint_periodic(position)?",
+                    "if tile < entries.len()", "next[position] = entry.head",
+                    "entries[tile] = TilePartIndexEntry { head: position, count: entry.count + 1 }",
+                    "Ok(Some(TilePartIndex { entries, next }))",
+                )),
+                ("src/decode/tile_part_index.rs", "reserve_index_values", (
+                    "if elements == 0 { Ok(Vec::new()) }",
+                    "crate::allocation::empty_with_capacity(elements)",
+                    "part2_index_capacity_observed(codestream::tile_parts_owned_view(_parts@), _slots as nat, _links,",
+                    "crate::allocation::inspection_capacity_outcome(result)",
+                )),
+                ("src/decode/tile_part_index.rs", "collect_tile_parts_with_index", (
+                    "None => return super::execution::collect_tile_parts(parts, tile)",
+                    "index.entries.get(usize::from(tile))", "let count = entry.count",
+                    "if count == 0 { Ok(Vec::new()) }", "crate::allocation::empty_with_capacity(count)",
+                    "let mut position = entry.head", "while position < parts.len()",
+                    "checkpoint_periodic(output.len())?", "let part = &parts[position]",
+                    "let copied = part.try_duplicate()", "let part = copied?", "output.push(part)",
+                    "let following = index.next[position]", "position = following",
+                    "part2_collected_parts_run(source, tile, events)",
+                    "part2_payload_copy_run(source[position as int], events)",
+                )),
+                ("src/decode/execution.rs", "decode_layout", (
+                    "prepare_tile_part_index(&layout.tile_parts, tile_count as usize, tile_count as usize)",
+                    "part2_prepare_tile_index_run(source.parts, tile_count as nat, tile_count as nat, events)",
+                    "match index_preparation_outcome(indexing)", "let index = indexing?",
+                    "collect_tile_parts_with_index(&layout.tile_parts, tile_index, &index)",
+                )),
+                ("src/decode/execution.rs", "decode_layout_selected", (
+                    "prepare_tile_part_index(&layout.tile_parts, slots, selection.tiles.len())",
+                    "part2_prepare_tile_index_run(source.parts, slots as nat, selection.tiles@.len(), events)",
+                    "match index_preparation_outcome(indexing)", "let index = indexing?",
+                    "collect_tile_parts_with_index(&layout.tile_parts, tile_index, &index)",
+                )),
+                ("src/decode/pdf_trailers.rs", "decode_trailer_layout", (
+                    "prepare_tile_part_index(&layout.tile_parts, slots, selection.tiles.len())",
+                    "part2_prepare_tile_index_run(source.parts, slots as nat, selection.tiles@.len(), events)",
+                    "match index_preparation_outcome(indexing)", "let part_index = indexing?",
+                    "collect_tile_parts_with_index(&layout.tile_parts, tile, &part_index)",
+                )),
+                ("specs/tile_part_index.rs", "part2_index_matches", (
+                    "next.len() == parts.len()",
+                    "entries[tile].0 as nat == part2_index_next(parts, tile as u16, 0)",
+                    "entries[tile].1 as nat == part2_collected_part_count(parts, tile as u16, 0)",
+                    "parts[position].tile_index as nat", "next[position] as nat ==",
+                    "part2_index_next(parts, parts[position].tile_index, (position + 1) as nat)",
+                )),
+                ("specs/tile_part_index.rs", "part2_index_capacity_run", (
+                    "let elements = if links { parts.len() } else { slots }",
+                    "TilePartIndexCapacity", "source != parts || tile_slots != slots",
+                    "next_positions != links || actual != elements", "events.drop_first()",
+                )),
+                ("specs/tile_part_index.rs", "part2_prepare_tile_index_run", (
+                    "if selected_count <= 1 { Some((Ok(()), events)) }",
+                    "part2_index_capacity_run(parts, slots, false, events)",
+                    "part2_index_capacity_run(parts, slots, true, rest)",
+                )),
+                ("specs/cold_decode_packets.rs", "part2_layout_decode_run", (
+                    "part2_prepare_tile_index_run(input.parts, count as nat, count as nat, events)",
+                    "part2_full_decode_run(&input.size, input.parts, input.capabilities, limits, count, 0, initial, rest)",
+                )),
+                ("specs/cold_decode_packets.rs", "part2_layout_after_selection_run", (
+                    "part2_prepare_tile_index_run(input.parts, part2_index_tile_slots(&input.size), selection.0.len(), events)",
+                    "part2_selected_decode_run(&input.size, input.parts, input.capabilities, selection.0,",
+                )),
+                ("specs/pdf_trailers.rs", "part2_trailer_after_selection_run", (
+                    "part2_prepare_tile_index_run(input.parts, part2_index_tile_slots(&input.size), selection.0.len(), events)",
+                    "part2_trailer_selected_run(&input.size, input.parts, input.capabilities, selection.0,",
+                )),
+            ):
+                path = (ROOT / relative).resolve()
+                text = source_text(path)
+                body = (_coverage_function_body(text, function_header(path, symbol))
+                        if relative.startswith("src/") else _coverage_spec_function_body(text, symbol))
+                compact = "".join(body.split()).replace(",)", ")").replace(",}", "}") if body is not None else ""
+                if any("".join(item.split()).replace(",)", ")").replace(",}", "}") not in compact for item in required):
+                    raise ValueError(f"stable copy tile index requires actual source, storage order and governing root: {symbol}")
+                if relative == "src/decode/tile_part_index.rs" and any(
+                        token in compact for token in (".clone(", ".capacity(", ".sort", "Box::", "shrink_to")):
+                    raise ValueError(f"stable copy tile index must retain actual fallible copy/capacity semantics: {symbol}")
+                if symbol == "prepare_tile_part_index" and compact.index("returnOk(None)") > compact.index("reserve_index_values"):
+                    raise ValueError("stable copy tile index must bypass storage before either reservation")
+                if symbol == "collect_tile_parts_with_index" and compact.count(
+                        "None=>returnsuper::execution::collect_tile_parts(parts,tile)") != 2:
+                    raise ValueError("stable copy tile index must retain both original-collector fallbacks")
+                if symbol in {"decode_layout_selected", "decode_trailer_layout"} and (
+                        compact.index("letselection=selected?") > compact.index("prepare_tile_part_index")):
+                    raise ValueError("stable copy tile index must follow actual effective-selection admission")
         if entry["id"] == "part2-complete-native-container-selection-output":
             for relative, symbol, required in (
                 ("src/decode/selection.rs", "select_intersecting_tiles", (
@@ -18388,8 +18504,22 @@ def validate_normative_coverage(
                 exact_color_crop_requires = (reference["path"], reference["symbol"]) == (
                     "src/color/crop.rs", "crop_plane") and re.search(
                     r"\brequires\s+x\s*<=\s*x1\s*,\s*y\s*<=\s*y1\s*,\s*ensures\b", contract)
+                index_preconditions = {
+                    ("src/decode/tile_part_index.rs", "prepare_tile_part_index"):
+                    r"slots\s*<=\s*u16::MAX\s+as\s+usize\s*\+\s*1",
+                    ("src/decode/tile_part_index.rs", "reserve_index_values"):
+                    r"elements\s*==\s*if\s+_links\s*\{\s*_parts\.len\(\)\s*\}"
+                    r"\s*else\s*\{\s*_slots\s*\}",
+                    ("src/decode/tile_part_index.rs", "collect_tile_parts_with_index"):
+                    _coverage_call("optional_index_matches",
+                                   _coverage_call("codestream::tile_parts_owned_view", "parts@"), "index"),
+                }
+                index_precondition = index_preconditions.get((reference["path"], reference["symbol"]))
+                exact_index_requires = index_precondition is not None and re.search(
+                    r"\brequires\s+" + index_precondition + r"\s*,\s*ensures\b", contract)
                 if relation is None or (re.search(r"\brequires\b", contract) and not (
-                        exact_copy_phase_requires or exact_prepare_band_requires or exact_color_crop_requires)):
+                    exact_copy_phase_requires or exact_prepare_band_requires or exact_color_crop_requires
+                    or exact_index_requires)):
                     raise ValueError(f"linked function lacks executable Verus contract: {short}; invalid storage relation")
                 if mutating:
                     state_result = relation

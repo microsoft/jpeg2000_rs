@@ -1,3 +1,8 @@
+use super::tile_part_index::{
+    collect_tile_parts_with_index, prepare_tile_part_index, tile_index_slots,
+};
+#[cfg(verus_keep_ghost)]
+use super::tile_part_index::{index_preparation_outcome, optional_index_matches};
 use super::{
     CodestreamLayout, CodingStyle, ComponentCodingStyles, DecodeError, DecodeSelection,
     DecodedImage, DecodedLayoutTile, DecodedTileComponents, ImageSize, MalformedKind,
@@ -521,7 +526,34 @@ pub(super) fn decode_layout_selected(
         reveal(validated_selection_outcome);
         assert(selection.region@.len() == 4);
         assert([selection.region@[0], selection.region@[1], selection.region@[2], selection.region@[3]] == selection.region);
+        crate::specs::part2_index_selection_slots(
+            codestream::selection_geometry_view(&layout.info.image_size),
+            crate::options::decode_selection_view(requested));
+        codestream::selection_geometry_known_fields(&layout.info.image_size);
     }
+    let slots = tile_index_slots(&layout.info.image_size);
+    let indexing = prepare_tile_part_index(&layout.tile_parts, slots, selection.tiles.len());
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let initial = crate::specs::Part2DecodedLayoutTile {
+            prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0,
+        };
+        let root = |events| crate::specs::part2_layout_decode_run(source, requested_input, limits, events);
+        let child = |events| crate::specs::part2_prepare_tile_index_run(
+            source.parts, slots as nat, selection.tiles@.len(), events);
+        let next = |_: (), rest| crate::specs::part2_selected_decode_run(
+            &source.size, source.parts, source.capabilities, selection.tiles@, selection.region,
+            selection.discard_levels, limits, 0, initial, rest);
+        assert forall|tail| root(prefix + tail) == crate::specs::part2_jpip_snapshot_bind(child(tail), next) by {}
+        match index_preparation_outcome(indexing) {
+            Err(error) => {
+                crate::specs::part2_decode_prefix_error(root, child, next, prefix, error);
+                reveal(crate::specs::part2_layout_decode_result);
+            },
+            Ok(()) => { prefix = crate::specs::part2_decode_prefix_advance(root, child, next, prefix, ()); },
+        }
+    }
+    let index = indexing?;
     let mut prepared = Vec::new();
     let mut total_packets = 0_u64;
     let mut total_precincts = 0_u64;
@@ -538,6 +570,7 @@ pub(super) fn decode_layout_selected(
         verus_spec(
             invariant selected_tile <= selection.tiles.len(),
                 source==codestream::decoder_layout_input_view(layout),
+                optional_index_matches(source.parts, &index),
                 requested_input==Some(crate::options::decode_selection_view(requested)),
                 crate::specs::part2_layout_decode_result(source,requested_input,limits,goal),
                 forall|tail:Seq<crate::specs::Part2JpipSnapshotEvent>|
@@ -580,7 +613,7 @@ pub(super) fn decode_layout_selected(
                     crate::specs::part2_tile_decode_run(&source.size,tile_index,selected,source.capabilities,
                         Some(selection.discard_levels),limits,before.prepared,before.counters,before.mct_work,rest),next_tile);
         }
-        let collected = collect_tile_parts(&layout.tile_parts, tile_index);
+        let collected = collect_tile_parts_with_index(&layout.tile_parts, tile_index, &index);
         #[cfg(verus_keep_ghost)]
         proof! {
             let child=|events|crate::specs::part2_collected_parts_run(source.parts,tile_index,events);
@@ -1412,6 +1445,28 @@ pub(super) fn decode_layout(
             kind: MalformedKind::InvalidImageGeometry,
         });
     }
+    let indexing =
+        prepare_tile_part_index(&layout.tile_parts, tile_count as usize, tile_count as usize);
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let initial = crate::specs::Part2DecodedLayoutTile {
+            prepared: Seq::empty(), counters: (0, 0, 0), mct_work: 0,
+        };
+        let root = |events| crate::specs::part2_layout_decode_run(source, None, limits, events);
+        let child = |events| crate::specs::part2_prepare_tile_index_run(
+            source.parts, tile_count as nat, tile_count as nat, events);
+        let next = |_: (), rest| crate::specs::part2_full_decode_run(
+            &source.size, source.parts, source.capabilities, limits, tile_count, 0, initial, rest);
+        assert forall|tail| root(prefix + tail) == crate::specs::part2_jpip_snapshot_bind(child(tail), next) by {}
+        match index_preparation_outcome(indexing) {
+            Err(error) => {
+                crate::specs::part2_decode_prefix_error(root, child, next, prefix, error);
+                reveal(crate::specs::part2_layout_decode_result);
+            },
+            Ok(()) => { prefix = crate::specs::part2_decode_prefix_advance(root, child, next, prefix, ()); },
+        }
+    }
+    let index = indexing?;
     let mut prepared = Vec::new();
     let mut total_packets = 0_u64;
     let mut total_precincts = 0_u64;
@@ -1429,6 +1484,7 @@ pub(super) fn decode_layout(
             invariant tile <= tile_count,
                 tile_count <= u16::MAX as u64 + 1,
                 source==codestream::decoder_layout_input_view(layout),
+                optional_index_matches(source.parts, &index),
                 crate::specs::part2_layout_decode_result(source,None,limits,goal),
                 forall|tail:Seq<crate::specs::Part2JpipSnapshotEvent>|
                     crate::specs::part2_layout_decode_run(source,None,limits,prefix+tail)
@@ -1463,7 +1519,7 @@ pub(super) fn decode_layout(
                     crate::specs::part2_tile_decode_run(&source.size,tile_index,selected,source.capabilities,None,limits,
                         before.prepared,before.counters,before.mct_work,rest),next_tile);
         }
-        let collected = collect_tile_parts(&layout.tile_parts, tile_index);
+        let collected = collect_tile_parts_with_index(&layout.tile_parts, tile_index, &index);
         #[cfg(verus_keep_ghost)]
         proof! {
             let child=|events|crate::specs::part2_collected_parts_run(source.parts,tile_index,events);

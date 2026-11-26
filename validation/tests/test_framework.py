@@ -2048,9 +2048,16 @@ class FrameworkTests(WorkingFiles):
         )
 
     def test_inventory_binds_actual_owned_payload_copy_and_ordered_tile_collection(self):
+        recipes = framework._TILE_COLLECTION_CONTRACTS | {
+            key: framework._COLD_RESULT_CONTRACTS[key]
+            for key in (
+                ("src/decode/tile_part_index.rs", "prepare_tile_part_index"),
+                ("src/decode/tile_part_index.rs", "reserve_index_values"),
+            )
+        }
         self._assert_complete_packet_contract_bindings(
             {"part2-complete-native-owned-tile-collection"},
-            framework._TILE_COLLECTION_CONTRACTS, 1,
+            recipes, 4,
         )
 
     def test_contract_method_resolution_handles_clone_trait_and_rejects_other_or_ambiguous_impls(self):
@@ -9621,6 +9628,82 @@ class FrameworkTests(WorkingFiles):
             with self.subTest(mutation=before), mock.patch.object(Path, "read_text", altered), \
                     self.assertRaisesRegex(ValueError, "collected payload storage"):
                 framework.validate_normative_coverage(dict(coverage, requirements=[entry]))
+
+    def test_inventory_stable_copy_index_binds_buffers_order_old_fallback_and_governing_roots(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"]
+                     if item["id"] == "part2-complete-native-owned-tile-collection")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        mutations = (
+            ("src/decode/tile_part_index.rs", r"if selected_count <= 1", "if selected_count < 1"),
+            ("src/decode/tile_part_index.rs",
+             r"reserve_index_values\(parts,\s*slots,\s*true,\s*parts\.len\(\)\)",
+             "reserve_index_values(parts, slots, true, slots)"),
+            ("src/decode/tile_part_index.rs", r"position -= 1", "position = 0"),
+            ("src/decode/tile_part_index.rs", r"next\[position\] = entry\.head",
+             "next[position] = parts.len()"),
+            ("src/decode/tile_part_index.rs", r"count: entry\.count \+ 1", "count: entry.count"),
+            ("src/decode/tile_part_index.rs",
+             r"None\s*=>\s*return super::execution::collect_tile_parts\(parts,\s*tile\)",
+             "None => return Ok(Vec::new())"),
+            ("src/decode/tile_part_index.rs", r"let count = entry\.count", "let count = 1"),
+            ("src/decode/tile_part_index.rs", r"let copied = part\.try_duplicate\(\)",
+             "let copied = Ok(part.clone())"),
+            ("src/decode/tile_part_index.rs", r"position = following", "position += 1"),
+            ("src/decode/tile_part_index.rs", r"checkpoint_periodic\(next\.len\(\)\)",
+             "checkpoint_periodic(1)"),
+            ("src/decode/tile_part_index.rs", r"checkpoint_periodic\(output\.len\(\)\)",
+             "checkpoint_periodic(1)"),
+            ("src/decode/execution.rs",
+             r"prepare_tile_part_index\(\s*&layout\.tile_parts,\s*slots,\s*selection\.tiles\.len\(\)\s*,?\s*\)",
+             "prepare_tile_part_index(&layout.tile_parts, slots, slots)"),
+            ("src/decode/pdf_trailers.rs",
+             r"prepare_tile_part_index\(\s*&layout\.tile_parts,\s*slots,\s*selection\.tiles\.len\(\)\s*,?\s*\)",
+             "prepare_tile_part_index(&layout.tile_parts, slots, slots)"),
+            ("specs/tile_part_index.rs", r"source != parts \|\| tile_slots != slots",
+             "false || tile_slots != slots"),
+            ("specs/tile_part_index.rs",
+             r"part2_index_capacity_run\(parts,\s*slots,\s*false,\s*events\)",
+             "part2_index_capacity_run(parts, slots, true, events)"),
+            ("specs/tile_part_index.rs", r"events\.drop_first\(\)", "events"),
+            ("specs/cold_decode_packets.rs",
+             r"part2_prepare_tile_index_run\(input\.parts,\s*count as nat,\s*count as nat,\s*events\)",
+             "Some((Ok(()), events))"),
+            ("specs/pdf_trailers.rs",
+             r"part2_prepare_tile_index_run\(input\.parts,\s*part2_index_tile_slots\(&input\.size\),\s*selection\.0\.len\(\),\s*events\)",
+             "Some((Ok(()), events))"),
+        )
+        for relative, pattern, replacement in mutations:
+            source = framework.ROOT / relative
+            original = read_text(source)
+            changed, count = re.subn(pattern, replacement, original, count=1)
+            self.assertEqual(count, 1, (relative, pattern))
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(path=relative, mutation=pattern), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "stable copy tile index"):
+                framework.validate_normative_coverage(data)
+        source = framework.ROOT / "src/decode/tile_part_index.rs"
+        original = read_text(source)
+        for pattern, replacement in (
+            (r"requires slots <= u16::MAX as usize \+ 1", "requires slots <= usize::MAX"),
+            (r"requires elements == if _links", "requires elements <= if _links"),
+            (r"requires optional_index_matches\(\s*codestream::tile_parts_owned_view\(parts@\),\s*index\)",
+             "requires true"),
+        ):
+            changed, count = re.subn(pattern, replacement, original, count=1)
+            self.assertEqual(count, 1, pattern)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(precondition=pattern), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "invalid storage relation"):
+                framework.validate_normative_coverage(data)
 
     def test_inventory_selection_storage_rejects_misbound_capacity_and_erased_stages(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())

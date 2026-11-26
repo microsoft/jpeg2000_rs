@@ -35,6 +35,7 @@ use super::reconstruction::{
     prepare_tile_component_with_kernel, write_quantized_block,
 };
 use super::selection::validate_selection;
+use super::tile_part_index::{collect_tile_parts_with_index, prepare_tile_part_index};
 use super::*;
 use crate::codestream::{ProgressionOrder, parse_layout};
 use crate::packet::{
@@ -9499,6 +9500,188 @@ fn two_tile_codestream() -> Vec<u8> {
     }
     bytes.extend_from_slice(&0xffd9_u16.to_be_bytes());
     bytes
+}
+
+#[test]
+fn stable_copy_index_preserves_grouped_interleaved_raw_order_and_unselected_metadata() {
+    let bytes = two_tile_codestream();
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    for physical in [[0, 0, 1, 1], [0, 1, 0, 1]] {
+        let mut parts = Vec::new();
+        let mut ordinals = [0; 2];
+        for tile in physical {
+            let mut part = layout.tile_parts[tile].clone();
+            part.tile_part_index = [7, 3][ordinals[tile]];
+            part.tile_part_count = 0;
+            part.has_progression_marker = ordinals[tile] == 0;
+            part.has_roi_marker = ordinals[tile] != 0;
+            ordinals[tile] += 1;
+            parts.push(part);
+        }
+        let mut outside = layout.tile_parts[0].clone();
+        outside.tile_index = 7;
+        outside.tile_part_index = u8::MAX;
+        outside.tile_part_count = 1;
+        parts.push(outside);
+        let before = parts.clone();
+        for slots in [0, 2, 3] {
+            let index = prepare_tile_part_index(&parts, slots, 2).unwrap();
+            for tile in [0, 1, 2, 7, u16::MAX] {
+                assert_eq!(
+                    collect_tile_parts_with_index(&parts, tile, &index).unwrap(),
+                    collect_tile_parts(&parts, tile).unwrap(),
+                );
+            }
+        }
+        let index = prepare_tile_part_index(&parts, 3, 2).unwrap();
+        let selected = collect_tile_parts_with_index(&parts, 0, &index).unwrap();
+        assert_eq!(
+            selected
+                .iter()
+                .map(|p| p.tile_part_index)
+                .collect::<Vec<_>>(),
+            [7, 3]
+        );
+        crate::allocation::with_refusal(0, || {
+            assert!(
+                collect_tile_parts_with_index(&parts, 2, &index)
+                    .unwrap()
+                    .is_empty()
+            );
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+        assert_eq!(parts, before);
+    }
+    crate::allocation::with_refusal(0, || {
+        let empty = prepare_tile_part_index(&[], 0, 2).unwrap();
+        assert!(
+            collect_tile_parts_with_index(&[], 0, &empty)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
+fn stable_copy_index_real_buffer_and_old_copy_refusals_restore_sources_and_retry() {
+    let bytes = two_tile_codestream();
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    let parts = vec![
+        layout.tile_parts[0].clone(),
+        layout.tile_parts[1].clone(),
+        layout.tile_parts[0].clone(),
+    ];
+    let before = parts.clone();
+    let expected = collect_tile_parts(&parts, 0).unwrap();
+    for after in [0, 1] {
+        crate::allocation::with_refusal(after, || {
+            assert_eq!(
+                prepare_tile_part_index(&parts, 2, 2).err(),
+                Some(DecodeError::AllocationFailed)
+            );
+            let index = prepare_tile_part_index(&parts, 2, 2).unwrap();
+            assert_eq!(
+                collect_tile_parts_with_index(&parts, 0, &index).unwrap(),
+                expected
+            );
+        });
+        assert_eq!(parts, before);
+    }
+    for after in [0, 1, 2] {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || collect_tile_parts(&parts, 0)).err(),
+            Some(DecodeError::AllocationFailed),
+        );
+        crate::allocation::with_refusal(after + 2, || {
+            let index = prepare_tile_part_index(&parts, 2, 2).unwrap();
+            assert_eq!(
+                collect_tile_parts_with_index(&parts, 0, &index).err(),
+                Some(DecodeError::AllocationFailed)
+            );
+            assert_eq!(
+                collect_tile_parts_with_index(&parts, 0, &index).unwrap(),
+                expected
+            );
+        });
+        assert_eq!(parts, before);
+    }
+}
+
+#[test]
+fn stable_copy_index_single_selection_skips_both_buffers_and_keeps_real_old_collection() {
+    let bytes = two_tile_codestream();
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    for selected_count in [0, 1] {
+        crate::allocation::with_refusal(0, || {
+            let index = prepare_tile_part_index(&layout.tile_parts, 2, selected_count).unwrap();
+            assert!(index.is_none());
+            assert_eq!(
+                crate::allocation::empty_with_capacity::<u8>(1),
+                Err(DecodeError::AllocationFailed)
+            );
+        });
+        for after in [0, 1] {
+            let index = prepare_tile_part_index(&layout.tile_parts, 2, selected_count).unwrap();
+            let original = crate::allocation::with_refusal(after, || {
+                collect_tile_parts(&layout.tile_parts, 1)
+            });
+            let indexed = crate::allocation::with_refusal(after, || {
+                collect_tile_parts_with_index(&layout.tile_parts, 1, &index)
+            });
+            assert_eq!(indexed, original);
+            assert_eq!(indexed.err(), Some(DecodeError::AllocationFailed));
+        }
+    }
+    let selected = DecodeSelection::full_image().with_region(crate::ImageRegion::new(5, 0, 1, 1));
+    let image = decode_codestream_selected(&bytes, &DecodeOptions::default(), &selected).unwrap();
+    assert_eq!(
+        (
+            image.width(),
+            image.height(),
+            image.x_origin(),
+            image.y_origin()
+        ),
+        (1, 1, 5, 0)
+    );
+    assert_eq!(
+        image.component(0).unwrap().samples(),
+        &crate::TypedSamples::Unsigned(vec![128])
+    );
+}
+
+#[cfg(feature = "cooperative-deadlines")]
+#[test]
+fn stable_copy_index_deadline_remains_distinct_from_real_buffer_refusal_and_restores_scope() {
+    use std::time::{Duration, Instant};
+    let bytes = two_tile_codestream();
+    let limits = ResourceLimits::default();
+    let layout = parse_layout(&bytes, &limits).unwrap();
+    crate::allocation::with_refusal(0, || {
+        let result = crate::with_decode_deadline(Instant::now() + Duration::from_millis(2), || {
+            std::thread::sleep(Duration::from_millis(5));
+            prepare_tile_part_index(&layout.tile_parts, 2, 2)
+        });
+        assert_eq!(result.err(), Some(DecodeError::DeadlineExceeded));
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    let index = prepare_tile_part_index(&layout.tile_parts, 2, 2).unwrap();
+    assert_eq!(
+        collect_tile_parts_with_index(&layout.tile_parts, 1, &index).unwrap(),
+        collect_tile_parts(&layout.tile_parts, 1).unwrap(),
+    );
 }
 
 fn box32(box_type: [u8; 4], payload: &[u8]) -> Vec<u8> {

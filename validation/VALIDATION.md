@@ -6,6 +6,31 @@ restricted, or standards-derived vectors.
 
 ## Running the checks
 
+### Stable copy collection index
+
+Run `cargo test --lib stable_copy_index` and repeat with
+`--features cooperative-deadlines` at MSRV and the pinned validation compiler.
+The focused controls retain grouped/interleaved raw metadata order, empty and
+missing selection, original out-of-range behavior, zero/single-selected
+storage bypass, both real index-buffer refusals and subsequent original
+capacity/nested-copy refusal/rollback. The existing PDF count-repair control
+also alternates interleaved/grouped repaired sources whose temporary input
+owners are gone before returned images are checked.
+
+The ordinary full/selected/PDF-trailer suites retain exact logical limits and
+first nonphysical errors. Native deadline controls distinguish cancellation
+from managed allocation failure and check scope restoration; they do not
+establish a wall-clock theorem. The inventory mutation control
+`test_inventory_stable_copy_index_binds_buffers_order_old_fallback_and_governing_roots`
+rejects changed selection gating, buffer dimensions/order, links/counts,
+copy/fallback behavior, omitted periodic checks and disconnected governing
+root prefixes. No benchmark or adoption result follows from these controls.
+
+For the payload-copy inline control, inspect fresh matched release dataflow
+in both indexed and fallback collectors before full qualification. Require
+removal of the extra result-to-plain payload materialization; an annotation
+or absent immediate alone is not evidence, nor a latency/adoption result.
+
 ### Reached JP2 file-type storage
 
 `cargo test --lib actual_raw_file_type` checks primary/minor/ordered brands,

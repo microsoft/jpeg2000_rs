@@ -8656,11 +8656,15 @@
     },
     {
       "id": "part2-complete-native-owned-tile-collection",
-      "topic": "Complete actual same-order owned TilePartPayload copy and ordered per-tile source collection: every raw quantization/progression/MCT/Part2/kernel/nonlinear/registration/length/header/flag/data field derives from actual owners. Public manual Clone APIs retain their existing infallible type and field semantics. Internal collection counts matching parts, reserves once and fallibly duplicates ONLY selected owners, intentionally avoiding allocation for unselected clones. Precise source-qualified capacity and nested copy calls retain typed refusals, every successful value/duplicate order, borrows and arbitrary event tails; no defaults, normalized metadata, allocator availability premise, supplied copies or codec-result bank. Full/selected decoding and PDF trailer recovery compose the reached collection stage. Whole raw-parser/file/F2/F4/final F8, lifetime-enabled replay and publication remain separate.",
+      "topic": "Complete actual same-order owned TilePartPayload copy and ordered per-tile source collection: every raw quantization/progression/MCT/Part2/kernel/nonlinear/registration/length/header/flag/data field derives from actual owners. Public manual Clone APIs retain their existing infallible type and field semantics. More than one validated selected tile builds one fallible source-qualified head/count buffer and actual-part next-position buffer; reverse physical traversal proves exact stable filter equality without validating later/unselected metadata. Count-one/full-one/ROI-one retains the actual original collector with no index allocation or classifier. Indexed collection retains the same count-capacity branch, fallible nested copies, owned Vec and slice ABI. Exact index allocation/refusal prefixes precede unchanged collection capacity/copy events at the actual full/selected/PDF-trailer governing roots. No fake old nth-request equivalence, normalized metadata, allocator/capacity premise, supplied copies or codec-result bank. Logical counters and first nonphysical errors remain unchanged on successful allocation; existing parser-admitted tile/actual-part bounds size the new private buffers. Whole raw-parser/file/F2/F4/final F8, lifetime-enabled replay and publication remain separate.",
       "implementation_refs": [
         {"path": "src/decode/execution.rs", "symbol": "decode_layout"},
         {"path": "src/decode/execution.rs", "symbol": "decode_layout_selected"},
         {"path": "src/decode/execution.rs", "symbol": "collect_tile_parts"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "prepare_tile_part_index"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "reserve_index_values"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "collect_tile_parts_with_index"},
+        {"path": "src/decode/pdf_trailers.rs", "symbol": "decode_trailer_layout"},
         {"path": "src/codestream/tiles.rs", "symbol": "TilePartPayload::clone"},
         {"path": "src/codestream/tiles.rs", "symbol": "TilePartPayload::try_duplicate"},
         {"path": "src/codestream/extensions.rs", "symbol": "Part2Extensions::clone"},
@@ -8682,6 +8686,15 @@
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_loop_run"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_run"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_result"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_next"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_matches"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_capacity_run"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_capacity_result"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_prepare_tile_index_run"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_prepare_tile_index_result"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_layout_decode_run"},
+        {"path": "specs/cold_decode_packets.rs", "symbol": "part2_layout_after_selection_run"},
+        {"path": "specs/pdf_trailers.rs", "symbol": "part2_trailer_after_selection_run"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collection_duplicate_step"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collection_duplicate_tail"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collections_duplicate_requests"},
@@ -8692,7 +8705,10 @@
         {"path": "specs/cold_mct_copy.rs", "symbol": "part2_payload_duplicate_tail"}
       ],
       "contract_refs": [
-        {"path": "src/decode/execution.rs", "symbol": "collect_tile_parts"}
+        {"path": "src/decode/execution.rs", "symbol": "collect_tile_parts"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "prepare_tile_part_index"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "reserve_index_values"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "collect_tile_parts_with_index"}
       ],
       "proof_refs": [
         {"path": "src/codestream/tiles.rs", "symbol": "TilePartPayload::clone"},
@@ -8720,6 +8736,18 @@
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_count_matches"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_loop_normal"},
         {"path": "specs/decoder_input.rs", "symbol": "part2_collected_parts_normal"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "entries_view"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "entry_view_at"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "optional_index_matches"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "index_preparation_outcome"},
+        {"path": "src/decode/tile_part_index.rs", "symbol": "tile_index_slots"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_next_bounds"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_skip"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_capacity_observed"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_capacity_normal"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_prepare_tile_index_normal"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_prefix_normal"},
+        {"path": "specs/tile_part_index.rs", "symbol": "part2_index_selection_slots"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part1_mct_collection_duplicate_advance"},
         {"path": "specs/cold_mct_copy.rs", "symbol": "part2_payload_duplicate_advance"}
       ],
@@ -8727,7 +8755,12 @@
         {"path": "src/codestream/tests.rs", "symbol": "actual_owned_tile_part_clone_preserves_every_raw_field_and_independent_nested_buffers"},
         {"path": "src/codestream/tests.rs", "symbol": "actual_ordered_tile_collection_copies_raw_non_normalized_fields_and_retains_duplicate_order"},
         {"path": "src/codestream/tests.rs", "symbol": "collected_payload_copy_refusals_restore_all_raw_nested_owners_and_borrows"},
-        {"path": "src/codestream/tests.rs", "symbol": "collected_payload_storage_empty_first_later_refusals_restore_order_and_sources"}
+        {"path": "src/codestream/tests.rs", "symbol": "collected_payload_storage_empty_first_later_refusals_restore_order_and_sources"},
+        {"path": "src/decode/tests.rs", "symbol": "stable_copy_index_preserves_grouped_interleaved_raw_order_and_unselected_metadata"},
+        {"path": "src/decode/tests.rs", "symbol": "stable_copy_index_real_buffer_and_old_copy_refusals_restore_sources_and_retry"},
+        {"path": "src/decode/tests.rs", "symbol": "stable_copy_index_single_selection_skips_both_buffers_and_keeps_real_old_collection"},
+        {"path": "src/decode/tests.rs", "symbol": "stable_copy_index_deadline_remains_distinct_from_real_buffer_refusal_and_restores_scope"},
+        {"path": "src/decode/raw_typed_result_tests.rs", "symbol": "pdf_count_recovery_decodes_complete_interleaved_tiles_and_reports_only_counts"}
       ]
     },
     {

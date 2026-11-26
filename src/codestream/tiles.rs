@@ -53,6 +53,8 @@ impl<'a> Clone for TilePartPayload<'a> {
     }
 }
 impl<'a> TilePartPayload<'a> {
+    // Outlining this large Result can add a payload-sized success temporary.
+    #[inline(always)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures crate::specs::part1_mct_copy_result(
             crate::specs::part2_payload_duplicate_tail(tile_part_owned_view(self), 0), copy_outcome(result)),
