@@ -154,37 +154,68 @@ pub(super) fn interleave(
     }
     let mut output = allocated?;
     let mut index = 0_usize;
-    #[cfg_attr(
-        verus_keep_ghost,
-        verus_spec(
-            invariant index <= length,
-            crate::specs::part2_wavelet_interleave_result(low@,high@,low_pass_first,crate::specs::part1_interleaved(low@,high@,low_pass_first)),
-            length == low.len() + high.len(),
-            low.len() == if low_pass_first { length as int / 2 + length as int % 2 } else { length as int / 2 },
-            high.len() == length - low.len(),
-            output.len() == index,
-            forall |i: int| 0 <= i < index ==>
-                output[i] == if (i % 2 == 0) == low_pass_first { low[i / 2] } else { high[i / 2] },
-            decreases length - index,
-        )
-    )]
-    while index < length {
-        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
-        crate::deadline::checkpoint_periodic(index)?;
-        #[cfg(verus_keep_ghost)]
-        proof! { crate::proofs::production_impl::production_index_parity(index); }
-        let low_position = (index & 1 == 0) == low_pass_first;
-        let source_index = index / 2;
-        let value = if low_position {
-            *low.get(source_index).ok_or_else(invalid_transform)?
-        } else {
-            *high.get(source_index).ok_or_else(invalid_transform)?
-        };
-        output.push(value);
-        index = index.checked_add(1).ok_or_else(arithmetic_overflow)?;
+    if low_pass_first {
+        #[cfg_attr(
+            verus_keep_ghost,
+            verus_spec(
+                invariant index <= length,
+                index == length || index % 2 == 0,
+                crate::specs::part2_wavelet_interleave_result(low@,high@,low_pass_first,crate::specs::part1_interleaved(low@,high@,low_pass_first)),
+                length == low.len() + high.len(),
+                low_pass_first,
+                low.len() == length as int / 2 + length as int % 2,
+                high.len() == length - low.len(),
+                output.len() == index,
+                forall |i: int| 0 <= i < index ==>
+                    output[i] == if i % 2 == 0 { low[i / 2] } else { high[i / 2] },
+                decreases length - index,
+            )
+        )]
+        while index < length {
+            #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+            crate::deadline::checkpoint_periodic(index)?;
+            let pair = index / 2;
+            output.push(low[pair]);
+            if index + 1 < length {
+                output.push(high[pair]);
+                index += 2;
+            } else {
+                index += 1;
+            }
+        }
+    } else {
+        #[cfg_attr(
+            verus_keep_ghost,
+            verus_spec(
+                invariant index <= length,
+                index == length || index % 2 == 0,
+                crate::specs::part2_wavelet_interleave_result(low@,high@,low_pass_first,crate::specs::part1_interleaved(low@,high@,low_pass_first)),
+                length == low.len() + high.len(),
+                !low_pass_first,
+                low.len() == length as int / 2,
+                high.len() == length - low.len(),
+                output.len() == index,
+                forall |i: int| 0 <= i < index ==>
+                    output[i] == if i % 2 != 0 { low[i / 2] } else { high[i / 2] },
+                decreases length - index,
+            )
+        )]
+        while index < length {
+            #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+            crate::deadline::checkpoint_periodic(index)?;
+            let pair = index / 2;
+            output.push(high[pair]);
+            if index + 1 < length {
+                output.push(low[pair]);
+                index += 2;
+            } else {
+                index += 1;
+            }
+        }
     }
     #[cfg(verus_keep_ghost)]
     proof! {
+        assert(output.len() == length);
         assert(output@ =~= Seq::new(length as nat, |i: int|
             if (i % 2 == 0) == low_pass_first { low@[i / 2] } else { high@[i / 2] }));
     }
@@ -196,6 +227,7 @@ pub(super) fn interleave(
         old(samples)@, target_even, lifting_step_view(step).0, lifting_step_view(step).1, old(samples).len() as nat,
     ),
 ))]
+#[inline(always)]
 pub(super) fn inverse_lift(
     samples: &mut [i64],
     target_even: bool,
@@ -203,22 +235,98 @@ pub(super) fn inverse_lift(
 ) -> Result<(), DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost original = samples@; }
-    let mut index = 0_usize;
+    let len = samples.len();
+    if len <= 1 {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            if len == 0 {
+                assert(crate::specs::part1_lifting_prefix(
+                    original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, 0,
+                ) == (Ok(()), samples@));
+            } else {
+                assert(len == 1);
+                reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+                assert(samples@ =~= original.update(0, original[0]));
+                assert(crate::specs::part1_lifting_prefix(
+                    original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, 1,
+                ) == (Ok(()), samples@));
+            }
+        }
+        return Ok(());
+    }
+    let mut index = if target_even { 0_usize } else { 1_usize };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if !target_even {
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+            assert(samples@ =~= original.update(0, original[0]));
+            assert(crate::specs::part1_lifting_prefix(
+                original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, 1,
+            ) == (Ok(()), samples@));
+        }
+    }
+    if index == 0 {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::proofs::production_impl::production_lifting_sample_frame(
+                original, samples@, 0, target_even, lifting_step_view(step).0, lifting_step_view(step).1,
+            );
+        }
+        let value = match inverse_lifting_value(samples, 0, target_even, step) {
+            Ok(value) => value,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+                    assert(crate::specs::part1_lifting_prefix(
+                        original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, 1,
+                    ) == (Err(error), samples@));
+                    crate::proofs::production_impl::production_lifting_error_persists(
+                        original, target_even, lifting_step_view(step).0, lifting_step_view(step).1,
+                        1, original.len(),
+                    );
+                }
+                return Err(error);
+            }
+        };
+        samples[0] = value;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+            assert(crate::specs::part1_lifting_prefix(
+                original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, 1,
+            ) == (Ok(()), samples@));
+            crate::proofs::production_impl::production_lifting_sample_frame(
+                original, samples@, 1, target_even, lifting_step_view(step).0, lifting_step_view(step).1,
+            );
+            assert(samples@ =~= samples@.update(1, original[1]));
+            assert(crate::specs::part1_lifting_prefix(
+                original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, 2,
+            ) == (Ok(()), samples@));
+        }
+        index = 2;
+    }
+    let last = len - 1;
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
-            invariant index <= samples.len(),
+            invariant 1 <= index <= len + 1,
+            len == samples.len(),
+            len > 1,
+            last == len - 1,
             original == old(samples)@,
             samples.len() == original.len(),
+            (index % 2 == 0) == target_even,
             forall |i: int| 0 <= i < samples.len() && (i >= index || (i % 2 == 0) != target_even) ==>
                 samples[i] == original[i],
             crate::specs::part1_lifting_prefix(
-                original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, index as nat,
+                original, target_even, lifting_step_view(step).0, lifting_step_view(step).1,
+                if index <= len { index as nat } else { len as nat },
             ) == (Ok(()), samples@),
-            decreases samples.len() - index,
+            decreases len + 1 - index,
         )
     )]
-    while index < samples.len() {
+    while index < last {
         #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
         crate::deadline::checkpoint_periodic(index)?;
         #[cfg(verus_keep_ghost)]
@@ -227,7 +335,8 @@ pub(super) fn inverse_lift(
                 original, samples@, index as nat, target_even, lifting_step_view(step).0, lifting_step_view(step).1,
             );
         }
-        let value = match inverse_lifting_value(samples, index, target_even, step) {
+        let window = &samples[index - 1..index + 2];
+        let value = match inverse_lifting_neighbors(window[1], window[0], window[2], step) {
             Ok(value) => value,
             Err(error) => {
                 #[cfg(verus_keep_ghost)]
@@ -244,7 +353,47 @@ pub(super) fn inverse_lift(
             }
         };
         samples[index] = value;
-        index = index.checked_add(1).ok_or_else(arithmetic_overflow)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_lifting_prefix(
+                original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, index as nat + 1,
+            ) == (Ok(()), samples@));
+            assert(((index + 1) % 2 == 0) != target_even);
+            crate::proofs::production_impl::production_lifting_sample_frame(
+                original, samples@, (index + 1) as nat, target_even, lifting_step_view(step).0, lifting_step_view(step).1,
+            );
+            assert(crate::specs::part1_lifting_prefix(
+                original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, index as nat + 2,
+            ) == (Ok(()), samples@));
+        }
+        index += 2;
+    }
+    if index == last {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::proofs::production_impl::production_lifting_sample_frame(
+                original, samples@, last as nat, target_even, lifting_step_view(step).0, lifting_step_view(step).1,
+            );
+        }
+        let value = match inverse_lifting_value(samples, last, target_even, step) {
+            Ok(value) => value,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(crate::specs::part1_lifting_prefix(
+                        original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, len as nat,
+                    ) == (Err(error), samples@));
+                }
+                return Err(error);
+            }
+        };
+        samples[last] = value;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_lifting_prefix(
+                original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, len as nat,
+            ) == (Ok(()), samples@));
+        }
     }
     Ok(())
 }
@@ -255,6 +404,7 @@ pub(super) fn inverse_lift(
         samples@, index as nat, target_even, lifting_step_view(step).0, lifting_step_view(step).1,
     ),
 ))]
+#[inline(always)]
 fn inverse_lifting_value(
     samples: &[i64],
     index: usize,
@@ -284,32 +434,13 @@ fn inverse_lifting_value(
         seq![left, current, right], 1, false, lifting_step_view(step).0, lifting_step_view(step).1,
     ),
 ))]
-#[inline]
+#[inline(always)]
 pub(super) fn inverse_lifting_neighbors(
     current: i64,
     left: i64,
     right: i64,
     step: InverseLiftingStep,
 ) -> Result<i64, DecodeError> {
-    if matches!(step, InverseLiftingStep::ReversibleUpdate)
-        || matches!(step, InverseLiftingStep::ReversiblePredict)
-    {
-        let predict = matches!(step, InverseLiftingStep::ReversiblePredict);
-        let bound = if predict {
-            2_147_483_648
-        } else {
-            1_073_741_824
-        };
-        if current >= -bound
-            && current <= bound
-            && left >= -bound
-            && left <= bound
-            && right >= -bound
-            && right <= bound
-        {
-            return Ok(inverse_reversible_bounded(current, left, right, predict));
-        }
-    }
     let sum = left.checked_add(right).ok_or_else(arithmetic_overflow)?;
     let adjustment = match step {
         InverseLiftingStep::Fixed(coefficient) => fixed_mul(sum, coefficient)?,
@@ -337,7 +468,7 @@ pub(super) fn inverse_lifting_neighbors(
         -(if predict{2147483648int}else{1073741824int})<=right<=if predict{2147483648int}else{1073741824int},
     ensures crate::specs::rowwise_neighbors(current,left,right,predict)==Ok(result),
 ))]
-#[inline]
+#[inline(always)]
 pub(super) fn inverse_reversible_bounded(
     current: i64,
     left: i64,
@@ -359,6 +490,7 @@ pub(super) fn inverse_reversible_bounded(
         old(samples)@, low_parity, factor, old(samples).len() as nat,
     ),
 ))]
+#[inline(always)]
 pub(super) fn scale_parity(
     samples: &mut [i64],
     low_parity: bool,
@@ -366,39 +498,60 @@ pub(super) fn scale_parity(
 ) -> Result<(), DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost original = samples@; }
-    let mut index = 0_usize;
+    let len = samples.len();
+    let mut index = if low_parity { 0_usize } else { 1_usize };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if !low_parity && len > 0 {
+            reveal_with_fuel(crate::specs::part1_scaling_prefix, 2);
+            assert(crate::specs::part1_scaling_prefix(original, low_parity, factor, 1) == (Ok(()), samples@));
+        }
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(
-            invariant index <= samples.len(),
+            invariant index <= len + 1,
+            len == samples.len(),
             original == old(samples)@,
             samples.len() == original.len(),
+            (index % 2 == 0) == low_parity,
             forall |i: int| index <= i < samples.len() ==> samples[i] == original[i],
-            crate::specs::part1_scaling_prefix(original, low_parity, factor, index as nat) == (Ok(()), samples@),
-            decreases samples.len() - index,
+            crate::specs::part1_scaling_prefix(
+                original, low_parity, factor,
+                if index <= len { index as nat } else { len as nat },
+            ) == (Ok(()), samples@),
+            decreases len + 1 - index,
         )
     )]
-    while index < samples.len() {
+    while index < len {
         #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
         crate::deadline::checkpoint_periodic(index)?;
-        #[cfg(verus_keep_ghost)]
-        proof! { crate::proofs::production_impl::production_index_parity(index); }
-        if (index & 1 == 0) == low_parity {
-            let value = match fixed_mul(samples[index], factor) {
-                Ok(value) => value,
-                Err(error) => {
-                    #[cfg(verus_keep_ghost)]
-                    proof! {
-                        crate::proofs::production_impl::production_scaling_error_persists(
-                            original, low_parity, factor, index as nat + 1, original.len(),
-                        );
-                    }
-                    return Err(error);
+        let value = match fixed_mul(samples[index], factor) {
+            Ok(value) => value,
+            Err(error) => {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    crate::proofs::production_impl::production_scaling_error_persists(
+                        original, low_parity, factor, index as nat + 1, original.len(),
+                    );
                 }
-            };
-            samples[index] = value;
+                return Err(error);
+            }
+        };
+        samples[index] = value;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_scaling_prefix(original, low_parity, factor, index as nat + 1) == (Ok(()), samples@));
+            if index + 1 < len {
+                assert(((index + 1) % 2 == 0) != low_parity);
+                assert(crate::specs::part1_scaling_prefix(original, low_parity, factor, index as nat + 2) == (Ok(()), samples@));
+            }
         }
-        index = index.checked_add(1).ok_or_else(arithmetic_overflow)?;
+        if index + 1 < len {
+            index += 2;
+        } else {
+            return Ok(());
+        }
     }
     Ok(())
 }
@@ -406,33 +559,10 @@ pub(super) fn scale_parity(
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part1_fixed_product(value, factor),
 ))]
-#[inline]
+#[inline(always)]
 pub(super) fn fixed_mul(value: i64, factor: i64) -> Result<i64, DecodeError> {
     #[cfg(verus_keep_ghost)]
     proof! { assert(FIXED_ONE == 65536) by(compute); }
-    // Two signed 32-bit operands leave room for the Q16 rounding bias.
-    if value >= i32::MIN as i64
-        && value <= i32::MAX as i64
-        && factor >= i32::MIN as i64
-        && factor <= i32::MAX as i64
-    {
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            let a = value as int;
-            let b = factor as int;
-            let aa = if a < 0 { -a } else { a };
-            let bb = if b < 0 { -b } else { b };
-            vstd::arithmetic::mul::lemma_mul_inequality(aa, 2147483648, bb);
-            vstd::arithmetic::mul::lemma_mul_inequality(bb, 2147483648, 2147483648);
-            assert(aa * bb <= 4611686018427387904);
-            assert(aa * bb == if a * b < 0 { -(a * b) } else { a * b }) by(nonlinear_arith)
-                requires aa == if a < 0 { -a } else { a }, bb == if b < 0 { -b } else { b };
-            assert(-4611686018427387904 <= a * b <= 4611686018427387904);
-        }
-        return Ok(crate::refinement::fixed_round_q16(
-            value * factor + FIXED_ONE / 2,
-        ));
-    }
     let product = value.checked_mul(factor).ok_or_else(arithmetic_overflow)?;
     let adjusted = product
         .checked_add(FIXED_ONE / 2)

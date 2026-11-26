@@ -1,5 +1,3 @@
-use super::super::InverseLiftingStep;
-use super::super::wavelets::{fixed_mul, inverse_lifting_neighbors};
 use super::{WaveletBand, assemble};
 #[cfg(verus_keep_ghost)]
 use super::{sequence_outcome, wavelet_band_view};
@@ -69,6 +67,76 @@ pub(in crate::transform) fn inverse(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires 0 < bound <= 4_398_046_511_104i64,
+        -bound <= value <= bound,
+        -131_071 <= factor <= 131_071,
+    ensures crate::specs::part1_fixed_product(value, factor) == Ok(result),
+))]
+#[inline]
+fn fixed_mul_bounded(
+    value: i64,
+    factor: i64,
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] bound: i64,
+) -> i64 {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::transform::FIXED_ONE == 65536) by(compute);
+        crate::specs::rowwise_fixed_product_bound(value, factor, bound);
+        assert(-(bound as int) * 131071 <= (value as int) * (factor as int) <= (bound as int) * 131071)
+            by(nonlinear_arith)
+            requires 0 < bound, -bound <= value <= bound, -131071 <= factor <= 131071;
+        assert(i64::MIN <= (value as int) * (factor as int) <= i64::MAX
+            && i64::MIN <= (value as int) * (factor as int) + 32768 <= i64::MAX)
+            by(nonlinear_arith)
+            requires 0 < bound <= 4398046511104,
+                -(bound as int) * 131071 <= (value as int) * (factor as int) <= (bound as int) * 131071;
+    }
+    crate::refinement::fixed_round_q16(value * factor + crate::transform::FIXED_ONE / 2)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires stage < 4,
+        -crate::specs::rowwise_fixed_bound(stage as nat) <= current <= crate::specs::rowwise_fixed_bound(stage as nat),
+        -crate::specs::rowwise_fixed_bound(stage as nat) <= left <= crate::specs::rowwise_fixed_bound(stage as nat),
+        -crate::specs::rowwise_fixed_bound(stage as nat) <= right <= crate::specs::rowwise_fixed_bound(stage as nat),
+        factor == crate::specs::part1_nine_seven_lift(stage),
+    ensures crate::specs::rowwise_fixed_neighbors(current, left, right, stage) == Ok(result),
+))]
+#[inline]
+fn fixed_lift_bounded(
+    current: i64,
+    left: i64,
+    right: i64,
+    factor: i64,
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] stage: u8,
+) -> i64 {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::transform::FIXED_ONE == 65536) by(compute);
+        crate::specs::rowwise_fixed_neighbors_bound(current, left, right, stage);
+        let bound = crate::specs::rowwise_fixed_bound(stage as nat);
+        if stage == 0 {} else if stage == 1 {} else if stage == 2 {} else { assert(stage == 3); }
+        let sum = (left as int) + (right as int);
+        assert(-2 * bound <= sum <= 2 * bound);
+        assert(i64::MIN <= sum <= i64::MAX);
+        assert(-131071 <= factor <= 131071);
+        crate::specs::rowwise_fixed_product_bound(sum as i64, factor, (2 * bound) as i64);
+        assert(-(2 * bound) * 131071 <= sum * (factor as int) <= (2 * bound) * 131071)
+            by(nonlinear_arith)
+            requires 0 < bound, -2 * bound <= sum <= 2 * bound, -131071 <= factor <= 131071;
+        assert(i64::MIN <= sum * (factor as int) <= i64::MAX
+            && i64::MIN <= sum * (factor as int) + 32768 <= i64::MAX)
+            by(nonlinear_arith)
+            requires 0 < bound <= 2199023255552,
+                -(2 * bound) * 131071 <= sum * (factor as int) <= (2 * bound) * 131071;
+    }
+    let adjustment = crate::refinement::fixed_round_q16(
+        (left + right) * factor + crate::transform::FIXED_ONE / 2,
+    );
+    current - adjustment
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires width>=2,height>1,(width as int)*(height as int)==old(samples).len(),
         forall|i:int|0<=i<old(samples).len()==>-crate::specs::rowwise_scale_bound(low)<=#[trigger] old(samples)[i]<=crate::specs::rowwise_scale_bound(low),
     ensures result==Ok(()),final(samples)@==crate::specs::rowwise_scaled(old(samples)@,width as nat,target,crate::specs::part1_nine_seven_scale(low)),
@@ -86,11 +154,17 @@ fn scale_rows(
     #[cfg(verus_keep_ghost)]
     proof! {assert((height as int)*(width as int)==(width as int)*(height as int)) by(nonlinear_arith);}
     let factor = crate::refinement::nine_seven_scale(low);
+    let bound = if low {
+        1_073_741_824_i64
+    } else {
+        2_147_483_648_i64
+    };
     let mut y = 0;
     let mut index = 0;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant width>=2,height>1,(width as int)*(height as int)==samples.len(),height as int*width as int==samples.len(),y<=height,index==y*width,
             original==old(samples)@,original.len()==samples.len(),factor==crate::specs::part1_nine_seven_scale(low),
+            bound as int==crate::specs::rowwise_scale_bound(low),
             forall|i:int|0<=i<original.len()==>-crate::specs::rowwise_scale_bound(low)<=#[trigger] original[i]<=crate::specs::rowwise_scale_bound(low),
             forall|i:int|0<=i<samples.len()==>#[trigger] samples[i]==if i<index{
                 crate::specs::rowwise_scaled(original,width as nat,target,factor)[i]}else{original[i]},
@@ -103,27 +177,32 @@ fn scale_rows(
         proof! {crate::specs::rowwise_cell(y as int,0,width as int,height as int);crate::proofs::production_impl::production_index_parity(y);}
         let end = index + width;
         if (y & 1 == 0) == target {
+            let row_slice = &mut samples[index..end];
+            let mut x = 0;
             #[cfg_attr(verus_keep_ghost, verus_spec(
-                invariant width>=2,height>1,(width as int)*(height as int)==samples.len(),height as int*width as int==samples.len(),y<height,(y%2==0)==target,
-                    y*width<=index<=end,end==(y+1)*width,end==y*width+width,end<=samples.len(),
-                    original==old(samples)@,original.len()==samples.len(),factor==crate::specs::part1_nine_seven_scale(low),
+                invariant width>=2,height>1,(width as int)*(height as int)==original.len(),height as int*width as int==original.len(),y<height,(y%2==0)==target,
+                    index==y*width,end==(y+1)*width,end==y*width+width,end<=original.len(),
+                    x<=width,row_slice.len()==width,
+                    factor==crate::specs::part1_nine_seven_scale(low),
+                    bound as int==crate::specs::rowwise_scale_bound(low),
                     forall|i:int|0<=i<original.len()==>-crate::specs::rowwise_scale_bound(low)<=#[trigger] original[i]<=crate::specs::rowwise_scale_bound(low),
-                    forall|i:int|0<=i<samples.len()==>#[trigger] samples[i]==if i<index{
-                        crate::specs::rowwise_scaled(original,width as nat,target,factor)[i]}else{original[i]},
-                decreases end-index,
+                    forall|j:int|0<=j<width==>#[trigger] row_slice[j]==if j<x{
+                        crate::specs::rowwise_scaled(original,width as nat,target,factor)[index+j]}else{original[index+j]},
+                decreases width-x,
             ))]
-            while index < end {
+            while x < width {
                 #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
-                crate::deadline::checkpoint_periodic(index)?;
+                crate::deadline::checkpoint_periodic(x)?;
                 #[cfg(verus_keep_ghost)]
                 proof! {
-                    crate::specs::rowwise_index(y as int,index-y*width,width as int);
-                    assert(samples[index as int]==original[index as int]);
-                    crate::specs::rowwise_fixed_product_bound(samples[index as int],factor,crate::specs::rowwise_scale_bound(low) as i64);
+                    crate::specs::rowwise_index(y as int,x as int,width as int);
+                    assert(row_slice[x as int]==original[(index+x) as int]);
+                    crate::specs::rowwise_fixed_product_bound(row_slice[x as int],factor,bound);
                 }
-                samples[index] = fixed_mul(samples[index], factor)?;
-                index += 1;
+                row_slice[x] = fixed_mul_bounded(row_slice[x], factor, bound);
+                x += 1;
             }
+            index = end;
         } else {
             #[cfg(verus_keep_ghost)]
             proof! {
@@ -211,12 +290,13 @@ fn lift_rows(
                     crate::specs::rowwise_cell(if y+1<height{(y+1) as int}else{y-1},x as int,width as int,height as int);
                     crate::specs::rowwise_fixed_neighbors_bound(samples[(row+x) as int],samples[(left+x) as int],samples[(right+x) as int],stage);
                 }
-                let value = inverse_lifting_neighbors(
+                let value = fixed_lift_bounded(
                     samples[row + x],
                     samples[left + x],
                     samples[right + x],
-                    InverseLiftingStep::Fixed(factor),
-                )?;
+                    factor,
+                    stage,
+                );
                 #[cfg(verus_keep_ghost)]
                 proof! {assert(value==crate::specs::rowwise_fixed_stage(original,width as nat,height as nat,target,stage)[(row+x) as int]);}
                 samples[row + x] = value;
