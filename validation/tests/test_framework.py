@@ -11124,7 +11124,7 @@ class FrameworkTests(WorkingFiles):
 
                 with self.subTest(requirement=entry["id"], source=relative, fragment=before), \
                         mock.patch.object(Path, "read_text", altered), \
-                        self.assertRaisesRegex(ValueError, "static fused readers|remaining plane storage|quantization output"):
+                        self.assertRaisesRegex(ValueError, "static fused readers|remaining plane storage|quantization output|not used by claimed implementation"):
                     framework.validate_normative_coverage(data)
 
     def test_inventory_ht_checkpoint_binds_private_mode_packed_tape_and_refinement_source(self):

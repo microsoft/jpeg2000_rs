@@ -301,16 +301,25 @@ def _validate_static_fused_readers(source_text):
         "ensuresresult.valid(),result.raw_row()==self.raw_plane().coefficients.subrange(startasint,endasint),",
     )
     if any(fragment not in compact for fragment in required):
-        raise ValueError("private HT primary static fused readers require actual borrowed types and complete row projection")
+        raise ValueError("remaining plane storage private HT primary static fused readers require actual borrowed types and complete row projection")
     for symbol in ("from_wide", "from_private"):
         body = _coverage_function_body(reader, _coverage_function_header(reader, symbol, module_scope=True))
         if body is None or "".join(body.split()) != "plane":
-            raise ValueError("private HT primary static fused readers require unchanged borrowed plane producers")
+            raise ValueError("remaining plane storage private HT primary static fused readers require unchanged borrowed plane producers")
     fused = source_text((ROOT / "src/decode/reconstruction/fused.rs").resolve())
     for symbol in ("preflight", "write", "place_readable"):
         header = _coverage_function_header(fused, symbol, module_scope=True)
         if header is None or not "".join(fused[header.end():].split()).startswith("<P:ReadablePlane>("):
-            raise ValueError("private HT primary static fused readers require statically selected shared loops")
+            raise ValueError("remaining plane storage private HT primary static fused readers require statically selected shared loops")
+    for (relative, symbol), fragments in _PLANE_ROLE_NATIVE_ORDER.items():
+        if not relative.startswith("src/decode/reconstruction/fused"):
+            continue
+        text = source_text((ROOT / relative).resolve())
+        body = _coverage_function_body(text, _coverage_function_header(text, symbol))
+        compact = "".join(body.split()) if body is not None else ""
+        positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+        if any(position < 0 for position in positions) or positions != sorted(positions):
+            raise ValueError("remaining plane storage private HT primary static fused readers require actual borrowed access and ordered shared fallbacks")
 
 
 def _coverage_spec_function_body(text: str, symbol: str) -> str | None:
@@ -19548,6 +19557,7 @@ def validate_normative_coverage(
             if any(position < 0 for position in positions) or positions != sorted(positions):
                 raise ValueError("cleanup significance requires original real admission/output/readers/flag/magnitude order")
     if "part1-complete-standard-plan-coordinator" in ids:
+        _validate_static_fused_readers(source_text)
         coefficient_entry = next(e for e in coverage["requirements"] if e["id"] == "part1-complete-standard-plan-coordinator")
         if not _COEFFICIENT_EXTRACTION_TESTS.issubset({
                 (ref["path"], ref["symbol"]) for ref in coefficient_entry["test_refs"]}):

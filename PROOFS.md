@@ -6527,7 +6527,7 @@ proof obligations. The existing ordered conditional allocation program remains
 governing; fresh proofs must connect these actual producers rather than assume
 equal outputs or phantom allocations. New native layout, complete source and
 actual archive verification, original-oracle/canonical receipts and all
-performance gates remain pending for this source; historical qualification
+performance gates are required for this source; historical qualification
 does not certify it.
 
 The regression controls compare private and wide results for reversible and

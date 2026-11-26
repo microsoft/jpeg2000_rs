@@ -221,7 +221,7 @@ The implementation contains:
   Its source-prepared wide-reader correction statically selects borrowed
   coefficient rows for ordinary wide planes and private row readers for private
   HT storage. Both use the same fused arithmetic and real staging fallback.
-  Fresh source/archive/native/layout and whole-cohort performance gates remain
+  Fresh source/archive/native/layout and whole-cohort performance gates are
   required; neither the preceding qualification nor its unretained performance
   results qualify this correction.
 - Reversible 5/3 and fixed-point irreversible 9/7 synthesis.
