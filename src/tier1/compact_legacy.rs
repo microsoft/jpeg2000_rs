@@ -920,14 +920,14 @@ impl CompactPlane {
             #[cfg(verus_keep_ghost)]
             proof! {
                 assert(width >= 3);
-                crate::specs::compact_index(width,self.height,self.entries@,x-1,y-1);
-                crate::specs::compact_index(width,self.height,self.entries@,x,y-1);
-                crate::specs::compact_index(width,self.height,self.entries@,x+1,y-1);
-                crate::specs::compact_index(width,self.height,self.entries@,x-1,y);
-                crate::specs::compact_index(width,self.height,self.entries@,x+1,y);
-                crate::specs::compact_index(width,self.height,self.entries@,x-1,y+1);
-                crate::specs::compact_index(width,self.height,self.entries@,x,y+1);
-                crate::specs::compact_index(width,self.height,self.entries@,x+1,y+1);
+                crate::specs::compact_index(width,self.height,self.entries@,(x-1) as usize,(y-1) as usize);
+                crate::specs::compact_index(width,self.height,self.entries@,x,(y-1) as usize);
+                crate::specs::compact_index(width,self.height,self.entries@,(x+1) as usize,(y-1) as usize);
+                crate::specs::compact_index(width,self.height,self.entries@,(x-1) as usize,y);
+                crate::specs::compact_index(width,self.height,self.entries@,(x+1) as usize,y);
+                crate::specs::compact_index(width,self.height,self.entries@,(x-1) as usize,(y+1) as usize);
+                crate::specs::compact_index(width,self.height,self.entries@,x,(y+1) as usize);
+                crate::specs::compact_index(width,self.height,self.entries@,(x+1) as usize,(y+1) as usize);
                 assert(prev - 1 == (y - 1) * width + (x - 1)) by (nonlinear_arith)
                     requires prev == index - width, index == y * width + x, x > 0, y > 0, width > 0;
                 assert(prev == (y - 1) * width + x) by (nonlinear_arith)
@@ -1579,7 +1579,7 @@ impl CompactPlane {
             proof! {
                 assert(row==0 || row==1 || row==2 || row==3);
                 assert(self.entries@[((stripe+row)*self.width+x) as int] & SIG==0);
-                crate::specs::compact_cached_summary(self.width,self.height,self.entries@,x,stripe+row,context.2);
+                crate::specs::compact_cached_summary(self.width,self.height,self.entries@,x,(stripe+row) as usize,context.2);
             }
             #[cfg(verus_keep_ghost)]
             proof_decl! {let ghost before_words=self.entries@;let ghost before_state=super::legacy_bitplane_view(state);}
