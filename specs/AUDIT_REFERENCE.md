@@ -1722,6 +1722,17 @@ sampling to centered chroma scaling by `65535/(2^p-1)`, with the same signed
 nearest/tie policy. Neither pixel theorem proves component/output-budget
 validation or the entire color-conversion loop.
 
+The requested sYCC converter also admits a borrowed row plan for unit-grid,
+unregistered luma and congruent 2:1 horizontal chroma with 1:1 or 2:1
+vertical sampling. `sycc_row_indices` connects the retained chroma row base
+and shared clamped column to the existing component-index denotation.
+`convert_sycc_row_pixel` preserves the scalar pixel Result, including Y,
+Cb, then Cr error order: only a pair already read and normalized
+successfully at the same source index is reused. The plan is checked
+after the existing output reservations, creates no owner, and declined
+plans use the generic pixel path. Alpha and native planar output do not
+use this plan.
+
 `color_channel_layout` describes actual typed-image/CDEF routing before sample
 conversion. Its default path is used only when every component has no
 definitions. The explicit ordered fold retains alpha kind/association,

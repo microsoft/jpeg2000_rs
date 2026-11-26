@@ -259,12 +259,21 @@ pub(super) fn normalized_difference_at(
     if info.precision == 0 || info.precision > 38 {
         return Err(invalid_color_input());
     }
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        crate::proofs::spec_properties::color_precision_binary_bounds(info.precision);
-    }
     let value = nominal_component_at(component, image.x_origin(), image.y_origin(), x, y)?;
-    let maximum = (1_u64 << info.precision)
+    normalize_difference(value, info.precision)
+}
+
+#[cfg_attr(
+    verus_keep_ghost,
+    verus_spec(result =>
+        requires 0 < precision <= 38,
+        ensures result == crate::specs::color_normalize_difference(value, precision),
+    )
+)]
+fn normalize_difference(value: u64, precision: u8) -> Result<i32, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::proofs::spec_properties::color_precision_binary_bounds(precision); }
+    let maximum = (1_u64 << precision)
         .checked_sub(1)
         .ok_or_else(arithmetic_overflow)?;
     if maximum == 0 {
@@ -273,7 +282,7 @@ pub(super) fn normalized_difference_at(
     if value > maximum {
         return Err(invalid_color_input());
     }
-    let midpoint = 1_u64 << (info.precision - 1);
+    let midpoint = 1_u64 << (precision - 1);
     let difference = i128::from(value) - i128::from(midpoint);
     let scaled = difference
         .checked_mul(i128::from(OUTPUT_MAXIMUM))
@@ -382,6 +391,24 @@ pub(super) fn nominal_component_at(
     let index = row
         .checked_add(sample_x as usize)
         .ok_or_else(arithmetic_overflow)?;
+    nominal_at_index(component, index)
+}
+
+#[cfg_attr(
+    verus_keep_ghost,
+    verus_spec(result =>
+        requires 0 < crate::image::typed_component_view(component).info.precision <= 38,
+        ensures result == crate::specs::color_nominal_at_index(
+            crate::image::typed_component_view(component), index),
+    )
+)]
+pub(super) fn nominal_at_index(
+    component: &TypedComponent,
+    index: usize,
+) -> Result<u64, DecodeError> {
+    let info = component.info();
+    #[cfg(verus_keep_ghost)]
+    proof! { crate::proofs::spec_properties::color_precision_binary_bounds(info.precision); }
     match component.samples() {
         TypedSamples::Unsigned(samples) if !info.signed => {
             let value = *samples.get(index).ok_or_else(invalid_color_input)?;
@@ -413,6 +440,20 @@ pub(super) fn nominal_component_at(
         }
         _ => Err(invalid_color_input()),
     }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires 0 < crate::image::typed_component_view(component).info.precision <= 38,
+    ensures result == crate::specs::color_chroma_at_index(crate::image::typed_component_view(component), index),
+))]
+pub(super) fn chroma_at_index(
+    component: &TypedComponent,
+    index: usize,
+) -> Result<i32, DecodeError> {
+    normalize_difference(
+        nominal_at_index(component, index)?,
+        component.info().precision,
+    )
 }
 
 #[cfg_attr(

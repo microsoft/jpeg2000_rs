@@ -1810,6 +1810,167 @@ fn signed_subsampled_sycc_and_alpha_resample_to_image_grid() {
 }
 
 #[test]
+fn sycc_registered_rows_restart_at_edges_and_keep_signed38_rounding() {
+    let midpoint = 1_i64 << 37;
+    let luma = [
+        16, 64, 128, 192, 240, 1, 47, 99, 151, 222, 100, 140, 180, 200, 212,
+    ];
+    let cb = [
+        -midpoint,
+        midpoint - 1,
+        -1,
+        0,
+        -(midpoint / 3),
+        midpoint / 3,
+    ];
+    let cr = [
+        midpoint - 1,
+        -midpoint,
+        1,
+        -1,
+        midpoint / 3,
+        -(midpoint / 3),
+    ];
+    let limits = ResourceLimits::default();
+    for registration in [0, 1, 32_768, 32_769, 65_535] {
+        for different_cr in [false, true] {
+            let mut bi = ComponentInfo {
+                precision: 38,
+                signed: true,
+                x_subsampling: 2,
+                y_subsampling: 2,
+                x_registration: registration,
+                y_registration: registration,
+            };
+            let origin = (u32::MAX - 6, 5);
+            let size = (5, 3);
+            let mut planes = vec![TypedComponent::from_parts(
+                size.0,
+                size.1,
+                component(&[], 8, false, (1, 1), None).info(),
+                TypedSamples::Unsigned(luma.to_vec()),
+            )];
+            let mut expected = Vec::new();
+            for (i, source) in [cb, cr].iter().enumerate() {
+                if i == 1 && different_cr {
+                    bi.x_registration ^= 32_768;
+                }
+                let extent = |o, size, reg| {
+                    (registered_coordinate_wide(o + size, 2, reg, true)
+                        - registered_coordinate_wide(o, 2, reg, true)) as u32
+                };
+                let cw = extent(origin.0, size.0, bi.x_registration);
+                let ch = extent(origin.1, size.1, bi.y_registration);
+                let samples = &source[..(cw * ch) as usize];
+                expected.push(
+                    sampled_nominal_plane_wide_reference(
+                        &samples
+                            .iter()
+                            .map(|v| (v + midpoint) as u64)
+                            .collect::<Vec<_>>(),
+                        (cw, ch),
+                        bi,
+                        size,
+                        origin,
+                    )
+                    .unwrap(),
+                );
+                planes.push(TypedComponent::from_parts(
+                    cw,
+                    ch,
+                    bi,
+                    TypedSamples::Signed(samples.to_vec()),
+                ));
+            }
+            let input = TypedImage::from_components_with_origin(
+                size.0, size.1, origin.0, origin.1, planes, &limits,
+            )
+            .unwrap();
+            let result = convert_jp2_color(
+                &input,
+                &ColorSpecification::enumerated(ENUMERATED_SYCC),
+                &limits,
+            )
+            .unwrap();
+            for (index, value) in luma.into_iter().enumerate() {
+                let (r, g, b) = sycc_wide_reference(
+                    value as u16 * 257,
+                    chroma_wide_reference(expected[0][index], 38),
+                    chroma_wide_reference(expected[1][index], 38),
+                );
+                assert_eq!(
+                    (
+                        result.channels()[0].samples()[index],
+                        result.channels()[1].samples()[index],
+                        result.channels()[2].samples()[index]
+                    ),
+                    (r, g, b)
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn sycc_row_plan_leaves_late_sample_and_owner_refusals_in_place() {
+    let limits = ResourceLimits::default();
+    let method = ColorSpecification::enumerated(ENUMERATED_SYCC);
+    let input = image(
+        4,
+        vec![
+            component(&[128; 4], 8, false, (1, 1), None),
+            component(&[128, 256], 8, false, (2, 1), None),
+            component(&[128; 2], 8, false, (2, 1), None),
+        ],
+    );
+    for after in 0..5 {
+        assert_eq!(
+            crate::allocation::with_refusal(after, || convert_jp2_color(&input, &method, &limits)),
+            Err(DecodeError::AllocationFailed)
+        );
+    }
+    assert_eq!(
+        crate::allocation::with_refusal(5, || convert_jp2_color(&input, &method, &limits)),
+        Err(invalid_color_input())
+    );
+    let constrained = limits.with_maximum_work_units(11).unwrap();
+    assert_eq!(
+        convert_jp2_color(&input, &method, &constrained),
+        Err(DecodeError::LimitExceeded {
+            resource: Resource::WorkUnits,
+            limit: 11,
+            actual: 12,
+        })
+    );
+    let bad_index = TypedImage::for_test(
+        4,
+        1,
+        0,
+        0,
+        vec![
+            component(&[128; 4], 8, false, (1, 1), None),
+            TypedComponent::from_parts(
+                2,
+                1,
+                input.components()[1].info(),
+                TypedSamples::Unsigned(vec![128]),
+            ),
+            component(&[128; 2], 8, false, (2, 1), None),
+        ],
+    );
+    crate::allocation::with_refusal(1, || {
+        assert_eq!(
+            convert_jp2_color(&bad_index, &method, &limits),
+            Err(invalid_color_input())
+        );
+        assert_eq!(
+            crate::allocation::empty_with_capacity::<u8>(1),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+}
+
+#[test]
 fn subsampling_respects_nonzero_image_origin() {
     let image = TypedImage::from_components_with_origin(
         4,

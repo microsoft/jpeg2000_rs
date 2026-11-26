@@ -1,7 +1,11 @@
 use super::admission::{channel_layout, validate_components, validate_output_size};
-use super::geometry::{arithmetic_overflow, checked_area, invalid_color_input, unsupported};
+use super::geometry::{
+    arithmetic_overflow, checked_area, invalid_color_input, registered_ceil_div,
+    registered_floor_div, unsupported,
+};
 use super::normalization::{
-    normalize_component, normalized_at, normalized_difference_at, pixel_coordinates,
+    chroma_at_index, nominal_at_index, normalize_component, normalize_unsigned, normalized_at,
+    normalized_difference_at, pixel_coordinates,
 };
 use super::{
     ConvertedChannel, ConvertedChannelType, ConvertedColorSpace, ConvertedImage, FIXED_ONE,
@@ -11,7 +15,9 @@ use super::{
     converted_channel_result, converted_channel_views, converted_channel_views_push,
     converted_image_result,
 };
-use crate::image::{ChannelAssociation, TypedImage};
+use crate::image::{ChannelAssociation, TypedComponent, TypedImage};
+#[cfg(verus_keep_ghost)]
+use crate::image::{typed_component_view, typed_image_component_views, typed_image_geometry};
 use crate::jp2::{
     ColorMethod, ColorSpecification, ENUMERATED_GRAYSCALE, ENUMERATED_SRGB, ENUMERATED_SYCC,
 };
@@ -165,6 +171,11 @@ pub fn convert_jp2_color(
                 crate::specs::part2_color_convert_storage_refused(storage_context,request,error);}
         }
         let mut blue = allocated?;
+        let plan = plan_sycc_rows(image, &layout.colors);
+        let mut row = SyccRow {
+            base: None,
+            chroma: None,
+        };
         let mut pixel = 0_usize;
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -185,6 +196,11 @@ pub fn convert_jp2_color(
                     colors == layout.colors@,
                     width as nat == geometry.0 as nat,
                     width > 0,
+                    match plan {
+                        Some(ref plan) => sycc_plan_matches(plan, input, colors, geometry)
+                            && sycc_row_valid(plan, row),
+                        None => true,
+                    },
                     crate::specs::part2_layer_area(geometry.0, geometry.1) == Ok(pixel_count),
                     crate::specs::color_sycc_planes_prefix(input, geometry, colors, width, pixel as nat)
                         == Ok((red@, green@, blue@)),
@@ -202,7 +218,19 @@ pub fn convert_jp2_color(
             proof! {
                 crate::proofs::production_impl::production_color_sycc_step(input, geometry, colors, width, pixel as nat);
             }
-            let (r, g, b) = match convert_sycc_pixel(image, &layout.colors, pixel, width) {
+            let converted = match &plan {
+                Some(plan) => {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        reveal(crate::specs::part2_layer_area);
+                        assert(geometry == sycc_geometry(plan));
+                        sycc_pixel_routing(plan, input, colors, geometry, pixel, width);
+                    }
+                    convert_sycc_row_pixel(plan, &mut row, pixel, width)
+                }
+                None => convert_sycc_pixel(image, &layout.colors, pixel, width),
+            };
+            let (r, g, b) = match converted {
                 Ok(value) => value,
                 Err(error) => {
                     #[cfg(verus_keep_ghost)]
@@ -504,6 +532,433 @@ fn convert_sycc_pixel(
         normalized_difference_at(image, *colors.get(1).ok_or_else(invalid_color_input)?, x, y)?;
     let cr =
         normalized_difference_at(image, *colors.get(2).ok_or_else(invalid_color_input)?, x, y)?;
+    sycc_to_srgb(luminance, cb, cr)
+}
+
+struct SyccAxis {
+    origin: u32,
+    step: u8,
+    registration: u16,
+    first: u32,
+    last: u32,
+}
+
+struct SyccPlan<'a> {
+    luma: &'a TypedComponent,
+    cb: &'a TypedComponent,
+    cr: &'a TypedComponent,
+    x: SyccAxis,
+    y: SyccAxis,
+}
+
+struct SyccRow {
+    base: Option<(u32, usize)>,
+    chroma: Option<(usize, i32, i32)>,
+}
+
+#[cfg(verus_keep_ghost)]
+verus! {
+    use crate::specs::{
+        ColorGeometry, Part1TypedComponentModel, color_chroma_at_index, color_registered_coordinate,
+    };
+
+    spec fn sycc_axis_matches(axis: SyccAxis, origin: u32, step: u8, registration: u16, size: u32) -> bool {
+        &&& step > 0
+        &&& size > 0
+        &&& axis.origin == origin && axis.step == step && axis.registration == registration
+        &&& color_registered_coordinate(origin, step as u32, registration, true) == Ok(axis.first)
+        &&& axis.first as int + size as int == axis.last as int + 1 <= u32::MAX as int
+    }
+
+    spec fn sycc_axis_offset(axis: SyccAxis, coord: u32) -> int {
+        let raw = crate::specs::part2_crg_component_predecessor(
+            (axis.origin as int + coord as int) as u32, axis.step as u32, axis.registration) as u32 as int;
+        (if raw < axis.first { axis.first as int } else if raw > axis.last { axis.last as int } else { raw })
+            - axis.first as int
+    }
+
+    spec fn sycc_geometry(plan: &SyccPlan) -> ColorGeometry {
+        let luma = typed_component_view(plan.luma);
+        (luma.width, luma.height, plan.x.origin, plan.y.origin)
+    }
+
+    spec fn sycc_plan_geometry(plan: &SyccPlan, geometry: ColorGeometry) -> bool {
+        let luma = typed_component_view(plan.luma);
+        let cb = typed_component_view(plan.cb);
+        let cr = typed_component_view(plan.cr);
+        &&& 0 < geometry.0 && 0 < geometry.1
+        &&& geometry.2 as int + geometry.0 as int <= u32::MAX as int
+        &&& geometry.3 as int + geometry.1 as int <= u32::MAX as int
+        &&& luma.width == geometry.0 && luma.height == geometry.1
+        &&& luma.info.x_subsampling == 1 && luma.info.y_subsampling == 1
+        &&& luma.info.x_registration == 0 && luma.info.y_registration == 0
+        &&& 0 < luma.info.precision <= 38 && 0 < cb.info.precision <= 38 && 0 < cr.info.precision <= 38
+        &&& cb.width == cr.width && cb.height == cr.height
+        &&& cb.info.x_subsampling == cr.info.x_subsampling && cb.info.y_subsampling == cr.info.y_subsampling
+        &&& cb.info.x_registration == cr.info.x_registration && cb.info.y_registration == cr.info.y_registration
+        &&& sycc_axis_matches(plan.x, geometry.2, cb.info.x_subsampling, cb.info.x_registration, cb.width)
+        &&& sycc_axis_matches(plan.y, geometry.3, cb.info.y_subsampling, cb.info.y_registration, cb.height)
+        &&& cb.width as int * cb.height as int <= usize::MAX as int
+    }
+
+    spec fn sycc_plan_matches(
+        plan: &SyccPlan, components: Seq<Part1TypedComponentModel>, colors: Seq<usize>, geometry: ColorGeometry,
+    ) -> bool {
+        &&& colors.len() == 3
+        &&& colors[0] < components.len() && colors[1] < components.len() && colors[2] < components.len()
+        &&& typed_component_view(plan.luma) == components[colors[0] as int]
+        &&& typed_component_view(plan.cb) == components[colors[1] as int]
+        &&& typed_component_view(plan.cr) == components[colors[2] as int]
+        &&& plan.x.origin == geometry.2 && plan.y.origin == geometry.3
+        &&& sycc_plan_geometry(plan, geometry)
+    }
+
+    spec fn sycc_row_valid(plan: &SyccPlan, row: SyccRow) -> bool {
+        &&& match row.base {
+            Some((y, base)) => y < sycc_geometry(plan).1
+                && base as int == sycc_axis_offset(plan.y, y) * typed_component_view(plan.cb).width as int,
+            None => true,
+        }
+
+        &&& match row.chroma {
+            Some((index, cb, cr)) => color_chroma_at_index(typed_component_view(plan.cb), index) == Ok(cb)
+                && color_chroma_at_index(typed_component_view(plan.cr), index) == Ok(cr),
+            None => true,
+        }
+    }
+
+    #[verifier::opaque]
+    spec fn sycc_planned_pixel(plan: &SyccPlan, pixel: usize, width: usize)
+        -> Result<(u16, u16, u16), DecodeError> {
+        crate::specs::color_sycc_pixel(
+            seq![typed_component_view(plan.luma), typed_component_view(plan.cb), typed_component_view(plan.cr)],
+            plan.x.origin, plan.y.origin, seq![0usize, 1usize, 2usize], pixel, width,
+        )
+    }
+
+    proof fn sycc_pixel_routing(
+        plan: &SyccPlan, components: Seq<Part1TypedComponentModel>, colors: Seq<usize>,
+        geometry: ColorGeometry, pixel: usize, width: usize,
+    )
+        requires sycc_plan_matches(plan, components, colors, geometry),
+        ensures sycc_planned_pixel(plan, pixel, width)
+            == crate::specs::color_sycc_pixel(components, geometry.2, geometry.3, colors, pixel, width),
+    { reveal(sycc_planned_pixel); }
+
+    #[verifier::opaque]
+    spec fn sycc_indexed_pixel(plan: &SyccPlan, pixel: usize, chroma: usize)
+        -> Result<(u16, u16, u16), DecodeError> {
+        let luma = typed_component_view(plan.luma);
+        match crate::specs::color_nominal_at_index(luma, pixel) {
+            Err(error) => Err(error),
+            Ok(value) => match crate::specs::color_normalize_unsigned(value, luma.info.precision) {
+                Err(error) => Err(error),
+                Ok(y) => match color_chroma_at_index(typed_component_view(plan.cb), chroma) {
+                    Err(error) => Err(error),
+                    Ok(cb) => match color_chroma_at_index(typed_component_view(plan.cr), chroma) {
+                        Err(error) => Err(error),
+                        Ok(cr) => crate::specs::color_sycc_to_srgb(y, cb, cr),
+                    }
+                },
+            },
+        }
+    }
+
+    proof fn sycc_indexed_pixel_matches(plan: &SyccPlan, pixel: usize, width: usize, x: u32, y: u32, index: usize)
+        requires
+            sycc_plan_geometry(plan, sycc_geometry(plan)),
+            crate::specs::color_pixel_coordinates(pixel, width) == Ok((x, y)),
+            crate::specs::color_component_index(typed_component_view(plan.luma), plan.x.origin, plan.y.origin, x, y) == Ok(pixel),
+            crate::specs::color_component_index(typed_component_view(plan.cb), plan.x.origin, plan.y.origin, x, y) == Ok(index),
+            crate::specs::color_component_index(typed_component_view(plan.cr), plan.x.origin, plan.y.origin, x, y) == Ok(index),
+        ensures sycc_indexed_pixel(plan, pixel, index) == sycc_planned_pixel(plan, pixel, width),
+    {
+        reveal(sycc_indexed_pixel);
+        reveal(sycc_planned_pixel);
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures match result {
+        Some(plan) => sycc_plan_matches(&plan, typed_image_component_views(image), colors@, typed_image_geometry(image)),
+        None => true,
+    },
+))]
+fn plan_sycc_rows<'a>(image: &'a TypedImage, colors: &[usize]) -> Option<SyccPlan<'a>> {
+    if colors.len() != 3 {
+        return None;
+    }
+    let luma = image.components().get(colors[0])?;
+    let cb = image.components().get(colors[1])?;
+    let cr = image.components().get(colors[2])?;
+    let width = image.width();
+    let height = image.height();
+    let yi = luma.info();
+    let bi = cb.info();
+    let ri = cr.info();
+    if width == 0
+        || height == 0
+        || luma.width() != width
+        || luma.height() != height
+        || yi.x_subsampling != 1
+        || yi.y_subsampling != 1
+        || yi.x_registration != 0
+        || yi.y_registration != 0
+        || bi.x_subsampling != 2
+        || (bi.y_subsampling != 1 && bi.y_subsampling != 2)
+        || bi.x_subsampling != ri.x_subsampling
+        || bi.y_subsampling != ri.y_subsampling
+        || bi.x_registration != ri.x_registration
+        || bi.y_registration != ri.y_registration
+        || cb.width() != cr.width()
+        || cb.height() != cr.height()
+        || yi.precision == 0
+        || yi.precision > 38
+        || bi.precision == 0
+        || bi.precision > 38
+        || ri.precision == 0
+        || ri.precision > 38
+    {
+        return None;
+    }
+    let ox = image.x_origin();
+    let oy = image.y_origin();
+    ox.checked_add(width)?;
+    oy.checked_add(height)?;
+    let Ok(_) = checked_area(cb.width(), cb.height()) else {
+        return None;
+    };
+    // The converter has already admitted all selected components, including
+    // sample storage lengths and alpha, before making any output reservation.
+    let x = plan_sycc_axis(ox, bi.x_subsampling, bi.x_registration, cb.width())?;
+    let y = plan_sycc_axis(oy, bi.y_subsampling, bi.y_registration, cb.height())?;
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(crate::specs::part2_layer_area); }
+    Some(SyccPlan { luma, cb, cr, x, y })
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures match result {
+        Some(axis) => sycc_axis_matches(axis, origin, step, registration, size),
+        None => true,
+    },
+))]
+fn plan_sycc_axis(origin: u32, step: u8, registration: u16, size: u32) -> Option<SyccAxis> {
+    if step == 0 || size == 0 {
+        return None;
+    }
+    let Ok(first) = registered_ceil_div(origin, u32::from(step), registration) else {
+        return None;
+    };
+    let last = first.checked_add(size)? - 1;
+    Some(SyccAxis {
+        origin,
+        step,
+        registration,
+        first,
+        last,
+    })
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires axis.step > 0, axis.first <= axis.last, axis.origin as int + coord as int <= u32::MAX as int,
+    ensures result == Ok(sycc_axis_offset(*axis, coord) as u32),
+        match result { Ok(offset) => 0 <= offset <= axis.last - axis.first, Err(_) => false },
+))]
+fn sycc_axis_offset_at(axis: &SyccAxis, coord: u32) -> Result<u32, DecodeError> {
+    let raw = registered_floor_div(axis.origin + coord, u32::from(axis.step), axis.registration)?;
+    let clamped = if raw < axis.first {
+        axis.first
+    } else if raw > axis.last {
+        axis.last
+    } else {
+        raw
+    };
+    Ok(clamped - axis.first)
+}
+
+#[cfg(verus_keep_ghost)]
+verus! {
+    proof fn sycc_row_indices(plan: &SyccPlan, pixel: usize, width: usize, x: u32, y: u32, index: usize)
+        requires
+            sycc_plan_geometry(plan, sycc_geometry(plan)),
+            width == sycc_geometry(plan).0,
+            x < sycc_geometry(plan).0, y < sycc_geometry(plan).1,
+            crate::specs::color_pixel_coordinates(pixel, width) == Ok((x, y)),
+            index as int == sycc_axis_offset(plan.y, y) * typed_component_view(plan.cb).width as int
+                + sycc_axis_offset(plan.x, x),
+        ensures
+            crate::specs::color_component_index(typed_component_view(plan.luma), plan.x.origin, plan.y.origin, x, y) == Ok(pixel),
+            crate::specs::color_component_index(typed_component_view(plan.cb), plan.x.origin, plan.y.origin, x, y) == Ok(index),
+            crate::specs::color_component_index(typed_component_view(plan.cr), plan.x.origin, plan.y.origin, x, y) == Ok(index),
+    {
+        use crate::proofs::production_impl::production_color_unit_coordinate;
+        use crate::specs::color_component_index;
+        let ox = plan.x.origin;
+        let oy = plan.y.origin;
+        let luma = typed_component_view(plan.luma);
+        let cb = typed_component_view(plan.cb);
+        let cr = typed_component_view(plan.cr);
+        let ax = (ox as int + x as int) as u32;
+        let ay = (oy as int + y as int) as u32;
+        assert(ox <= ax && (ax as int) < ox as int + luma.width as int);
+        assert(oy <= ay && (ay as int) < oy as int + luma.height as int);
+        production_color_unit_coordinate(plan.x.origin);
+        production_color_unit_coordinate(plan.y.origin);
+        production_color_unit_coordinate(ax);
+        production_color_unit_coordinate(ay);
+        vstd::arithmetic::div_mod::lemma_fundamental_div_mod(pixel as int, width as int);
+        assert(x as int == pixel as int % width as int);
+        assert(y as int == pixel as int / width as int);
+        assert(y as int * luma.width as int + x as int == pixel as int) by(nonlinear_arith)
+            requires y as int == pixel as int / width as int, x as int == pixel as int % width as int,
+                pixel as int == width as int * (pixel as int / width as int) + pixel as int % width as int,
+                width as int == luma.width as int;
+        assert(color_component_index(luma, ox, oy, x, y) == Ok(pixel));
+        sycc_chroma_index(cb, plan.x, plan.y, x, y, index);
+        sycc_chroma_index(cr, plan.x, plan.y, x, y, index);
+    }
+
+    proof fn sycc_chroma_index(
+        c: Part1TypedComponentModel, horizontal: SyccAxis, vertical: SyccAxis, x: u32, y: u32, index: usize,
+    )
+        requires
+            0 < c.info.precision <= 38,
+            sycc_axis_matches(horizontal, horizontal.origin, c.info.x_subsampling, c.info.x_registration, c.width),
+            sycc_axis_matches(vertical, vertical.origin, c.info.y_subsampling, c.info.y_registration, c.height),
+            horizontal.origin as int + x as int <= u32::MAX as int,
+            vertical.origin as int + y as int <= u32::MAX as int,
+            index as int == sycc_axis_offset(vertical, y) * c.width as int + sycc_axis_offset(horizontal, x),
+        ensures crate::specs::color_component_index(c, horizontal.origin, vertical.origin, x, y) == Ok(index),
+    {
+        let ax = (horizontal.origin as int + x as int) as u32;
+        let ay = (vertical.origin as int + y as int) as u32;
+        let sx = crate::specs::part2_crg_component_predecessor(ax, horizontal.step as u32, horizontal.registration) as u32;
+        let sy = crate::specs::part2_crg_component_predecessor(ay, vertical.step as u32, vertical.registration) as u32;
+        assert(color_registered_coordinate(ax, c.info.x_subsampling as u32, c.info.x_registration, false) == Ok(sx));
+        assert(color_registered_coordinate(ay, c.info.y_subsampling as u32, c.info.y_registration, false) == Ok(sy));
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires
+        sycc_plan_geometry(plan, sycc_geometry(plan)),
+        width == sycc_geometry(plan).0,
+        (pixel as int) < width as int * sycc_geometry(plan).1 as int,
+        sycc_row_valid(plan, *old(row)),
+    ensures
+        sycc_row_valid(plan, *final(row)),
+        result == sycc_planned_pixel(plan, pixel, width),
+))]
+fn convert_sycc_row_pixel(
+    plan: &SyccPlan<'_>,
+    row: &mut SyccRow,
+    pixel: usize,
+    width: usize,
+) -> Result<(u16, u16, u16), DecodeError> {
+    let index = sycc_row_index(plan, row, pixel, width);
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(index.is_ok()); }
+    sycc_indexed_sample(plan, row, pixel, index?)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires
+        sycc_plan_geometry(plan, sycc_geometry(plan)),
+        width == sycc_geometry(plan).0,
+        (pixel as int) < width as int * sycc_geometry(plan).1 as int,
+        sycc_row_valid(plan, *old(row)),
+    ensures
+        sycc_row_valid(plan, *final(row)),
+        match result {
+            Ok(index) => sycc_indexed_pixel(plan, pixel, index) == sycc_planned_pixel(plan, pixel, width),
+            Err(_) => false,
+        },
+))]
+fn sycc_row_index(
+    plan: &SyccPlan<'_>,
+    row: &mut SyccRow,
+    pixel: usize,
+    width: usize,
+) -> Result<usize, DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let w = width as int;
+        let h = sycc_geometry(plan).1 as int;
+        let p = pixel as int;
+        vstd::arithmetic::div_mod::lemma_fundamental_div_mod(p, w);
+        assert(0 <= p % w < w);
+        assert(0 <= p / w < h) by(nonlinear_arith)
+            requires w > 0, 0 <= p < w * h, 0 <= p % w < w, p == w * (p / w) + p % w, p / w >= 0;
+    }
+    let (x, y) = pixel_coordinates(pixel, width)?;
+    let cw = plan.cb.width() as usize;
+    let base = match row.base {
+        Some((line, base)) if line == y => base,
+        _ => {
+            let iy = sycc_axis_offset_at(&plan.y, y)? as usize;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let h = typed_component_view(plan.cb).height as int;
+                let w = typed_component_view(plan.cb).width as int;
+                assert(0 <= iy < h);
+                assert(iy as int * w <= w * h) by(nonlinear_arith)
+                    requires 0 <= (iy as int) < h, w >= 0;
+            }
+            let base = iy * cw;
+            row.base = Some((y, base));
+            row.chroma = None;
+            base
+        }
+    };
+    let ix = sycc_axis_offset_at(&plan.x, x)? as usize;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let h = typed_component_view(plan.cb).height as int;
+        let w = typed_component_view(plan.cb).width as int;
+        let iy = sycc_axis_offset(plan.y, y);
+        assert(0 <= iy < h);
+        assert(0 <= ix < w);
+        assert(base as int + (ix as int) < w * h) by(nonlinear_arith)
+            requires 0 <= iy < h, 0 <= (ix as int) < w, base as int == iy * w, w > 0;
+    }
+    let index = base + ix;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        sycc_row_indices(plan, pixel, width, x, y, index);
+        sycc_indexed_pixel_matches(plan, pixel, width, x, y, index);
+    }
+    Ok(index)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires sycc_plan_geometry(plan, sycc_geometry(plan)), sycc_row_valid(plan, *old(row)),
+    ensures sycc_row_valid(plan, *final(row)),
+        result == sycc_indexed_pixel(plan, pixel, index),
+))]
+fn sycc_indexed_sample(
+    plan: &SyccPlan<'_>,
+    row: &mut SyccRow,
+    pixel: usize,
+    index: usize,
+) -> Result<(u16, u16, u16), DecodeError> {
+    #[cfg(verus_keep_ghost)]
+    proof! { reveal(sycc_indexed_pixel); }
+    // Keep first sample errors in raster order, and Y before Cb before Cr.
+    // Only a pair that already succeeded may be reused.
+    let luminance = normalize_unsigned(
+        nominal_at_index(plan.luma, pixel)?,
+        plan.luma.info().precision,
+    )?;
+    let (cb, cr) = match row.chroma {
+        Some((previous, cb, cr)) if previous == index => (cb, cr),
+        _ => {
+            let cb = chroma_at_index(plan.cb, index)?;
+            let cr = chroma_at_index(plan.cr, index)?;
+            row.chroma = Some((index, cb, cr));
+            (cb, cr)
+        }
+    };
     sycc_to_srgb(luminance, cb, cr)
 }
 

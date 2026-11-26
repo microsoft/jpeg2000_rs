@@ -3123,7 +3123,7 @@ pub proof fn production_color_plane_step(
     reveal_with_fuel(crate::specs::color_normalize_component_prefix, 1);
 }
 
-proof fn production_color_unit_coordinate(value: u32)
+pub(crate) proof fn production_color_unit_coordinate(value: u32)
     ensures
         crate::specs::color_registered_coordinate(value, 1, 0, true) == Ok(value),
         crate::specs::color_registered_coordinate(value, 1, 0, false) == Ok(value),
