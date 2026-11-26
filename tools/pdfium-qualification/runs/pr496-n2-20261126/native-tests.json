@@ -1,0 +1,25 @@
+{
+  "total": 46,
+  "consumers": [
+    {
+      "consumer": "BaseShim",
+      "tests": 17,
+      "failures": 0
+    },
+    {
+      "consumer": "BaseFfi",
+      "tests": 6,
+      "failures": 0
+    },
+    {
+      "consumer": "PR496Shim",
+      "tests": 17,
+      "failures": 0
+    },
+    {
+      "consumer": "PR496Ffi",
+      "tests": 6,
+      "failures": 0
+    }
+  ]
+}

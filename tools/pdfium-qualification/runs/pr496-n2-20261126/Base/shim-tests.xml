@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="17" failures="0" disabled="0" errors="0" time="0.001" timestamp="2026-11-26T14:43:05.688" name="AllTests">
+  <testsuite name="JpxDecoderTest" tests="3" failures="0" disabled="0" skipped="0" errors="0" time="0." timestamp="2026-11-26T14:43:05.688">
+    <testcase name="DecodesRgbIntoPitchedBgrRows" file="../../core/fxcodec/jpx/jpx_decoder_unittest.cpp" line="17" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.688" classname="JpxDecoderTest" />
+    <testcase name="RejectsEmptyAndShortInput" file="../../core/fxcodec/jpx/jpx_decoder_unittest.cpp" line="50" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="JpxDecoderTest" />
+    <testcase name="RejectsTruncatedImageData" file="../../core/fxcodec/jpx/jpx_decoder_unittest.cpp" line="61" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="JpxDecoderTest" />
+  </testsuite>
+  <testsuite name="fxcodec" tests="11" failures="0" disabled="0" skipped="0" errors="0" time="0." timestamp="2026-11-26T14:43:05.689">
+    <testcase name="DecodeDataNullDecodeData" file="../../core/fxcodec/jpx/jpx_unittest.cpp" line="36" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="fxcodec" />
+    <testcase name="DecodeDataNullStream" file="../../core/fxcodec/jpx/jpx_unittest.cpp" line="46" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="fxcodec" />
+    <testcase name="DecodeDataZeroSize" file="../../core/fxcodec/jpx/jpx_unittest.cpp" line="73" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="fxcodec" />
+    <testcase name="DecodeDataReadInBounds" file="../../core/fxcodec/jpx/jpx_unittest.cpp" line="101" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="fxcodec" />
+    <testcase name="DecodeDataReadBeyondBounds" file="../../core/fxcodec/jpx/jpx_unittest.cpp" line="152" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="fxcodec" />
+    <testcase name="DecodeDataSkip" file="../../core/fxcodec/jpx/jpx_unittest.cpp" line="218" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="fxcodec" />
+    <testcase name="DecodeDataSeek" file="../../core/fxcodec/jpx/jpx_unittest.cpp" line="335" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="fxcodec" />
+    <testcase name="YUV420ToRGB" file="../../core/fxcodec/jpx/jpx_unittest.cpp" line="394" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="fxcodec" />
+    <testcase name="YUV422ToRGB" file="../../core/fxcodec/jpx/jpx_unittest.cpp" line="466" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="fxcodec" />
+    <testcase name="YUV444ToRGB" file="../../core/fxcodec/jpx/jpx_unittest.cpp" line="526" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="fxcodec" />
+    <testcase name="ColorSyccToRGB" file="../../core/fxcodec/jpx/jpx_unittest.cpp" line="586" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="fxcodec" />
+  </testsuite>
+  <testsuite name="SamplingLayouts/JpxSyccDecoderTest" tests="3" failures="0" disabled="0" skipped="0" errors="0" time="0." timestamp="2026-11-26T14:43:05.689">
+    <testcase name="ConvertsToFullSizeRgb/0" value_param="&quot;jpx_sycc420.jp2&quot;" file="../../core/fxcodec/jpx/jpx_decoder_unittest.cpp" line="73" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="SamplingLayouts/JpxSyccDecoderTest" />
+    <testcase name="ConvertsToFullSizeRgb/1" value_param="&quot;jpx_sycc422.jp2&quot;" file="../../core/fxcodec/jpx/jpx_decoder_unittest.cpp" line="73" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="SamplingLayouts/JpxSyccDecoderTest" />
+    <testcase name="ConvertsToFullSizeRgb/2" value_param="&quot;jpx_sycc444.jp2&quot;" file="../../core/fxcodec/jpx/jpx_decoder_unittest.cpp" line="73" status="run" result="completed" time="0." timestamp="2026-11-26T14:43:05.689" classname="SamplingLayouts/JpxSyccDecoderTest" />
+  </testsuite>
+</testsuites>
