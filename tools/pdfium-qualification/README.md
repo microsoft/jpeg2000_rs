@@ -1,5 +1,10 @@
 # Original JPEG2000 / PDFium integration qualification
 
+The new-source #492/#493/#494 batch is complete:
+[exact f4b Base/head functional, diagnostic, reference and65-workload timing receipts](runs/pr492-494-n2-20261125/README.md).
+This measures each source independently, retains every adverse median/tail
+and does not authorize combined adoption, merge, release or tradeoff waivers.
+
 This is the actual portable handoff of the original **310-image x eight
 configurations / 41-PDF gate**, not an authorized replacement corpus.
 The runner, manifests, custom consumer, expected outcomes and source patches
