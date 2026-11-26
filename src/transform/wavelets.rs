@@ -245,6 +245,8 @@ pub(super) fn inverse_lift(
                 ) == (Ok(()), samples@));
             } else {
                 assert(len == 1);
+                reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+                assert(samples@ =~= original.update(0, original[0]));
                 assert(crate::specs::part1_lifting_prefix(
                     original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, 1,
                 ) == (Ok(()), samples@));
@@ -256,6 +258,8 @@ pub(super) fn inverse_lift(
     #[cfg(verus_keep_ghost)]
     proof! {
         if !target_even {
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+            assert(samples@ =~= original.update(0, original[0]));
             assert(crate::specs::part1_lifting_prefix(
                 original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, 1,
             ) == (Ok(()), samples@));
@@ -273,6 +277,7 @@ pub(super) fn inverse_lift(
             Err(error) => {
                 #[cfg(verus_keep_ghost)]
                 proof! {
+                    reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
                     assert(crate::specs::part1_lifting_prefix(
                         original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, 1,
                     ) == (Err(error), samples@));
@@ -287,12 +292,14 @@ pub(super) fn inverse_lift(
         samples[0] = value;
         #[cfg(verus_keep_ghost)]
         proof! {
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
             assert(crate::specs::part1_lifting_prefix(
                 original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, 1,
             ) == (Ok(()), samples@));
             crate::proofs::production_impl::production_lifting_sample_frame(
                 original, samples@, 1, target_even, lifting_step_view(step).0, lifting_step_view(step).1,
             );
+            assert(samples@ =~= samples@.update(1, original[1]));
             assert(crate::specs::part1_lifting_prefix(
                 original, target_even, lifting_step_view(step).0, lifting_step_view(step).1, 2,
             ) == (Ok(()), samples@));
@@ -496,6 +503,7 @@ pub(super) fn scale_parity(
     #[cfg(verus_keep_ghost)]
     proof! {
         if !low_parity && len > 0 {
+            reveal_with_fuel(crate::specs::part1_scaling_prefix, 2);
             assert(crate::specs::part1_scaling_prefix(original, low_parity, factor, 1) == (Ok(()), samples@));
         }
     }
@@ -542,7 +550,7 @@ pub(super) fn scale_parity(
         if index + 1 < len {
             index += 2;
         } else {
-            break;
+            return Ok(());
         }
     }
     Ok(())
