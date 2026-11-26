@@ -971,6 +971,37 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "ordered main-header storage"):
                 framework.validate_normative_coverage(coverage)
 
+    def test_inventory_jpip_snapshot_projection_binds_actual_filter_and_typed_lemma(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        coverage["requirements"] = [
+            item for item in coverage["requirements"] if item["id"] == "part9-packet-reframing"
+        ]
+        framework.validate_normative_coverage(coverage)
+        read_text = Path.read_text
+        mutations = (
+            ("src/jpip/progression.rs",
+             "crate::codestream::tile_parts_owned_view(layout.tile_parts@), tile_number)",
+             "crate::codestream::tile_parts_owned_view(layout.tile_parts@), 0)"),
+            ("src/jpip/progression_proof_support.rs",
+             "layout_parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == tile)",
+             "layout_parts.filter(|part: crate::specs::Part2OwnedTilePart| true)"),
+            ("src/jpip/progression_proof_support.rs",
+             "jpip_filter_projection(source, keep, project, predicate)",
+             "jpip_filter_projection(source, Seq::empty(), project, predicate)"),
+        )
+        for relative, before, after in mutations:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            modified = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return modified if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(relative=relative, before=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "projection"):
+                framework.validate_normative_coverage(coverage)
+
     def test_inventory_jpip_ordinal_frame_binds_actual_match_prevalue_and_matrix_write(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         coverage["requirements"] = [
@@ -11036,6 +11067,148 @@ class FrameworkTests(WorkingFiles):
         ]
         with self.assertRaisesRegex(ValueError, "remaining plane storage requires bounded"):
             framework.validate_normative_coverage(missing)
+
+    def test_inventory_ht_primary_binds_actual_private_chain_and_deadline_fallback(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part15-cleanup-only-actual-symbol-caller")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        mutations = (
+            ("src/decode.rs", "PRIVATE_HT_PRIMARY_ENABLED: bool = false", "PRIVATE_HT_PRIMARY_ENABLED: bool = true"),
+            ("src/decode/execution.rs", "if super::private_ht::eligible(", "if false && super::private_ht::eligible("),
+            ("src/decode/private_ht.rs", "discard.unwrap_or(0) != 0", "discard.unwrap_or(0) != 1"),
+            ("src/decode/private_ht.rs", "geometry.precincts == 1", "geometry.precincts == 2"),
+            ("src/decode/private_ht.rs", "super::reconstruction::fused::place_private(", "super::reconstruction::write_quantized_block("),
+            ("src/decode/reconstruction/fused.rs", "if let Some(quantizer) = preflight(", "if let Some(quantizer) = bypass_preflight("),
+            ("src/decode/reconstruction/fused_readable.rs", "coefficient.reconstructed_magnitude_bounded()", "0"),
+            ("src/decode/reconstruction/fused_readable.rs", "self.decoder.raw_coefficient(self.start + index)", "self.decoder.raw_coefficient(index)"),
+            ("src/decode/reconstruction/fused_readable.rs", "PrivateHtDecoder::coefficient_count(self)", "0"),
+            ("src/decode/reconstruction/fused_readable.rs", "PrivateHtDecoder::collect(self)", "Ok(Vec::new())"),
+            ("src/tier1/private_ht.rs", "let copied = self.stage()", "let copied = self.into_wide()"),
+            ("src/tier1/private_ht.rs", "let converted = staged.into_wide()", "let converted = staged.stage()"),
+            ("src/tier1/private_ht.rs", "*self = retained", "drop(retained)"),
+            ("src/tier1/ht_checkpoint.rs", "geometry_word(width, height)", "geometry_word(width, width)"),
+            ("specs/private_ht_primary.rs", "source.0.coefficients.len()+1", "source.0.coefficients.len()"),
+            ("specs/private_ht_reconstruction.rs", "part2_extraction_place_run(working,bands,precincts,placement,reversible,maximum,calls)", "part2_extraction_place_run(working,bands,precincts,placement,reversible,maximum,calls.drop_first())"),
+            ("specs/cold_tile_metadata.rs", "if private_ht_eligible(size,tile,parts,caps,discard)", "if false && private_ht_eligible(size,tile,parts,caps,discard)"),
+        )
+        for relative, before, after in mutations:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(source=relative, fragment=before), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "remaining plane storage|private HT primary"):
+                framework.validate_normative_coverage(data)
+        scoped_mutations = (
+            ("src/decode/reconstruction/fused_readable.rs", "from_private",
+             "plane", "other"),
+            ("src/decode/execution.rs", "decode_tile_parts_at",
+             "if super::private_ht::standard_eligible(", "if false && super::private_ht::standard_eligible("),
+            ("src/codestream/coding_style.rs", "effective_coding_styles_equal",
+             "left.code_block_width != right.code_block_width", "false"),
+            ("src/decode/private_ht.rs", "standard_component_eligible",
+             "effective_coding_styles_equal(style, first.coding_style)", "effective_coding_styles_equal(style, style)"),
+            ("src/decode/private_ht.rs", "append_standard_block",
+             "value.subband_index = indices.1", "value.subband_index = 0"),
+            ("src/packet/private_ht.rs", "execute_private_resolution_packet",
+             "precincts[index]", "precincts[0]"),
+            ("src/packet/private_ht.rs", "new_private_ht_resolution_precinct",
+             "precinct.decoders.append(", "discard_decoders("),
+            ("src/packet/private_ht.rs", "new_private_ht_resolution_precinct",
+             "let zero_result = super::tag_tree::tag_tree_new(", "let zero_result = supplied_zero_tree("),
+            ("src/decode/private_ht.rs", "plan_standard_component",
+             "builder.precincts.push(row.precinct)", "drop(row.precinct)"),
+            ("src/decode/private_ht.rs", "standard_component_eligible",
+             "first.component_coding_styles.style(component)", "first.component_coding_styles.style(0)"),
+            ("src/packet/private_ht.rs", "PrivateHtPrecinct::decode_packet",
+             ".style(self.component)?", ".style(0)?"),
+            ("specs/private_ht_standard_plan.rs", "private_ht_standard_eligible",
+             "crate::decode::PRIVATE_HT_PRIMARY_ENABLED", "true"),
+            ("specs/private_ht_standard_plan.rs", "private_standard_cell_run",
+             "private_decoder_initial_calls_run(", "supplied_decoder("),
+            ("specs/private_ht_standard_precinct.rs", "private_resolution_decoder_capacity",
+             "PrivateOwnerCapacityContext::ResolutionDecoders", "PrivateOwnerCapacityContext::BlockAppend"),
+            ("specs/private_ht_standard_precinct.rs", "private_resolution_after_inclusion",
+             "index,true,Some(inclusion)", "index,false,None"),
+            ("specs/private_ht_standard_packet.rs", "private_resolution_packet_run",
+             "private_precinct_packet_run(", "supplied_packet("),
+            ("specs/private_ht_standard_image.rs", "private_standard_image_after_plan",
+             "part2_planned_tile_accounting(", "supplied_accounting("),
+        )
+        for relative, symbol, before, after in scoped_mutations:
+            source = framework.ROOT / relative
+            original = source.read_text()
+            body = (framework._coverage_function_body(original, framework._coverage_function_header(original, symbol))
+                    if relative.startswith("src/") else framework._coverage_spec_function_body(original, symbol))
+            self.assertIn(before, body)
+            changed = original.replace(body, body.replace(before, after, 1), 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(source=relative, symbol=symbol), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "remaining plane storage|private HT primary"):
+                framework.validate_normative_coverage(data)
+        missing = copy.deepcopy(data)
+        missing["requirements"][0]["test_refs"] = [
+            ref for ref in entry["test_refs"]
+            if (ref["path"], ref["symbol"]) not in framework._PRIVATE_STANDARD_HT_TESTS
+        ]
+        with self.assertRaisesRegex(ValueError, "private HT primary standard"):
+            framework.validate_normative_coverage(missing)
+
+    def test_inventory_static_fused_rows_bind_borrows_projection_and_real_fallbacks(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entries = [
+            entry for entry in coverage["requirements"]
+            if entry["id"] in {
+                "part15-cleanup-only-actual-symbol-caller",
+                "part1-complete-standard-plan-coordinator",
+            }
+        ]
+        self.assertEqual(len(entries), 2)
+        read_text = Path.read_text
+        mutations = (
+            ("src/decode/reconstruction/fused_readable.rs",
+             "type WideRow<'a> = &'a [CoefficientState]", "type WideRow<'a> = Vec<CoefficientState>"),
+            ("src/decode/reconstruction/fused_readable.rs",
+             "let coefficient = &self[index]", "let coefficient = self[index]"),
+            ("src/decode/reconstruction/fused_readable.rs",
+             "&self.coefficients()[start..end]", "&self.coefficients()[0..end]"),
+            ("src/decode/reconstruction/fused_readable.rs",
+             "result.valid()", "true"),
+            ("src/decode/reconstruction/fused_readable.rs",
+             "result.raw_row()==self.raw_plane().coefficients.subrange(start as int,end as int)",
+             "result.raw_row()==self.raw_plane().coefficients.subrange(0,end as int)"),
+            ("src/decode/reconstruction/fused_readable.rs",
+             "super::collect_prepare_coefficients(self)", "Ok(Vec::new())"),
+            ("src/decode/reconstruction/fused.rs",
+             "fn place_readable<P: ReadablePlane>", "fn place_readable"),
+            ("src/decode/reconstruction/fused.rs",
+             "let collected = plane.collect()", "let collected = Ok(Vec::new())"),
+        )
+        for entry in entries:
+            data = dict(coverage, requirements=[entry])
+            self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+            for relative, before, after in mutations:
+                source = framework.ROOT / relative
+                original = source.read_text()
+                self.assertIn(before, original)
+                changed = original.replace(before, after, 1)
+
+                def altered(path, *args, **kwargs):
+                    return changed if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(requirement=entry["id"], source=relative, fragment=before), \
+                        mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "static fused readers|remaining plane storage|quantization output|not used by claimed implementation"):
+                    framework.validate_normative_coverage(data)
 
     def test_inventory_ht_checkpoint_binds_private_mode_packed_tape_and_refinement_source(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())

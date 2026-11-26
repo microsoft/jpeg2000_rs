@@ -31,6 +31,14 @@ pub(crate) open spec fn part2_tag_storage_prefix(width:u32,height:u32,maximum:u6
 pub closed spec fn part1_tag_storage_result(width:u32,height:u32,maximum:u64,result:Result<Part1TagTree,crate::DecodeError>)->bool {
     exists|prefix:Seq<Part2TagStorageEvent>| #[trigger] part2_tag_storage_prefix(width,height,maximum,prefix,result)
 }
+pub(crate) proof fn part2_tag_storage_witness(width:u32,height:u32,maximum:u64,result:Result<Part1TagTree,crate::DecodeError>)
+    ->(calls:Seq<Part2TagStorageEvent>)
+    requires part1_tag_storage_result(width,height,maximum,result),
+    ensures part2_tag_storage_prefix(width,height,maximum,calls,result),
+{
+    reveal(part1_tag_storage_result);
+    choose|calls:Seq<Part2TagStorageEvent>|part2_tag_storage_prefix(width,height,maximum,calls,result)
+}
 pub(crate) proof fn part2_tag_storage_normal(width:u32,height:u32,maximum:u64)
     ensures part1_tag_storage_result(width,height,maximum,part1_tag_initial(width,height,maximum)),
 {

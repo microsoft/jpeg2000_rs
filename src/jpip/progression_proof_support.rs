@@ -900,6 +900,28 @@ verus! {
         }
     }
 
+    pub(crate) proof fn jpip_snapshot_collected_tile_parts<'a>(
+        source: Seq<&crate::codestream::TilePartPayload<'a>>,
+        keep: Seq<bool>, collected: Seq<&crate::codestream::TilePartPayload<'a>>,
+        layout_parts: Seq<crate::specs::Part2OwnedTilePart>, tile: u16,
+    )
+        requires keep.len() == source.len(),
+            collected == source.filter_index(|index: int| keep[index]),
+            source.map_values(|part: &crate::codestream::TilePartPayload<'a>|
+                crate::codestream::tile_part_owned_view(part)) == layout_parts,
+            forall|index: int| 0 <= index < source.len() ==>
+                keep[index] == (crate::codestream::tile_part_owned_view(
+                    #[trigger] source[index]).tile_index == tile),
+        ensures collected.map_values(|part: &crate::codestream::TilePartPayload<'a>|
+            crate::codestream::tile_part_owned_view(part))
+                == layout_parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == tile),
+    {
+        let project = |part: &crate::codestream::TilePartPayload<'a>|
+            crate::codestream::tile_part_owned_view(part);
+        let predicate = |part: crate::specs::Part2OwnedTilePart| part.tile_index == tile;
+        jpip_filter_projection(source, keep, project, predicate);
+    }
+
     pub proof fn jpip_filter_projection<A, B>(
         values: Seq<A>, keep: Seq<bool>, project: spec_fn(A) -> B, predicate: spec_fn(B) -> bool,
     )

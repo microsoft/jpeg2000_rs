@@ -480,56 +480,66 @@ impl CodingStyle {
     }
 
     pub fn equals(self, other: Self) -> bool {
-        if !progression_orders_equal(self.progression_order, other.progression_order)
-            || self.layers != other.layers
-            || self.multiple_component_transform != other.multiple_component_transform
-            || self.decomposition_levels != other.decomposition_levels
-            || self.decomposition_structure != other.decomposition_structure
-            || self.code_block_width != other.code_block_width
-            || self.code_block_height != other.code_block_height
-            || self.code_block_style != other.code_block_style
-            || !wavelet_transforms_equal(self.transform, other.transform)
-            || self.precincts_defined != other.precincts_defined
-            || self.sop_markers != other.sop_markers
-            || self.eph_markers != other.eph_markers
+        effective_coding_styles_equal(self, other)
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result==(parsed_coding_style_view(left)==parsed_coding_style_view(right)),
+))]
+pub(crate) fn effective_coding_styles_equal(left: CodingStyle, right: CodingStyle) -> bool {
+    #[cfg(verus_keep_ghost)]
+    proof! {reveal(parsed_coding_style_view);}
+    if !progression_orders_equal(left.progression_order, right.progression_order)
+        || left.layers != right.layers
+        || left.multiple_component_transform != right.multiple_component_transform
+        || left.decomposition_levels != right.decomposition_levels
+        || left.decomposition_structure != right.decomposition_structure
+        || left.code_block_width != right.code_block_width
+        || left.code_block_height != right.code_block_height
+        || left.code_block_style != right.code_block_style
+        || !wavelet_transforms_equal(left.transform, right.transform)
+        || left.precincts_defined != right.precincts_defined
+        || left.sop_markers != right.sop_markers
+        || left.eph_markers != right.eph_markers
+    {
+        return false;
+    }
+    let mut stage = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant stage<=left.decomposition_directions.len(),
+            forall|i:int|0<=i<stage ==> left.decomposition_directions@[i]==right.decomposition_directions@[i],
+        decreases left.decomposition_directions.len()-stage,
+    ))]
+    while stage < left.decomposition_directions.len() {
+        if !decomposition_directions_equal(
+            left.decomposition_directions[stage],
+            right.decomposition_directions[stage],
+        ) {
+            return false;
+        }
+        stage += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {assert(left.decomposition_directions@ =~= right.decomposition_directions@);}
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index<=left.precinct_exponents.len(),
+            left.decomposition_directions@==right.decomposition_directions@,
+            forall|i:int|0<=i<index ==> left.precinct_exponents@[i]==right.precinct_exponents@[i],
+        decreases left.precinct_exponents.len()-index,
+    ))]
+    while index < left.precinct_exponents.len() {
+        if left.precinct_exponents[index].0 != right.precinct_exponents[index].0
+            || left.precinct_exponents[index].1 != right.precinct_exponents[index].1
         {
             return false;
         }
-        let mut stage = 0_usize;
-        #[cfg_attr(
-            verus_keep_ghost,
-            verus_spec(
-                invariant stage <= self.decomposition_directions.len(),
-                decreases self.decomposition_directions.len() - stage,
-            )
-        )]
-        while stage < self.decomposition_directions.len() {
-            if !decomposition_directions_equal(
-                self.decomposition_directions[stage],
-                other.decomposition_directions[stage],
-            ) {
-                return false;
-            }
-            stage += 1;
-        }
-        let mut index = 0_usize;
-        #[cfg_attr(
-            verus_keep_ghost,
-            verus_spec(
-                invariant index <= self.precinct_exponents.len(),
-                decreases self.precinct_exponents.len() - index,
-            )
-        )]
-        while index < self.precinct_exponents.len() {
-            if self.precinct_exponents[index].0 != other.precinct_exponents[index].0
-                || self.precinct_exponents[index].1 != other.precinct_exponents[index].1
-            {
-                return false;
-            }
-            index += 1;
-        }
-        true
+        index += 1;
     }
+    #[cfg(verus_keep_ghost)]
+    proof! {assert(left.precinct_exponents@ =~= right.precinct_exponents@);}
+    true
 }
 // The pinned verus_spec frontend cannot resolve associated static constructors.
 // Both existing factory entry points use this one executable implementation.
@@ -752,6 +762,7 @@ impl Clone for ProgressionChanges {
         }
     }
 }
+#[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result==(left==right),))]
 const fn progression_orders_equal(left: ProgressionOrder, right: ProgressionOrder) -> bool {
     matches!(
         (left, right),
@@ -762,6 +773,7 @@ const fn progression_orders_equal(left: ProgressionOrder, right: ProgressionOrde
             | (ProgressionOrder::Cprl, ProgressionOrder::Cprl)
     )
 }
+#[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result==(left==right),))]
 const fn decomposition_directions_equal(
     left: DecompositionDirection,
     right: DecompositionDirection,
@@ -783,6 +795,7 @@ const fn decomposition_directions_equal(
             )
     )
 }
+#[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result==(left==right),))]
 const fn wavelet_transforms_equal(left: WaveletTransform, right: WaveletTransform) -> bool {
     match (left, right) {
         (WaveletTransform::Irreversible9x7, WaveletTransform::Irreversible9x7)

@@ -190,6 +190,16 @@ specs/pdf_jpx.rs
 specs/pdf_present_tile.rs
 specs/pdf_tile_count.rs
 specs/pdf_trailers.rs
+specs/private_ht_decoder.rs
+specs/private_ht_image.rs
+specs/private_ht_packet.rs
+specs/private_ht_packet_decode.rs
+specs/private_ht_plan.rs
+specs/private_ht_primary.rs
+specs/private_ht_reconstruction.rs
+specs/private_ht_storage.rs
+specs/private_ht_tile.rs
+specs/private_ht_tile_loop.rs
 specs/persistent_tile_configuration.rs
 specs/progression_coverage.rs
 specs/raw_decode.rs
@@ -271,6 +281,7 @@ src/decode/pdf_dimensions.rs
 src/decode/pdf_present_tile.rs
 src/decode/pdf_trailers.rs
 src/decode/planning.rs
+src/decode/private_ht.rs
 src/decode/proof_support.rs
 src/decode/raw_typed_result_tests.rs
 src/decode/reconstruction/fused.rs
@@ -367,6 +378,7 @@ src/packet/contributions.rs
 src/packet/errors.rs
 src/packet/multi_packet.rs
 src/packet/precinct.rs
+src/packet/private_ht.rs
 src/packet/progression.rs
 src/packet/proof_support.rs
 src/packet/spatial.rs
@@ -399,6 +411,7 @@ src/tier1/ht_refinement_readers.rs
 src/tier1/ht_segments.rs
 src/tier1/legacy_passes.rs
 src/tier1/legacy_segments.rs
+src/tier1/private_ht.rs
 src/tier1/proof_support.rs
 src/tier1/raw.rs
 src/tier1/state.rs

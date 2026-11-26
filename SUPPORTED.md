@@ -192,6 +192,38 @@ The implementation contains:
 - Legacy MQ and raw-bypass Tier-1 passes, coding-style routing, and Maxshift undo.
 - HT cleanup, significance propagation, magnitude refinement, placeholder and
   replacement pass sets, and mixed legacy/HT routing.
+  The qualified private packed-primary baseline applies only to the single-component,
+  single-part, zero-DWT, one-origin-zero-precinct HT-only subset described in
+  [PROOFS.md](PROOFS.md#private-one-shot-ht-primary-storage). ROI-coded inputs,
+  public/JPIP coefficient owners and other layouts retain wide storage.
+  Existing cooperative-deadline builds use the wide path; this does not add a
+  format-support claim.
+  The separate standard-DWT private-owner extension carries actual
+  resolution/subband/precinct geometry through the same ownership family.
+  It retains the single-part, implicit-precinct, origin-zero
+  structural restrictions and the compiled cooperative fallback. It
+  requires complete effective main/component coding-style equality: a
+  redundant COC is equivalent to an ignored COM when their complete resolved
+  inputs are equal, while genuine effective overrides retain the wide path.
+  Historical zero-DWT qualification does not qualify the extension, which is
+  not an adoption or performance claim; see
+  [PROOFS.md](PROOFS.md#standard-dwt-private-owner-extension).
+  The current multi-component continuation uses the same private coefficient
+  family and existing standard RCT/ICT finalization, with real component-plan
+  collection and suffix preservation. Effective mixed styles, custom transforms
+  and compiled cooperative-deadline builds retain the wide path. This continuation
+  has separately revision-bound source/archive/native qualification requirements;
+  historical single-component results are not inherited.
+  The isolated shared-fused reconstruction correction uses the existing real
+  preflight for both wide and private readers, retaining actual generic staging
+  when that preflight refuses. It does not change format admission or turn the
+  earlier multi-component performance regressions into an adoption claim.
+  Its source-prepared wide-reader correction statically selects borrowed
+  coefficient rows for ordinary wide planes and private row readers for private
+  HT storage. Both use the same fused arithmetic and real staging fallback.
+  Fresh source/archive/native/layout and whole-cohort performance gates are
+  required; neither the preceding qualification nor its unretained performance
+  results qualify this correction.
 - Reversible 5/3 and fixed-point irreversible 9/7 synthesis.
   Odd-origin high-only singleton operators use arithmetic half in the
   retained-assertion engineering profile. Actual encoded singleton-tile

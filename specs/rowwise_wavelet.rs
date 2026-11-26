@@ -271,6 +271,13 @@ pub(crate) proof fn rowwise_stage_column(samples:Seq<i64>,width:u32,height:u32,x
                 rowwise_coordinates(i,width as int,height as int);
                 rowwise_cell(if y==0{1int}else{y-1},x as int,width as int,height as int);
                 rowwise_cell(if y+1<height{(y+1) as int}else{y-1},x as int,width as int,height as int);
+                assert(1int*(width as int)==width as int) by(nonlinear_arith);
+                assert(0<=left+x<samples.len());
+                assert(0<=right+x<samples.len());
+                assert(-(if predict{2147483648int}else{1073741824int})<=samples[(left+x) as int]
+                    <=if predict{2147483648int}else{1073741824int});
+                assert(-(if predict{2147483648int}else{1073741824int})<=samples[(right+x) as int]
+                    <=if predict{2147483648int}else{1073741824int});
                 rowwise_neighbors_bounded(samples[i],samples[(left+x) as int],samples[(right+x) as int],predict);
             }
         }

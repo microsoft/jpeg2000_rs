@@ -114,7 +114,7 @@ fn validate_progression_selection(counts: &[u8], available: &[u8]) -> Result<(),
     ensures result==crate::specs::part1_progression_layout(tile_parts@,packet_grid_view(grid),packet_selection_view(selection),limits),
         result.is_ok() ==> tile_parts@.len()>0,
 ))]
-fn validate_progression_layout(
+pub(super) fn validate_progression_layout(
     tile_parts: &[TilePartPayload<'_>],
     grid: &PacketGrid,
     selection: Option<&[u8]>,
@@ -158,7 +158,7 @@ fn validate_progression_layout(
             tile_index,index:0,payload_bytes:0,packed_payload_bytes:0,declared_packets:0,all_lengths:true,packed:Seq::empty(),
         },crate::limits::resource_packet_header_byte_limit(limits)),
 ))]
-fn prepare_progression_payloads(
+pub(super) fn prepare_progression_payloads(
     tile_parts: &[TilePartPayload<'_>],
     tile_index: u16,
     limits: &ResourceLimits,
@@ -446,7 +446,7 @@ pub(super) fn progression_tile_progress_new<'a, 'data>(
     ensures (result,progression_tile_progress_view(final(p)))==crate::specs::part1_tile_boundary(
         progression_tile_parameters_view(params),progression_tile_progress_view(old(p))),
 ))]
-fn advance_progression_tile_part<'a, 'data>(
+pub(super) fn advance_progression_tile_part<'a, 'data>(
     params: &ProgressionTileParameters<'a, 'data>,
     p: &mut ProgressionTileProgress<'a>,
 ) -> Result<(bool, bool), DecodeError> {
@@ -735,7 +735,7 @@ fn execute_progression_packet<'a, 'data>(
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part1_tile_packet_slot(packet_grid_view(grid), coordinate),
 ))]
-fn progression_packet_slot(
+pub(super) fn progression_packet_slot(
     grid: &PacketGrid,
     coordinate: PacketCoordinate,
 ) -> Result<(usize, usize), DecodeError> {
@@ -760,7 +760,7 @@ fn progression_packet_slot(
         progression_tile_parameters_view(params), progression_tile_progress_view(old(p)),
         coordinate, precinct_count),
 ))]
-fn omit_progression_packet(
+pub(super) fn omit_progression_packet(
     params: &ProgressionTileParameters<'_, '_>,
     p: &mut ProgressionTileProgress<'_>,
     coordinate: PacketCoordinate,
@@ -784,7 +784,7 @@ fn omit_progression_packet(
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part1_tile_all_seen(seen@),
 ))]
-fn all_progression_packets_seen(seen: &[bool]) -> bool {
+pub(super) fn all_progression_packets_seen(seen: &[bool]) -> bool {
     let mut index = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant index <= seen@.len(),
@@ -901,7 +901,7 @@ pub(super) fn account_progression_packet(
     ensures (result,progression_tile_progress_view(final(p)))==crate::specs::part1_tile_finish(
         progression_tile_parameters_view(params),progression_tile_progress_view(old(p))),
 ))]
-fn finish_progression_tile_packets(
+pub(super) fn finish_progression_tile_packets(
     params: &ProgressionTileParameters<'_, '_>,
     p: &mut ProgressionTileProgress<'_>,
 ) -> Result<TilePacketDecode, DecodeError> {

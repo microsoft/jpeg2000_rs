@@ -6449,17 +6449,156 @@ own width and height. Snapshot and refinement skip that header when counting
 or copying cells; they use the encoded dimensions, not the current output's.
 An empty packed buffer denotes a raw empty 0×0 checkpoint, distinct from
 absence. The packed cleanup constructor always emits a header.
-The private routing bit is set only after the original dense constructor
-succeeds. Public planning and JPIP leave it disabled. All packet transactions
+In the ordinary planner's checkpoint path, the private routing bit is set only
+after the original dense constructor succeeds. Public planning and JPIP leave
+it disabled. All packet transactions
 continue to snapshot and roll back in the original order; a snapshot of a
 packed checkpoint materializes the same dense checkpoint copy as before.
 
-The current decoder output and public coefficient slices remain dense.
+Outside the separate primary path below, current decoder output remains dense;
+public coefficient slices always remain dense.
 Refinement loads every checkpoint field into the dense output allocation it
 already requires, then reads the initial significance flags before modifying
 that output. No additional dense materialization is needed for replay. This
 does not narrow the current output, the refinement discovery plane, or the
 legacy replay owner, and does not change entropy replay frequency.
+
+### Private one-shot HT primary storage
+
+The one-shot image entry has a separate private planning, precinct and
+reconstruction chain. Its initial subset requires an HT-only CAP profile,
+pure HT component coding, one component and tile part, zero DWT levels,
+one origin-zero precinct, and no ROI marker/shift, POC, packed headers,
+packet lengths or MCT. Both ordinary full resolution and `Some(0)` selection
+use this chain. Other inputs retain the ordinary wide path. Compiling the
+existing `cooperative-deadlines` feature disables this private entry, preserving
+the established cooperative reconstruction policy rather than asserting clock
+equivalence for different loops.
+
+The real primary owner is packed from construction and between contributions.
+Retention examines actual coefficient limbs, flags and legacy bitplane fields;
+it never admits by nominal component precision. Values outside the word codec
+remain losslessly wide. Independent geometry is retained, including a 2×1
+cleanup checkpoint over a 1×1 current output.
+
+Each contribution still performs the real checked outer staging transaction,
+then materializes a real one-block wide bridge for the unchanged staged
+entropy kernel. Successful results are retained before publication; failure
+preserves the prior primary. Reconstruction reads private cells by value and
+allocates actual signed-magnitude and quantization buffers. Neither these
+bridges nor extraction are zero-cost, and no empty public dense plane stands
+in for private storage.
+
+The private logical projections connect to the existing wide semantic model.
+Separate ordered allocation programs describe word copies, wide temporaries,
+private container reservations and readable extraction through tile return.
+The ordinary decoder/planner record remains 432 bytes; the separate native
+private record is 136 bytes. Public Tier1/planning/precinct APIs, JPIP and legacy
+storage remain unchanged. This first subset and checkpoint packing do not
+complete the remaining original #474 legacy/incremental scope or establish a
+performance benefit. Source-function coverage remains unmeasured. These
+qualification statements describe the zero-DWT baseline, not the separate
+extension below.
+
+### Standard-DWT private-owner extension
+
+The extension carries actual resolution/subband/precinct geometry through
+private planning and packet execution, preserving all four orientations in
+the same packed primary owner. A
+concrete indexed readable view shares reconstruction with the zero-DWT path;
+standard quantization, inverse DWT and entropy helpers are reused. Existing
+cooperative-deadline builds disable the new entry as well. The extension still
+requires one tile part, origin-zero positive component bounds
+no larger than 32768 on either axis, implicit default precincts, no custom
+decomposition structure or arbitrary transform, and all the existing
+ROI/POC/packed-header/packet-length restrictions. It admits the existing
+standard decomposition range through the reached geometry/metadata helpers,
+including empty high-pass axes; it does not select a particular level, image
+size, component precision or fixture name.
+
+The clarified admission boundary requires complete effective main/component
+coding-style equality, not literal COC absence. The regression
+`private_ht_standard_admission_uses_complete_effective_styles_and_preserves_wide_results`
+constructs a valid main-header COC identical to COD and a same-sized ignored
+COM alternative. Both produce equal complete `CodestreamLayout` values and
+must preserve admission, private/wide samples, metadata, counters and errors.
+A genuinely different effective COC is rejected by private eligibility and
+retains the ordinary wide path. Existing observable functional tile-header,
+ROI/POC and other restrictions remain in force. No raw-header sidecar or
+provenance assumption is introduced. Historical literal-marker failure
+receipts remain preserved and are not represented as a proof of this clarified
+semantic condition.
+
+The logical plan, precinct, execution and readable-reconstruction projections
+connect the actual private tile caller to the unchanged wide result, including
+first nonphysical errors. Concrete ordered programs separately account for
+the new per-push private plan and precinct containers, actual word copies,
+wide bridges, staging transactions and reconstruction buffers through tile
+return. They do not substitute the old dense decoder-vector allocations for
+private allocations. Constructor/retention/staging invariants describe the
+real fields, not assumed result equality or a generic execution-scope premise.
+The ordinary public/legacy record and getters remain unchanged.
+
+Private reconstruction now borrows either the real wide plane or the private
+owner through one internal indexed reader. Both use the existing fused
+preflight, bounded quantization and direct placement implementation; no public
+dense slice is fabricated. The same value-derived guards decide between direct
+placement and the real generic signed-magnitude/quantized-buffer fallback.
+The private governing placement program delegates to that shared conditional
+program: the direct branch consumes no allocation events, while the fallback
+retains the actual ordered staging requests, first errors and partial writes.
+Neither representation equality nor allocations for removed buffers are
+assumed. This isolated correction introduces no size/precision/component-count
+threshold and does not qualify or erase earlier negative performance evidence.
+
+The source-prepared wide-reader correction replaces the runtime reader enum
+with static plane and row types, using the existing verified trait-contract
+pattern. Ordinary wide rows are borrowed coefficient slices; private rows
+borrow the existing decoder and retain their actual start/end span. Shared
+preflight and placement loops read narrow/bounded scalar values through these
+types and still call the unchanged magnitude, maxshift and quantization helpers.
+No coefficient owner, dense private slice or additional staging allocation is
+introduced. The row validity and complete raw subrange projections are new
+proof obligations. The existing ordered conditional allocation program remains
+governing; fresh proofs must connect these actual producers rather than assume
+equal outputs or phantom allocations. New native layout, complete source and
+actual archive verification, original-oracle/canonical receipts and all
+performance gates are required for this source; historical qualification
+does not certify it.
+
+The regression controls compare private and wide results for reversible and
+irreversible standard decompositions, levels 0/1/5/31/32, odd and empty-axis
+geometry, limits/errors, both selection forms and actual packed/wide
+transitions. Exact revision-bound qualification, actual Cargo-archive proof,
+full original-sample oracle and matched-ELF receipts are separate artifacts;
+neither focused native checks nor historical zero-DWT receipts replace them.
+This extension is not adoption, a performance claim or legacy/incremental
+compaction. Source-function coverage remains unmeasured.
+
+The current multi-component continuation collects the existing component-plan
+metadata over one genuine private precinct sequence, carrying actual component,
+resolution and precinct coordinates, global placement indices and code-block
+totals. Every reached component must satisfy the complete effective style,
+geometry and HT admission; mixed effective styles and unsupported custom
+transforms retain the ordinary wide path. Component count, sampling, precision
+and geometry follow the existing format/resource rules, not an exact-three or
+fixture threshold. The single-component zero-DWT path is retained; the shared
+standard owner also handles multi-component zero-DWT plans.
+
+Reconstruction appends all actual components after the existing prepared prefix
+and finalizes only that suffix with the unchanged standard reversible RCT or
+irreversible ICT helpers. Standard MCT admission/congruence and first errors
+are not reclassified. Additional components remain present; no custom Part 2
+MCT or different lifetime/deadline/allocator policy is introduced.
+
+The component collection, constructor/staging invariants, execution and suffix
+projections have concrete source-bound governing contracts and ordered private
+allocation programs through standard-MCT tile return. They preserve actual global
+counts and first nonphysical errors; there is no supplied-result equality or old
+dense-allocation stand-in. Qualification remains exact-revision evidence:
+early native/layout controls alone and historical single-component proof,
+pixel or performance receipts do not qualify a changed source or Cargo archive.
+This does not extend the private owner to legacy/incremental or arbitrary MCT.
 
 ### Guarded native neighbor aggregation
 

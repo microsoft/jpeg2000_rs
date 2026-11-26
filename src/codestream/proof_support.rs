@@ -216,6 +216,21 @@ verus! {
         }
     }
 
+    pub(crate) proof fn parsed_coding_style_known_fields(style:CodingStyle)
+        ensures parsed_coding_style_view(style)==(crate::specs::Part1ParsedCodingStyle {
+            progression_order:style.progression_order,layers:style.layers,
+            multiple_component_transform:style.multiple_component_transform,
+            decomposition_levels:style.decomposition_levels,decomposition_structure:style.decomposition_structure,
+            decomposition_directions:style.decomposition_directions@,
+            code_block_width:style.code_block_width,code_block_height:style.code_block_height,
+            code_block_style:style.code_block_style,transform:style.transform,
+            precincts_defined:style.precincts_defined,sop_markers:style.sop_markers,eph_markers:style.eph_markers,
+            precinct_exponents:style.precinct_exponents@,
+        }),
+    {
+        reveal(parsed_coding_style_view);
+    }
+
     closed spec fn parsed_coding_style_outcome(result: Result<CodingStyle, DecodeError>)
         -> Result<crate::specs::Part1ParsedCodingStyle, DecodeError>
     {

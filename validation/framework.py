@@ -239,6 +239,10 @@ def _coverage_function_header(
             trait_scope = r"(?:Clone[ \t]+for[ \t]+)?"
         if symbol == "JpipByteView::as_ref":
             trait_scope = r"AsRef[ \t]*<[ \t]*\[[ \t]*u8[ \t]*\][ \t]*>[ \t]+for[ \t]+"
+        if owner in {"WidePlane", "PrivatePlane"}:
+            trait_scope = r"(?:ReadablePlane[ \t]+for[ \t]+)?"
+        if owner in {"WideRow", "PrivateRow"}:
+            trait_scope = r"(?:ReadableRow[ \t]+for[ \t]+)?"
         if implementation_ranges is None:
             implementation_ranges = {}
         key = (text, owner, trait_scope)
@@ -284,6 +288,38 @@ def _coverage_function_body(text: str, header: re.Match[str] | None) -> str | No
     if closing is None:
         return None
     return text[body_start + 1:body_start + 1 + closing.start()]
+
+
+def _validate_static_fused_readers(source_text):
+    reader = source_text((ROOT / "src/decode/reconstruction/fused_readable.rs").resolve())
+    compact = "".join(reader.split())
+    required = (
+        "pub(super)typeWidePlane<'a>=&'aCodeBlockPlane;",
+        "pub(super)typePrivatePlane<'a>=&'aPrivateHtDecoder;",
+        "pub(super)typeWideRow<'a>=&'a[CoefficientState];",
+        "typeRow:ReadableRow;",
+        "ensuresresult.valid(),result.raw_row()==self.raw_plane().coefficients.subrange(startasint,endasint),",
+    )
+    if any(fragment not in compact for fragment in required):
+        raise ValueError("remaining plane storage private HT primary static fused readers require actual borrowed types and complete row projection")
+    for symbol in ("from_wide", "from_private"):
+        body = _coverage_function_body(reader, _coverage_function_header(reader, symbol, module_scope=True))
+        if body is None or "".join(body.split()) != "plane":
+            raise ValueError("remaining plane storage private HT primary static fused readers require unchanged borrowed plane producers")
+    fused = source_text((ROOT / "src/decode/reconstruction/fused.rs").resolve())
+    for symbol in ("preflight", "write", "place_readable"):
+        header = _coverage_function_header(fused, symbol, module_scope=True)
+        if header is None or not "".join(fused[header.end():].split()).startswith("<P:ReadablePlane>("):
+            raise ValueError("remaining plane storage private HT primary static fused readers require statically selected shared loops")
+    for (relative, symbol), fragments in _PLANE_ROLE_NATIVE_ORDER.items():
+        if not relative.startswith("src/decode/reconstruction/fused"):
+            continue
+        text = source_text((ROOT / relative).resolve())
+        body = _coverage_function_body(text, _coverage_function_header(text, symbol))
+        compact = "".join(body.split()) if body is not None else ""
+        positions = [compact.find("".join(fragment.split())) for fragment in fragments]
+        if any(position < 0 for position in positions) or positions != sorted(positions):
+            raise ValueError("remaining plane storage private HT primary static fused readers require actual borrowed access and ordered shared fallbacks")
 
 
 def _coverage_spec_function_body(text: str, symbol: str) -> str | None:
@@ -7764,7 +7800,151 @@ _HT_EXPONENT_TESTS = {
     ("src/packet/tests.rs", "ht_cleanup_scratch_storage_packet_first_later_rows_roll_back_full_decoder_and_restore"),
     ("src/decode/tests.rs", "ht_cleanup_scratch_storage_raw_selected_jph_rows_and_automatic_restore_real_image"),
 }
+_PRIVATE_STANDARD_HT_TESTS = {
+    ("src/decode/reconstruction/fused_tests.rs", "static_fused_rows_borrow_wide_storage_and_preserve_private_offsets_raw_refusals"),
+    ("src/decode/reconstruction/fused_tests.rs", "private_fused_packed_and_wide_readers_preserve_raw_fields_without_staging"),
+    ("src/decode/tests.rs", "private_ht_standard_admission_uses_complete_effective_styles_and_preserves_wide_results"),
+    ("src/decode/tests.rs", "private_ht_standard_decompositions_keep_resolution_geometry_empty_bands_and_limits"),
+    ("src/decode/tests.rs", "private_ht_components_keep_global_packet_indices_mct_suffix_and_first_errors"),
+    ("src/decode/tests.rs", "private_ht_components_effective_overrides_fallback_without_reclassifying_mct_errors"),
+    ("src/tier1/private_ht.rs", "private_primary_standard_orientations_survive_staging_entropy_and_retention"),
+}
+_PRIVATE_STANDARD_HT_IMPL = {
+    ("src/decode/reconstruction/fused.rs", "place_private"),
+    ("src/decode/reconstruction/fused.rs", "place_readable"),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::coefficient"),
+    ("src/decode/reconstruction/fused_readable.rs", "WidePlane::row"),
+    ("src/decode/reconstruction/fused_readable.rs", "WideRow::narrow"),
+    ("src/decode/reconstruction/fused_readable.rs", "WideRow::bounded"),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivatePlane::row"),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::narrow"),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::bounded"),
+    ("src/decode/execution.rs", "decode_tile_parts_at"),
+    ("src/decode/private_ht.rs", "standard_eligible"),
+    ("src/decode/private_ht.rs", "standard_component_eligible"),
+    ("src/decode/private_ht.rs", "plan_standard"),
+    ("src/decode/private_ht.rs", "plan_standard_component"),
+    ("src/decode/private_ht.rs", "decode_standard"),
+    ("src/packet/private_ht.rs", "new_private_ht_resolution_precinct"),
+    ("src/packet/private_ht.rs", "decode_private_ht_resolution_packets"),
+    ("src/codestream/coding_style.rs", "effective_coding_styles_equal"),
+}
+_PRIVATE_STANDARD_HT_SPECS = {
+    ("specs/private_ht_standard_plan.rs", "private_ht_standard_eligible"),
+    ("specs/private_ht_standard_plan.rs", "private_standard_plan_run"),
+    ("specs/private_ht_standard_plan.rs", "private_standard_components_run"),
+    ("specs/private_ht_standard_plan.rs", "private_standard_component_run"),
+    ("specs/private_ht_standard_precinct.rs", "private_resolution_initial_run"),
+    ("specs/private_ht_standard_packet.rs", "private_resolution_decode_run"),
+    ("specs/private_ht_standard_image.rs", "private_standard_image_run"),
+    ("specs/private_ht_standard_image.rs", "private_standard_reconstruction_run"),
+}
 _PLANE_ROLE_GUARDS = {
+    ("specs/private_ht_standard_plan.rs", "private_ht_standard_eligible"): (
+        "crate::decode::PRIVATE_HT_PRIMARY_ENABLED", "parts.len()==1", "part2_profile_force_ht(caps)",
+        "image_size_component_count(size)>0", "parts[0].coding_style.decomposition_levels>0",
+        "!parts[0].has_functional_header_marker", "!parts[0].has_roi_marker",
+        "forall|component:u16|", "private_ht_standard_component_eligible(size,tile,parts[0],component)",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_ht_standard_component_eligible"): (
+        "component_coding_style_result(&first.component_coding_styles,component)",
+        "style.decomposition_structure.is_none()", "!style.precincts_defined",
+        "parsed_coding_style_view(style)", "parsed_coding_style_view(first.coding_style)",
+        "roi==0", "geometry.precincts==1",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_plan_run"): (
+        "part2_selection_tile_bounds(", "part2_spatial_derived_grid_run(", "private_standard_plan_after_grid(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_plan_after_grid"): (
+        "part2_component_capacity_run(", "private_standard_components_run(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_component_run"): (
+        "part2_component_metadata_run(", "context.component", "private_standard_component_after_metadata(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_components_run"): (
+        "private_standard_component_run(", "private_standard_components_run(", "private_standard_tile_after_component(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_precinct_run"): (
+        "private_standard_executions_run(", "private_standard_bands_run(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_band_run"): (
+        "context.range.0 as nat+local", "part2_planned_subband_lattice(",
+        "private_standard_blocks_run(", "private_standard_after_band(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_blocks_run"): (
+        "private_standard_blocks_admit(", "private_standard_blocks_capacity_run(", "private_standard_rows_run(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_cell_run"): (
+        "part2_planned_codeblock_geometry(", "private_decoder_initial_calls_run(", "private_standard_cell_after_initial(",
+    ),
+    ("specs/private_ht_standard_plan.rs", "private_standard_cell_after_placement"): (
+        "PrivateOwnerCapacityContext::PlacementAppend", "private_standard_cell_finish(",
+    ),
+    ("specs/private_ht_standard_precinct.rs", "private_resolution_row_run"): (
+        "private_resolution_execution_admit(", "part2_precinct_contexts_run(", "private_resolution_after_contexts(",
+    ),
+    ("specs/private_ht_standard_precinct.rs", "private_resolution_after_contexts"): (
+        "private_resolution_decoder_run(", "private_resolution_after_decoders(",
+    ),
+    ("specs/private_ht_standard_precinct.rs", "private_resolution_decoder_capacity"): (
+        "PrivateOwnerCapacityContext::ResolutionDecoders", "source:private_precinct_decoder_states(before)", "next:row.decoders",
+    ),
+    ("specs/private_ht_standard_precinct.rs", "private_resolution_after_inclusion"): (
+        "part2_precinct_tree_run(", "index,true,Some(inclusion)", "private_resolution_row_finish(",
+    ),
+    ("specs/private_ht_standard_packet.rs", "private_resolution_packet_run"): (
+        "part2_plane_tile_packet_admit(", "private_precinct_packet_run(", "private_resolution_packet_finish(",
+    ),
+    ("specs/private_ht_standard_packet.rs", "private_resolution_decode_run"): (
+        "part2_packet_input_run(", "part2_progress_initial_run(", "private_resolution_decode_after_progress(",
+    ),
+    ("specs/private_ht_standard_image.rs", "private_standard_image_run"): (
+        "private_standard_plan_run(", "private_standard_image_after_plan(",
+    ),
+    ("specs/private_ht_standard_image.rs", "private_standard_image_after_plan"): (
+        "part2_planned_tile_accounting(", "private_standard_packet_value_run(", "private_standard_image_after_packets(",
+    ),
+    ("specs/private_ht_standard_image.rs", "private_standard_image_after_packets"): (
+        "private_standard_reconstruction_run(", "context.prepared",
+    ),
+    ("specs/private_ht_standard_image.rs", "private_standard_reconstruction_run"): (
+        "index>=plan.components.len()", "private_standard_image_finish(",
+        "plan.components[index as int]", "component_coding_style_result(", "component.component",
+        "private_component_calls_run(", "private_standard_reconstruction_after_component(",
+    ),
+    ("specs/private_ht_standard_image.rs", "private_standard_reconstruction_after_component"): (
+        "PrivateOwnerCapacityContext::PreparedAppend", "source:prepared,next:component",
+        "private_standard_reconstruction_run(", "index+1,prepared.push(component)",
+    ),
+    ("specs/private_ht_standard_image.rs", "private_standard_image_finish"): (
+        "prepared.skip(context.prepared.len() as int)", "part2_finish_prepared_tile(",
+        "None,context.metadata.standard,context.work", "prepared:context.prepared+result.1",
+    ),
+    ("specs/private_ht_tile.rs", "private_ht_eligible"): (
+        "!crate::decode::PRIVATE_HT_PRIMARY_ENABLED", "parts.len()!=1", "part2_profile_force_ht(caps)",
+        "style.decomposition_levels==0", "style.decomposition_structure.is_none()", "!style.precincts_defined",
+        "first.multiple_component_transform.is_none()", "roi==0", "!first.has_roi_marker",
+        "geometry.precincts==1", "geometry.precincts_across==1", "geometry.precincts_down==1",
+    ),
+    ("specs/cold_tile_metadata.rs", "part2_tile_after_metadata_run"): (
+        "if private_ht_eligible(size,tile,parts,caps,discard)", "private_image_run(PrivateImageContext",
+        "if private_ht_standard_eligible(size,tile,parts,caps,discard)", "private_standard_image_run(PrivateImageContext",
+        "else{part2_jpip_snapshot_bind(part2_grid_plan_run(",
+    ),
+    ("specs/private_ht_primary.rs", "private_primary_copy_run"): (
+        "source.0.coefficients.len()+1", "PrivatePrimaryPhase::Snapshot",
+        "part2_decoder_plane_run(source.0,crate::tier1::HtRefinementCopyRole::PacketStaging,false,calls)",
+    ),
+    ("specs/private_ht_decoder.rs", "private_ht_body_run"): (
+        "private_ht_stage_run(before,calls)", "private_ht_body_after_stage(",
+    ),
+    ("specs/private_ht_image.rs", "private_image_after_plan"): (
+        "part2_planned_tile_accounting(private_plan_public_view(", "private_packet_value_run(",
+        "private_image_after_packets(",
+    ),
+    ("specs/private_ht_reconstruction.rs", "private_place_run"): (
+        "part2_extraction_place_run(working,bands,precincts,placement,reversible,maximum,calls)",
+    ),
     ("specs/cold_ht_exponents.rs", "part2_ht_exponent_count"): (
         "(metadata.width as nat+1)/2+1",
     ),
@@ -7882,6 +8062,180 @@ _PLANE_ROLE_GUARDS = {
     ),
 }
 _PLANE_ROLE_NATIVE_ORDER = {
+    ("src/codestream/coding_style.rs", "CodingStyle::equals"): (
+        "effective_coding_styles_equal(self, other)",
+    ),
+    ("src/codestream/coding_style.rs", "effective_coding_styles_equal"): (
+        "progression_orders_equal(", "left.decomposition_levels != right.decomposition_levels",
+        "left.code_block_width != right.code_block_width", "wavelet_transforms_equal(",
+        "decomposition_directions_equal(", "left.precinct_exponents[index].0 != right.precinct_exponents[index].0",
+    ),
+    ("src/decode/private_ht.rs", "standard_eligible"): (
+        "!super::PRIVATE_HT_PRIMARY_ENABLED", "size.components == 0", "parts.len() != 1",
+        "discard.unwrap_or(0) != 0", "profile.part15_requires_all_ht_blocks()",
+        "first.tile_index != tile", "size.components == 1 && first.coding_style.decomposition_levels == 0",
+        "first.has_functional_header_marker", "first.multiple_component_transform.is_some()",
+        "first.has_roi_marker", "while component < size.components",
+        "!standard_component_eligible(size, tile, first, component)",
+    ),
+    ("src/decode/private_ht.rs", "standard_component_eligible"): (
+        "first.component_coding_styles.style(component)", "style.tier1_coding_style()",
+        "first.roi_shifts.shift(component)", "size.tile_component_bounds(first.tile_index, component)",
+        "derive_component_resolution_geometry_for(", "style.decomposition_structure.is_none()",
+        "effective_coding_styles_equal(style, first.coding_style)", "roi == 0", "geometry.precincts == 1",
+    ),
+    ("src/decode/private_ht.rs", "plan_standard"): (
+        "derive_packet_grid_for_components(", "empty_with_capacity(usize::from(size.components))",
+        "while component < size.components", "plan_standard_component(", "components.push(row.component)",
+    ),
+    ("src/decode/private_ht.rs", "plan_standard_component"): (
+        "prepare_component_plan_metadata(",
+        "prepare_resolution_plan_metadata(", "derive_planned_precinct_origin(", "plan_standard_precinct(",
+        "reserve_additional(&mut builder.precincts, 1)", "builder.precincts.push(row.precinct)",
+    ),
+    ("src/decode/private_ht.rs", "plan_standard_precinct"): (
+        "empty_with_capacity(range.1)", "while local < range.1", "derive_planned_subband_lattice(",
+        "plan_standard_blocks(", "PrivateHtSubbandExecution {", "new_private_ht_resolution_precinct(",
+    ),
+    ("src/decode/private_ht.rs", "append_standard_block"): (
+        "derive_planned_codeblock_geometry(", "new_private_ht_decoder(", "geometry.orientation",
+        "reserve_additional(&mut state.blocks, 1)", "state.blocks.push(decoder)",
+        "private_placement(geometry, x, y, state.next)", "value.precinct_index = indices.0",
+        "value.subband_index = indices.1", "reserve_additional(&mut state.placements, 1)",
+        "state.placements.push(placement)", "state.next.checked_add(1)",
+    ),
+    ("src/decode/private_ht.rs", "decode_standard"): (
+        "plan_standard(", "decode_standard_planned(",
+    ),
+    ("src/decode/private_ht.rs", "decode_standard_planned"): (
+        "account_standard_plan(", "decode_private_ht_resolution_packets(", "let start = prepared.len()",
+        "while component_index < plan.components.len()", "style(planned_component.component)", "reconstruct_standard(",
+        "reserve_additional(&mut prepared, 1)", "prepared.push(component)", "prepared.get_mut(start..)",
+        "finish_prepared_tile(suffix, size, None, metadata.standard, limits, &mut work,)",
+    ),
+    ("src/packet/private_ht.rs", "new_private_ht_resolution_precinct"): (
+        "let mut precinct = PrivateHtPrecinct { component, resolution, precinct: precinct_number, states: Vec::new()", "while index < executions.len()",
+        "admit_private_resolution_execution(", "prepare_precinct_contexts(",
+        "reserve_additional(", "precinct.decoders.append(",
+        "let inclusion_result = super::tag_tree::tag_tree_new(",
+        "let zero_result = super::tag_tree::tag_tree_new(",
+        "precinct.subbands.push(PacketSubbandState {",
+    ),
+    ("src/packet/private_ht.rs", "decode_private_ht_resolution_packets"): (
+        "prepare_private_resolution_input(", "progression_tile_progress_new(", "run_private_resolution_tile(",
+        "finish_progression_tile_packets(",
+    ),
+    ("src/packet/private_ht.rs", "validate_private_resolution_layout"): (
+        "grid.total_precinct_count()", "count > usize::MAX", "precincts.len() != count as usize",
+        "grid.precinct_index(precincts[index].component, precincts[index].resolution, precincts[index].precinct,)? != index",
+    ),
+    ("src/packet/private_ht.rs", "run_private_resolution_tile"): (
+        "advance_progression_tile_part(", "p.iterator.next_packet()", "p.remaining_packets -= 1",
+        "omit_progression_packet(", "execute_private_resolution_packet(",
+    ),
+    ("src/packet/private_ht.rs", "execute_private_resolution_packet"): (
+        "progression_packet_slot(", "let (index, seen) = slot?", "let row = &mut precincts[index]", "set_progression_context_layer(",
+        "row.decode_packet(", "account_progression_packet(",
+    ),
+    ("src/packet/private_ht.rs", "PrivateHtPrecinct::decode_packet"): (
+        "part.data.get(error_offset..)", "component_coding_styles.style(self.component)?",
+        "tier1_coding_style()?", "self.decode_payload(",
+    ),
+    ("src/decode/private_ht.rs", "eligible"): (
+        "!super::PRIVATE_HT_PRIMARY_ENABLED", "size.components != 1", "parts.len() != 1",
+        "discard.unwrap_or(0) != 0", "profile.part15_requires_all_ht_blocks()",
+        "style.decomposition_levels == 0", "!first.has_roi_marker", "geometry.precincts == 1",
+    ),
+    ("src/decode/private_ht.rs", "plan"): (
+        "derive_packet_grid_for_components(", "prepare_component_plan_metadata(", "private_region(",
+        "plan_subband(", "new_private_ht_precinct(",
+    ),
+    ("src/decode/private_ht.rs", "decode"): (
+        "let planned = plan(", "decode_planned(",
+    ),
+    ("src/decode/private_ht.rs", "decode_planned"): (
+        "account_private_plan(", ".decode_tile(", "reconstruct_readable(", "reserve_additional(&mut prepared, 1)",
+        "prepared.push(component)", "prepared.get_mut(start..)", "finish_prepared_tile(",
+    ),
+    ("src/decode/private_ht.rs", "place_private_block"): (
+        "plan.decoder(", "decoder.dimensions()", "let destination = working",
+        "super::reconstruction::fused::place_private(decoder,destination,geometry,placement.x,placement.y,reversible,limits,)",
+    ),
+    ("src/decode/reconstruction/fused.rs", "place_private"): (
+        "place_readable(readable::from_private(plane),destination,geometry,x,y,reversible,limits,)",
+    ),
+    ("src/decode/reconstruction/fused.rs", "place_readable"): (
+        "x.checked_add(width)", "if let Some(quantizer) = preflight(", "return write(",
+        "let collected = plane.collect()", "let coefficients = collected?",
+        "let quantized_result = inverse_quantize_magnitudes(", "let quantized = quantized_result?",
+        "quantized.fraction_bits()", "write_quantized_block(",
+    ),
+    ("src/decode/reconstruction/fused.rs", "preflight"): (
+        "plane.dimensions()", "plane.coefficient_count()", "coefficient_count != count",
+        "plane.row(row * width, (row + 1) * width)", "source.narrow(column)?",
+        "crate::refinement::maxshift_restore(magnitude, geometry.roi_shift)",
+        "restored > maximum || visited[column]",
+    ),
+    ("src/decode/reconstruction/fused.rs", "write"): (
+        "plane.dimensions()", "plane.row(row * width, (row + 1) * width)",
+        "let (value, negative) = source.bounded(column)?",
+        "crate::refinement::maxshift_restore(value, quantizer.roi_shift)",
+        "crate::transform::quantize_bounded_magnitude(magnitude,negative,quantizer.step,quantizer.reversible,)",
+        "visited[column] = true",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::coefficient"): (
+        "self.decoder.raw_coefficient(self.start + index)",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WidePlane::coefficient_count"): (
+        "self.coefficients().len()",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivatePlane::coefficient_count"): (
+        "PrivateHtDecoder::coefficient_count(self)",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WidePlane::row"): (
+        "&self.coefficients()[start..end]",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivatePlane::row"): (
+        "PrivateRow { decoder: self, start, end, }",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WideRow::narrow"): (
+        "let coefficient = &self[index]", "Ok(coefficient.narrow_reconstructed_magnitude())",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WideRow::bounded"): (
+        "let coefficient = &self[index]", "coefficient.reconstructed_magnitude_bounded()",
+        "coefficient.reconstructed_negative()",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::narrow"): (
+        "let coefficient = self.coefficient(index)?", "coefficient.narrow_reconstructed_magnitude()",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::bounded"): (
+        "let coefficient = self.coefficient(index)?", "coefficient.reconstructed_magnitude_bounded()",
+        "coefficient.reconstructed_negative()",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "from_wide"): ("plane",),
+    ("src/decode/reconstruction/fused_readable.rs", "from_private"): ("plane",),
+    ("src/decode/reconstruction/fused_readable.rs", "WidePlane::collect"): (
+        "super::collect_prepare_coefficients(self)",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivatePlane::collect"): (
+        "PrivateHtDecoder::collect(self)",
+    ),
+    ("src/tier1/private_ht.rs", "new_private_ht_decoder"): (
+        "!style.force_high_throughput", "let initialized = private_initial(width, height)", "let primary = initialized?",
+        "PrivateHtDecoder {", "primary,",
+    ),
+    ("src/tier1/private_ht.rs", "PrivateHtDecoder::decode"): (
+        "let copied = self.stage()", "let converted = staged.into_wide()",
+        "crate::packet::private_ht_body(", "let retained_result = from_wide(wide)", "*self = retained",
+    ),
+    ("src/tier1/private_ht.rs", "PrivateHtDecoder::collect"): (
+        "self.dimensions()", "crate::allocation::empty_with_capacity(count)", "self.prepare_cell(x, y)",
+        "output.push(value)", "Ok(output)",
+    ),
+    ("src/tier1/ht_checkpoint.rs", "private_initial"): (
+        "count > 4096", "crate::allocation::empty_with_capacity(count + 1)",
+        "geometry_word(width, height)", "words.push(header)", "words.push(empty)",
+    ),
     ("src/tier1/state.rs", "CodeBlockPlane::duplicate"): (
         "code_block_plane_from_dimensions(self.width, self.height, role)", "let mut output = output_result?", "output.coefficients.len() != self.coefficients.len()", "while index < self.coefficients.len()",
     ),
@@ -7937,6 +8291,11 @@ _PLANE_ROLE_NATIVE_ORDER = {
         "roi_shifts, 0, false, 74, false, false, limits,",
     ),
     ("src/decode/execution.rs", "decode_tile_parts_at"): (
+        "prepare_tile_decode_metadata(",
+        "if super::private_ht::eligible(size, tile, parts, profile, discard)",
+        "super::private_ht::decode(",
+        "if super::private_ht::standard_eligible(size, tile, parts, profile, discard)",
+        "super::private_ht::decode_standard(",
         "let plan_result = plan_progression_tile_at_selected(",
         "profile.part15_requires_all_ht_blocks(), true, limits,",
     ),
@@ -8831,11 +9190,27 @@ _QUANTIZATION_OUTPUT_NATIVE_ORDER = {
         "let decoder = precinct.decoder(placement.decoder_index)?", "let plane = decoder.plane()",
         "let destination = working", "let result = fused::place(",
     ),
-    ("src/decode/reconstruction/fused.rs", "place"): (
+    ("src/decode/reconstruction/fused.rs", "place_readable"): (
         "x.checked_add(width)", "if let Some(quantizer) = preflight(", "return write(",
-        "let collected = collect_prepare_coefficients(plane)", "let coefficients = collected?",
+        "let collected = plane.collect()", "let coefficients = collected?",
         "let quantized_result = inverse_quantize_magnitudes(", "let quantized = quantized_result?",
         "quantized.fraction_bits()", "write_quantized_block(",
+    ),
+    ("src/decode/reconstruction/fused.rs", "place"): (
+        "place_readable(readable::from_wide(plane),destination,geometry,x,y,reversible,limits,)",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WidePlane::row"): (
+        "&self.coefficients()[start..end]",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WideRow::narrow"): (
+        "let coefficient = &self[index]", "Ok(coefficient.narrow_reconstructed_magnitude())",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WideRow::bounded"): (
+        "let coefficient = &self[index]", "coefficient.reconstructed_magnitude_bounded()",
+        "coefficient.reconstructed_negative()",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WidePlane::collect"): (
+        "super::collect_prepare_coefficients(self)",
     ),
 }
 _QUANTIZATION_OUTPUT_TESTS = {
@@ -13475,6 +13850,7 @@ def validate_normative_coverage(
                     ("src/decode/planning.rs", "ProgressionTilePlan::precincts"),
                     ("src/decode/planning.rs", "ProgressionTilePlan::precincts_mut"),
                     ("src/jpip/progression_proof_support.rs", "jpip_filter_projection"),
+                    ("src/jpip/progression_proof_support.rs", "jpip_snapshot_collected_tile_parts"),
                     ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_value"),
                     ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_row"),
                     ("src/jpip/progression_proof_support.rs", "jpip_parsed_packet_matrix"),
@@ -13595,12 +13971,28 @@ def validate_normative_coverage(
             input_fragments = (
                 "let tile_parts_iterator = layout.tile_parts.iter().filter(",
                 "let tile_parts: Vec<_> = tile_parts_iterator.collect()",
-                "super::jpip_filter_projection(source.remaining(), keep, project, predicate)",
-                "assert(tile_parts@.map_values(project) == "
-                "crate::codestream::tile_parts_owned_view(layout.tile_parts@).filter(predicate))",
+                "super::jpip_snapshot_collected_tile_parts(source.remaining(), keep, tile_parts@, "
+                "crate::codestream::tile_parts_owned_view(layout.tile_parts@), tile_number)",
             )
             if any("".join(fragment.split()) not in compact for fragment in input_fragments):
                 raise ValueError("automatic inputs require the actual selected-tile order and complete payload projection")
+            typed_projection = source_text((ROOT / "src/jpip/progression_proof_support.rs").resolve())
+            start = typed_projection.find("pub(crate) proof fn jpip_snapshot_collected_tile_parts")
+            end = typed_projection.find("pub proof fn jpip_filter_projection", start)
+            proof_boundary = typed_projection[start:end] if start >= 0 and end > start else ""
+            boundary_compact = "".join(proof_boundary.split())
+            projection_fragments = (
+                "requires keep.len() == source.len()",
+                "collected == source.filter_index(|index: int| keep[index])",
+                "crate::codestream::tile_part_owned_view(part)) == layout_parts",
+                "keep[index] == (crate::codestream::tile_part_owned_view(#[trigger] source[index]).tile_index == tile)",
+                "ensures collected.map_values(",
+                "== layout_parts.filter(|part: crate::specs::Part2OwnedTilePart| part.tile_index == tile)",
+                "jpip_filter_projection(source, keep, project, predicate)",
+            )
+            if (any("".join(fragment.split()) not in boundary_compact for fragment in projection_fragments)
+                    or re.search(r"\b(?:assume|admit|external_body|rlimit|spinoff_prover)\b", proof_boundary)):
+                raise ValueError("automatic inputs require the exact typed projection proof boundary and original budget/trust")
         if entry["id"] == "part2-explicit-eight-bit-esrgb-compatibility":
             lib = source_text((ROOT / "src/lib.rs").resolve())
             decode = source_text((ROOT / "src/decode.rs").resolve())
@@ -19264,6 +19656,7 @@ def validate_normative_coverage(
         if not _QUANTIZATION_OUTPUT_TESTS.issubset({
                 (ref["path"], ref["symbol"]) for ref in quantization_entry["test_refs"]}):
             raise ValueError("quantization output requires bounded numerical/raw/empty/refusal/restore/public controls")
+        _validate_static_fused_readers(source_text)
         for (relative, symbol), fragments in _QUANTIZATION_OUTPUT_GUARDS.items():
             body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
             compact = "".join(body.split()) if body is not None else ""
@@ -19294,6 +19687,7 @@ def validate_normative_coverage(
             if any(position < 0 for position in positions) or positions != sorted(positions):
                 raise ValueError("cleanup significance requires original real admission/output/readers/flag/magnitude order")
     if "part1-complete-standard-plan-coordinator" in ids:
+        _validate_static_fused_readers(source_text)
         coefficient_entry = next(e for e in coverage["requirements"] if e["id"] == "part1-complete-standard-plan-coordinator")
         if not _COEFFICIENT_EXTRACTION_TESTS.issubset({
                 (ref["path"], ref["symbol"]) for ref in coefficient_entry["test_refs"]}):
@@ -20266,6 +20660,7 @@ def validate_normative_coverage(
     if ids & {"part15-complete-actual-cleanup-plane", "part15-cleanup-only-actual-symbol-caller",
               "part15-complete-actual-refinement-plane", "part15-complete-substantive-segment-byte-entry",
               "part15-complete-retained-refinement-and-placeholder-steps", "part1-complete-native-grid-progression-composition"}:
+        _validate_static_fused_readers(source_text)
         for (relative, symbol), fragments in _PLANE_ROLE_GUARDS.items():
             body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
             compact = "".join(body.split()) if body is not None else ""
@@ -20284,7 +20679,21 @@ def validate_normative_coverage(
                         raise ValueError("HT exponent storage requires actual zero-filled metadata-count owners at the original field frontiers")
                 if compact.count("crate::allocation::filled_values(0_u8,exponent_count)") != 2:
                     raise ValueError("HT exponent storage cannot duplicate or hoist a scratch-owner request")
+        primary_cfg = "".join(source_text((ROOT / "src/decode.rs").resolve()).split())
+        if any(fragment not in primary_cfg for fragment in (
+            '#[cfg(not(feature="cooperative-deadlines"))]pub(crate)constPRIVATE_HT_PRIMARY_ENABLED:bool=true;',
+            '#[cfg(feature="cooperative-deadlines")]pub(crate)constPRIVATE_HT_PRIMARY_ENABLED:bool=false;',
+        )):
+            raise ValueError("private HT primary requires the existing cooperative-deadlines fallback gate")
         for entry in coverage["requirements"]:
+            if entry["id"] == "part15-cleanup-only-actual-symbol-caller":
+                for field, required in (
+                    ("implementation_refs", _PRIVATE_STANDARD_HT_IMPL),
+                    ("spec_refs", _PRIVATE_STANDARD_HT_SPECS),
+                    ("test_refs", _PRIVATE_STANDARD_HT_TESTS),
+                ):
+                    if not required.issubset({(ref["path"], ref["symbol"]) for ref in entry[field]}):
+                        raise ValueError("private HT primary standard DWT requires actual governing/effective-style/storage/orientation references")
             if entry["id"] == "part15-complete-actual-cleanup-plane":
                 if not _HT_EXPONENT_TESTS.issubset({(ref["path"], ref["symbol"]) for ref in entry["test_refs"]}):
                     raise ValueError("HT exponent storage requires bounded raw/decoder/packet/public refusal/restore controls")
