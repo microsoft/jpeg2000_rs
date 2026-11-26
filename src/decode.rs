@@ -367,6 +367,12 @@ use output::{
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod planning;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod private_ht;
+#[cfg(not(feature = "cooperative-deadlines"))]
+pub(crate) const PRIVATE_HT_PRIMARY_ENABLED: bool = true;
+#[cfg(feature = "cooperative-deadlines")]
+pub(crate) const PRIVATE_HT_PRIMARY_ENABLED: bool = false;
 use planning::plan_progression_tile_at_selected;
 pub use planning::{
     plan_progression_tile, plan_progression_tile_at,

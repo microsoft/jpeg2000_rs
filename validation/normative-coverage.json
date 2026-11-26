@@ -15532,7 +15532,7 @@
     },
     {
       "id": "part15-cleanup-only-actual-symbol-caller",
-      "topic": "Explicit absent-refinement actual symbol-caller composition through real metadata/numeric/cleanup checkpoint producers and complete decoder state, including ordered partial accounting errors and private packed versus public wide checkpoint allocation",
+      "topic": "Explicit absent-refinement symbol-caller composition through metadata/numeric/checkpoint producers and complete decoder state, including the actual private standard-DWT governing chain, effective style equivalence, real packed storage and ordered allocation/error programs; public/JPIP/legacy wide ownership remains separate",
       "contract_refs": [
         {"path": "src/tier1/ht_cleanup.rs", "symbol": "prepare_ht_cleanup_symbols"},
         {"path": "src/tier1/ht_contributions.rs", "symbol": "Tier1CodeBlockDecoder::store_ht_coefficient_symbols"},
@@ -15541,7 +15541,27 @@
       "implementation_refs": [
         {"path": "src/tier1/ht_contributions.rs", "symbol": "Tier1CodeBlockDecoder::decode_ht_coefficient_symbols"},
         {"path": "src/tier1/ht_cleanup.rs", "symbol": "prepare_ht_cleanup_symbols"},
-        {"path": "src/tier1/ht_checkpoint.rs", "symbol": "retain_ht_cleanup"}
+        {"path": "src/tier1/ht_checkpoint.rs", "symbol": "retain_ht_cleanup"},
+        {"path": "src/decode/execution.rs", "symbol": "decode_tile_parts_at"},
+        {"path": "src/decode/private_ht.rs", "symbol": "standard_eligible"},
+        {"path": "src/decode/private_ht.rs", "symbol": "standard_component_eligible"},
+        {"path": "src/decode/private_ht.rs", "symbol": "plan_standard"},
+        {"path": "src/decode/private_ht.rs", "symbol": "plan_standard_component"},
+        {"path": "src/decode/private_ht.rs", "symbol": "decode_standard"},
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place_private"},
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place_readable"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "WidePlane::row"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "WideRow::narrow"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "WideRow::bounded"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "PackedPlane::row"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "PackedRow::narrow"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "PackedRow::bounded"},
+        {"path": "src/tier1/private_ht.rs", "symbol": "PrivateHtDecoder::primary_slices"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "compact_word_reconstructed_magnitude"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "compact_word_reconstructed_negative"},
+        {"path": "src/packet/private_ht.rs", "symbol": "new_private_ht_resolution_precinct"},
+        {"path": "src/packet/private_ht.rs", "symbol": "decode_private_ht_resolution_packets"},
+        {"path": "src/codestream/coding_style.rs", "symbol": "effective_coding_styles_equal"}
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "ht_cleanup_prepare"},
@@ -15554,7 +15574,15 @@
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_result"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_after_metadata"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_run"},
-        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_selected"}
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_selected"},
+        {"path": "specs/private_ht_standard_plan.rs", "symbol": "private_ht_standard_eligible"},
+        {"path": "specs/private_ht_standard_plan.rs", "symbol": "private_standard_plan_run"},
+        {"path": "specs/private_ht_standard_plan.rs", "symbol": "private_standard_components_run"},
+        {"path": "specs/private_ht_standard_plan.rs", "symbol": "private_standard_component_run"},
+        {"path": "specs/private_ht_standard_precinct.rs", "symbol": "private_resolution_initial_run"},
+        {"path": "specs/private_ht_standard_packet.rs", "symbol": "private_resolution_decode_run"},
+        {"path": "specs/private_ht_standard_image.rs", "symbol": "private_standard_image_run"},
+        {"path": "specs/private_ht_standard_image.rs", "symbol": "private_standard_reconstruction_run"}
       ],
       "proof_refs": [
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_state"},
@@ -15569,7 +15597,9 @@
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_metadata_error"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_metadata_join"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_packed"},
-        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_wide"}
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_wide"},
+        {"path": "specs/private_ht_standard_plan.rs", "symbol": "private_standard_plan_reference"},
+        {"path": "specs/private_ht_standard_image.rs", "symbol": "private_standard_image_reference"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_caller_composes_real_metadata_numeric_duplicate_and_complete_decoder_state"},
@@ -15586,7 +15616,14 @@
         {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_expired_materialization_leaves_source_exact"},
         {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_does_not_skip_dense_initial_allocation_or_snapshot"},
         {"path": "src/tier1/tests.rs", "symbol": "checkpoint_header_replays_geometry_independent_of_current_output"},
-        {"path": "src/tier1/ht_checkpoint.rs", "symbol": "checkpoint_header_snapshot_keeps_full_raw_dimensions_and_payload"}
+        {"path": "src/tier1/ht_checkpoint.rs", "symbol": "checkpoint_header_snapshot_keeps_full_raw_dimensions_and_payload"},
+        {"path": "src/decode/tests.rs", "symbol": "private_ht_standard_admission_uses_complete_effective_styles_and_preserves_wide_results"},
+        {"path": "src/decode/tests.rs", "symbol": "private_ht_standard_decompositions_keep_resolution_geometry_empty_bands_and_limits"},
+        {"path": "src/decode/tests.rs", "symbol": "private_ht_components_keep_global_packet_indices_mct_suffix_and_first_errors"},
+        {"path": "src/decode/tests.rs", "symbol": "private_ht_components_effective_overrides_fallback_without_reclassifying_mct_errors"},
+        {"path": "src/decode/reconstruction/fused_tests.rs", "symbol": "private_fused_packed_and_wide_readers_preserve_raw_fields_without_staging"},
+        {"path": "src/tier1/private_ht.rs", "symbol": "private_primary_standard_orientations_survive_staging_entropy_and_retention"},
+        {"path": "src/decode/reconstruction/fused_tests.rs", "symbol": "static_fused_rows_borrow_wide_storage_and_preserve_private_offsets_raw_refusals"}
       ]
     },
     {
@@ -19782,6 +19819,7 @@
         {"path": "src/decode/planning.rs", "symbol": "ProgressionTilePlan::precincts"},
         {"path": "src/decode/planning.rs", "symbol": "ProgressionTilePlan::precincts_mut"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_filter_projection"},
+        {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_snapshot_collected_tile_parts"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_parsed_packet_value"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_parsed_packet_row"},
         {"path": "src/jpip/progression_proof_support.rs", "symbol": "jpip_parsed_packet_matrix"},
@@ -21177,6 +21215,7 @@
       "id": "part1-complete-supplied-coefficient-quantization",
       "implementation_refs": [
         {"path": "src/decode/reconstruction/fused.rs", "symbol": "place"},
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place_readable"},
         {"path": "src/decode/code_blocks.rs", "symbol": "decode_code_block"},
         {"path": "src/decode/code_blocks.rs", "symbol": "copy_code_block_samples"},
         {
@@ -21910,6 +21949,7 @@
       "id": "part1-complete-quantized-block-placement",
       "implementation_refs": [
         {"path": "src/decode/reconstruction/fused.rs", "symbol": "place"},
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place_readable"},
         {"path": "src/decode/reconstruction.rs", "symbol": "prepare_tile_component_with_kernel"},
         {"path": "src/decode/reconstruction.rs", "symbol": "place_prepare_block"},
         {"path": "src/decode/reconstruction.rs", "symbol": "write_quantized_block"},
@@ -21957,6 +21997,12 @@
         {"path": "src/decode/reconstruction/fused.rs", "symbol": "place"},
         {"path": "src/decode/reconstruction/fused.rs", "symbol": "preflight"},
         {"path": "src/decode/reconstruction/fused.rs", "symbol": "write"},
+        {"path": "src/decode/reconstruction/fused.rs", "symbol": "place_readable"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "WidePlane::row"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "WideRow::narrow"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "WideRow::bounded"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "WidePlane::collect"},
+        {"path": "src/decode/reconstruction/fused_readable.rs", "symbol": "PackedPlane::collect"},
         {"path": "src/decode/reconstruction.rs", "symbol": "decode_progression_prepared_image"},
         {"path": "src/decode/reconstruction.rs", "symbol": "prepared_tile_views"},
         {"path": "src/decode/reconstruction.rs", "symbol": "prepare_tile_component"},
@@ -22128,6 +22174,7 @@
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_zero_raw_shape_and_ordinary_cell_error_order"},
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_first_later_prepared_placements_preserve_real_sources"},
         {"path": "src/decode/reconstruction/fused_tests.rs", "symbol": "fused_direct_placement_matches_independent_midpoint_roi_and_quantization_reference_without_allocating"},
+        {"path": "src/decode/reconstruction/fused_tests.rs", "symbol": "static_fused_rows_borrow_wide_storage_and_preserve_private_offsets_raw_refusals"},
         {"path": "src/decode/reconstruction/fused_tests.rs", "symbol": "fused_fallback_preserves_real_staging_refusals_numeric_priority_and_partial_placement"},
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_actual_legacy_ht_code_block_packet_and_quantization_order"},
         {"path": "src/decode/tests.rs", "symbol": "coefficient_extraction_storage_real_ht_raw_selected_jph_reconstruction_and_automatic_restore"},

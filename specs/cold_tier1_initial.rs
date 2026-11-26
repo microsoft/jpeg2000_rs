@@ -2,6 +2,7 @@
 use super::*;
 verus! {
 pub enum Part2Tier1StorageEvent {
+    PrivatePrimaryWords {phase:PrivatePrimaryPhase,source:Tier1RawPlane,elements:nat,succeeded:bool},
     CompactInitialCapacity {width:usize,height:usize,elements:nat,succeeded:bool},
     HtPackedCleanup {source:Tier1RawPlane,elements:nat,succeeded:bool},
     MultiContributions {context:Part2MultiContributionsContext,elements:nat,succeeded:bool},
