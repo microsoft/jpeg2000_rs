@@ -1,7 +1,6 @@
-use super::state::{
-    ht_statistics_zero, invalid_code_block, sign_context, significant_neighbor_count,
-    zero_coding_context,
-};
+#[cfg(test)]
+use super::state::significant_neighbor_count;
+use super::state::{ht_statistics_zero, invalid_code_block, sign_context};
 use super::{
     CoefficientState, NeighborSummary, RUN_LENGTH_CONTEXT, SubbandOrientation, Tier1BitplaneState,
     Tier1BlockCoding, Tier1CodeBlockDecoder, Tier1PassKind, Tier1PassStatistics, UNIFORM_CONTEXT,
@@ -30,6 +29,104 @@ const DIRECTIONS: [(i32, i32); 8] = [
     (0, 1),
     (1, 1),
 ];
+
+#[cfg(test)]
+const ZERO_NORMAL: [u8; 256] = [
+    0, 1, 3, 3, 1, 2, 3, 3, 5, 6, 7, 7, 6, 6, 7, 7, 5, 6, 7, 7, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
+    1, 2, 3, 3, 2, 2, 3, 3, 6, 6, 7, 7, 6, 6, 7, 7, 6, 6, 7, 7, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
+    3, 3, 4, 4, 3, 3, 4, 4, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
+    3, 3, 4, 4, 3, 3, 4, 4, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
+    1, 2, 3, 3, 2, 2, 3, 3, 6, 6, 7, 7, 6, 6, 7, 7, 6, 6, 7, 7, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
+    2, 2, 3, 3, 2, 2, 3, 3, 6, 6, 7, 7, 6, 6, 7, 7, 6, 6, 7, 7, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
+    3, 3, 4, 4, 3, 3, 4, 4, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
+    3, 3, 4, 4, 3, 3, 4, 4, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
+];
+#[cfg(test)]
+const ZERO_HL: [u8; 256] = [
+    0, 1, 5, 6, 1, 2, 6, 6, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 4, 4, 7, 7, 4, 4, 7, 7,
+    1, 2, 6, 6, 2, 2, 6, 6, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 4, 4, 7, 7, 4, 4, 7, 7,
+    5, 6, 8, 8, 6, 6, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8,
+    6, 6, 8, 8, 6, 6, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8,
+    1, 2, 6, 6, 2, 2, 6, 6, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 4, 4, 7, 7, 4, 4, 7, 7,
+    2, 2, 6, 6, 2, 2, 6, 6, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 4, 4, 7, 7, 4, 4, 7, 7,
+    6, 6, 8, 8, 6, 6, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8,
+    6, 6, 8, 8, 6, 6, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8,
+];
+#[cfg(test)]
+const ZERO_HH: [u8; 256] = [
+    0, 3, 1, 4, 3, 6, 4, 7, 1, 4, 2, 5, 4, 7, 5, 7, 1, 4, 2, 5, 4, 7, 5, 7, 2, 5, 2, 5, 5, 7, 5, 7,
+    3, 6, 4, 7, 6, 8, 7, 8, 4, 7, 5, 7, 7, 8, 7, 8, 4, 7, 5, 7, 7, 8, 7, 8, 5, 7, 5, 7, 7, 8, 7, 8,
+    1, 4, 2, 5, 4, 7, 5, 7, 2, 5, 2, 5, 5, 7, 5, 7, 2, 5, 2, 5, 5, 7, 5, 7, 2, 5, 2, 5, 5, 7, 5, 7,
+    4, 7, 5, 7, 7, 8, 7, 8, 5, 7, 5, 7, 7, 8, 7, 8, 5, 7, 5, 7, 7, 8, 7, 8, 5, 7, 5, 7, 7, 8, 7, 8,
+    3, 6, 4, 7, 6, 8, 7, 8, 4, 7, 5, 7, 7, 8, 7, 8, 4, 7, 5, 7, 7, 8, 7, 8, 5, 7, 5, 7, 7, 8, 7, 8,
+    6, 8, 7, 8, 8, 8, 8, 8, 7, 8, 7, 8, 8, 8, 8, 8, 7, 8, 7, 8, 8, 8, 8, 8, 7, 8, 7, 8, 8, 8, 8, 8,
+    4, 7, 5, 7, 7, 8, 7, 8, 5, 7, 5, 7, 7, 8, 7, 8, 5, 7, 5, 7, 7, 8, 7, 8, 5, 7, 5, 7, 7, 8, 7, 8,
+    7, 8, 7, 8, 8, 8, 8, 8, 7, 8, 7, 8, 8, 8, 8, 8, 7, 8, 7, 8, 8, 8, 8, 8, 7, 8, 7, 8, 8, 8, 8, 8,
+];
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part1_legacy_zero_context(
+        crate::specs::compact_flag_summary(sig, 0), orientation),
+))]
+#[inline]
+fn cached_zero_context(sig: u8, orientation: SubbandOrientation) -> u8 {
+    super::state::zero_coding_context(word_flag_summary(sig, 0), orientation)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == ((value >> 41) as u8) & if causal && y % 4 == 3 { 0x1fu8 } else { 0xffu8 },
+))]
+#[inline]
+fn significance_mask(value: u64, y: usize, causal: bool) -> u8 {
+    ((value >> SIG_NEIGHBORS) as u8) & if causal && y % 4 == 3 { 0x1f } else { 0xff }
+}
+
+#[cfg(test)]
+mod cached_context_tests {
+    use super::*;
+    use crate::tier1::state::zero_coding_context;
+
+    #[test]
+    fn direct_contexts_match_every_cached_mask_orientation_sign_and_vsc_edge() {
+        for sig in 0..=u8::MAX {
+            for neg in [0, sig, u8::MAX] {
+                for y in [0, 3] {
+                    for causal in [false, true] {
+                        let word = 17
+                            | SIG
+                            | REFINED
+                            | (u64::from(sig) << SIG_NEIGHBORS)
+                            | (u64::from(neg) << NEG_NEIGHBORS);
+                        let mask = significance_mask(word, y, causal);
+                        let signs = if causal && y == 3 { neg & 0x1f } else { neg };
+                        let summary = word_flag_summary(mask, signs);
+                        assert_eq!(mask == 0, significant_neighbor_count(summary) == 0);
+                        for orientation in [
+                            SubbandOrientation::Ll,
+                            SubbandOrientation::Hl,
+                            SubbandOrientation::Lh,
+                            SubbandOrientation::Hh,
+                        ] {
+                            let table = match orientation {
+                                SubbandOrientation::Hl => &ZERO_HL,
+                                SubbandOrientation::Hh => &ZERO_HH,
+                                _ => &ZERO_NORMAL,
+                            };
+                            assert_eq!(
+                                cached_zero_context(mask, orientation),
+                                table[usize::from(mask)]
+                            );
+                            assert_eq!(
+                                cached_zero_context(mask, orientation),
+                                zero_coding_context(summary, orientation),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 struct CompactPlane {
     width: usize,
@@ -621,15 +718,24 @@ impl CompactPlane {
             crate::specs::compact_index(self.width,self.height,self.entries@,coordinate.0,coordinate.1);
         }
         let (x, y) = coordinate;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::compact_cached_summary(self.width,self.height,self.entries@,x,y,causal);
+            let mask=if causal && y%4==3{0x1fu8}else{0xffu8};
+            crate::specs::compact_mask_context(
+                ((self.entries@[(y*self.width+x) as int]>>41) as u8)&mask,
+                ((self.entries@[(y*self.width+x) as int]>>49) as u8)&mask,orientation);
+        }
         stats.coefficients_scanned += 1;
         let index = y * self.width + x;
         if self.entries[index] & SIG == 0 {
-            let summary = self.summary(x, y, causal);
-            if significant_neighbor_count(summary) != 0 {
-                let bit = decoder.decode(usize::from(zero_coding_context(summary, orientation)))?;
+            let sig = significance_mask(self.entries[index], y, causal);
+            if sig != 0 {
+                let bit = decoder.decode(usize::from(cached_zero_context(sig, orientation)))?;
                 state.significance_visited[index] = true;
                 stats.coding_symbols += 1;
                 if bit {
+                    let summary = self.summary(x, y, causal);
                     let marked = self.sign_and_mark(x, y, state.bitplane, summary, decoder);
                     #[cfg(verus_keep_ghost)]
                     proof! {
@@ -682,13 +788,19 @@ impl CompactPlane {
         let index = y * self.width + x;
         if state.significant_before[index] {
             let before = self.entries[index];
-            let neighbors = if before & REFINED != 0 {
-                0
+            let context = if before & REFINED != 0 {
+                crate::refinement::tier1_refinement_context(true, 0)
             } else {
-                significant_neighbor_count(self.summary(x, y, causal))
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    let mask=if causal && y%4==3{0x1fu8}else{0xffu8};
+                    crate::specs::compact_mask_context(
+                        ((before>>41) as u8)&mask,
+                        ((before>>49) as u8)&mask,SubbandOrientation::Ll);
+                }
+                let sig = significance_mask(before, y, causal);
+                crate::refinement::tier1_refinement_context(false, if sig != 0 { 1 } else { 0 })
             };
-            let context =
-                crate::refinement::tier1_refinement_context(before & REFINED != 0, neighbors);
             let bit = decoder.decode(usize::from(context))?;
             stats.coding_symbols += 1;
             #[cfg(verus_keep_ghost)]
@@ -743,12 +855,21 @@ impl CompactPlane {
             crate::specs::compact_index(self.width,self.height,self.entries@,coordinate.0,coordinate.1);
         }
         let (x, y) = coordinate;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::compact_cached_summary(self.width,self.height,self.entries@,x,y,causal);
+            let mask=if causal && y%4==3{0x1fu8}else{0xffu8};
+            crate::specs::compact_mask_context(
+                ((self.entries@[(y*self.width+x) as int]>>41) as u8)&mask,
+                ((self.entries@[(y*self.width+x) as int]>>49) as u8)&mask,orientation);
+        }
         let index = y * self.width + x;
         if self.entries[index] & SIG == 0 && !state.significance_visited[index] {
-            let summary = self.summary(x, y, causal);
-            let bit = decoder.decode(usize::from(zero_coding_context(summary, orientation)))?;
+            let sig = significance_mask(self.entries[index], y, causal);
+            let bit = decoder.decode(usize::from(cached_zero_context(sig, orientation)))?;
             stats.coding_symbols += 1;
             if bit {
+                let summary = self.summary(x, y, causal);
                 let marked = self.sign_and_mark(x, y, state.bitplane, summary, decoder);
                 #[cfg(verus_keep_ghost)]
                 proof! {
@@ -816,10 +937,15 @@ impl CompactPlane {
         proof! {
             crate::specs::compact_index(self.width,self.height,self.entries@,x,y);
             reveal(crate::specs::part1_legacy_cleanup_candidate);reveal(super::legacy_bitplane_view);
+            crate::specs::compact_cached_summary(self.width,self.height,self.entries@,x,y,causal);
+            let mask=if causal && y%4==3{0x1fu8}else{0xffu8};
+            crate::specs::compact_mask_context(
+                ((self.entries@[(y*self.width+x) as int]>>41) as u8)&mask,
+                ((self.entries@[(y*self.width+x) as int]>>49) as u8)&mask,SubbandOrientation::Ll);
         }
         self.entries[y * self.width + x] & SIG == 0
             && !state.significance_visited[y * self.width + x]
-            && significant_neighbor_count(self.summary(x, y, causal)) == 0
+            && significance_mask(self.entries[y * self.width + x], y, causal) == 0
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
