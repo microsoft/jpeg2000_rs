@@ -8,5 +8,15 @@
     "result": "PASS",
     "compared_diagnostic_outcomes": 7563,
     "differences": []
+  },
+  "PR493": {
+    "result": "PASS",
+    "compared_diagnostic_outcomes": 7563,
+    "differences": []
+  },
+  "PR494": {
+    "result": "PASS",
+    "compared_diagnostic_outcomes": 7563,
+    "differences": []
   }
 }

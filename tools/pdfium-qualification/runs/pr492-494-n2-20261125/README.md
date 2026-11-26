@@ -2,8 +2,8 @@
 
 ## Functional-only checkpoint
 
-Actually completed sources: **Base, PR492**.
-Full functional/reference phases still pending for: **PR493, PR494**.
+Actually completed sources: **Base, PR492, PR493, PR494**.
+Full functional/reference phases still pending for: **none**.
 Performance is **pending**; no timing/adoption claim is implied.
 
 All completed sources have the original2,521 requests (310 images x8 plus41

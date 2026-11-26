@@ -1,0 +1,7 @@
+{
+  "result": "PASS",
+  "configurations": 2521,
+  "outcomes": 7563,
+  "differences": [],
+  "note": "No difference is silently accepted as a speedup or waived; record intentional base changes separately."
+}
