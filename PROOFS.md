@@ -6515,6 +6515,21 @@ Neither representation equality nor allocations for removed buffers are
 assumed. This isolated correction introduces no size/precision/component-count
 threshold and does not qualify or erase earlier negative performance evidence.
 
+The source-prepared wide-reader correction replaces the runtime reader enum
+with static plane and row types, using the existing verified trait-contract
+pattern. Ordinary wide rows are borrowed coefficient slices; private rows
+borrow the existing decoder and retain their actual start/end span. Shared
+preflight and placement loops read narrow/bounded scalar values through these
+types and still call the unchanged magnitude, maxshift and quantization helpers.
+No coefficient owner, dense private slice or additional staging allocation is
+introduced. The row validity and complete raw subrange projections are new
+proof obligations. The existing ordered conditional allocation program remains
+governing; fresh proofs must connect these actual producers rather than assume
+equal outputs or phantom allocations. New native layout, complete source and
+actual archive verification, original-oracle/canonical receipts and all
+performance gates remain pending for this source; historical qualification
+does not certify it.
+
 The regression controls compare private and wide results for reversible and
 irreversible standard decompositions, levels 0/1/5/31/32, odd and empty-axis
 geometry, limits/errors, both selection forms and actual packed/wide

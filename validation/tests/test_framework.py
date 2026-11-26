@@ -10998,11 +10998,10 @@ class FrameworkTests(WorkingFiles):
             ("src/decode/private_ht.rs", "geometry.precincts == 1", "geometry.precincts == 2"),
             ("src/decode/private_ht.rs", "super::reconstruction::fused::place_private(", "super::reconstruction::write_quantized_block("),
             ("src/decode/reconstruction/fused.rs", "if let Some(quantizer) = preflight(", "if let Some(quantizer) = bypass_preflight("),
-            ("src/decode/reconstruction/fused.rs", "coefficient.reconstructed_magnitude_bounded()", "0"),
-            ("src/decode/reconstruction/fused_readable.rs", "decoder.raw_coefficient(index)", "decoder.raw_coefficient(0)"),
-            ("src/decode/reconstruction/fused_readable.rs", "decoder.coefficient_count()", "0"),
-            ("src/decode/reconstruction/fused_readable.rs", "ReadablePlane::Private(plane)", "ReadablePlane::Private(other)"),
-            ("src/decode/reconstruction/fused_readable.rs", "decoder.collect()", "Ok(Vec::new())"),
+            ("src/decode/reconstruction/fused_readable.rs", "coefficient.reconstructed_magnitude_bounded()", "0"),
+            ("src/decode/reconstruction/fused_readable.rs", "self.decoder.raw_coefficient(self.start + index)", "self.decoder.raw_coefficient(index)"),
+            ("src/decode/reconstruction/fused_readable.rs", "PrivateHtDecoder::coefficient_count(self)", "0"),
+            ("src/decode/reconstruction/fused_readable.rs", "PrivateHtDecoder::collect(self)", "Ok(Vec::new())"),
             ("src/tier1/private_ht.rs", "let copied = self.stage()", "let copied = self.into_wide()"),
             ("src/tier1/private_ht.rs", "let converted = staged.into_wide()", "let converted = staged.stage()"),
             ("src/tier1/private_ht.rs", "*self = retained", "drop(retained)"),
@@ -11024,6 +11023,8 @@ class FrameworkTests(WorkingFiles):
                     self.assertRaisesRegex(ValueError, "remaining plane storage|private HT primary"):
                 framework.validate_normative_coverage(data)
         scoped_mutations = (
+            ("src/decode/reconstruction/fused_readable.rs", "from_private",
+             "plane", "other"),
             ("src/decode/execution.rs", "decode_tile_parts_at",
              "if super::private_ht::standard_eligible(", "if false && super::private_ht::standard_eligible("),
             ("src/codestream/coding_style.rs", "effective_coding_styles_equal",
@@ -11078,6 +11079,53 @@ class FrameworkTests(WorkingFiles):
         ]
         with self.assertRaisesRegex(ValueError, "private HT primary standard"):
             framework.validate_normative_coverage(missing)
+
+    def test_inventory_static_fused_rows_bind_borrows_projection_and_real_fallbacks(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entries = [
+            entry for entry in coverage["requirements"]
+            if entry["id"] in {
+                "part15-cleanup-only-actual-symbol-caller",
+                "part1-complete-standard-plan-coordinator",
+            }
+        ]
+        self.assertEqual(len(entries), 2)
+        read_text = Path.read_text
+        mutations = (
+            ("src/decode/reconstruction/fused_readable.rs",
+             "type WideRow<'a> = &'a [CoefficientState]", "type WideRow<'a> = Vec<CoefficientState>"),
+            ("src/decode/reconstruction/fused_readable.rs",
+             "let coefficient = &self[index]", "let coefficient = self[index]"),
+            ("src/decode/reconstruction/fused_readable.rs",
+             "&self.coefficients()[start..end]", "&self.coefficients()[0..end]"),
+            ("src/decode/reconstruction/fused_readable.rs",
+             "result.valid()", "true"),
+            ("src/decode/reconstruction/fused_readable.rs",
+             "result.raw_row()==self.raw_plane().coefficients.subrange(start as int,end as int)",
+             "result.raw_row()==self.raw_plane().coefficients.subrange(0,end as int)"),
+            ("src/decode/reconstruction/fused_readable.rs",
+             "super::collect_prepare_coefficients(self)", "Ok(Vec::new())"),
+            ("src/decode/reconstruction/fused.rs",
+             "fn place_readable<P: ReadablePlane>", "fn place_readable"),
+            ("src/decode/reconstruction/fused.rs",
+             "let collected = plane.collect()", "let collected = Ok(Vec::new())"),
+        )
+        for entry in entries:
+            data = dict(coverage, requirements=[entry])
+            self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+            for relative, before, after in mutations:
+                source = framework.ROOT / relative
+                original = source.read_text()
+                self.assertIn(before, original)
+                changed = original.replace(before, after, 1)
+
+                def altered(path, *args, **kwargs):
+                    return changed if path == source else read_text(path, *args, **kwargs)
+
+                with self.subTest(requirement=entry["id"], source=relative, fragment=before), \
+                        mock.patch.object(Path, "read_text", altered), \
+                        self.assertRaisesRegex(ValueError, "static fused readers|remaining plane storage|quantization output"):
+                    framework.validate_normative_coverage(data)
 
     def test_inventory_ht_checkpoint_binds_private_mode_packed_tape_and_refinement_source(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())

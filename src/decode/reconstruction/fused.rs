@@ -10,7 +10,7 @@ use vstd::prelude::*;
 
 #[path = "fused_readable.rs"]
 mod readable;
-use readable::ReadablePlane;
+use readable::{ReadablePlane, ReadableRow};
 
 #[derive(Clone, Copy)]
 struct Quantizer {
@@ -20,18 +20,18 @@ struct Quantizer {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    requires x as int+plane.view().width as int<=geometry.width,
-        y as int+plane.view().height as int<=geometry.height,
+    requires x as int+plane.raw_plane().width as int<=geometry.width,
+        y as int+plane.raw_plane().height as int<=geometry.height,
     ensures match result{
-        Ok(Some(quantizer))=>crate::specs::part2_fused_eligible(working_subband_view(*destination),plane.view(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits))
+        Ok(Some(quantizer))=>crate::specs::part2_fused_eligible(working_subband_view(*destination),plane.raw_plane(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits))
             && quantizer.step==crate::specs::part2_fused_step(geometry,reversible).get_Ok_0()
             && quantizer.roi_shift==geometry.roi_shift && quantizer.reversible==reversible,
-        Ok(None)=>!crate::specs::part2_fused_eligible(working_subband_view(*destination),plane.view(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits)),
+        Ok(None)=>!crate::specs::part2_fused_eligible(working_subband_view(*destination),plane.raw_plane(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits)),
         Err(_)=>false,
     },
 ))]
-fn preflight(
-    plane: ReadablePlane<'_>,
+fn preflight<P: ReadablePlane>(
+    plane: P,
     destination: &WorkingSubband,
     geometry: SubbandGeometry,
     x: u32,
@@ -97,18 +97,18 @@ fn preflight(
     };
     #[cfg(verus_keep_ghost)]
     proof! {
-        assert(crate::specs::part2_fused_shape(original,plane.view(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits)));
+        assert(crate::specs::part2_fused_shape(original,plane.raw_plane(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits)));
         assert(width>0 && height>0) by(nonlinear_arith) requires count>0,count==(width as int)*(height as int);
     }
     let mut row = 0;
     #[cfg_attr(verus_keep_ghost, verus_spec(
-        invariant row<=height,width==plane.view().width,height==plane.view().height,
+        invariant row<=height,width==plane.raw_plane().width,height==plane.raw_plane().height,
             width>0,height>0,count==(width as int)*(height as int),area==(destination.width as int)*(destination.height as int),
             original==working_subband_view(*destination),
-            crate::specs::part2_fused_shape(original,plane.view(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits)),
+            crate::specs::part2_fused_shape(original,plane.raw_plane(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits)),
             step==crate::specs::part2_fused_step(geometry,reversible).get_Ok_0(),step>=0,
             maximum==crate::specs::part2_fused_maximum(step,reversible),
-            forall|r:int,c:int|0<=r<row && 0<=c<width ==>             #[trigger] crate::specs::part2_fused_cell_valid(original,plane.view(),x,y,geometry.roi_shift,step,reversible,r,c),
+            forall|r:int,c:int|0<=r<row && 0<=c<width ==>             #[trigger] crate::specs::part2_fused_cell_valid(original,plane.raw_plane(),x,y,geometry.roi_shift,step,reversible,r,c),
         decreases height-row,
     ))]
     while row < height {
@@ -119,20 +119,23 @@ fn preflight(
             crate::specs::part2_fused_span(destination.width as int,destination.height as int,width as int,height as int,x as int,y as int,row as int);
         }
         let start = (y as usize + row) * destination.width as usize + x as usize;
+        let source = plane.row(row * width, (row + 1) * width);
         let visited = &destination.visited[start..start + width];
         let mut column = 0;
         #[cfg_attr(verus_keep_ghost, verus_spec(
-            invariant column<=width,row<height,width==plane.view().width,height==plane.view().height,
+            invariant column<=width,row<height,width==plane.raw_plane().width,height==plane.raw_plane().height,
                 width>0,height>0,original==working_subband_view(*destination),
-                crate::specs::part2_fused_shape(original,plane.view(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits)),
+                crate::specs::part2_fused_shape(original,plane.raw_plane(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits)),
                 step==crate::specs::part2_fused_step(geometry,reversible).get_Ok_0(),step>=0,maximum==crate::specs::part2_fused_maximum(step,reversible),
                 start==(y as int+row as int)*(destination.width as int)+x as int,
                 visited.len()==width,start+width<=original.4.len(),
-                (row+1)*width<=plane.view().coefficients.len(),
+                (row+1)*width<=plane.raw_plane().coefficients.len(),
                 (row+1)*width==row*width+width,
+                source.valid(),source.raw_row().len()==width,
+                source.raw_row()==plane.raw_plane().coefficients.subrange((row*width) as int,((row+1)*width) as int),
                 visited@==original.4.subrange(start as int,(start+width) as int),
-                forall|r:int,c:int|0<=r<row && 0<=c<width ==> #[trigger] crate::specs::part2_fused_cell_valid(original,plane.view(),x,y,geometry.roi_shift,step,reversible,r,c),
-                forall|c:int|0<=c<column ==> #[trigger] crate::specs::part2_fused_cell_valid(original,plane.view(),x,y,geometry.roi_shift,step,reversible,row as int,c),
+                forall|r:int,c:int|0<=r<row && 0<=c<width ==> #[trigger] crate::specs::part2_fused_cell_valid(original,plane.raw_plane(),x,y,geometry.roi_shift,step,reversible,r,c),
+                forall|c:int|0<=c<column ==> #[trigger] crate::specs::part2_fused_cell_valid(original,plane.raw_plane(),x,y,geometry.roi_shift,step,reversible,row as int,c),
             decreases width-column,
         ))]
         while column < width {
@@ -140,28 +143,27 @@ fn preflight(
             crate::deadline::checkpoint_periodic(column)?;
             #[cfg(verus_keep_ghost)]
             proof! {
-                assert(row*width+column<plane.view().coefficients.len());
+                assert(row*width+column<plane.raw_plane().coefficients.len());
             }
-            let coefficient = plane.coefficient(row * width + column)?;
-            let Some(magnitude) = coefficient.narrow_reconstructed_magnitude() else {
+            let Some(magnitude) = source.narrow(column)? else {
                 #[cfg(verus_keep_ghost)]
-                proof! {assert(!crate::specs::part2_fused_cell_valid(original,plane.view(),x,y,geometry.roi_shift,step,reversible,row as int,column as int));}
+                proof! {assert(!crate::specs::part2_fused_cell_valid(original,plane.raw_plane(),x,y,geometry.roi_shift,step,reversible,row as int,column as int));}
                 return Ok(None);
             };
             // Maxshift is discontinuous at its threshold: bound each restored value.
             let restored = crate::refinement::maxshift_restore(magnitude, geometry.roi_shift);
             if restored > maximum || visited[column] {
                 #[cfg(verus_keep_ghost)]
-                proof! {assert(!crate::specs::part2_fused_cell_valid(original,plane.view(),x,y,geometry.roi_shift,step,reversible,row as int,column as int));}
+                proof! {assert(!crate::specs::part2_fused_cell_valid(original,plane.raw_plane(),x,y,geometry.roi_shift,step,reversible,row as int,column as int));}
                 return Ok(None);
             }
             #[cfg(verus_keep_ghost)]
-            proof! {assert(crate::specs::part2_fused_cell_valid(original,plane.view(),x,y,geometry.roi_shift,step,reversible,row as int,column as int));}
+            proof! {assert(crate::specs::part2_fused_cell_valid(original,plane.raw_plane(),x,y,geometry.roi_shift,step,reversible,row as int,column as int));}
             column += 1;
         }
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert forall|r:int,c:int|0<=r<row+1 && 0<=c<width implies #[trigger] crate::specs::part2_fused_cell_valid(original,plane.view(),x,y,geometry.roi_shift,step,reversible,r,c) by{}
+            assert forall|r:int,c:int|0<=r<row+1 && 0<=c<width implies #[trigger] crate::specs::part2_fused_cell_valid(original,plane.raw_plane(),x,y,geometry.roi_shift,step,reversible,r,c) by{}
         }
         row += 1;
     }
@@ -173,13 +175,13 @@ fn preflight(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    requires crate::specs::part2_fused_write_admit(working_subband_view(*old(destination)),plane.view(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible),
+    requires crate::specs::part2_fused_write_admit(working_subband_view(*old(destination)),plane.raw_plane(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible),
     ensures result==Ok(()),working_subband_view(*final(destination))==crate::specs::part2_fused_rows(
-        working_subband_view(*old(destination)),crate::specs::part2_fused_values(plane.view(),quantizer.roi_shift,quantizer.step,quantizer.reversible),
-        plane.view().width as u32,x,y,plane.view().height as nat),
+        working_subband_view(*old(destination)),crate::specs::part2_fused_values(plane.raw_plane(),quantizer.roi_shift,quantizer.step,quantizer.reversible),
+        plane.raw_plane().width as u32,x,y,plane.raw_plane().height as nat),
 ))]
-fn write(
-    plane: ReadablePlane<'_>,
+fn write<P: ReadablePlane>(
+    plane: P,
     destination: &mut WorkingSubband,
     x: u32,
     y: u32,
@@ -190,19 +192,19 @@ fn write(
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost original=working_subband_view(*destination);
-        let ghost values=crate::specs::part2_fused_values(plane.view(),quantizer.roi_shift,quantizer.step,quantizer.reversible);
+        let ghost values=crate::specs::part2_fused_values(plane.raw_plane(),quantizer.roi_shift,quantizer.step,quantizer.reversible);
     }
     let (width, height) = plane.dimensions();
     let width = usize::from(width);
     let height = usize::from(height);
     #[cfg(verus_keep_ghost)]
-    proof! {crate::specs::part2_fused_geometry(original,plane.view(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible);}
+    proof! {crate::specs::part2_fused_geometry(original,plane.raw_plane(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible);}
     let mut row = 0;
     #[cfg_attr(verus_keep_ghost, verus_spec(
-        invariant row<=height,width==plane.view().width,height==plane.view().height,
+        invariant row<=height,width==plane.raw_plane().width,height==plane.raw_plane().height,
             original==working_subband_view(*old(destination)),
-            values==crate::specs::part2_fused_values(plane.view(),quantizer.roi_shift,quantizer.step,quantizer.reversible),
-            crate::specs::part2_fused_write_admit(original,plane.view(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible),
+            values==crate::specs::part2_fused_values(plane.raw_plane(),quantizer.roi_shift,quantizer.step,quantizer.reversible),
+            crate::specs::part2_fused_write_admit(original,plane.raw_plane(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible),
             working_subband_view(*destination)==crate::specs::part2_fused_rows(original,values,width as u32,x,y,row as nat),
         decreases height-row,
     ))]
@@ -211,13 +213,14 @@ fn write(
         crate::deadline::checkpoint()?;
         #[cfg(verus_keep_ghost)]
         proof! {
-            crate::specs::part2_fused_geometry(original,plane.view(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible);
+            crate::specs::part2_fused_geometry(original,plane.raw_plane(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible);
             assert((row as int)*(width as int)<=values.len()) by(nonlinear_arith)
                 requires row<height,values.len()==(width as int)*(height as int);
             crate::specs::part2_fused_rows_frame(original,values,width as u32,x,y,row as nat);
             crate::specs::part2_fused_span(original.0 as int,original.1 as int,width as int,height as int,x as int,y as int,row as int);
         }
         let start = (y as usize + row) * destination.width as usize + x as usize;
+        let source = plane.row(row * width, (row + 1) * width);
         #[cfg(verus_keep_ghost)]
         proof_decl! {let ghost before=working_subband_view(*destination);}
         {
@@ -225,16 +228,18 @@ fn write(
             let visited = &mut destination.visited.as_mut_slice()[start..start + width];
             let mut column = 0;
             #[cfg_attr(verus_keep_ghost, verus_spec(
-            invariant column<=width,row<height,width==plane.view().width,height==plane.view().height,
+            invariant column<=width,row<height,width==plane.raw_plane().width,height==plane.raw_plane().height,
                 original==working_subband_view(*old(destination)),
-                values==crate::specs::part2_fused_values(plane.view(),quantizer.roi_shift,quantizer.step,quantizer.reversible),
-                crate::specs::part2_fused_write_admit(original,plane.view(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible),
+                values==crate::specs::part2_fused_values(plane.raw_plane(),quantizer.roi_shift,quantizer.step,quantizer.reversible),
+                crate::specs::part2_fused_write_admit(original,plane.raw_plane(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible),
                 before==crate::specs::part2_fused_rows(original,values,width as u32,x,y,row as nat),
                 start==(y as int+row as int)*(before.0 as int)+x as int,
                 samples.len()==width,visited.len()==width,
                 0<=start,start+width<=before.3.len(),before.4.len()==before.3.len(),
-                (row+1)*width<=plane.view().coefficients.len(),
+                (row+1)*width<=plane.raw_plane().coefficients.len(),
                 (row+1)*width==row*width+width,
+                source.valid(),source.raw_row().len()==width,
+                source.raw_row()==plane.raw_plane().coefficients.subrange((row*width) as int,((row+1)*width) as int),
                 forall|c:int|0<=c<width ==> #[trigger] samples[c]==if c<column{values[row*width+c]}else{before.3[start+c]},
                 forall|c:int|0<=c<width ==> #[trigger] visited[c]==if c<column{true}else{before.4[start+c]},
             decreases width-column,
@@ -244,19 +249,16 @@ fn write(
                 crate::deadline::checkpoint_periodic(column)?;
                 #[cfg(verus_keep_ghost)]
                 proof! {
-                    assert(row*width+column<plane.view().coefficients.len());
-                    assert(crate::specs::part2_fused_cell_valid(original,plane.view(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible,row as int,column as int));
+                    assert(row*width+column<plane.raw_plane().coefficients.len());
+                    assert(crate::specs::part2_fused_cell_valid(original,plane.raw_plane(),x,y,quantizer.roi_shift,quantizer.step,quantizer.reversible,row as int,column as int));
                 }
-                let coefficient = plane.coefficient(row * width + column)?;
-                let magnitude = crate::refinement::maxshift_restore(
-                    coefficient.reconstructed_magnitude_bounded(),
-                    quantizer.roi_shift,
-                );
+                let (value, negative) = source.bounded(column)?;
+                let magnitude = crate::refinement::maxshift_restore(value, quantizer.roi_shift);
                 #[cfg(verus_keep_ghost)]
                 proof! {crate::specs::part2_fused_limit_bounds(magnitude,quantizer.step,quantizer.reversible);}
                 samples[column] = crate::transform::quantize_bounded_magnitude(
                     magnitude,
-                    coefficient.reconstructed_negative(),
+                    negative,
                     quantizer.step,
                     quantizer.reversible,
                 );
@@ -284,18 +286,18 @@ fn write(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures crate::specs::part2_fused_band_result(working_subband_view(*old(destination)),plane.view(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits),
+    ensures crate::specs::part2_fused_band_result(working_subband_view(*old(destination)),plane.raw_plane(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits),
             (result,working_subband_view(*final(destination)))),
         result!=Err(DecodeError::AllocationFailed) ==>
         (result,working_subband_view(*final(destination)))==crate::specs::part2_fused_band_value(
-            working_subband_view(*old(destination)),plane.view(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits)),
+            working_subband_view(*old(destination)),plane.raw_plane(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits)),
         result==Err(DecodeError::AllocationFailed) ==> working_subband_view(*final(destination))==working_subband_view(*old(destination)),
-        result==Err(DecodeError::AllocationFailed) ==> !crate::specs::part2_fused_eligible(working_subband_view(*old(destination)),plane.view(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits))
-            && x as int+plane.view().width as int<=geometry.width
-            && y as int+plane.view().height as int<=geometry.height,
+        result==Err(DecodeError::AllocationFailed) ==> !crate::specs::part2_fused_eligible(working_subband_view(*old(destination)),plane.raw_plane(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits))
+            && x as int+plane.raw_plane().width as int<=geometry.width
+            && y as int+plane.raw_plane().height as int<=geometry.height,
 ))]
-fn place_readable(
-    plane: ReadablePlane<'_>,
+fn place_readable<P: ReadablePlane>(
+    plane: P,
     destination: &mut WorkingSubband,
     geometry: SubbandGeometry,
     x: u32,
@@ -311,7 +313,7 @@ fn place_readable(
     }
     #[cfg(verus_keep_ghost)]
     proof! {
-        crate::specs::part2_fused_band_normal(initial,plane.view(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits));
+        crate::specs::part2_fused_band_normal(initial,plane.raw_plane(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits));
     }
     let (width, height) = plane.dimensions();
     let width = u32::from(width);
@@ -323,16 +325,16 @@ fn place_readable(
     }
     if let Some(quantizer) = preflight(plane, destination, geometry, x, y, reversible, limits)? {
         #[cfg(verus_keep_ghost)]
-        proof! {crate::specs::part2_fused_band_equivalent(working_subband_view(*destination),plane.view(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits));}
+        proof! {crate::specs::part2_fused_band_equivalent(working_subband_view(*destination),plane.raw_plane(),geometry,x,y,reversible,crate::limits::resource_decoded_bytes_limit(limits));}
         return write(plane, destination, x, y, quantizer);
     }
     let collected = plane.collect();
     #[cfg(verus_keep_ghost)]
     proof! {
-        crate::specs::part2_coefficient_collect_frames(plane.view(),crate::transform::quantized_coefficients_outcome(collected));
+        crate::specs::part2_coefficient_collect_frames(plane.raw_plane(),crate::transform::quantized_coefficients_outcome(collected));
         if let Err(error)=collected{
-            crate::specs::part2_extraction_place_error(working,seq![geometry],seq![seq![plane.view()]],position,reversible,
-                crate::limits::resource_decoded_bytes_limit(limits),geometry,plane.view(),error);
+            crate::specs::part2_extraction_place_error(working,seq![geometry],seq![seq![plane.raw_plane()]],position,reversible,
+                crate::limits::resource_decoded_bytes_limit(limits),geometry,plane.raw_plane(),error);
         }
     }
     let coefficients = collected?;
@@ -347,8 +349,8 @@ fn place_readable(
     #[cfg(verus_keep_ghost)]
     proof! {
         if let Err(error)=quantized_result{
-            crate::specs::part2_extraction_place_quantization_error(working,seq![geometry],seq![seq![plane.view()]],position,reversible,
-                crate::limits::resource_decoded_bytes_limit(limits),geometry,plane.view(),crate::transform::quantized_coefficients_view(coefficients@),error);
+            crate::specs::part2_extraction_place_quantization_error(working,seq![geometry],seq![seq![plane.raw_plane()]],position,reversible,
+                crate::limits::resource_decoded_bytes_limit(limits),geometry,plane.raw_plane(),crate::transform::quantized_coefficients_view(coefficients@),error);
         }
     }
     let quantized = quantized_result?;

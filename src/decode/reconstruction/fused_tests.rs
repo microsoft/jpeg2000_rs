@@ -80,6 +80,41 @@ fn legacy_place(
 }
 
 #[test]
+fn static_fused_rows_borrow_wide_storage_and_preserve_private_offsets_raw_refusals() {
+    let raw: Vec<ExtractionTestCoefficient> = vec![
+        (u64::MAX, [u64::MAX; 5], true, false, Some(u16::MAX)),
+        (3, [0; 5], false, true, Some(0)),
+        (9, [0; 5], true, true, Some(1)),
+        (0, [1, 2, 3, 4, 5], false, true, None),
+    ];
+    let plane = extraction_test_plane(4, 1, &raw);
+    let private = extraction_test_private_decoder(4, 1, &raw);
+    let before = format!("{plane:?}");
+    crate::allocation::with_refusal(0, || {
+        let wide = readable::from_wide(&plane).row(1, 3);
+        let retained = readable::from_private(&private).row(1, 3);
+        assert_eq!(wide.as_ptr(), plane.coefficients()[1..3].as_ptr());
+        for index in 0..2 {
+            assert_eq!(wide.narrow(index), retained.narrow(index));
+            assert_eq!(wide.bounded(index), retained.bounded(index));
+        }
+        assert_eq!(wide.narrow(0), Ok(Some(3)));
+        assert_eq!(wide.bounded(1), Ok((10, true)));
+        let wide = readable::from_wide(&plane).row(0, 4);
+        let retained = readable::from_private(&private).row(0, 4);
+        assert_eq!(wide.narrow(0), Ok(Some(0)));
+        assert_eq!(retained.narrow(0), Ok(Some(0)));
+        assert_eq!(wide.narrow(3), Ok(None));
+        assert_eq!(retained.narrow(3), Ok(None));
+        assert_eq!(
+            crate::allocation::copy_i64_values(&[1]),
+            Err(DecodeError::AllocationFailed)
+        );
+    });
+    assert_eq!(format!("{plane:?}"), before);
+}
+
+#[test]
 fn fused_direct_placement_matches_independent_midpoint_roi_and_quantization_reference_without_allocating()
  {
     let raw: Vec<ExtractionTestCoefficient> = vec![
@@ -154,7 +189,7 @@ fn fused_direct_placement_matches_independent_midpoint_roi_and_quantization_refe
                     write_quantized_block(&mut expected, &samples, 4, 2, 1, 1)
                 });
                 let eligible = preflight(
-                    ReadablePlane::Wide(&plane),
+                    readable::from_wide(&plane),
                     &actual,
                     shape,
                     1,
@@ -209,7 +244,7 @@ fn fused_direct_placement_matches_independent_midpoint_roi_and_quantization_refe
     );
     assert!(
         preflight(
-            ReadablePlane::Wide(&roi),
+            readable::from_wide(&roi),
             &destination(2, 1, false),
             shape,
             0,
@@ -263,7 +298,7 @@ fn fused_fallback_preserves_real_staging_refusals_numeric_priority_and_partial_p
             }
             assert!(
                 preflight(
-                    ReadablePlane::Wide(plane),
+                    readable::from_wide(plane),
                     &actual,
                     shape,
                     1,
@@ -361,7 +396,7 @@ fn private_fused_packed_and_wide_readers_preserve_raw_fields_without_staging() {
                 let mut actual = destination(4, 3, reversible);
                 assert!(
                     preflight(
-                        ReadablePlane::Private(&private),
+                        readable::from_private(&private),
                         &actual,
                         shape,
                         1,

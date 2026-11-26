@@ -218,6 +218,12 @@ The implementation contains:
   preflight for both wide and private readers, retaining actual generic staging
   when that preflight refuses. It does not change format admission or turn the
   earlier multi-component performance regressions into an adoption claim.
+  Its source-prepared wide-reader correction statically selects borrowed
+  coefficient rows for ordinary wide planes and private row readers for private
+  HT storage. Both use the same fused arithmetic and real staging fallback.
+  Fresh source/archive/native/layout and whole-cohort performance gates remain
+  required; neither the preceding qualification nor its unretained performance
+  results qualify this correction.
 - Reversible 5/3 and fixed-point irreversible 9/7 synthesis.
   Odd-origin high-only singleton operators use arithmetic half in the
   retained-assertion engineering profile. Actual encoded singleton-tile

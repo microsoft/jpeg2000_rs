@@ -239,6 +239,10 @@ def _coverage_function_header(
             trait_scope = r"(?:Clone[ \t]+for[ \t]+)?"
         if symbol == "JpipByteView::as_ref":
             trait_scope = r"AsRef[ \t]*<[ \t]*\[[ \t]*u8[ \t]*\][ \t]*>[ \t]+for[ \t]+"
+        if owner in {"WidePlane", "PrivatePlane"}:
+            trait_scope = r"(?:ReadablePlane[ \t]+for[ \t]+)?"
+        if owner in {"WideRow", "PrivateRow"}:
+            trait_scope = r"(?:ReadableRow[ \t]+for[ \t]+)?"
         if implementation_ranges is None:
             implementation_ranges = {}
         key = (text, owner, trait_scope)
@@ -284,6 +288,29 @@ def _coverage_function_body(text: str, header: re.Match[str] | None) -> str | No
     if closing is None:
         return None
     return text[body_start + 1:body_start + 1 + closing.start()]
+
+
+def _validate_static_fused_readers(source_text):
+    reader = source_text((ROOT / "src/decode/reconstruction/fused_readable.rs").resolve())
+    compact = "".join(reader.split())
+    required = (
+        "pub(super)typeWidePlane<'a>=&'aCodeBlockPlane;",
+        "pub(super)typePrivatePlane<'a>=&'aPrivateHtDecoder;",
+        "pub(super)typeWideRow<'a>=&'a[CoefficientState];",
+        "typeRow:ReadableRow;",
+        "ensuresresult.valid(),result.raw_row()==self.raw_plane().coefficients.subrange(startasint,endasint),",
+    )
+    if any(fragment not in compact for fragment in required):
+        raise ValueError("private HT primary static fused readers require actual borrowed types and complete row projection")
+    for symbol in ("from_wide", "from_private"):
+        body = _coverage_function_body(reader, _coverage_function_header(reader, symbol, module_scope=True))
+        if body is None or "".join(body.split()) != "plane":
+            raise ValueError("private HT primary static fused readers require unchanged borrowed plane producers")
+    fused = source_text((ROOT / "src/decode/reconstruction/fused.rs").resolve())
+    for symbol in ("preflight", "write", "place_readable"):
+        header = _coverage_function_header(fused, symbol, module_scope=True)
+        if header is None or not "".join(fused[header.end():].split()).startswith("<P:ReadablePlane>("):
+            raise ValueError("private HT primary static fused readers require statically selected shared loops")
 
 
 def _coverage_spec_function_body(text: str, symbol: str) -> str | None:
@@ -7743,6 +7770,7 @@ _HT_EXPONENT_TESTS = {
     ("src/decode/tests.rs", "ht_cleanup_scratch_storage_raw_selected_jph_rows_and_automatic_restore_real_image"),
 }
 _PRIVATE_STANDARD_HT_TESTS = {
+    ("src/decode/reconstruction/fused_tests.rs", "static_fused_rows_borrow_wide_storage_and_preserve_private_offsets_raw_refusals"),
     ("src/decode/reconstruction/fused_tests.rs", "private_fused_packed_and_wide_readers_preserve_raw_fields_without_staging"),
     ("src/decode/tests.rs", "private_ht_standard_admission_uses_complete_effective_styles_and_preserves_wide_results"),
     ("src/decode/tests.rs", "private_ht_standard_decompositions_keep_resolution_geometry_empty_bands_and_limits"),
@@ -7753,7 +7781,13 @@ _PRIVATE_STANDARD_HT_TESTS = {
 _PRIVATE_STANDARD_HT_IMPL = {
     ("src/decode/reconstruction/fused.rs", "place_private"),
     ("src/decode/reconstruction/fused.rs", "place_readable"),
-    ("src/decode/reconstruction/fused_readable.rs", "ReadablePlane::coefficient"),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::coefficient"),
+    ("src/decode/reconstruction/fused_readable.rs", "WidePlane::row"),
+    ("src/decode/reconstruction/fused_readable.rs", "WideRow::narrow"),
+    ("src/decode/reconstruction/fused_readable.rs", "WideRow::bounded"),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivatePlane::row"),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::narrow"),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::bounded"),
     ("src/decode/execution.rs", "decode_tile_parts_at"),
     ("src/decode/private_ht.rs", "standard_eligible"),
     ("src/decode/private_ht.rs", "standard_component_eligible"),
@@ -8107,28 +8141,53 @@ _PLANE_ROLE_NATIVE_ORDER = {
     ),
     ("src/decode/reconstruction/fused.rs", "preflight"): (
         "plane.dimensions()", "plane.coefficient_count()", "coefficient_count != count",
-        "plane.coefficient(row * width + column)?", "coefficient.narrow_reconstructed_magnitude()",
+        "plane.row(row * width, (row + 1) * width)", "source.narrow(column)?",
         "crate::refinement::maxshift_restore(magnitude, geometry.roi_shift)",
         "restored > maximum || visited[column]",
     ),
     ("src/decode/reconstruction/fused.rs", "write"): (
-        "plane.dimensions()", "plane.coefficient(row * width + column)?",
-        "coefficient.reconstructed_magnitude_bounded()", "crate::transform::quantize_bounded_magnitude(",
-        "coefficient.reconstructed_negative()", "visited[column] = true",
+        "plane.dimensions()", "plane.row(row * width, (row + 1) * width)",
+        "let (value, negative) = source.bounded(column)?",
+        "crate::refinement::maxshift_restore(value, quantizer.roi_shift)",
+        "crate::transform::quantize_bounded_magnitude(magnitude,negative,quantizer.step,quantizer.reversible,)",
+        "visited[column] = true",
     ),
-    ("src/decode/reconstruction/fused_readable.rs", "ReadablePlane::coefficient"): (
-        "match self", "Self::Wide(plane) => Ok(plane.coefficients()[index])",
-        "Self::Private(decoder) => decoder.raw_coefficient(index)",
+    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::coefficient"): (
+        "self.decoder.raw_coefficient(self.start + index)",
     ),
-    ("src/decode/reconstruction/fused_readable.rs", "ReadablePlane::coefficient_count"): (
-        "match self", "Self::Wide(plane) => plane.coefficients().len()",
-        "Self::Private(decoder) => decoder.coefficient_count()",
+    ("src/decode/reconstruction/fused_readable.rs", "WidePlane::coefficient_count"): (
+        "self.coefficients().len()",
     ),
-    ("src/decode/reconstruction/fused_readable.rs", "from_wide"): ("ReadablePlane::Wide(plane)",),
-    ("src/decode/reconstruction/fused_readable.rs", "from_private"): ("ReadablePlane::Private(plane)",),
-    ("src/decode/reconstruction/fused_readable.rs", "ReadablePlane::collect"): (
-        "match self", "Self::Wide(plane) => super::collect_prepare_coefficients(plane)",
-        "Self::Private(decoder) => decoder.collect()",
+    ("src/decode/reconstruction/fused_readable.rs", "PrivatePlane::coefficient_count"): (
+        "PrivateHtDecoder::coefficient_count(self)",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WidePlane::row"): (
+        "&self.coefficients()[start..end]",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivatePlane::row"): (
+        "PrivateRow { decoder: self, start, end, }",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WideRow::narrow"): (
+        "let coefficient = &self[index]", "Ok(coefficient.narrow_reconstructed_magnitude())",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WideRow::bounded"): (
+        "let coefficient = &self[index]", "coefficient.reconstructed_magnitude_bounded()",
+        "coefficient.reconstructed_negative()",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::narrow"): (
+        "let coefficient = self.coefficient(index)?", "coefficient.narrow_reconstructed_magnitude()",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivateRow::bounded"): (
+        "let coefficient = self.coefficient(index)?", "coefficient.reconstructed_magnitude_bounded()",
+        "coefficient.reconstructed_negative()",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "from_wide"): ("plane",),
+    ("src/decode/reconstruction/fused_readable.rs", "from_private"): ("plane",),
+    ("src/decode/reconstruction/fused_readable.rs", "WidePlane::collect"): (
+        "super::collect_prepare_coefficients(self)",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "PrivatePlane::collect"): (
+        "PrivateHtDecoder::collect(self)",
     ),
     ("src/tier1/private_ht.rs", "new_private_ht_decoder"): (
         "!style.force_high_throughput", "let initialized = private_initial(width, height)", "let primary = initialized?",
@@ -9108,6 +9167,19 @@ _QUANTIZATION_OUTPUT_NATIVE_ORDER = {
     ),
     ("src/decode/reconstruction/fused.rs", "place"): (
         "place_readable(readable::from_wide(plane),destination,geometry,x,y,reversible,limits,)",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WidePlane::row"): (
+        "&self.coefficients()[start..end]",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WideRow::narrow"): (
+        "let coefficient = &self[index]", "Ok(coefficient.narrow_reconstructed_magnitude())",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WideRow::bounded"): (
+        "let coefficient = &self[index]", "coefficient.reconstructed_magnitude_bounded()",
+        "coefficient.reconstructed_negative()",
+    ),
+    ("src/decode/reconstruction/fused_readable.rs", "WidePlane::collect"): (
+        "super::collect_prepare_coefficients(self)",
     ),
 }
 _QUANTIZATION_OUTPUT_TESTS = {
@@ -19445,6 +19517,7 @@ def validate_normative_coverage(
         if not _QUANTIZATION_OUTPUT_TESTS.issubset({
                 (ref["path"], ref["symbol"]) for ref in quantization_entry["test_refs"]}):
             raise ValueError("quantization output requires bounded numerical/raw/empty/refusal/restore/public controls")
+        _validate_static_fused_readers(source_text)
         for (relative, symbol), fragments in _QUANTIZATION_OUTPUT_GUARDS.items():
             body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
             compact = "".join(body.split()) if body is not None else ""
@@ -20447,6 +20520,7 @@ def validate_normative_coverage(
     if ids & {"part15-complete-actual-cleanup-plane", "part15-cleanup-only-actual-symbol-caller",
               "part15-complete-actual-refinement-plane", "part15-complete-substantive-segment-byte-entry",
               "part15-complete-retained-refinement-and-placeholder-steps", "part1-complete-native-grid-progression-composition"}:
+        _validate_static_fused_readers(source_text)
         for (relative, symbol), fragments in _PLANE_ROLE_GUARDS.items():
             body = _coverage_spec_function_body(source_text((ROOT / relative).resolve()), symbol)
             compact = "".join(body.split()) if body is not None else ""
