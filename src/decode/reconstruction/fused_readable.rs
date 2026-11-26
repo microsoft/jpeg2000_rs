@@ -73,10 +73,10 @@ pub(super) trait ReadablePlane: Copy {
 impl ReadableRow for WideRow<'_> {
     #[cfg(verus_keep_ghost)]
     verus! {
-        spec fn raw_row(self) -> Seq<crate::specs::Tier1RawCoefficient> {
+        closed spec fn raw_row(self) -> Seq<crate::specs::Tier1RawCoefficient> {
             crate::tier1::coefficient_raw_views(self@)
         }
-        spec fn valid(self) -> bool {
+        closed spec fn valid(self) -> bool {
             true
         }
     }
@@ -100,10 +100,10 @@ impl ReadableRow for WideRow<'_> {
 impl ReadableRow for PrivateRow<'_> {
     #[cfg(verus_keep_ghost)]
     verus! {
-        spec fn raw_row(self) -> Seq<crate::specs::Tier1RawCoefficient> {
+        closed spec fn raw_row(self) -> Seq<crate::specs::Tier1RawCoefficient> {
             self.decoder.view().plane.coefficients.subrange(self.start as int,self.end as int)
         }
-        spec fn valid(self) -> bool {
+        closed spec fn valid(self) -> bool {
             self.start<=self.end && self.end<=self.decoder.view().plane.coefficients.len()
         }
     }
@@ -142,7 +142,7 @@ impl<'a> ReadablePlane for WidePlane<'a> {
 
     #[cfg(verus_keep_ghost)]
     verus! {
-        spec fn raw_plane(self) -> crate::specs::Tier1RawPlane {
+        closed spec fn raw_plane(self) -> crate::specs::Tier1RawPlane {
             crate::tier1::code_block_plane_view(self)
         }
     }
@@ -170,7 +170,7 @@ impl<'a> ReadablePlane for PrivatePlane<'a> {
 
     #[cfg(verus_keep_ghost)]
     verus! {
-        spec fn raw_plane(self) -> crate::specs::Tier1RawPlane {
+        closed spec fn raw_plane(self) -> crate::specs::Tier1RawPlane {
             self.view().plane
         }
     }
