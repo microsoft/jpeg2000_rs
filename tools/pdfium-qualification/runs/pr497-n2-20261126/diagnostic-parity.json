@@ -1,0 +1,12 @@
+{
+  "Base": {
+    "result": "PASS",
+    "compared_diagnostic_outcomes": 7563,
+    "differences": []
+  },
+  "PR497": {
+    "result": "PASS",
+    "compared_diagnostic_outcomes": 7563,
+    "differences": []
+  }
+}
