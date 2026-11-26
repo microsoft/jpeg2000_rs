@@ -88,7 +88,7 @@ fn static_fused_rows_borrow_wide_storage_and_preserve_private_offsets_raw_refusa
         (0, [1, 2, 3, 4, 5], false, true, None),
     ];
     let plane = extraction_test_plane(4, 1, &raw);
-    let private = extraction_test_private_decoder(4, 1, &raw);
+    let private = extraction_test_private_decoder(extraction_test_plane(4, 1, &raw));
     let before = format!("{plane:?}");
     crate::allocation::with_refusal(0, || {
         let wide = readable::from_wide(&plane).row(1, 3);
