@@ -1221,11 +1221,15 @@ impl CompactPlane {
         orientation: SubbandOrientation,
         causal: bool,
     ) -> Result<Tier1PassStatistics, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost expected_kind = kind; }
         let kind = match KIND {
             0 => Tier1PassKind::SignificancePropagation,
             1 => Tier1PassKind::MagnitudeRefinement,
             _ => Tier1PassKind::Cleanup,
         };
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(kind == expected_kind); }
         let mut stats = ht_statistics_zero();
         let mut stripe = 0;
         #[cfg(verus_keep_ghost)]
