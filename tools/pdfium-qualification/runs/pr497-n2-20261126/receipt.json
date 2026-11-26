@@ -1,19 +1,33 @@
 {
-  "phase": "functional-only",
+  "phase": "complete",
   "source_results": {
     "Base": {
       "source": "043b772723954bc4c8fa8ac741f46f26ca183f59",
       "functional_gate": "PASS",
       "differences": 0,
       "represented_outcomes": 7563,
-      "actual_processes": 7563
+      "actual_processes": 7563,
+      "performance": {
+        "cases": 65,
+        "rust_median_rows_over_5_percent": 0,
+        "rust_p90_rows_over_5_percent": 0,
+        "unchanged_cpp_median_rows_over_5_percent": 0,
+        "unchanged_cpp_p90_rows_over_5_percent": 0
+      }
     },
     "PR497": {
       "source": "d965df06d6fbfdb0d9aa652b124d634885177318",
       "functional_gate": "PASS",
       "differences": 0,
       "represented_outcomes": 7563,
-      "actual_processes": 5042
+      "actual_processes": 5042,
+      "performance": {
+        "cases": 65,
+        "rust_median_rows_over_5_percent": 0,
+        "rust_p90_rows_over_5_percent": 6,
+        "unchanged_cpp_median_rows_over_5_percent": 1,
+        "unchanged_cpp_p90_rows_over_5_percent": 5
+      }
     }
   },
   "image_requests_per_source": 310,
@@ -31,12 +45,14 @@
     "original_llvm24": true,
     "compiler_flags": "actual O3/native/ThinLTO/linkO3, same-revision C/Rust halves and identical shim/FFI core archives"
   },
-  "performance": "pending",
+  "performance": "completed, all adverse rows retained for owner review",
   "performance_note": "Original65-workload selection,3 rounds,7 image/5 PDF timed reps,3 warmups,CPU2; source and backend orders rotate. Base block shared across heads; comparisons correlated/descriptive, not independent confirmatory CIs.",
   "rss_note": "Original consumer protocol captures elapsed p50/p90 and a2GiB data cap; no new per-process RSS attribution is fabricated.",
   "merge_authorization": false,
   "runtime_modified": false,
   "replacement_gate": false,
+  "timed_processes": 1170,
+  "source_case_rounds": 390,
   "files": {
     "Base/build-audit.json": "b1fc607b988614ffea09f6cb03a0671ebc2ba492d4f1c7e738392a1b6537e123",
     "Base/diagnostic-parity.json": "013fe0bcbff8aa336e896128f0622ec2bd347cb67044b8992c095cd357ab560f",
@@ -53,13 +69,18 @@
     "PR497/functionality.json": "730d6d555e0484182e91b0c9ee5a42a295609e1271155c827324558012c53142",
     "PR497/references.json": "d3d1be1988c223ebad8220fcf4987d16d08788d6a648591cb6efe8ba173d8eb2",
     "PR497/shim-tests.xml": "28c4cb484d8d4c1cdf2c84464cb885dc646cb539be65567685f52656aded1a6f",
-    "README.md": "cd76f894cf632b5a4493d979c5630e22254f337481b41c7cec15ac4727294dce",
+    "README.md": "d6eb6e6f3c0cf5fb5ac8c029d372c61168e093c5edb5fc098a2484de646876e6",
     "actual-command-projections.json.gz": "d4e8416f474795983e61a84e2a71d389fc63b7ae3429223ee97cdef25e5d2cb7",
     "diagnostic-parity.json": "5108b5cf9f72fed0b4c578d7d57d8bb50160d12c7adf4e1d3b86649e75300ce7",
     "environment.json": "86f37da113cded4f0ab38f1ebe94588ff70b7d46b4dd8ba762ad9c2c0e02cb2b",
     "input-verification.json": "841419474cf522e603ed10d574711add8197756419ec742066753d3f9edc8fb4",
     "native-tests.json": "bd8d6d35e517f975782621accb0f29903cedc48f35a6cf5f43980821b2432146",
+    "per-case.tsv": "e57ef23cd13396a32de3ef9f635135d26fffa3bc5ba8434f5d0b2fe65c938fb2",
+    "performance-analysis.json": "20c69f0b14717ec76ba7da98603e840b7d2237680e9285a693c2aa7e2dc1855b",
+    "performance-summary.json": "cee9228be678b22c3615adc8766d51234fe12bd3a021096b420711b00159aa3d",
+    "performance.json": "051d2bbffb2605e0663206b9a89e21de17e73ad80e13213c092dcd8d43485200",
     "sources.json": "fb98831a3b990b629f658d84007883a823f2c29f4f327398763ce024ff5a4b0b",
     "targeted-tests.json": "5fd894d2500f2a8b5046444ff42b0eba151f01469bdb11254d08773345a8f756"
-  }
+  },
+  "artifact_projection_note": "TSV line endings normalized to LF; all numeric/output fields unchanged."
 }
