@@ -1,0 +1,7351 @@
+{
+  "per_case": [
+    {
+      "source": "Base",
+      "id": "synthetic/1024-L-noise-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 107.62645699999999,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 107.825442
+        },
+        "shim": {
+          "ms": 333.60875500000003,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 335.518253
+        },
+        "ffi": {
+          "ms": 334.885379,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 335.377229
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/1024-L-noise-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 107.74072500000001,
+          "candidate_over_base": 1.0000734873632924,
+          "per_round_ratios": [
+            1.0000734873632924,
+            0.9974148178082273,
+            1.0043079014095178
+          ],
+          "p90_candidate_over_base": 1.0003642554045824,
+          "per_round_p90_ratios": [
+            1.0003642554045824,
+            0.9999653544600401,
+            1.0039837440822001
+          ],
+          "p90_ms": 107.864718
+        },
+        "shim": {
+          "ms": 336.244905,
+          "candidate_over_base": 1.0052598147020526,
+          "per_round_ratios": [
+            1.0023513805620838,
+            1.0052598147020526,
+            1.0083634705570002
+          ],
+          "p90_candidate_over_base": 1.0041433925680083,
+          "per_round_p90_ratios": [
+            1.0003326031290716,
+            1.0041433925680083,
+            1.0051587327500777
+          ],
+          "p90_ms": 336.855677
+        },
+        "ffi": {
+          "ms": 333.621713,
+          "candidate_over_base": 0.9967032919478452,
+          "per_round_ratios": [
+            0.9962265715995919,
+            0.9982348218450924,
+            0.9967032919478452
+          ],
+          "p90_candidate_over_base": 0.9967373643899894,
+          "per_round_p90_ratios": [
+            0.9961659889556784,
+            0.9982317828574178,
+            0.9967373643899894
+          ],
+          "p90_ms": 334.09138900000005
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/1024-L-noise-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 12.997565,
+          "candidate_over_base": 0.9948072050699363,
+          "per_round_ratios": [
+            0.9986706857749472,
+            0.992601288072508,
+            0.9948072050699363
+          ],
+          "p90_candidate_over_base": 0.9966774400076168,
+          "per_round_p90_ratios": [
+            1.0014281008030737,
+            0.9920858315590692,
+            0.9966774400076168
+          ],
+          "p90_ms": 13.059019000000001
+        },
+        "shim": {
+          "ms": 126.21178599999999,
+          "candidate_over_base": 1.0115517789410557,
+          "per_round_ratios": [
+            1.0079543171910565,
+            1.0115517789410557,
+            1.0165262143065796
+          ],
+          "p90_candidate_over_base": 1.005964779748104,
+          "per_round_p90_ratios": [
+            1.0041462074378966,
+            1.005964779748104,
+            1.028082380301586
+          ],
+          "p90_ms": 126.773534
+        },
+        "ffi": {
+          "ms": 125.025955,
+          "candidate_over_base": 1.0086747154511786,
+          "per_round_ratios": [
+            1.0086747154511786,
+            1.0102961964874326,
+            1.0001077012376307
+          ],
+          "p90_candidate_over_base": 1.0106725982755873,
+          "per_round_p90_ratios": [
+            1.0106725982755873,
+            1.0205314925815019,
+            1.0099391984015147
+          ],
+          "p90_ms": 126.56016000000001
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/1024-L-noise-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 13.036999,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 13.099797
+        },
+        "shim": {
+          "ms": 124.159893,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 124.42581299999999
+        },
+        "ffi": {
+          "ms": 124.474861,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 125.314633
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/1024-L-smooth-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 4.200738,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 4.236096
+        },
+        "shim": {
+          "ms": 48.578574999999994,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 49.709883000000005
+        },
+        "ffi": {
+          "ms": 48.822438000000005,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 49.839388
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/1024-L-smooth-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 4.18066,
+          "candidate_over_base": 1.0014621914282622,
+          "per_round_ratios": [
+            1.005172989379635,
+            1.0014621914282622,
+            0.9912496328026169
+          ],
+          "p90_candidate_over_base": 0.9965848789800185,
+          "per_round_p90_ratios": [
+            0.9965848789800185,
+            1.0048966597352567,
+            0.9934340487090001
+          ],
+          "p90_ms": 4.228986
+        },
+        "shim": {
+          "ms": 48.065234,
+          "candidate_over_base": 0.9912065875436138,
+          "per_round_ratios": [
+            0.9732591168020058,
+            0.9912065875436138,
+            1.0023443385045498
+          ],
+          "p90_candidate_over_base": 0.99592446426483,
+          "per_round_p90_ratios": [
+            0.9740517318522895,
+            0.99592446426483,
+            1.00043737781479
+          ],
+          "p90_ms": 48.811966999999996
+        },
+        "ffi": {
+          "ms": 48.653991999999995,
+          "candidate_over_base": 0.9965498240788384,
+          "per_round_ratios": [
+            0.9939994923928089,
+            0.9989266439216911,
+            0.9965498240788384
+          ],
+          "p90_candidate_over_base": 0.9917806975661154,
+          "per_round_p90_ratios": [
+            1.011845490558592,
+            0.9917806975661154,
+            0.979679645868276
+          ],
+          "p90_ms": 49.039680999999995
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/1024-L-smooth-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 6.532,
+          "candidate_over_base": 1.0002579351127376,
+          "per_round_ratios": [
+            1.001661526235957,
+            1.0002579351127376,
+            0.9958971841357787
+          ],
+          "p90_candidate_over_base": 0.994412532856844,
+          "per_round_p90_ratios": [
+            1.0097528865845251,
+            0.9940580980236214,
+            0.994412532856844
+          ],
+          "p90_ms": 6.6159300000000005
+        },
+        "shim": {
+          "ms": 65.97167900000001,
+          "candidate_over_base": 1.0124096230949124,
+          "per_round_ratios": [
+            1.0230067541693288,
+            1.0124096230949124,
+            1.0075540950056057
+          ],
+          "p90_candidate_over_base": 1.015709284043497,
+          "per_round_p90_ratios": [
+            1.0158536679963124,
+            1.015709284043497,
+            0.9713547087598727
+          ],
+          "p90_ms": 66.396725
+        },
+        "ffi": {
+          "ms": 65.498932,
+          "candidate_over_base": 1.0189308647332438,
+          "per_round_ratios": [
+            1.0051983876539123,
+            1.0189308647332438,
+            1.0202874628751326
+          ],
+          "p90_candidate_over_base": 1.0314006670673426,
+          "per_round_p90_ratios": [
+            1.0015787128134257,
+            1.0314006670673426,
+            1.04494537955467
+          ],
+          "p90_ms": 65.820577
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/1024-L-smooth-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 6.55891,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 6.602353
+        },
+        "shim": {
+          "ms": 64.488019,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 65.360521
+        },
+        "ffi": {
+          "ms": 64.30326000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 65.419917
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/1024-RGB-noise-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 323.100451,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 323.22028600000004
+        },
+        "shim": {
+          "ms": 1004.6854229999999,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1005.796463
+        },
+        "ffi": {
+          "ms": 999.956642,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1002.585361
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/1024-RGB-noise-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 323.213435,
+          "candidate_over_base": 1.0003496869151693,
+          "per_round_ratios": [
+            1.0003496869151693,
+            0.9992688576123729,
+            1.0023240685776087
+          ],
+          "p90_candidate_over_base": 1.0007573534539844,
+          "per_round_p90_ratios": [
+            1.0007573534539844,
+            0.9991404684010585,
+            1.0020324767962312
+          ],
+          "p90_ms": 323.465078
+        },
+        "shim": {
+          "ms": 1005.155455,
+          "candidate_over_base": 1.0006570584034442,
+          "per_round_ratios": [
+            0.9999219853193209,
+            1.0013649171294154,
+            1.0006570584034442
+          ],
+          "p90_candidate_over_base": 1.0008448010679423,
+          "per_round_p90_ratios": [
+            1.0003822159124534,
+            1.0008448010679423,
+            1.0016757893490424
+          ],
+          "p90_ms": 1006.855083
+        },
+        "ffi": {
+          "ms": 997.746082,
+          "candidate_over_base": 0.9975787279133678,
+          "per_round_ratios": [
+            0.9962240359744777,
+            0.9975787279133678,
+            0.9983139098945052
+          ],
+          "p90_candidate_over_base": 0.9953851919447684,
+          "per_round_p90_ratios": [
+            0.9945503165938943,
+            0.9953851919447684,
+            0.9986580983810504
+          ],
+          "p90_ms": 998.226095
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/1024-RGB-noise-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 39.295673,
+          "candidate_over_base": 1.0089536135005361,
+          "per_round_ratios": [
+            1.0089536135005361,
+            1.0099735393173475,
+            0.9846270380559271
+          ],
+          "p90_candidate_over_base": 1.0119514378733983,
+          "per_round_p90_ratios": [
+            1.0136874649508005,
+            1.0119514378733983,
+            0.9848455270212001
+          ],
+          "p90_ms": 39.523506999999995
+        },
+        "shim": {
+          "ms": 372.073488,
+          "candidate_over_base": 1.009475431798749,
+          "per_round_ratios": [
+            1.0163200720149,
+            1.009475431798749,
+            1.0085362890924565
+          ],
+          "p90_candidate_over_base": 1.014961994274663,
+          "per_round_p90_ratios": [
+            1.0187974117958432,
+            1.014961994274663,
+            1.01356339439963
+          ],
+          "p90_ms": 375.000975
+        },
+        "ffi": {
+          "ms": 369.831657,
+          "candidate_over_base": 1.012337200896967,
+          "per_round_ratios": [
+            1.012337200896967,
+            1.0153161078771127,
+            1.0070001643092545
+          ],
+          "p90_candidate_over_base": 1.0123087859708948,
+          "per_round_p90_ratios": [
+            1.0123087859708948,
+            1.0178039614877683,
+            1.0093671103260964
+          ],
+          "p90_ms": 371.229077
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/1024-RGB-noise-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 38.984255,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 39.371999
+        },
+        "shim": {
+          "ms": 368.541511,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 369.30116100000004
+        },
+        "ffi": {
+          "ms": 365.94872999999995,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 367.552333
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/1024-RGB-smooth-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 14.730297,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 14.789189
+        },
+        "shim": {
+          "ms": 187.78895300000002,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 189.130872
+        },
+        "ffi": {
+          "ms": 186.490455,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 187.51363500000002
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/1024-RGB-smooth-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 14.774367,
+          "candidate_over_base": 1.0049231440620918,
+          "per_round_ratios": [
+            1.0006448614036771,
+            1.0049231440620918,
+            1.0069241915928282
+          ],
+          "p90_candidate_over_base": 1.012442930576835,
+          "per_round_p90_ratios": [
+            1.0012054075446597,
+            1.012442930576835,
+            1.0127226728846703
+          ],
+          "p90_ms": 14.921798
+        },
+        "shim": {
+          "ms": 188.847765,
+          "candidate_over_base": 1.0011002473877426,
+          "per_round_ratios": [
+            0.9998430833994473,
+            1.0011002473877426,
+            1.0096633320065425
+          ],
+          "p90_candidate_over_base": 1.0044495134783886,
+          "per_round_p90_ratios": [
+            1.001979907499906,
+            1.0044495134783886,
+            1.0086894222113034
+          ],
+          "p90_ms": 190.71503700000002
+        },
+        "ffi": {
+          "ms": 186.233038,
+          "candidate_over_base": 0.9986196773448808,
+          "per_round_ratios": [
+            0.9986196773448808,
+            1.0018262130125584,
+            0.9981807218330082
+          ],
+          "p90_candidate_over_base": 0.9980448544421646,
+          "per_round_p90_ratios": [
+            0.9972748541726045,
+            0.9980448544421646,
+            0.9988307893576502
+          ],
+          "p90_ms": 187.002633
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/1024-RGB-smooth-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 22.481939999999998,
+          "candidate_over_base": 1.0069252834991325,
+          "per_round_ratios": [
+            1.0069252834991325,
+            1.005740799166306,
+            1.009344727314648
+          ],
+          "p90_candidate_over_base": 1.0109183383708695,
+          "per_round_p90_ratios": [
+            1.0145118862540294,
+            1.004735367825025,
+            1.0109183383708695
+          ],
+          "p90_ms": 22.71631
+        },
+        "shim": {
+          "ms": 248.586054,
+          "candidate_over_base": 1.0156046257346425,
+          "per_round_ratios": [
+            1.0197572896461429,
+            1.0140763682358853,
+            1.0156046257346425
+          ],
+          "p90_candidate_over_base": 1.0131873797355502,
+          "per_round_p90_ratios": [
+            1.0184187816060362,
+            1.0068240384487006,
+            1.0131873797355502
+          ],
+          "p90_ms": 249.720916
+        },
+        "ffi": {
+          "ms": 245.042034,
+          "candidate_over_base": 1.0126873139085875,
+          "per_round_ratios": [
+            1.0137301774931262,
+            1.0126873139085875,
+            1.0060543737986334
+          ],
+          "p90_candidate_over_base": 1.0145230325830596,
+          "per_round_p90_ratios": [
+            1.017733338605731,
+            1.0145230325830596,
+            1.0038043104006715
+          ],
+          "p90_ms": 246.36626800000002
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/1024-RGB-smooth-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 22.327317,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 22.400582999999997
+        },
+        "shim": {
+          "ms": 243.769823,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 245.51737400000002
+        },
+        "ffi": {
+          "ms": 241.856014,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 242.839502
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/256-L-noise-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 6.844362,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 6.861524999999999
+        },
+        "shim": {
+          "ms": 20.56136,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 20.586303
+        },
+        "ffi": {
+          "ms": 20.592302,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 20.666711
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/256-L-noise-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 6.830622999999999,
+          "candidate_over_base": 0.9977711582175227,
+          "per_round_ratios": [
+            0.9977711582175227,
+            1.0015390077411561,
+            0.9970529045238864
+          ],
+          "p90_candidate_over_base": 1.0006784206134935,
+          "per_round_p90_ratios": [
+            0.9979994760152061,
+            1.0018072079913531,
+            1.0006784206134935
+          ],
+          "p90_ms": 6.86618
+        },
+        "shim": {
+          "ms": 20.562042,
+          "candidate_over_base": 1.0044607599915725,
+          "per_round_ratios": [
+            0.9979105258462987,
+            1.0044607599915725,
+            1.005046456070999
+          ],
+          "p90_candidate_over_base": 1.0047260052839764,
+          "per_round_p90_ratios": [
+            0.995703301498524,
+            1.0047260052839764,
+            1.0112712807151434
+          ],
+          "p90_ms": 20.635765
+        },
+        "ffi": {
+          "ms": 20.473162,
+          "candidate_over_base": 0.9938476292846008,
+          "per_round_ratios": [
+            0.992152832488389,
+            0.9938476292846008,
+            1.0050827731644574
+          ],
+          "p90_candidate_over_base": 0.9990929000365615,
+          "per_round_p90_ratios": [
+            0.9925968384616207,
+            0.9990929000365615,
+            1.0027937811626748
+          ],
+          "p90_ms": 20.519349
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/256-L-noise-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.792439,
+          "candidate_over_base": 0.9940898552760995,
+          "per_round_ratios": [
+            0.9889244242468447,
+            0.9940898552760995,
+            0.9976633366696253
+          ],
+          "p90_candidate_over_base": 0.8211091689302801,
+          "per_round_p90_ratios": [
+            0.8211091689302801,
+            0.989634180248006,
+            0.806208270641339
+          ],
+          "p90_ms": 0.823029
+        },
+        "shim": {
+          "ms": 7.340439999999999,
+          "candidate_over_base": 1.0148005455815827,
+          "per_round_ratios": [
+            1.0209918510217353,
+            0.992704925648719,
+            1.0148005455815827
+          ],
+          "p90_candidate_over_base": 1.0114022389955588,
+          "per_round_p90_ratios": [
+            1.0230778259743953,
+            0.995532360114255,
+            1.0114022389955588
+          ],
+          "p90_ms": 7.392963
+        },
+        "ffi": {
+          "ms": 7.288545,
+          "candidate_over_base": 1.010686853747159,
+          "per_round_ratios": [
+            1.010686853747159,
+            1.0018655635811171,
+            1.0216353225748063
+          ],
+          "p90_candidate_over_base": 1.0119974407375982,
+          "per_round_p90_ratios": [
+            1.0119974407375982,
+            0.9986491789649858,
+            1.0242979052242902
+          ],
+          "p90_ms": 7.323279
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/256-L-noise-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.797104,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.020864
+        },
+        "shim": {
+          "ms": 7.233382,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 7.309617
+        },
+        "ffi": {
+          "ms": 7.2114769999999995,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 7.23646
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/256-L-smooth-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.309086,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.31867700000000004
+        },
+        "shim": {
+          "ms": 2.851142,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 2.9090819999999997
+        },
+        "ffi": {
+          "ms": 2.837707,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 2.895112
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/256-L-smooth-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.315302,
+          "candidate_over_base": 1.021777372590814,
+          "per_round_ratios": [
+            1.0282548151240225,
+            1.0135334502371507,
+            1.021777372590814
+          ],
+          "p90_candidate_over_base": 1.5100054286942577,
+          "per_round_p90_ratios": [
+            1.6486262984803088,
+            1.5100054286942577,
+            0.9135244727112848
+          ],
+          "p90_ms": 0.513208
+        },
+        "shim": {
+          "ms": 2.872697,
+          "candidate_over_base": 0.9980044109733804,
+          "per_round_ratios": [
+            1.0166837960387265,
+            0.972775821056966,
+            0.9980044109733804
+          ],
+          "p90_candidate_over_base": 0.9998459889732147,
+          "per_round_p90_ratios": [
+            1.0126573600660065,
+            0.9888246532755007,
+            0.9998459889732147
+          ],
+          "p90_ms": 2.9247579999999997
+        },
+        "ffi": {
+          "ms": 2.827756,
+          "candidate_over_base": 0.9828986058137015,
+          "per_round_ratios": [
+            0.9964932954670795,
+            0.9814966497686949,
+            0.9828986058137015
+          ],
+          "p90_candidate_over_base": 0.9876815728207415,
+          "per_round_p90_ratios": [
+            1.003141501952256,
+            0.9832432569748314,
+            0.9876815728207415
+          ],
+          "p90_ms": 2.904207
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/256-L-smooth-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.453532,
+          "candidate_over_base": 0.9918319056481224,
+          "per_round_ratios": [
+            1.023487536616371,
+            0.9599048350616651,
+            0.9918319056481224
+          ],
+          "p90_candidate_over_base": 1.3855232347011608,
+          "per_round_p90_ratios": [
+            1.4278660956152196,
+            0.6835506554509405,
+            1.3855232347011608
+          ],
+          "p90_ms": 0.663879
+        },
+        "shim": {
+          "ms": 3.904958,
+          "candidate_over_base": 0.9995863383107552,
+          "per_round_ratios": [
+            1.0040768077054676,
+            0.9995863383107552,
+            0.9921380113754897
+          ],
+          "p90_candidate_over_base": 1.0040804843820041,
+          "per_round_p90_ratios": [
+            1.0066255917209554,
+            0.9930740286184838,
+            1.0040804843820041
+          ],
+          "p90_ms": 3.9475949999999997
+        },
+        "ffi": {
+          "ms": 3.936467,
+          "candidate_over_base": 1.0113835034920933,
+          "per_round_ratios": [
+            1.0312903376992884,
+            1.0113835034920933,
+            1.004314519297594
+          ],
+          "p90_candidate_over_base": 1.0126597413103398,
+          "per_round_p90_ratios": [
+            1.0295067640039481,
+            1.0126597413103398,
+            1.0014755216914375
+          ],
+          "p90_ms": 3.98073
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/256-L-smooth-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.457267,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.48285199999999995
+        },
+        "shim": {
+          "ms": 3.906574,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 3.955835
+        },
+        "ffi": {
+          "ms": 3.870601,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 3.930965
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/256-RGB-noise-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 20.363392,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 20.386863
+        },
+        "shim": {
+          "ms": 61.272142,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 61.584323
+        },
+        "ffi": {
+          "ms": 61.183076,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 61.405294999999995
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/256-RGB-noise-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 20.363276999999997,
+          "candidate_over_base": 0.9989772923280882,
+          "per_round_ratios": [
+            0.9986003805259949,
+            1.0030184144996148,
+            0.9989772923280882
+          ],
+          "p90_candidate_over_base": 0.9988230260297788,
+          "per_round_p90_ratios": [
+            0.9979132640465578,
+            1.0011985375543566,
+            0.9988230260297788
+          ],
+          "p90_ms": 20.379156
+        },
+        "shim": {
+          "ms": 61.429252999999996,
+          "candidate_over_base": 1.003264321981758,
+          "per_round_ratios": [
+            1.0039965694705102,
+            1.003264321981758,
+            0.9895295520976591
+          ],
+          "p90_candidate_over_base": 1.0029988340911076,
+          "per_round_p90_ratios": [
+            1.0029988340911076,
+            1.0072268554450132,
+            0.9883977106456965
+          ],
+          "p90_ms": 61.513752999999994
+        },
+        "ffi": {
+          "ms": 61.08609,
+          "candidate_over_base": 0.9983503338832275,
+          "per_round_ratios": [
+            0.9984148230795065,
+            0.9953009432196424,
+            0.9983503338832275
+          ],
+          "p90_candidate_over_base": 1.0027940777850919,
+          "per_round_p90_ratios": [
+            1.0050461609214645,
+            0.9918301196960486,
+            1.0027940777850919
+          ],
+          "p90_ms": 61.292235999999995
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/256-RGB-noise-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 2.429315,
+          "candidate_over_base": 1.0076554812896525,
+          "per_round_ratios": [
+            1.0033371399306552,
+            1.0076554812896525,
+            1.0127749524389789
+          ],
+          "p90_candidate_over_base": 1.0001001172340516,
+          "per_round_p90_ratios": [
+            1.0001001172340516,
+            0.9877566584182756,
+            1.0015421157046442
+          ],
+          "p90_ms": 2.462102
+        },
+        "shim": {
+          "ms": 20.737869,
+          "candidate_over_base": 1.0140263102595346,
+          "per_round_ratios": [
+            1.0027972198008814,
+            1.0158617094770974,
+            1.0140263102595346
+          ],
+          "p90_candidate_over_base": 1.017281170781348,
+          "per_round_p90_ratios": [
+            1.0018580530631105,
+            1.017281170781348,
+            1.0207668130624852
+          ],
+          "p90_ms": 20.924457999999998
+        },
+        "ffi": {
+          "ms": 20.584359,
+          "candidate_over_base": 1.0099223260171843,
+          "per_round_ratios": [
+            1.0099223260171843,
+            1.0076348400902198,
+            1.0114529422404306
+          ],
+          "p90_candidate_over_base": 0.9991297424729526,
+          "per_round_p90_ratios": [
+            0.9991297424729526,
+            0.9841010530446475,
+            1.0123330861896647
+          ],
+          "p90_ms": 20.669082
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/256-RGB-noise-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 2.41269,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 2.477096
+        },
+        "shim": {
+          "ms": 20.414067,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 20.573201
+        },
+        "ffi": {
+          "ms": 20.371612000000002,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 20.728347000000003
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/256-RGB-smooth-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.839238,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.8580990000000001
+        },
+        "shim": {
+          "ms": 7.930541,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 8.055051
+        },
+        "ffi": {
+          "ms": 7.9231180000000005,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 7.997712000000001
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/256-RGB-smooth-lossless.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.832718,
+          "candidate_over_base": 0.9922310476884982,
+          "per_round_ratios": [
+            0.9853986772709836,
+            0.9922310476884982,
+            1.0112095949010176
+          ],
+          "p90_candidate_over_base": 1.0149621430627467,
+          "per_round_p90_ratios": [
+            0.9906810084476684,
+            1.206237143034437,
+            1.0149621430627467
+          ],
+          "p90_ms": 1.022149
+        },
+        "shim": {
+          "ms": 7.994617,
+          "candidate_over_base": 1.0105529685614676,
+          "per_round_ratios": [
+            1.0105529685614676,
+            1.0080796505559961,
+            1.0245968170106707
+          ],
+          "p90_candidate_over_base": 1.014151862712737,
+          "per_round_p90_ratios": [
+            0.9896287792850346,
+            1.014151862712737,
+            1.0183200578121727
+          ],
+          "p90_ms": 8.101970999999999
+        },
+        "ffi": {
+          "ms": 7.884728,
+          "candidate_over_base": 0.9978969712202865,
+          "per_round_ratios": [
+            0.9987438681162173,
+            0.9978969712202865,
+            0.9951546853145441
+          ],
+          "p90_candidate_over_base": 0.9980954553002157,
+          "per_round_p90_ratios": [
+            0.9980954553002157,
+            1.0028325901584554,
+            0.9806347090454364
+          ],
+          "p90_ms": 7.98248
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/256-RGB-smooth-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 1.280184,
+          "candidate_over_base": 1.0015808078739512,
+          "per_round_ratios": [
+            1.0047271751361886,
+            1.0015808078739512,
+            0.9926123041423202
+          ],
+          "p90_candidate_over_base": 1.0012294281839815,
+          "per_round_p90_ratios": [
+            1.010839366912915,
+            1.0012294281839815,
+            0.988312606389981
+          ],
+          "p90_ms": 1.318924
+        },
+        "shim": {
+          "ms": 11.11284,
+          "candidate_over_base": 1.0032352613789126,
+          "per_round_ratios": [
+            1.0026940738099708,
+            1.0125561338214084,
+            1.0032352613789126
+          ],
+          "p90_candidate_over_base": 1.002005350230661,
+          "per_round_p90_ratios": [
+            0.9993792722257966,
+            1.002005350230661,
+            1.0147597168752505
+          ],
+          "p90_ms": 11.242715
+        },
+        "ffi": {
+          "ms": 10.999895,
+          "candidate_over_base": 1.0031817373116414,
+          "per_round_ratios": [
+            1.0031817373116414,
+            1.0159911639441448,
+            0.9882622078725181
+          ],
+          "p90_candidate_over_base": 1.0086754461492955,
+          "per_round_p90_ratios": [
+            1.0086754461492955,
+            1.0140161616971786,
+            0.9899467926160818
+          ],
+          "p90_ms": 11.130321
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "synthetic/256-RGB-smooth-lossy.jp2",
+      "group": "synthetic",
+      "backends": {
+        "openjpeg": {
+          "ms": 1.274334,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.314151
+        },
+        "shim": {
+          "ms": 11.077003000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 11.153164
+        },
+        "ffi": {
+          "ms": 10.954707,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 11.034591
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "ht/1024-L-noise-lossless.j2k",
+      "group": "ht",
+      "backends": {
+        "openjpeg": {
+          "ms": 10.595217,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 10.692778
+        },
+        "shim": {
+          "ms": 116.596129,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 117.06173299999999
+        },
+        "ffi": {
+          "ms": 116.60267200000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 117.54436100000001
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "ht/1024-L-noise-lossless.j2k",
+      "group": "ht",
+      "backends": {
+        "openjpeg": {
+          "ms": 10.514814,
+          "candidate_over_base": 0.9960322092364879,
+          "per_round_ratios": [
+            0.9995726373513634,
+            0.9960322092364879,
+            0.9889536205936235
+          ],
+          "p90_candidate_over_base": 0.9921596614088499,
+          "per_round_p90_ratios": [
+            0.9895352885251296,
+            0.9983171183722974,
+            0.9921596614088499
+          ],
+          "p90_ms": 10.608943
+        },
+        "shim": {
+          "ms": 104.288764,
+          "candidate_over_base": 0.8968590102398366,
+          "per_round_ratios": [
+            0.8925575157819544,
+            0.8968590102398366,
+            0.9035721674773611
+          ],
+          "p90_candidate_over_base": 0.952472611693487,
+          "per_round_p90_ratios": [
+            0.952472611693487,
+            0.9521256507048727,
+            0.9673410268067705
+          ],
+          "p90_ms": 111.9208
+        },
+        "ffi": {
+          "ms": 103.928794,
+          "candidate_over_base": 0.8954189853695623,
+          "per_round_ratios": [
+            0.8987937257561301,
+            0.8954189853695623,
+            0.8912967434951133
+          ],
+          "p90_candidate_over_base": 0.9526453166051921,
+          "per_round_p90_ratios": [
+            0.9526453166051921,
+            0.9442938021589897,
+            0.9572590260263096
+          ],
+          "p90_ms": 111.97808500000001
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "ht/1024-RGB-noise-lossless.j2k",
+      "group": "ht",
+      "backends": {
+        "openjpeg": {
+          "ms": 31.672638,
+          "candidate_over_base": 1.0064188093573203,
+          "per_round_ratios": [
+            1.0064188093573203,
+            1.001287538643896,
+            1.0179112996050992
+          ],
+          "p90_candidate_over_base": 1.005349666262567,
+          "per_round_p90_ratios": [
+            1.005349666262567,
+            1.0010443082045724,
+            1.0261369100006845
+          ],
+          "p90_ms": 31.849773000000003
+        },
+        "shim": {
+          "ms": 312.699318,
+          "candidate_over_base": 0.8912082888857584,
+          "per_round_ratios": [
+            0.891473323896892,
+            0.8912082888857584,
+            0.8895239129340516
+          ],
+          "p90_candidate_over_base": 0.9130393866876044,
+          "per_round_p90_ratios": [
+            0.9130393866876044,
+            0.912010852300713,
+            0.9157027876368761
+          ],
+          "p90_ms": 322.59898300000003
+        },
+        "ffi": {
+          "ms": 312.384521,
+          "candidate_over_base": 0.8956828119339468,
+          "per_round_ratios": [
+            0.8956828119339468,
+            0.8923110188016072,
+            0.8993772272799455
+          ],
+          "p90_candidate_over_base": 0.9169588467145313,
+          "per_round_p90_ratios": [
+            0.9169588467145313,
+            0.9127831645227733,
+            0.9170291565625625
+          ],
+          "p90_ms": 321.336184
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "ht/1024-RGB-noise-lossless.j2k",
+      "group": "ht",
+      "backends": {
+        "openjpeg": {
+          "ms": 31.166806,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 31.357601
+        },
+        "shim": {
+          "ms": 351.174756,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 352.53533500000003
+        },
+        "ffi": {
+          "ms": 347.334257,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 350.409997
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "ht/256-L-smooth-lossless.j2k",
+      "group": "ht",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.304846,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.31347699999999995
+        },
+        "shim": {
+          "ms": 3.0172559999999997,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 3.062021
+        },
+        "ffi": {
+          "ms": 2.995729,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 3.058621
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "ht/256-L-smooth-lossless.j2k",
+      "group": "ht",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.311822,
+          "candidate_over_base": 1.013406769319591,
+          "per_round_ratios": [
+            0.992008500512194,
+            1.013406769319591,
+            1.0378085248239122
+          ],
+          "p90_candidate_over_base": 1.6478638248625712,
+          "per_round_p90_ratios": [
+            1.4993333723174085,
+            1.7507089834341916,
+            1.6478638248625712
+          ],
+          "p90_ms": 0.512802
+        },
+        "shim": {
+          "ms": 2.174269,
+          "candidate_over_base": 0.7192552295857184,
+          "per_round_ratios": [
+            0.7379326499759108,
+            0.7074129606503392,
+            0.7192552295857184
+          ],
+          "p90_candidate_over_base": 0.7568874068072687,
+          "per_round_p90_ratios": [
+            0.7568874068072687,
+            0.7201185099644972,
+            0.7588217506770791
+          ],
+          "p90_ms": 2.3087
+        },
+        "ffi": {
+          "ms": 2.146639,
+          "candidate_over_base": 0.7196914127477028,
+          "per_round_ratios": [
+            0.7196914127477028,
+            0.702546859211898,
+            0.7254457662597135
+          ],
+          "p90_candidate_over_base": 0.7404291008829096,
+          "per_round_p90_ratios": [
+            0.7404291008829096,
+            0.717945113173551,
+            0.7663564363883527
+          ],
+          "p90_ms": 2.282047
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "ht/256-RGB-noise-lossless.j2k",
+      "group": "ht",
+      "backends": {
+        "openjpeg": {
+          "ms": 2.087312,
+          "candidate_over_base": 1.0014542185050863,
+          "per_round_ratios": [
+            1.000741885625966,
+            1.0014542185050863,
+            1.0021785569250354
+          ],
+          "p90_candidate_over_base": 0.9957142837108656,
+          "per_round_p90_ratios": [
+            0.9918161859832992,
+            0.9966384708337912,
+            0.9957142837108656
+          ],
+          "p90_ms": 2.130031
+        },
+        "shim": {
+          "ms": 18.525582,
+          "candidate_over_base": 0.9165548538450934,
+          "per_round_ratios": [
+            0.9153547529333789,
+            0.9165548538450934,
+            0.921619676688113
+          ],
+          "p90_candidate_over_base": 1.1038114456413404,
+          "per_round_p90_ratios": [
+            1.1038114456413404,
+            1.117050087202347,
+            1.0885783991057478
+          ],
+          "p90_ms": 22.661928
+        },
+        "ffi": {
+          "ms": 18.522797999999998,
+          "candidate_over_base": 0.9112726598078447,
+          "per_round_ratios": [
+            0.9149116468144693,
+            0.9112726598078447,
+            0.9077760814055849
+          ],
+          "p90_candidate_over_base": 1.0814452280417994,
+          "per_round_p90_ratios": [
+            1.1054641273462582,
+            1.0665178940765057,
+            1.0814452280417994
+          ],
+          "p90_ms": 22.347858
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "ht/256-RGB-noise-lossless.j2k",
+      "group": "ht",
+      "backends": {
+        "openjpeg": {
+          "ms": 2.084281,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 2.139205
+        },
+        "shim": {
+          "ms": 20.194464,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 20.567183
+        },
+        "ffi": {
+          "ms": 20.24545,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 20.664808
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "embedded/8ac3ec64-255.jp2",
+      "group": "embedded",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.173517,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.19503700000000002
+        },
+        "shim": {
+          "ms": 0.832725,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.039377
+        },
+        "ffi": {
+          "ms": 0.797154,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.035401
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "embedded/8ac3ec64-255.jp2",
+      "group": "embedded",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.179453,
+          "candidate_over_base": 0.9983253825729616,
+          "per_round_ratios": [
+            0.9983253825729616,
+            1.0342099045050341,
+            0.9535523379521512
+          ],
+          "p90_candidate_over_base": 1.0217215460518536,
+          "per_round_p90_ratios": [
+            0.9527884452693591,
+            1.0343873941472828,
+            1.0217215460518536
+          ],
+          "p90_ms": 0.192996
+        },
+        "shim": {
+          "ms": 0.8205589999999999,
+          "candidate_over_base": 0.9857532245936723,
+          "per_round_ratios": [
+            0.9857532245936723,
+            1.0165805037677504,
+            0.9697112583595391
+          ],
+          "p90_candidate_over_base": 1.0122756228009664,
+          "per_round_p90_ratios": [
+            1.1900580330761727,
+            1.0122756228009664,
+            0.7783687910842118
+          ],
+          "p90_ms": 1.021021
+        },
+        "ffi": {
+          "ms": 0.794432,
+          "candidate_over_base": 0.9898940480760304,
+          "per_round_ratios": [
+            0.9898940480760304,
+            1.030770199555424,
+            0.9861676442292772
+          ],
+          "p90_candidate_over_base": 0.9321113269158519,
+          "per_round_p90_ratios": [
+            0.7969340771303389,
+            0.9321113269158519,
+            1.046841275050341
+          ],
+          "p90_ms": 0.965109
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "embedded/8ac3ec64-256.jp2",
+      "group": "embedded",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.172774,
+          "candidate_over_base": 0.9958959224375454,
+          "per_round_ratios": [
+            0.9958959224375454,
+            0.9608802096174023,
+            1.0330299105179974
+          ],
+          "p90_candidate_over_base": 1.1014514698565834,
+          "per_round_p90_ratios": [
+            0.9724419534791314,
+            1.1014514698565834,
+            1.2127528955200972
+          ],
+          "p90_ms": 0.203676
+        },
+        "shim": {
+          "ms": 0.828382,
+          "candidate_over_base": 0.9914781771916764,
+          "per_round_ratios": [
+            1.0211709712303343,
+            0.9808731727981026,
+            0.9914781771916764
+          ],
+          "p90_candidate_over_base": 0.9945045347196021,
+          "per_round_p90_ratios": [
+            1.0178825176456863,
+            0.9359458171350632,
+            0.9945045347196021
+          ],
+          "p90_ms": 0.853989
+        },
+        "ffi": {
+          "ms": 0.789226,
+          "candidate_over_base": 0.9865550406139434,
+          "per_round_ratios": [
+            0.99231521692664,
+            0.9804552724492773,
+            0.9865550406139434
+          ],
+          "p90_candidate_over_base": 0.9570633167303882,
+          "per_round_p90_ratios": [
+            0.8194619512018627,
+            0.9570633167303882,
+            1.029126120350829
+          ],
+          "p90_ms": 0.837999
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "embedded/8ac3ec64-256.jp2",
+      "group": "embedded",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.173486,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.184916
+        },
+        "shim": {
+          "ms": 0.831327,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.8587079999999999
+        },
+        "ffi": {
+          "ms": 0.795338,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.858683
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "embedded/5e4434bd-257.jp2",
+      "group": "embedded",
+      "backends": {
+        "openjpeg": {
+          "ms": 5.820808,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 5.881636
+        },
+        "shim": {
+          "ms": 66.155133,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 66.756648
+        },
+        "ffi": {
+          "ms": 64.871206,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 66.024693
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "embedded/5e4434bd-257.jp2",
+      "group": "embedded",
+      "backends": {
+        "openjpeg": {
+          "ms": 5.806122,
+          "candidate_over_base": 1.0003073563255622,
+          "per_round_ratios": [
+            1.0087432878734361,
+            1.0003073563255622,
+            0.9777497820144999
+          ],
+          "p90_candidate_over_base": 0.991242647993024,
+          "per_round_p90_ratios": [
+            1.00253398884256,
+            0.991242647993024,
+            0.9782781077534227
+          ],
+          "p90_ms": 5.8465489999999996
+        },
+        "shim": {
+          "ms": 65.77411500000001,
+          "candidate_over_base": 0.9979913066935592,
+          "per_round_ratios": [
+            0.998011562314152,
+            0.9979913066935592,
+            0.9942405376163329
+          ],
+          "p90_candidate_over_base": 0.9932475638980555,
+          "per_round_p90_ratios": [
+            1.0159934214242514,
+            0.9830930069705325,
+            0.9932475638980555
+          ],
+          "p90_ms": 66.30587799999999
+        },
+        "ffi": {
+          "ms": 65.727485,
+          "candidate_over_base": 1.0056243716058337,
+          "per_round_ratios": [
+            1.0131996775271914,
+            1.0016017885994244,
+            1.0056243716058337
+          ],
+          "p90_candidate_over_base": 1.0037268935124015,
+          "per_round_p90_ratios": [
+            1.0135536296841017,
+            0.9602765843722065,
+            1.0037268935124015
+          ],
+          "p90_ms": 66.27076
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "embedded/77e45cf2-264.jp2",
+      "group": "embedded",
+      "backends": {
+        "openjpeg": {
+          "ms": 43.540237999999995,
+          "candidate_over_base": 0.998976719211373,
+          "per_round_ratios": [
+            0.998976719211373,
+            1.0302896930072722,
+            0.9953882501620583
+          ],
+          "p90_candidate_over_base": 1.001667976651682,
+          "per_round_p90_ratios": [
+            1.001667976651682,
+            1.0304431506251244,
+            0.9982935487873095
+          ],
+          "p90_ms": 44.030303999999994
+        },
+        "shim": {
+          "ms": 482.250363,
+          "candidate_over_base": 1.0054809501993613,
+          "per_round_ratios": [
+            1.0071367432614047,
+            1.0054809501993613,
+            0.9896629339044364
+          ],
+          "p90_candidate_over_base": 1.0005231520418603,
+          "per_round_p90_ratios": [
+            1.003543169083043,
+            1.0005231520418603,
+            0.9883514627523257
+          ],
+          "p90_ms": 487.38282699999996
+        },
+        "ffi": {
+          "ms": 479.676531,
+          "candidate_over_base": 1.0067173072696212,
+          "per_round_ratios": [
+            0.9849415351189735,
+            1.0145254551935,
+            1.0067173072696212
+          ],
+          "p90_candidate_over_base": 1.0126765607370798,
+          "per_round_p90_ratios": [
+            0.9835707871716239,
+            1.0126765607370798,
+            1.014669267675453
+          ],
+          "p90_ms": 485.64094300000005
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "embedded/77e45cf2-264.jp2",
+      "group": "embedded",
+      "backends": {
+        "openjpeg": {
+          "ms": 42.800569,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 43.186693
+        },
+        "shim": {
+          "ms": 481.61296000000004,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 486.610139
+        },
+        "ffi": {
+          "ms": 476.47589600000003,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 479.787233
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "embedded/53ccd6a1-271.jp2",
+      "group": "embedded",
+      "backends": {
+        "openjpeg": {
+          "ms": 136.492256,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 136.79980600000002
+        },
+        "shim": {
+          "ms": 1235.328154,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1243.7698659999999
+        },
+        "ffi": {
+          "ms": 1211.505794,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1214.895348
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "embedded/53ccd6a1-271.jp2",
+      "group": "embedded",
+      "backends": {
+        "openjpeg": {
+          "ms": 135.958466,
+          "candidate_over_base": 1.0014293745907914,
+          "per_round_ratios": [
+            1.0397573645066673,
+            1.0014293745907914,
+            0.9960892286812227
+          ],
+          "p90_candidate_over_base": 1.0188966642248016,
+          "per_round_p90_ratios": [
+            1.0533823540698093,
+            1.0022020116641195,
+            1.0188966642248016
+          ],
+          "p90_ms": 139.38486600000002
+        },
+        "shim": {
+          "ms": 1230.2245220000002,
+          "candidate_over_base": 0.9958686022143393,
+          "per_round_ratios": [
+            0.9984769426137303,
+            0.9816926939770639,
+            0.9958686022143393
+          ],
+          "p90_candidate_over_base": 0.9971828952479221,
+          "per_round_p90_ratios": [
+            0.9988554821633482,
+            0.9847995595180032,
+            0.9971828952479221
+          ],
+          "p90_ms": 1240.266036
+        },
+        "ffi": {
+          "ms": 1208.934863,
+          "candidate_over_base": 0.9970788046301741,
+          "per_round_ratios": [
+            0.9970788046301741,
+            0.9720952077350986,
+            0.9978779044947761
+          ],
+          "p90_candidate_over_base": 0.9971856699778239,
+          "per_round_p90_ratios": [
+            0.9971856699778239,
+            0.960143413748782,
+            0.997366456291674
+          ],
+          "p90_ms": 1211.695868
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "embedded/98cfa38a-280.jp2",
+      "group": "embedded",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.122985,
+          "candidate_over_base": 1.0499618251850835,
+          "per_round_ratios": [
+            1.0499618251850835,
+            1.1223224170851853,
+            0.9908476406087608
+          ],
+          "p90_candidate_over_base": 0.9921527897986268,
+          "per_round_p90_ratios": [
+            0.8033045414873446,
+            2.3881435077260624,
+            0.9921527897986268
+          ],
+          "p90_ms": 0.13756000000000002
+        },
+        "shim": {
+          "ms": 0.8730789999999999,
+          "candidate_over_base": 0.9895477664712842,
+          "per_round_ratios": [
+            0.9637027171939049,
+            0.9895477664712842,
+            0.9968123159689041
+          ],
+          "p90_candidate_over_base": 0.9843271922035004,
+          "per_round_p90_ratios": [
+            0.9843271922035004,
+            0.7822566485928221,
+            1.019166390840651
+          ],
+          "p90_ms": 0.908904
+        },
+        "ffi": {
+          "ms": 0.865152,
+          "candidate_over_base": 0.9932585095244219,
+          "per_round_ratios": [
+            0.9907538100820634,
+            1.0125674222884589,
+            0.9932585095244219
+          ],
+          "p90_candidate_over_base": 1.0038890863536354,
+          "per_round_p90_ratios": [
+            0.8128686443723919,
+            1.0072693210313481,
+            1.0038890863536354
+          ],
+          "p90_ms": 0.902193
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "embedded/98cfa38a-280.jp2",
+      "group": "embedded",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.124121,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.138648
+        },
+        "shim": {
+          "ms": 0.875871,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.9003260000000001
+        },
+        "ffi": {
+          "ms": 0.866924,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.917182
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "corpus/fx/FRC_8.2.4_part1/FRC_10_8.2.4_View_C.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 58.812219,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 59.389281000000004
+        },
+        "shim": {
+          "ms": 81.28902000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 81.53022999999999
+        },
+        "ffi": {
+          "ms": 79.634208,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 80.720643
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "corpus/fx/FRC_8.2.4_part1/FRC_10_8.2.4_View_C.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 59.30351,
+          "candidate_over_base": 1.0010114394765481,
+          "per_round_ratios": [
+            1.0135390548858219,
+            0.9967905529041459,
+            1.0010114394765481
+          ],
+          "p90_candidate_over_base": 0.9998341506029648,
+          "per_round_p90_ratios": [
+            1.016839385545011,
+            0.998809690831265,
+            0.9998341506029648
+          ],
+          "p90_ms": 60.38936
+        },
+        "shim": {
+          "ms": 81.161082,
+          "candidate_over_base": 1.000519332131203,
+          "per_round_ratios": [
+            1.0056886722861331,
+            0.9917949128418071,
+            1.000519332131203
+          ],
+          "p90_candidate_over_base": 1.0067986726820712,
+          "per_round_p90_ratios": [
+            1.0048326356413215,
+            1.0067986726820712,
+            1.0095006355311398
+          ],
+          "p90_ms": 82.30481900000001
+        },
+        "ffi": {
+          "ms": 80.531413,
+          "candidate_over_base": 0.9972534709323303,
+          "per_round_ratios": [
+            0.9968726756220141,
+            0.9972534709323303,
+            1.0217041655415389
+          ],
+          "p90_candidate_over_base": 1.0091301582155185,
+          "per_round_p90_ratios": [
+            1.0091301582155185,
+            0.997041959023644,
+            1.0216712718703196
+          ],
+          "p90_ms": 82.469962
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "corpus/fx/action/123.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 56.841633,
+          "candidate_over_base": 0.9967531116120248,
+          "per_round_ratios": [
+            1.0008292346850192,
+            0.9967531116120248,
+            0.9669278575341621
+          ],
+          "p90_candidate_over_base": 0.9754657425837917,
+          "per_round_p90_ratios": [
+            0.9754657425837917,
+            0.9700096222244883,
+            0.9765928100034699
+          ],
+          "p90_ms": 57.334788999999994
+        },
+        "shim": {
+          "ms": 513.068053,
+          "candidate_over_base": 1.0017576484233854,
+          "per_round_ratios": [
+            1.0061685110127159,
+            0.994805976492371,
+            1.0017576484233854
+          ],
+          "p90_candidate_over_base": 1.0071262381806765,
+          "per_round_p90_ratios": [
+            1.0071262381806765,
+            0.9787065562369619,
+            1.0157277838298417
+          ],
+          "p90_ms": 519.679593
+        },
+        "ffi": {
+          "ms": 514.963363,
+          "candidate_over_base": 1.0154430735428048,
+          "per_round_ratios": [
+            1.003006535448924,
+            1.017844594376488,
+            1.0154430735428048
+          ],
+          "p90_candidate_over_base": 1.005431736041173,
+          "per_round_p90_ratios": [
+            1.0024244148251857,
+            1.022130671435485,
+            1.005431736041173
+          ],
+          "p90_ms": 515.726213
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "corpus/fx/action/123.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 58.315847000000005,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 58.776835
+        },
+        "shim": {
+          "ms": 512.167842,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 514.712377
+        },
+        "ffi": {
+          "ms": 507.131691,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 512.940058
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/bug_1396264.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.596084,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.830878
+        },
+        "shim": {
+          "ms": 1.901455,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 2.071701
+        },
+        "ffi": {
+          "ms": 1.9144780000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.9740229999999999
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/bug_1396264.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.580351,
+          "candidate_over_base": 1.0208292790948927,
+          "per_round_ratios": [
+            1.0305973316569619,
+            0.9315908710488416,
+            1.0208292790948927
+          ],
+          "p90_candidate_over_base": 0.9210385316044883,
+          "per_round_p90_ratios": [
+            1.1842526178576298,
+            0.7651123269601554,
+            0.9210385316044883
+          ],
+          "p90_ms": 0.712264
+        },
+        "shim": {
+          "ms": 1.8876849999999998,
+          "candidate_over_base": 0.9987041502428404,
+          "per_round_ratios": [
+            1.0228516530913914,
+            0.9709344824108893,
+            0.9987041502428404
+          ],
+          "p90_candidate_over_base": 0.9873929683868473,
+          "per_round_p90_ratios": [
+            0.965453789823511,
+            1.0097717188059987,
+            0.9873929683868473
+          ],
+          "p90_ms": 2.045583
+        },
+        "ffi": {
+          "ms": 1.901108,
+          "candidate_over_base": 0.9959084988655165,
+          "per_round_ratios": [
+            0.9959084988655165,
+            0.9899036604047491,
+            1.0146870321831851
+          ],
+          "p90_candidate_over_base": 1.0208006694957457,
+          "per_round_p90_ratios": [
+            1.0677708179425016,
+            1.0208006694957457,
+            0.9900823937897189
+          ],
+          "p90_ms": 2.015084
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/jpx_lzw.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 8.925861999999999,
+          "candidate_over_base": 0.9912001035856768,
+          "per_round_ratios": [
+            0.9918242184123452,
+            0.985736179341376,
+            0.9912001035856768
+          ],
+          "p90_candidate_over_base": 0.9950853975260255,
+          "per_round_p90_ratios": [
+            0.9950853975260255,
+            0.991457490965286,
+            0.9981581732933462
+          ],
+          "p90_ms": 8.991314000000001
+        },
+        "shim": {
+          "ms": 77.182034,
+          "candidate_over_base": 0.99810811897787,
+          "per_round_ratios": [
+            1.0167612883778085,
+            0.9940280186482907,
+            0.99810811897787
+          ],
+          "p90_candidate_over_base": 1.0003576187725693,
+          "per_round_p90_ratios": [
+            1.0144381511050349,
+            0.9943055000068931,
+            1.0003576187725693
+          ],
+          "p90_ms": 79.07893
+        },
+        "ffi": {
+          "ms": 76.906812,
+          "candidate_over_base": 0.9856293559800208,
+          "per_round_ratios": [
+            0.9856293559800208,
+            0.9671461696793038,
+            1.0148035641653008
+          ],
+          "p90_candidate_over_base": 0.9746257730932312,
+          "per_round_p90_ratios": [
+            0.9746257730932312,
+            0.9650934795613239,
+            1.0013199322892716
+          ],
+          "p90_ms": 77.635103
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/jpx_lzw.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 9.005106,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 9.007905000000001
+        },
+        "shim": {
+          "ms": 77.32833000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 79.05066000000001
+        },
+        "ffi": {
+          "ms": 75.784925,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 77.532765
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/bug_1012369.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.606682,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.637223
+        },
+        "shim": {
+          "ms": 1.9019110000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 2.083955
+        },
+        "ffi": {
+          "ms": 1.9058130000000002,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.997047
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/bug_1012369.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.57824,
+          "candidate_over_base": 0.9557043322564323,
+          "per_round_ratios": [
+            0.928766810849533,
+            0.9840443593183907,
+            0.9557043322564323
+          ],
+          "p90_candidate_over_base": 1.011010274268192,
+          "per_round_p90_ratios": [
+            0.7180657898032229,
+            1.011010274268192,
+            1.0911960024740388
+          ],
+          "p90_ms": 0.659435
+        },
+        "shim": {
+          "ms": 1.855394,
+          "candidate_over_base": 0.9755419680521328,
+          "per_round_ratios": [
+            0.9689174854342572,
+            0.9755419680521328,
+            0.999943816643455
+          ],
+          "p90_candidate_over_base": 0.9639358815329506,
+          "per_round_p90_ratios": [
+            0.9639358815329506,
+            0.9553850926422064,
+            1.0267582024428443
+          ],
+          "p90_ms": 2.008799
+        },
+        "ffi": {
+          "ms": 1.935541,
+          "candidate_over_base": 0.997959555166093,
+          "per_round_ratios": [
+            1.022905710056548,
+            0.9956921984757564,
+            0.997959555166093
+          ],
+          "p90_candidate_over_base": 0.9890987281354159,
+          "per_round_p90_ratios": [
+            0.9890987281354159,
+            0.9882156003338929,
+            1.0411269103238903
+          ],
+          "p90_ms": 1.996839
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/bug_1258634.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 2.3191669999999998,
+          "candidate_over_base": 1.0071501514352432,
+          "per_round_ratios": [
+            1.0071501514352432,
+            0.9562285827849192,
+            1.0338873989027968
+          ],
+          "p90_candidate_over_base": 1.0084744567565522,
+          "per_round_p90_ratios": [
+            1.0084744567565522,
+            0.9462538977188596,
+            1.029519416498563
+          ],
+          "p90_ms": 2.359803
+        },
+        "shim": {
+          "ms": 5.754072,
+          "candidate_over_base": 0.9992682569881458,
+          "per_round_ratios": [
+            1.0037689038046589,
+            0.980951470104625,
+            0.9992682569881458
+          ],
+          "p90_candidate_over_base": 0.9981931025797568,
+          "per_round_p90_ratios": [
+            0.9981931025797568,
+            0.9814663103434051,
+            1.0055950364068307
+          ],
+          "p90_ms": 5.833712
+        },
+        "ffi": {
+          "ms": 5.725837,
+          "candidate_over_base": 0.9992538921486647,
+          "per_round_ratios": [
+            0.9992538921486647,
+            0.9531893588779817,
+            1.0196691697295308
+          ],
+          "p90_candidate_over_base": 0.9913047008299495,
+          "per_round_p90_ratios": [
+            0.9913047008299495,
+            0.9294531962953135,
+            0.9956797405986184
+          ],
+          "p90_ms": 5.744281
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/bug_1258634.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 2.293832,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 2.339973
+        },
+        "shim": {
+          "ms": 5.794384,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 5.857692
+        },
+        "ffi": {
+          "ms": 5.6385950000000005,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 5.812151
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/bug_1469.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 1.1642000000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.242921
+        },
+        "shim": {
+          "ms": 7.496531,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 7.595349000000001
+        },
+        "ffi": {
+          "ms": 7.462606,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 7.6356090000000005
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/bug_1469.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 1.1539670000000002,
+          "candidate_over_base": 0.9852194128921549,
+          "per_round_ratios": [
+            1.0001941506904053,
+            0.9775167496993644,
+            0.9852194128921549
+          ],
+          "p90_candidate_over_base": 0.9755068336493142,
+          "per_round_p90_ratios": [
+            0.9755068336493142,
+            0.9600457309837068,
+            1.022495288083219
+          ],
+          "p90_ms": 1.221516
+        },
+        "shim": {
+          "ms": 7.464925,
+          "candidate_over_base": 0.9959401522676379,
+          "per_round_ratios": [
+            0.990538138785666,
+            0.9959401522676379,
+            0.999141069382625
+          ],
+          "p90_candidate_over_base": 0.9894196262757408,
+          "per_round_p90_ratios": [
+            0.9818415190664708,
+            0.9894196262757408,
+            0.9976945598230947
+          ],
+          "p90_ms": 7.525402
+        },
+        "ffi": {
+          "ms": 7.4039459999999995,
+          "candidate_over_base": 0.9921394751377736,
+          "per_round_ratios": [
+            0.989848093795127,
+            0.9921394751377736,
+            1.0019810657220356
+          ],
+          "p90_candidate_over_base": 0.9877698032992522,
+          "per_round_p90_ratios": [
+            0.982998273857017,
+            0.9877698032992522,
+            1.0062454116551196
+          ],
+          "p90_ms": 7.542224
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/bug_304.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 9.244723,
+          "candidate_over_base": 1.0059316796529452,
+          "per_round_ratios": [
+            1.0059316796529452,
+            1.0071385693411379,
+            0.999118220679784
+          ],
+          "p90_candidate_over_base": 1.003109737284065,
+          "per_round_p90_ratios": [
+            1.003109737284065,
+            1.0122778765480027,
+            1.0001570014110717
+          ],
+          "p90_ms": 9.275258
+        },
+        "shim": {
+          "ms": 64.923443,
+          "candidate_over_base": 1.0040169694229448,
+          "per_round_ratios": [
+            1.0043781101989473,
+            1.0040169694229448,
+            0.9530104174279861
+          ],
+          "p90_candidate_over_base": 0.9977576992339959,
+          "per_round_p90_ratios": [
+            0.9977576992339959,
+            1.0067185029328256,
+            0.951199978317112
+          ],
+          "p90_ms": 67.10155400000001
+        },
+        "ffi": {
+          "ms": 64.503963,
+          "candidate_over_base": 0.9954100841130791,
+          "per_round_ratios": [
+            0.9954100841130791,
+            1.0113321869826224,
+            0.9927332542807107
+          ],
+          "p90_candidate_over_base": 0.9991160253169116,
+          "per_round_p90_ratios": [
+            0.9867144217573851,
+            0.9991160253169116,
+            1.006736647935775
+          ],
+          "p90_ms": 65.97510799999999
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/bug_304.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 9.208848,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 9.241989
+        },
+        "shim": {
+          "ms": 65.775955,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 66.69744800000001
+        },
+        "ffi": {
+          "ms": 64.976128,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 65.533631
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/bug_453723.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 11.590512,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 11.731628
+        },
+        "shim": {
+          "ms": 460.270815,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 464.651498
+        },
+        "ffi": {
+          "ms": 461.424197,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 461.666268
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/bug_453723.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 11.504235000000001,
+          "candidate_over_base": 0.9961782431879741,
+          "per_round_ratios": [
+            0.9961782431879741,
+            1.0170348816342194,
+            0.9753409278487126
+          ],
+          "p90_candidate_over_base": 0.9933709304674887,
+          "per_round_p90_ratios": [
+            0.9933709304674887,
+            1.0100700431346783,
+            0.9725003944487878
+          ],
+          "p90_ms": 11.550711999999999
+        },
+        "shim": {
+          "ms": 464.08898,
+          "candidate_over_base": 1.0036340046966827,
+          "per_round_ratios": [
+            0.9994206790561265,
+            1.0036340046966827,
+            1.0082954749151323
+          ],
+          "p90_candidate_over_base": 1.0140144065563736,
+          "per_round_p90_ratios": [
+            1.0010632759382425,
+            1.0305096689445707,
+            1.0140144065563736
+          ],
+          "p90_ms": 471.163313
+        },
+        "ffi": {
+          "ms": 460.299333,
+          "candidate_over_base": 0.9975621911306052,
+          "per_round_ratios": [
+            0.9970934183794811,
+            1.0008552202534646,
+            0.9975621911306052
+          ],
+          "p90_candidate_over_base": 1.0002648666547151,
+          "per_round_p90_ratios": [
+            0.9949209770662364,
+            1.00472146791991,
+            1.0002648666547151
+          ],
+          "p90_ms": 461.788548
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/bug_71.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 2.172998,
+          "candidate_over_base": 0.9991463599968032,
+          "per_round_ratios": [
+            1.0070960245855864,
+            0.9920719770706726,
+            0.9991463599968032
+          ],
+          "p90_candidate_over_base": 0.9956700067633704,
+          "per_round_p90_ratios": [
+            1.0158482807278095,
+            0.9932043208590751,
+            0.9956700067633704
+          ],
+          "p90_ms": 2.218531
+        },
+        "shim": {
+          "ms": 3.8137130000000004,
+          "candidate_over_base": 0.977085451181276,
+          "per_round_ratios": [
+            1.0195984580570825,
+            0.9733999841753171,
+            0.977085451181276
+          ],
+          "p90_candidate_over_base": 0.9873348173765734,
+          "per_round_p90_ratios": [
+            1.023875977915237,
+            0.9711770186444709,
+            0.9873348173765734
+          ],
+          "p90_ms": 3.863045
+        },
+        "ffi": {
+          "ms": 3.9792530000000004,
+          "candidate_over_base": 0.9945079360636285,
+          "per_round_ratios": [
+            1.0155795499739761,
+            0.9945079360636285,
+            0.9691987219608592
+          ],
+          "p90_candidate_over_base": 0.9877503612196828,
+          "per_round_p90_ratios": [
+            1.0105758422065834,
+            0.9877503612196828,
+            0.9584595426722371
+          ],
+          "p90_ms": 3.996975
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/bug_71.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 2.1648470000000004,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 2.213931
+        },
+        "shim": {
+          "ms": 3.8285720000000003,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 3.8440030000000003
+        },
+        "ffi": {
+          "ms": 4.001228,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 4.037017
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/jpxdecode.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.615484,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.8292970000000001
+        },
+        "shim": {
+          "ms": 0.935828,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.163315
+        },
+        "ffi": {
+          "ms": 0.9204199999999999,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.1885640000000002
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/jpxdecode.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.62446,
+          "candidate_over_base": 1.0319388263977392,
+          "per_round_ratios": [
+            1.0319388263977392,
+            1.035523466182894,
+            1.008057073782584
+          ],
+          "p90_candidate_over_base": 0.9853864176525419,
+          "per_round_p90_ratios": [
+            0.9853864176525419,
+            0.9153227781907721,
+            1.005125949576729
+          ],
+          "p90_ms": 0.817178
+        },
+        "shim": {
+          "ms": 0.939568,
+          "candidate_over_base": 0.9971896040822911,
+          "per_round_ratios": [
+            1.0326106934180213,
+            0.9947077804742301,
+            0.9971896040822911
+          ],
+          "p90_candidate_over_base": 0.8676772661512442,
+          "per_round_p90_ratios": [
+            1.1488405329628066,
+            0.8676772661512442,
+            0.8249029712502631
+          ],
+          "p90_ms": 1.028575
+        },
+        "ffi": {
+          "ms": 0.92218,
+          "candidate_over_base": 1.0019121705308447,
+          "per_round_ratios": [
+            1.0019121705308447,
+            1.0178441970548708,
+            0.9690330314331379
+          ],
+          "p90_candidate_over_base": 0.8012130604662433,
+          "per_round_p90_ratios": [
+            0.9915357079440995,
+            0.8012130604662433,
+            0.7934915861496435
+          ],
+          "p90_ms": 0.944351
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/jpxdecode_indexed.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.34116,
+          "candidate_over_base": 1.0183447309759153,
+          "per_round_ratios": [
+            1.0183447309759153,
+            1.0211436233896845,
+            0.9712357321867613
+          ],
+          "p90_candidate_over_base": 1.0088201540622241,
+          "per_round_p90_ratios": [
+            1.0088201540622241,
+            1.0180254794595933,
+            0.6183961392411683
+          ],
+          "p90_ms": 0.369981
+        },
+        "shim": {
+          "ms": 1.096418,
+          "candidate_over_base": 1.0049530519908472,
+          "per_round_ratios": [
+            1.0103493683577116,
+            1.0012274948069255,
+            1.0049530519908472
+          ],
+          "p90_candidate_over_base": 1.0482960880816923,
+          "per_round_p90_ratios": [
+            1.05209998993366,
+            1.0482960880816923,
+            1.012351131484965
+          ],
+          "p90_ms": 1.181038
+        },
+        "ffi": {
+          "ms": 1.110862,
+          "candidate_over_base": 1.0015601170806758,
+          "per_round_ratios": [
+            0.9916190079124108,
+            1.0015601170806758,
+            1.0040274546595012
+          ],
+          "p90_candidate_over_base": 0.9473564218775091,
+          "per_round_p90_ratios": [
+            0.9473564218775091,
+            0.9263329847512423,
+            1.0134852089818707
+          ],
+          "p90_ms": 1.160323
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/jpxdecode_indexed.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.336772,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.49058100000000004
+        },
+        "shim": {
+          "ms": 1.085187,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.127589
+        },
+        "ffi": {
+          "ms": 1.106406,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.201837
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/jpxdecode_indexed2.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.346391,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.518907
+        },
+        "shim": {
+          "ms": 0.895938,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.952744
+        },
+        "ffi": {
+          "ms": 0.8943150000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.925465
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/jpxdecode_indexed2.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.348428,
+          "candidate_over_base": 0.9931618718057618,
+          "per_round_ratios": [
+            0.9085146290914564,
+            1.0353559994341652,
+            0.9931618718057618
+          ],
+          "p90_candidate_over_base": 0.8878323630190488,
+          "per_round_p90_ratios": [
+            0.6509008357952388,
+            1.4781071488746487,
+            0.8878323630190488
+          ],
+          "p90_ms": 0.511482
+        },
+        "shim": {
+          "ms": 0.876015,
+          "candidate_over_base": 0.9887508467732518,
+          "per_round_ratios": [
+            0.9969863303678429,
+            0.9887508467732518,
+            0.9726431962926007
+          ],
+          "p90_candidate_over_base": 1.0229631464485738,
+          "per_round_p90_ratios": [
+            1.0678137029835089,
+            0.8120426504975267,
+            1.0229631464485738
+          ],
+          "p90_ms": 0.973073
+        },
+        "ffi": {
+          "ms": 0.9066190000000001,
+          "candidate_over_base": 1.0137156155812446,
+          "per_round_ratios": [
+            1.0137156155812446,
+            1.0088051378501182,
+            1.0137580159116195
+          ],
+          "p90_candidate_over_base": 1.0224325009589317,
+          "per_round_p90_ratios": [
+            0.8442250747561667,
+            1.0224325009589317,
+            1.031040612016662
+          ],
+          "p90_ms": 0.943605
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/jpxdecode_smask_in_data_2.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.384955,
+          "candidate_over_base": 0.9989453395874697,
+          "per_round_ratios": [
+            0.9830863838111437,
+            0.9989453395874697,
+            1.0096623084985565
+          ],
+          "p90_candidate_over_base": 1.0978432266038114,
+          "per_round_p90_ratios": [
+            1.0978432266038114,
+            0.9759352594590757,
+            1.5015520312900803
+          ],
+          "p90_ms": 0.63805
+        },
+        "shim": {
+          "ms": 0.41951299999999997,
+          "candidate_over_base": 0.9939912190290701,
+          "per_round_ratios": [
+            0.9939912190290701,
+            0.9781930735890254,
+            1.000856231769299
+          ],
+          "p90_candidate_over_base": 0.6441077833224331,
+          "per_round_p90_ratios": [
+            0.6441077833224331,
+            0.971775580444493,
+            0.6360213976921019
+          ],
+          "p90_ms": 0.431368
+        },
+        "ffi": {
+          "ms": 0.412825,
+          "candidate_over_base": 1.0169944975327017,
+          "per_round_ratios": [
+            1.0208106149962044,
+            1.0143679654000985,
+            1.0169944975327017
+          ],
+          "p90_candidate_over_base": 1.1992988793843276,
+          "per_round_p90_ratios": [
+            1.0167975625447616,
+            1.1992988793843276,
+            1.720758136739876
+          ],
+          "p90_ms": 0.71015
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/jpxdecode_smask_in_data_2.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.38831299999999996,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.424927
+        },
+        "shim": {
+          "ms": 0.42204899999999995,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.669714
+        },
+        "ffi": {
+          "ms": 0.404409,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.412696
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/jpxdecode_with_mismatch_colorspace.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.458197,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.7883920000000001
+        },
+        "shim": {
+          "ms": 0.7498859999999999,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.861469
+        },
+        "ffi": {
+          "ms": 0.739707,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.761587
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/jpxdecode_with_mismatch_colorspace.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.455734,
+          "candidate_over_base": 0.9685959905408031,
+          "per_round_ratios": [
+            0.9636170262252586,
+            0.9685959905408031,
+            1.011067292016316
+          ],
+          "p90_candidate_over_base": 0.6431049073075246,
+          "per_round_p90_ratios": [
+            0.6431049073075246,
+            0.6276129133730428,
+            1.4408871125520557
+          ],
+          "p90_ms": 0.514491
+        },
+        "shim": {
+          "ms": 0.750998,
+          "candidate_over_base": 1.0014828920662608,
+          "per_round_ratios": [
+            1.0014828920662608,
+            0.9802539218699892,
+            1.011192184767533
+          ],
+          "p90_candidate_over_base": 0.9838835803989421,
+          "per_round_p90_ratios": [
+            0.9838835803989421,
+            0.9865834152475852,
+            0.8972139450171741
+          ],
+          "p90_ms": 0.772922
+        },
+        "ffi": {
+          "ms": 0.7277830000000001,
+          "candidate_over_base": 0.995091299663245,
+          "per_round_ratios": [
+            0.9659083971491897,
+            1.000570659310891,
+            0.995091299663245
+          ],
+          "p90_candidate_over_base": 0.9854317366236556,
+          "per_round_p90_ratios": [
+            0.9807024244974589,
+            1.0490135235952238,
+            0.9854317366236556
+          ],
+          "p90_ms": 0.757421
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/jpxdecode_without_bitspercomponent.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.610949,
+          "candidate_over_base": 1.0224334600760456,
+          "per_round_ratios": [
+            1.0224334600760456,
+            1.0331008803227737,
+            1.0186499332534074
+          ],
+          "p90_candidate_over_base": 1.0215519022292763,
+          "per_round_p90_ratios": [
+            1.2257754185827545,
+            0.7725305129269819,
+            1.0215519022292763
+          ],
+          "p90_ms": 0.718149
+        },
+        "shim": {
+          "ms": 0.931584,
+          "candidate_over_base": 0.9922484413378168,
+          "per_round_ratios": [
+            0.9947590935711262,
+            0.9922484413378168,
+            0.9896823103465858
+          ],
+          "p90_candidate_over_base": 0.9771727209535823,
+          "per_round_p90_ratios": [
+            1.0016560852588734,
+            0.9771727209535823,
+            0.8510555425064341
+          ],
+          "p90_ms": 0.967129
+        },
+        "ffi": {
+          "ms": 0.924236,
+          "candidate_over_base": 0.9999903193433503,
+          "per_round_ratios": [
+            1.0041895738716617,
+            0.9991247638229879,
+            0.9999903193433503
+          ],
+          "p90_candidate_over_base": 1.0060732632387537,
+          "per_round_p90_ratios": [
+            1.0060732632387537,
+            1.1799634338463483,
+            0.8780112375548247
+          ],
+          "p90_ms": 1.011339
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/jpxdecode_without_bitspercomponent.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.5913740000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.7328300000000001
+        },
+        "shim": {
+          "ms": 0.9400689999999999,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.971075
+        },
+        "ffi": {
+          "ms": 0.92038,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.999792
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/jpxdecode_without_colorspace.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.597511,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.8494360000000001
+        },
+        "shim": {
+          "ms": 0.935787,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.0609169999999999
+        },
+        "ffi": {
+          "ms": 0.913809,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.946279
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/jpxdecode_without_colorspace.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.594646,
+          "candidate_over_base": 0.977975300873122,
+          "per_round_ratios": [
+            0.977975300873122,
+            0.9230494598886402,
+            1.0270974017092285
+          ],
+          "p90_candidate_over_base": 0.8792398721033721,
+          "per_round_p90_ratios": [
+            1.2791277594011028,
+            0.8792398721033721,
+            0.7442331871569199
+          ],
+          "p90_ms": 0.7468579999999999
+        },
+        "shim": {
+          "ms": 0.930804,
+          "candidate_over_base": 0.9946750702884309,
+          "per_round_ratios": [
+            0.9946750702884309,
+            0.9792900817410429,
+            1.00220214604452
+          ],
+          "p90_candidate_over_base": 1.0257635611456881,
+          "per_round_p90_ratios": [
+            0.8866843636357382,
+            1.0257635611456881,
+            1.127973226522476
+          ],
+          "p90_ms": 1.0839269999999999
+        },
+        "ffi": {
+          "ms": 0.932766,
+          "candidate_over_base": 1.0252440374192542,
+          "per_round_ratios": [
+            1.030172663553701,
+            1.0252440374192542,
+            0.9866066103529294
+          ],
+          "p90_candidate_over_base": 1.0324313310635465,
+          "per_round_p90_ratios": [
+            1.1714424503884504,
+            1.0324313310635465,
+            0.9832290476698733
+          ],
+          "p90_ms": 1.094843
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/jpxdecode_without_smaskindata.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.37269,
+          "candidate_over_base": 0.9992933675586116,
+          "per_round_ratios": [
+            0.9992933675586116,
+            0.9708802586788378,
+            1.0491837429867208
+          ],
+          "p90_candidate_over_base": 0.9421545158807727,
+          "per_round_p90_ratios": [
+            0.9163579793352623,
+            0.9421545158807727,
+            1.0880650183391825
+          ],
+          "p90_ms": 0.412344
+        },
+        "shim": {
+          "ms": 0.6225069999999999,
+          "candidate_over_base": 1.011541743019358,
+          "per_round_ratios": [
+            1.011541743019358,
+            1.0357699647443153,
+            0.9972829351989657
+          ],
+          "p90_candidate_over_base": 0.9600563776024263,
+          "per_round_p90_ratios": [
+            1.149064352378543,
+            0.9209547976269664,
+            0.9600563776024263
+          ],
+          "p90_ms": 0.7850320000000001
+        },
+        "ffi": {
+          "ms": 0.582727,
+          "candidate_over_base": 1.0045251905630397,
+          "per_round_ratios": [
+            1.0098712200904285,
+            1.0045251905630397,
+            0.9570849758360974
+          ],
+          "p90_candidate_over_base": 0.9841480697528725,
+          "per_round_p90_ratios": [
+            0.998273356640822,
+            0.9841480697528725,
+            0.8001289304797419
+          ],
+          "p90_ms": 0.61066
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/jpxdecode_without_smaskindata.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.373603,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.42359399999999997
+        },
+        "shim": {
+          "ms": 0.61834,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.8524109999999999
+        },
+        "ffi": {
+          "ms": 0.595997,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.763202
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "resources/pixel/lzw1.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 8.856176999999999,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 8.909237
+        },
+        "shim": {
+          "ms": 75.707126,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 76.438098
+        },
+        "ffi": {
+          "ms": 73.902402,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 75.8727
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/lzw1.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 8.884863,
+          "candidate_over_base": 1.003239095153586,
+          "per_round_ratios": [
+            1.0188782277488115,
+            1.002554563247388,
+            1.003239095153586
+          ],
+          "p90_candidate_over_base": 1.0086515613027807,
+          "per_round_p90_ratios": [
+            1.0056374387752407,
+            1.0086515613027807,
+            1.0146698308732836
+          ],
+          "p90_ms": 9.039933999999999
+        },
+        "shim": {
+          "ms": 73.745555,
+          "candidate_over_base": 1.0061434971927474,
+          "per_round_ratios": [
+            1.0148090466036135,
+            1.0061434971927474,
+            0.9740900083830945
+          ],
+          "p90_candidate_over_base": 1.0082504138870014,
+          "per_round_p90_ratios": [
+            1.008432649419451,
+            1.0082504138870014,
+            0.9952083318452011
+          ],
+          "p90_ms": 76.071832
+        },
+        "ffi": {
+          "ms": 72.605063,
+          "candidate_over_base": 1.0003271144834813,
+          "per_round_ratios": [
+            1.0003271144834813,
+            1.0253186675333994,
+            0.982445239060024
+          ],
+          "p90_candidate_over_base": 1.0018400631009072,
+          "per_round_p90_ratios": [
+            1.0018400631009072,
+            1.0224191184898699,
+            0.9622413200004745
+          ],
+          "p90_ms": 73.007847
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-1024-L-noise-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 114.50242,
+          "candidate_over_base": 1.0012367703678762,
+          "per_round_ratios": [
+            1.00125197674134,
+            0.999729476301953,
+            1.0012367703678762
+          ],
+          "p90_candidate_over_base": 1.0013155801605194,
+          "per_round_p90_ratios": [
+            1.0017720252250994,
+            1.0012764888605163,
+            1.0013155801605194
+          ],
+          "p90_ms": 114.758347
+        },
+        "shim": {
+          "ms": 344.71919099999997,
+          "candidate_over_base": 1.0023943167573757,
+          "per_round_ratios": [
+            1.0023943167573757,
+            0.9983699757449953,
+            1.0042670700602614
+          ],
+          "p90_candidate_over_base": 1.0024780541318905,
+          "per_round_p90_ratios": [
+            1.0028515271402503,
+            1.0013690321901325,
+            1.0024780541318905
+          ],
+          "p90_ms": 345.312164
+        },
+        "ffi": {
+          "ms": 342.24345400000004,
+          "candidate_over_base": 0.9960960631637876,
+          "per_round_ratios": [
+            0.9960960631637876,
+            0.9899120941606674,
+            1.000483056197929
+          ],
+          "p90_candidate_over_base": 0.994992312131063,
+          "per_round_p90_ratios": [
+            0.994992312131063,
+            0.989976876815246,
+            1.0029664576186497
+          ],
+          "p90_ms": 343.73553000000004
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-1024-L-noise-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 114.53340399999999,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 114.612046
+        },
+        "shim": {
+          "ms": 343.2545,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 344.458577
+        },
+        "ffi": {
+          "ms": 342.078211,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 342.718869
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-1024-L-noise-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 17.974166,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 18.114766
+        },
+        "shim": {
+          "ms": 130.71436500000002,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 131.26166899999998
+        },
+        "ffi": {
+          "ms": 130.148558,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 130.454836
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-1024-L-noise-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 17.918498,
+          "candidate_over_base": 0.9970846087923733,
+          "per_round_ratios": [
+            0.9970846087923733,
+            1.0032073884621933,
+            0.996902888289782
+          ],
+          "p90_candidate_over_base": 0.9975351369055232,
+          "per_round_p90_ratios": [
+            0.9991032533026235,
+            0.9975351369055232,
+            0.9940798572832794
+          ],
+          "p90_ms": 18.007524
+        },
+        "shim": {
+          "ms": 129.165073,
+          "candidate_over_base": 0.997809902554511,
+          "per_round_ratios": [
+            0.997809902554511,
+            1.004355265449574,
+            0.9807846214912951
+          ],
+          "p90_candidate_over_base": 0.996777193195677,
+          "per_round_p90_ratios": [
+            0.995140060797309,
+            1.003732694487449,
+            0.996777193195677
+          ],
+          "p90_ms": 130.838638
+        },
+        "ffi": {
+          "ms": 130.103623,
+          "candidate_over_base": 1.0005238887951964,
+          "per_round_ratios": [
+            1.0005238887951964,
+            1.0241624915264085,
+            0.9996547407002389
+          ],
+          "p90_candidate_over_base": 1.012290752552831,
+          "per_round_p90_ratios": [
+            1.012290752552831,
+            1.0152238662831357,
+            0.9993765505174527
+          ],
+          "p90_ms": 130.373504
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-1024-L-smooth-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 8.926692999999998,
+          "candidate_over_base": 0.9989449479084909,
+          "per_round_ratios": [
+            1.0096432331727219,
+            0.9599457936346079,
+            0.9989449479084909
+          ],
+          "p90_candidate_over_base": 0.9990660654039369,
+          "per_round_p90_ratios": [
+            1.0042410641130284,
+            0.9595479963264528,
+            0.9990660654039369
+          ],
+          "p90_ms": 9.008671
+        },
+        "shim": {
+          "ms": 55.607311,
+          "candidate_over_base": 0.9872325989536955,
+          "per_round_ratios": [
+            0.9872325989536955,
+            0.9847554351263655,
+            1.0075958206361544
+          ],
+          "p90_candidate_over_base": 0.982977354086796,
+          "per_round_p90_ratios": [
+            0.9681428631769152,
+            0.982977354086796,
+            0.9972547808874382
+          ],
+          "p90_ms": 55.780781000000005
+        },
+        "ffi": {
+          "ms": 55.722001,
+          "candidate_over_base": 0.9841320657651536,
+          "per_round_ratios": [
+            0.9440122063340469,
+            0.9841320657651536,
+            0.9974172796302485
+          ],
+          "p90_candidate_over_base": 0.9928257522069688,
+          "per_round_p90_ratios": [
+            0.9488649394067054,
+            0.9928257522069688,
+            0.9961142062735747
+          ],
+          "p90_ms": 55.802532
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-1024-L-smooth-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 8.886764999999999,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 8.970626
+        },
+        "shim": {
+          "ms": 55.188112000000004,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 55.934332999999995
+        },
+        "ffi": {
+          "ms": 55.866288,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 56.02021499999999
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-1024-L-smooth-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 11.307502000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 11.356084000000001
+        },
+        "shim": {
+          "ms": 70.854366,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 71.028372
+        },
+        "ffi": {
+          "ms": 69.461173,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 70.495636
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-1024-L-smooth-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 11.483117,
+          "candidate_over_base": 1.0012034530043723,
+          "per_round_ratios": [
+            1.000555752426092,
+            1.0012034530043723,
+            1.0155308396142666
+          ],
+          "p90_candidate_over_base": 1.0023446688006545,
+          "per_round_p90_ratios": [
+            1.0023446688006545,
+            0.9989218026054543,
+            1.025607330836933
+          ],
+          "p90_ms": 11.595748
+        },
+        "shim": {
+          "ms": 70.39816099999999,
+          "candidate_over_base": 0.9978868585980537,
+          "per_round_ratios": [
+            1.02803252707426,
+            0.9978868585980537,
+            0.9935613706571025
+          ],
+          "p90_candidate_over_base": 1.0190862321890186,
+          "per_round_p90_ratios": [
+            1.025906625877481,
+            1.0049808460262801,
+            1.0190862321890186
+          ],
+          "p90_ms": 72.384036
+        },
+        "ffi": {
+          "ms": 70.223887,
+          "candidate_over_base": 1.0181016965304357,
+          "per_round_ratios": [
+            1.0181016965304357,
+            1.0109804365094728,
+            1.0183031458856453
+          ],
+          "p90_candidate_over_base": 1.022982372979797,
+          "per_round_p90_ratios": [
+            1.0269135072021989,
+            1.022982372979797,
+            1.0150248187791067
+          ],
+          "p90_ms": 72.050472
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-1024-RGB-noise-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 330.911025,
+          "candidate_over_base": 1.000927661759403,
+          "per_round_ratios": [
+            1.0004073738430248,
+            1.001773038461312,
+            1.000927661759403
+          ],
+          "p90_candidate_over_base": 1.00217946554655,
+          "per_round_p90_ratios": [
+            1.0000223949362006,
+            1.00217946554655,
+            1.0022340943644015
+          ],
+          "p90_ms": 331.48143
+        },
+        "shim": {
+          "ms": 1011.923794,
+          "candidate_over_base": 1.0023432558303742,
+          "per_round_ratios": [
+            1.0023432558303742,
+            1.0028841137983637,
+            1.0021046585835423
+          ],
+          "p90_candidate_over_base": 1.0028221184894492,
+          "per_round_p90_ratios": [
+            0.9841406578546181,
+            1.0029617743172197,
+            1.0028221184894492
+          ],
+          "p90_ms": 1012.475395
+        },
+        "ffi": {
+          "ms": 1006.182268,
+          "candidate_over_base": 0.9984625668000794,
+          "per_round_ratios": [
+            0.9991957976827865,
+            0.9976267736227473,
+            0.9984625668000794
+          ],
+          "p90_candidate_over_base": 0.9977393634387169,
+          "per_round_p90_ratios": [
+            0.9984483962646488,
+            0.9966475429615699,
+            0.9977393634387169
+          ],
+          "p90_ms": 1006.743164
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-1024-RGB-noise-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 330.604336,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 330.74252
+        },
+        "shim": {
+          "ms": 1009.558141,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1014.2497970000001
+        },
+        "ffi": {
+          "ms": 1007.731588,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1009.024201
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-1024-RGB-noise-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 44.457091999999996,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 44.793569000000005
+        },
+        "shim": {
+          "ms": 374.24490999999995,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 376.789156
+        },
+        "ffi": {
+          "ms": 372.069102,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 373.524011
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-1024-RGB-noise-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 44.607156,
+          "candidate_over_base": 1.0022573432903292,
+          "per_round_ratios": [
+            1.003375479439816,
+            1.0022573432903292,
+            1.0008590523019136
+          ],
+          "p90_candidate_over_base": 1.00264186015777,
+          "per_round_p90_ratios": [
+            0.9969577775774017,
+            1.00264186015777,
+            1.0056818529358005
+          ],
+          "p90_ms": 44.721078999999996
+        },
+        "shim": {
+          "ms": 376.81271899999996,
+          "candidate_over_base": 1.0075908093856183,
+          "per_round_ratios": [
+            1.0075908093856183,
+            1.0102942429466355,
+            1.0052759488432321
+          ],
+          "p90_candidate_over_base": 1.006185757813627,
+          "per_round_p90_ratios": [
+            1.006185757813627,
+            1.0073060954577095,
+            1.0010904613189027
+          ],
+          "p90_ms": 377.913833
+        },
+        "ffi": {
+          "ms": 374.910922,
+          "candidate_over_base": 1.00763788227704,
+          "per_round_ratios": [
+            1.00763788227704,
+            0.9999340185170733,
+            1.0092206703998323
+          ],
+          "p90_candidate_over_base": 1.0076529404156565,
+          "per_round_p90_ratios": [
+            1.0076529404156565,
+            1.0056689600291289,
+            1.0082733381572233
+          ],
+          "p90_ms": 376.38256800000005
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-1024-RGB-smooth-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 20.227652,
+          "candidate_over_base": 0.9991480484993704,
+          "per_round_ratios": [
+            0.9991480484993704,
+            1.0120766047682672,
+            0.9934470558703745
+          ],
+          "p90_candidate_over_base": 0.9975829077391338,
+          "per_round_p90_ratios": [
+            0.9975829077391338,
+            1.0122442985438276,
+            0.9915172070973226
+          ],
+          "p90_ms": 20.301526999999997
+        },
+        "shim": {
+          "ms": 193.491212,
+          "candidate_over_base": 0.9985831531437893,
+          "per_round_ratios": [
+            0.986496598607015,
+            0.9985831531437893,
+            1.0065557482369363
+          ],
+          "p90_candidate_over_base": 0.9921581981572999,
+          "per_round_p90_ratios": [
+            0.9889231536293305,
+            0.9974115319497835,
+            0.9921581981572999
+          ],
+          "p90_ms": 193.697024
+        },
+        "ffi": {
+          "ms": 191.693204,
+          "candidate_over_base": 0.9921441583796187,
+          "per_round_ratios": [
+            0.9913170989034847,
+            1.007759953356182,
+            0.9921441583796187
+          ],
+          "p90_candidate_over_base": 0.9740249846743783,
+          "per_round_p90_ratios": [
+            0.9913558785374094,
+            0.9677768613839319,
+            0.9740249846743783
+          ],
+          "p90_ms": 192.70476399999998
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-1024-RGB-smooth-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 20.344791,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 20.475214
+        },
+        "shim": {
+          "ms": 193.969795,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 195.227963
+        },
+        "ffi": {
+          "ms": 193.37223600000002,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 196.691857
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-1024-RGB-smooth-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 28.040519,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 28.074316
+        },
+        "shim": {
+          "ms": 249.656341,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 252.581275
+        },
+        "ffi": {
+          "ms": 248.392608,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 250.34916
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-1024-RGB-smooth-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 28.186957999999997,
+          "candidate_over_base": 0.9988640366061347,
+          "per_round_ratios": [
+            1.0052224069033815,
+            0.9988640366061347,
+            0.9929799847736154
+          ],
+          "p90_candidate_over_base": 0.9927955672902757,
+          "per_round_p90_ratios": [
+            1.0052554797773168,
+            0.9927955672902757,
+            0.9920248490750062
+          ],
+          "p90_ms": 28.22186
+        },
+        "shim": {
+          "ms": 252.702791,
+          "candidate_over_base": 1.0115616010893842,
+          "per_round_ratios": [
+            1.0115616010893842,
+            1.0209204940642786,
+            1.0099725093077676
+          ],
+          "p90_candidate_over_base": 1.0177735184624404,
+          "per_round_p90_ratios": [
+            1.0282470370759977,
+            1.0177735184624404,
+            1.0034897321664087
+          ],
+          "p90_ms": 256.39058900000003
+        },
+        "ffi": {
+          "ms": 251.06629999999998,
+          "candidate_over_base": 1.011150787377559,
+          "per_round_ratios": [
+            1.011150787377559,
+            1.0224941232573204,
+            1.010763975713802
+          ],
+          "p90_candidate_over_base": 1.008604051237879,
+          "per_round_p90_ratios": [
+            1.0078432830397617,
+            1.0191879925367746,
+            1.008604051237879
+          ],
+          "p90_ms": 252.503177
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-256-L-noise-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 7.296594,
+          "candidate_over_base": 0.9992343387629866,
+          "per_round_ratios": [
+            1.0011861020354123,
+            0.9968608497778713,
+            0.9992343387629866
+          ],
+          "p90_candidate_over_base": 0.996670137370777,
+          "per_round_p90_ratios": [
+            0.9944804519970494,
+            0.9996341471738551,
+            0.996670137370777
+          ],
+          "p90_ms": 7.3226700000000005
+        },
+        "shim": {
+          "ms": 21.039608,
+          "candidate_over_base": 1.0015095759207837,
+          "per_round_ratios": [
+            1.0015095759207837,
+            1.004730889356948,
+            0.9995437358890205
+          ],
+          "p90_candidate_over_base": 1.0008535612543752,
+          "per_round_p90_ratios": [
+            1.0008535612543752,
+            1.004681620049758,
+            0.9981582454979664
+          ],
+          "p90_ms": 21.076845000000002
+        },
+        "ffi": {
+          "ms": 20.942214,
+          "candidate_over_base": 0.9954270885080119,
+          "per_round_ratios": [
+            0.9999778209804939,
+            0.9879179650588563,
+            0.9954270885080119
+          ],
+          "p90_candidate_over_base": 0.9922274865978569,
+          "per_round_p90_ratios": [
+            1.0024035411881314,
+            0.9856809745176668,
+            0.9922274865978569
+          ],
+          "p90_ms": 20.964149000000003
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-256-L-noise-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 7.302185000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 7.351054
+        },
+        "shim": {
+          "ms": 21.014442,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 21.049551
+        },
+        "ffi": {
+          "ms": 21.021836999999998,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 21.107072
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-256-L-noise-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 1.2040440000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.246653
+        },
+        "shim": {
+          "ms": 7.643063,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 7.687372
+        },
+        "ffi": {
+          "ms": 7.6292539999999995,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 7.667463
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-256-L-noise-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 1.2057309999999999,
+          "candidate_over_base": 1.0014661567089136,
+          "per_round_ratios": [
+            1.0014661567089136,
+            1.0121455679853757,
+            1.001401111587284
+          ],
+          "p90_candidate_over_base": 0.9939345593804217,
+          "per_round_p90_ratios": [
+            0.9939345593804217,
+            0.9961368560457481,
+            0.9883896585264321
+          ],
+          "p90_ms": 1.234642
+        },
+        "shim": {
+          "ms": 7.820747,
+          "candidate_over_base": 1.0130573469111503,
+          "per_round_ratios": [
+            1.0108043071213726,
+            1.0390568693896562,
+            1.0130573469111503
+          ],
+          "p90_candidate_over_base": 1.0143091950498577,
+          "per_round_p90_ratios": [
+            1.0062623481730817,
+            1.0382371666101686,
+            1.0143091950498577
+          ],
+          "p90_ms": 7.836635
+        },
+        "ffi": {
+          "ms": 7.68717,
+          "candidate_over_base": 1.0098455187219195,
+          "per_round_ratios": [
+            1.0098455187219195,
+            1.0109824260263427,
+            1.0075913057816661
+          ],
+          "p90_candidate_over_base": 1.0075913197930342,
+          "per_round_p90_ratios": [
+            1.0075913197930342,
+            1.0124601840269722,
+            1.0029624725694573
+          ],
+          "p90_ms": 7.702146
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-256-L-smooth-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.7128730000000001,
+          "candidate_over_base": 1.002508828008871,
+          "per_round_ratios": [
+            1.002508828008871,
+            0.9720778424473393,
+            1.0053576238888169
+          ],
+          "p90_candidate_over_base": 0.9874838310784976,
+          "per_round_p90_ratios": [
+            0.8367661614266295,
+            1.038407689188554,
+            0.9874838310784976
+          ],
+          "p90_ms": 0.738047
+        },
+        "shim": {
+          "ms": 3.220284,
+          "candidate_over_base": 1.0003908785867623,
+          "per_round_ratios": [
+            0.9747330314550693,
+            1.0075184654194689,
+            1.0003908785867623
+          ],
+          "p90_candidate_over_base": 1.0032930464150924,
+          "per_round_p90_ratios": [
+            0.9693067647989674,
+            1.0046540113841462,
+            1.0032930464150924
+          ],
+          "p90_ms": 3.2801370000000003
+        },
+        "ffi": {
+          "ms": 3.2325880000000002,
+          "candidate_over_base": 0.9992718213112818,
+          "per_round_ratios": [
+            1.0016881821055177,
+            0.9992718213112818,
+            0.9917307216511487
+          ],
+          "p90_candidate_over_base": 0.9989814991637876,
+          "per_round_p90_ratios": [
+            0.9989814991637876,
+            1.0053871105324934,
+            0.998963009275015
+          ],
+          "p90_ms": 3.279913
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-256-L-smooth-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.7110890000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.882023
+        },
+        "shim": {
+          "ms": 3.30376,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 3.3840030000000003
+        },
+        "ffi": {
+          "ms": 3.22714,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 3.283257
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-256-L-smooth-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.881007,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.910532
+        },
+        "shim": {
+          "ms": 4.302705,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 4.312504
+        },
+        "ffi": {
+          "ms": 4.292587999999999,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 4.343862
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-256-L-smooth-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.8849640000000001,
+          "candidate_over_base": 1.0026082273834644,
+          "per_round_ratios": [
+            1.000490347976804,
+            1.019480354908796,
+            1.0026082273834644
+          ],
+          "p90_candidate_over_base": 1.0433817422729008,
+          "per_round_p90_ratios": [
+            0.7907906891222787,
+            1.0433817422729008,
+            1.2027276361511732
+          ],
+          "p90_ms": 0.929674
+        },
+        "shim": {
+          "ms": 4.331601,
+          "candidate_over_base": 1.0122103225923063,
+          "per_round_ratios": [
+            1.0056778236016646,
+            1.0122103225923063,
+            1.013018913065289
+          ],
+          "p90_candidate_over_base": 1.020346220658909,
+          "per_round_p90_ratios": [
+            1.0124354667265236,
+            1.020346220658909,
+            1.0227063362638449
+          ],
+          "p90_ms": 4.387447
+        },
+        "ffi": {
+          "ms": 4.346189000000001,
+          "candidate_over_base": 1.0157247795502387,
+          "per_round_ratios": [
+            1.0007920329277953,
+            1.0220411244315055,
+            1.0157247795502387
+          ],
+          "p90_candidate_over_base": 1.0119812738065805,
+          "per_round_p90_ratios": [
+            1.0119812738065805,
+            1.021276541211794,
+            0.9989079677494387
+          ],
+          "p90_ms": 4.383083
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-256-RGB-noise-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 20.921074,
+          "candidate_over_base": 1.0002657070037226,
+          "per_round_ratios": [
+            1.0003144708667868,
+            1.0002657070037226,
+            0.9990013027068075
+          ],
+          "p90_candidate_over_base": 0.9983711102296011,
+          "per_round_p90_ratios": [
+            0.999889387741585,
+            0.9983711102296011,
+            0.9976737771427806
+          ],
+          "p90_ms": 20.953768
+        },
+        "shim": {
+          "ms": 62.259811,
+          "candidate_over_base": 1.0069893950664983,
+          "per_round_ratios": [
+            1.0013200867686858,
+            1.0077404552625706,
+            1.0069893950664983
+          ],
+          "p90_candidate_over_base": 1.0057072007137262,
+          "per_round_p90_ratios": [
+            0.9953121688418742,
+            1.0057072007137262,
+            1.0058680479522673
+          ],
+          "p90_ms": 62.393330999999996
+        },
+        "ffi": {
+          "ms": 62.112989,
+          "candidate_over_base": 0.9979285120965617,
+          "per_round_ratios": [
+            0.9979285120965617,
+            0.995648352603256,
+            1.004739161010219
+          ],
+          "p90_candidate_over_base": 0.9998606775752097,
+          "per_round_p90_ratios": [
+            0.9973409622236342,
+            0.9998606775752097,
+            1.0035634279367747
+          ],
+          "p90_ms": 62.322169
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-256-RGB-noise-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 20.930266,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 20.987671
+        },
+        "shim": {
+          "ms": 62.177731,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 62.565173
+        },
+        "ffi": {
+          "ms": 61.958846,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 62.176627
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-256-RGB-noise-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 2.893038,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 2.901886
+        },
+        "shim": {
+          "ms": 21.766955000000003,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 21.923063
+        },
+        "ffi": {
+          "ms": 21.155732,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 21.257911
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-256-RGB-noise-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 2.890838,
+          "candidate_over_base": 0.9997290045965521,
+          "per_round_ratios": [
+            1.0014185537126097,
+            0.9997290045965521,
+            0.9889122929895849
+          ],
+          "p90_candidate_over_base": 1.0139378613165213,
+          "per_round_p90_ratios": [
+            1.0139378613165213,
+            1.0212703048982628,
+            0.9833025949879536
+          ],
+          "p90_ms": 2.9405799999999997
+        },
+        "shim": {
+          "ms": 21.553296999999997,
+          "candidate_over_base": 0.9901842954147696,
+          "per_round_ratios": [
+            0.9757717686347055,
+            0.9901842954147696,
+            1.0148724234388309
+          ],
+          "p90_candidate_over_base": 0.9892832493342741,
+          "per_round_p90_ratios": [
+            0.9255558935630614,
+            0.9892832493342741,
+            1.0142994403080563
+          ],
+          "p90_ms": 21.600883999999997
+        },
+        "ffi": {
+          "ms": 21.649497,
+          "candidate_over_base": 1.0235268187513145,
+          "per_round_ratios": [
+            1.014847087304755,
+            1.0289623664016005,
+            1.0235268187513145
+          ],
+          "p90_candidate_over_base": 1.0216684751314828,
+          "per_round_p90_ratios": [
+            1.0216684751314828,
+            1.0288976090841928,
+            1.0195823568929232
+          ],
+          "p90_ms": 21.674191
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-256-RGB-smooth-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 1.28145,
+          "candidate_over_base": 1.0008143679565003,
+          "per_round_ratios": [
+            1.0098113949501941,
+            0.9949315904464207,
+            1.0008143679565003
+          ],
+          "p90_candidate_over_base": 0.9959761641941862,
+          "per_round_p90_ratios": [
+            0.9959761641941862,
+            0.9761313278755684,
+            1.0067127627808135
+          ],
+          "p90_ms": 1.303353
+        },
+        "shim": {
+          "ms": 8.592713999999999,
+          "candidate_over_base": 0.9981309933414826,
+          "per_round_ratios": [
+            0.9981309933414826,
+            0.9986044871641409,
+            0.9871735709160151
+          ],
+          "p90_candidate_over_base": 0.9994111295014597,
+          "per_round_p90_ratios": [
+            0.9944012383833695,
+            0.9994111295014597,
+            1.0233116498006136
+          ],
+          "p90_ms": 8.608623999999999
+        },
+        "ffi": {
+          "ms": 8.501049,
+          "candidate_over_base": 1.0051739972054883,
+          "per_round_ratios": [
+            1.0115784905119531,
+            1.0051739972054883,
+            0.9961532173516964
+          ],
+          "p90_candidate_over_base": 1.0029242997187613,
+          "per_round_p90_ratios": [
+            1.0093519328638012,
+            1.0029242997187613,
+            0.9766810725308481
+          ],
+          "p90_ms": 8.540445
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-256-RGB-smooth-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 1.281673,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.328086
+        },
+        "shim": {
+          "ms": 8.604721999999999,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 8.611400999999999
+        },
+        "ffi": {
+          "ms": 8.434841,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 8.515543
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/synthetic-256-RGB-smooth-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 1.7580019999999998,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 1.7856079999999999
+        },
+        "shim": {
+          "ms": 11.562897999999999,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 11.796572
+        },
+        "ffi": {
+          "ms": 11.669077,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 11.781658
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/synthetic-256-RGB-smooth-lossy.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 1.72692,
+          "candidate_over_base": 0.9826234338211689,
+          "per_round_ratios": [
+            0.9887425840870913,
+            0.979978976133133,
+            0.9826234338211689
+          ],
+          "p90_candidate_over_base": 1.011706376763545,
+          "per_round_p90_ratios": [
+            1.0156230430818107,
+            1.011706376763545,
+            0.9867199079205672
+          ],
+          "p90_ms": 1.792141
+        },
+        "shim": {
+          "ms": 11.676763999999999,
+          "candidate_over_base": 1.0058429620896954,
+          "per_round_ratios": [
+            1.009847531302274,
+            1.0058429620896954,
+            0.9997420794134706
+          ],
+          "p90_candidate_over_base": 1.0010599689469108,
+          "per_round_p90_ratios": [
+            1.00898956421563,
+            1.0010599689469108,
+            0.9904107853780596
+          ],
+          "p90_ms": 11.751324
+        },
+        "ffi": {
+          "ms": 11.537948,
+          "candidate_over_base": 0.9887626930561861,
+          "per_round_ratios": [
+            0.9887626930561861,
+            1.0047430865782856,
+            0.9776727664107253
+          ],
+          "p90_candidate_over_base": 0.9834783016108598,
+          "per_round_p90_ratios": [
+            0.9383991519768291,
+            0.9904868020696106,
+            0.9834783016108598
+          ],
+          "p90_ms": 11.587005
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/ht-1024-L-noise-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 15.927152,
+          "candidate_over_base": 0.9977099933355087,
+          "per_round_ratios": [
+            0.9977099933355087,
+            0.9861919214347867,
+            1.008709363750969
+          ],
+          "p90_candidate_over_base": 0.9985332354447687,
+          "per_round_p90_ratios": [
+            0.9985332354447687,
+            0.9826514279292301,
+            1.004875269738669
+          ],
+          "p90_ms": 16.074023
+        },
+        "shim": {
+          "ms": 112.763341,
+          "candidate_over_base": 0.9255293928786333,
+          "per_round_ratios": [
+            0.9245871820023802,
+            0.9255293928786333,
+            0.9394710003534242
+          ],
+          "p90_candidate_over_base": 0.9654516830501524,
+          "per_round_p90_ratios": [
+            0.9654516830501524,
+            0.9538309217897237,
+            0.9769846381847677
+          ],
+          "p90_ms": 118.371975
+        },
+        "ffi": {
+          "ms": 111.1035,
+          "candidate_over_base": 0.9201147547703818,
+          "per_round_ratios": [
+            0.9201147547703818,
+            0.9026959224746589,
+            0.92920651373435
+          ],
+          "p90_candidate_over_base": 0.9592994414961578,
+          "per_round_p90_ratios": [
+            0.971593658912017,
+            0.9496982029983275,
+            0.9592994414961578
+          ],
+          "p90_ms": 118.210986
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/ht-1024-L-noise-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 15.963709000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 15.996038
+        },
+        "shim": {
+          "ms": 120.200428,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 121.369675
+        },
+        "ffi": {
+          "ms": 119.948705,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 123.22636800000001
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/ht-1024-RGB-noise-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 38.884543,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 39.099683
+        },
+        "shim": {
+          "ms": 355.61748,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 358.114924
+        },
+        "ffi": {
+          "ms": 355.31575799999996,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 357.82888299999996
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/ht-1024-RGB-noise-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 38.877578,
+          "candidate_over_base": 1.0121131563017707,
+          "per_round_ratios": [
+            1.0121131563017707,
+            0.9864338644865397,
+            1.0194333002704956
+          ],
+          "p90_candidate_over_base": 1.0145664600305084,
+          "per_round_p90_ratios": [
+            1.0145664600305084,
+            0.9714909299236546,
+            1.018138689257404
+          ],
+          "p90_ms": 39.074759
+        },
+        "shim": {
+          "ms": 320.551816,
+          "candidate_over_base": 0.8997011860275621,
+          "per_round_ratios": [
+            0.9035703514085974,
+            0.8997011860275621,
+            0.8989499588152979
+          ],
+          "p90_candidate_over_base": 0.9160236282138301,
+          "per_round_p90_ratios": [
+            0.9161095712168813,
+            0.9123148386764736,
+            0.9160236282138301
+          ],
+          "p90_ms": 328.041732
+        },
+        "ffi": {
+          "ms": 320.312884,
+          "candidate_over_base": 0.9012540642793558,
+          "per_round_ratios": [
+            0.9012540642793558,
+            0.8983874076857349,
+            0.9038171428496614
+          ],
+          "p90_candidate_over_base": 0.9152810812163175,
+          "per_round_p90_ratios": [
+            0.9152810812163175,
+            0.9177540005071254,
+            0.9081939313434351
+          ],
+          "p90_ms": 326.803509
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/ht-256-L-smooth-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.7074170000000001,
+          "candidate_over_base": 1.0015857351793933,
+          "per_round_ratios": [
+            0.9639234238266826,
+            1.016062158556997,
+            1.0015857351793933
+          ],
+          "p90_candidate_over_base": 0.8068650998617788,
+          "per_round_p90_ratios": [
+            0.9233262411718272,
+            0.8068650998617788,
+            0.7835306010970012
+          ],
+          "p90_ms": 0.7232649999999999
+        },
+        "shim": {
+          "ms": 2.597014,
+          "candidate_over_base": 0.7799466203446342,
+          "per_round_ratios": [
+            0.7686987282349969,
+            0.7799466203446342,
+            0.7850481735740469
+          ],
+          "p90_candidate_over_base": 0.7859567608181732,
+          "per_round_p90_ratios": [
+            0.7769762923066337,
+            0.8077954643500722,
+            0.7859567608181732
+          ],
+          "p90_ms": 2.673685
+        },
+        "ffi": {
+          "ms": 2.597133,
+          "candidate_over_base": 0.7732982657466182,
+          "per_round_ratios": [
+            0.7718635648017326,
+            0.7825560702691529,
+            0.7732982657466182
+          ],
+          "p90_candidate_over_base": 0.7776903065619105,
+          "per_round_p90_ratios": [
+            0.7776903065619105,
+            0.7752745128706034,
+            0.7829553593733284
+          ],
+          "p90_ms": 2.642104
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/ht-256-L-smooth-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 0.7062970000000001,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 0.896389
+        },
+        "shim": {
+          "ms": 3.338241,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 3.401822
+        },
+        "ffi": {
+          "ms": 3.32881,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 3.38873
+        }
+      }
+    },
+    {
+      "source": "Base",
+      "id": "wrapped/ht-256-RGB-noise-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 2.634098,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 2.689087
+        },
+        "shim": {
+          "ms": 21.177246,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 21.184597
+        },
+        "ffi": {
+          "ms": 20.979752,
+          "candidate_over_base": 1.0,
+          "per_round_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_candidate_over_base": 1.0,
+          "per_round_p90_ratios": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "p90_ms": 21.178806
+        }
+      }
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/ht-256-RGB-noise-lossless.pdf",
+      "group": "pdf",
+      "backends": {
+        "openjpeg": {
+          "ms": 2.662042,
+          "candidate_over_base": 1.0073676074314624,
+          "per_round_ratios": [
+            1.0073676074314624,
+            1.0108077259121522,
+            1.0072599070160064
+          ],
+          "p90_candidate_over_base": 0.996980387767298,
+          "per_round_p90_ratios": [
+            0.996980387767298,
+            0.9942625043125929,
+            1.0100439185168162
+          ],
+          "p90_ms": 2.698601
+        },
+        "shim": {
+          "ms": 19.317445,
+          "candidate_over_base": 0.9121792795909346,
+          "per_round_ratios": [
+            0.9196846584707832,
+            0.9024579403076827,
+            0.9121792795909346
+          ],
+          "p90_candidate_over_base": 1.0883180359767997,
+          "per_round_p90_ratios": [
+            1.0962074077100248,
+            1.074877641404113,
+            1.0883180359767997
+          ],
+          "p90_ms": 23.076158
+        },
+        "ffi": {
+          "ms": 19.292101,
+          "candidate_over_base": 0.9256765284928058,
+          "per_round_ratios": [
+            0.9292911947037422,
+            0.9008914215892713,
+            0.9256765284928058
+          ],
+          "p90_candidate_over_base": 1.0927622170957136,
+          "per_round_p90_ratios": [
+            1.1181330136620136,
+            1.0927214195273145,
+            1.0927622170957136
+          ],
+          "p90_ms": 23.30815
+        }
+      }
+    }
+  ],
+  "adverse_over_5_percent": [],
+  "adverse_openjpeg_control_over_5_percent": [],
+  "adverse_p90_over_5_percent": [
+    {
+      "source": "PR496",
+      "id": "synthetic/256-L-smooth-lossless.jp2",
+      "backend": "openjpeg",
+      "ms": 0.315302,
+      "candidate_over_base": 1.021777372590814,
+      "per_round_ratios": [
+        1.0282548151240225,
+        1.0135334502371507,
+        1.021777372590814
+      ],
+      "p90_candidate_over_base": 1.5100054286942577,
+      "per_round_p90_ratios": [
+        1.6486262984803088,
+        1.5100054286942577,
+        0.9135244727112848
+      ],
+      "p90_ms": 0.513208
+    },
+    {
+      "source": "PR496",
+      "id": "synthetic/256-L-smooth-lossy.jp2",
+      "backend": "openjpeg",
+      "ms": 0.453532,
+      "candidate_over_base": 0.9918319056481224,
+      "per_round_ratios": [
+        1.023487536616371,
+        0.9599048350616651,
+        0.9918319056481224
+      ],
+      "p90_candidate_over_base": 1.3855232347011608,
+      "per_round_p90_ratios": [
+        1.4278660956152196,
+        0.6835506554509405,
+        1.3855232347011608
+      ],
+      "p90_ms": 0.663879
+    },
+    {
+      "source": "PR496",
+      "id": "ht/256-L-smooth-lossless.j2k",
+      "backend": "openjpeg",
+      "ms": 0.311822,
+      "candidate_over_base": 1.013406769319591,
+      "per_round_ratios": [
+        0.992008500512194,
+        1.013406769319591,
+        1.0378085248239122
+      ],
+      "p90_candidate_over_base": 1.6478638248625712,
+      "per_round_p90_ratios": [
+        1.4993333723174085,
+        1.7507089834341916,
+        1.6478638248625712
+      ],
+      "p90_ms": 0.512802
+    },
+    {
+      "source": "PR496",
+      "id": "ht/256-RGB-noise-lossless.j2k",
+      "backend": "shim",
+      "ms": 18.525582,
+      "candidate_over_base": 0.9165548538450934,
+      "per_round_ratios": [
+        0.9153547529333789,
+        0.9165548538450934,
+        0.921619676688113
+      ],
+      "p90_candidate_over_base": 1.1038114456413404,
+      "per_round_p90_ratios": [
+        1.1038114456413404,
+        1.117050087202347,
+        1.0885783991057478
+      ],
+      "p90_ms": 22.661928
+    },
+    {
+      "source": "PR496",
+      "id": "ht/256-RGB-noise-lossless.j2k",
+      "backend": "ffi",
+      "ms": 18.522797999999998,
+      "candidate_over_base": 0.9112726598078447,
+      "per_round_ratios": [
+        0.9149116468144693,
+        0.9112726598078447,
+        0.9077760814055849
+      ],
+      "p90_candidate_over_base": 1.0814452280417994,
+      "per_round_p90_ratios": [
+        1.1054641273462582,
+        1.0665178940765057,
+        1.0814452280417994
+      ],
+      "p90_ms": 22.347858
+    },
+    {
+      "source": "PR496",
+      "id": "embedded/8ac3ec64-256.jp2",
+      "backend": "openjpeg",
+      "ms": 0.172774,
+      "candidate_over_base": 0.9958959224375454,
+      "per_round_ratios": [
+        0.9958959224375454,
+        0.9608802096174023,
+        1.0330299105179974
+      ],
+      "p90_candidate_over_base": 1.1014514698565834,
+      "per_round_p90_ratios": [
+        0.9724419534791314,
+        1.1014514698565834,
+        1.2127528955200972
+      ],
+      "p90_ms": 0.203676
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/jpxdecode_smask_in_data_2.pdf",
+      "backend": "openjpeg",
+      "ms": 0.384955,
+      "candidate_over_base": 0.9989453395874697,
+      "per_round_ratios": [
+        0.9830863838111437,
+        0.9989453395874697,
+        1.0096623084985565
+      ],
+      "p90_candidate_over_base": 1.0978432266038114,
+      "per_round_p90_ratios": [
+        1.0978432266038114,
+        0.9759352594590757,
+        1.5015520312900803
+      ],
+      "p90_ms": 0.63805
+    },
+    {
+      "source": "PR496",
+      "id": "resources/pixel/jpxdecode_smask_in_data_2.pdf",
+      "backend": "ffi",
+      "ms": 0.412825,
+      "candidate_over_base": 1.0169944975327017,
+      "per_round_ratios": [
+        1.0208106149962044,
+        1.0143679654000985,
+        1.0169944975327017
+      ],
+      "p90_candidate_over_base": 1.1992988793843276,
+      "per_round_p90_ratios": [
+        1.0167975625447616,
+        1.1992988793843276,
+        1.720758136739876
+      ],
+      "p90_ms": 0.71015
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/ht-256-RGB-noise-lossless.pdf",
+      "backend": "shim",
+      "ms": 19.317445,
+      "candidate_over_base": 0.9121792795909346,
+      "per_round_ratios": [
+        0.9196846584707832,
+        0.9024579403076827,
+        0.9121792795909346
+      ],
+      "p90_candidate_over_base": 1.0883180359767997,
+      "per_round_p90_ratios": [
+        1.0962074077100248,
+        1.074877641404113,
+        1.0883180359767997
+      ],
+      "p90_ms": 23.076158
+    },
+    {
+      "source": "PR496",
+      "id": "wrapped/ht-256-RGB-noise-lossless.pdf",
+      "backend": "ffi",
+      "ms": 19.292101,
+      "candidate_over_base": 0.9256765284928058,
+      "per_round_ratios": [
+        0.9292911947037422,
+        0.9008914215892713,
+        0.9256765284928058
+      ],
+      "p90_candidate_over_base": 1.0927622170957136,
+      "per_round_p90_ratios": [
+        1.1181330136620136,
+        1.0927214195273145,
+        1.0927622170957136
+      ],
+      "p90_ms": 23.30815
+    }
+  ],
+  "source_case_rounds": 390,
+  "timed_processes": 1170,
+  "note": "Three-round original protocol; common-base block is shared by heads, so comparisons are correlated and descriptive. Ratios are medians of same-round candidate/base ratios, separately for p50 and p90. Seven/five samples make p90 near/max-sample, not a population tail estimate. No case dropped, no repeat confirmation substituted. Flags above1.05 require review, not automatic causal attribution or rejection."
+}
