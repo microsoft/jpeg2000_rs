@@ -1,0 +1,192 @@
+[
+  {
+    "id": "conformance/jp2_cdef_alpha_not_last.jp2",
+    "reference_samples_sha256": "405c23c7c5c4a5df68d2fcdddd6853f2741b835a2ad455ec9f47925fefad38d2",
+    "openjpeg": {
+      "status": "ok",
+      "different_samples": 0,
+      "max_delta": 0
+    },
+    "shim": {
+      "status": "ok",
+      "different_samples": 33738,
+      "max_delta": 255
+    },
+    "ffi": {
+      "status": "ok",
+      "different_samples": 33738,
+      "max_delta": 255
+    }
+  },
+  {
+    "id": "conformance/jp2_cdef_reordered.jp2",
+    "reference_samples_sha256": "405c23c7c5c4a5df68d2fcdddd6853f2741b835a2ad455ec9f47925fefad38d2",
+    "openjpeg": {
+      "status": "ok",
+      "different_samples": 0,
+      "max_delta": 0
+    },
+    "shim": {
+      "status": "ok",
+      "different_samples": 23388,
+      "max_delta": 207
+    },
+    "ffi": {
+      "status": "ok",
+      "different_samples": 23388,
+      "max_delta": 207
+    }
+  },
+  {
+    "id": "conformance/jp2_cdef_reversed_sycc.jp2",
+    "reference_samples_sha256": "60db1da9508c238f59864d9b4c7da02462430e7ab3867268c8b8505eaeb89088",
+    "openjpeg": {
+      "status": "ok",
+      "different_samples": 17238,
+      "max_delta": 1
+    },
+    "shim": {
+      "status": "ok",
+      "different_samples": 36046,
+      "max_delta": 255
+    },
+    "ffi": {
+      "status": "ok",
+      "different_samples": 20264,
+      "max_delta": 1
+    }
+  },
+  {
+    "id": "conformance/jp2_duplicate_ihdr.jp2",
+    "reference_samples_sha256": "732e19ab48d019f8f65f2ae97f069bd554cc49d9123f5516f8a41786b54af014",
+    "openjpeg": {
+      "status": "ok",
+      "different_samples": 0,
+      "max_delta": 0
+    },
+    "shim": {
+      "status": "ok",
+      "different_samples": 0,
+      "max_delta": 0
+    },
+    "ffi": {
+      "status": "ok",
+      "different_samples": 0,
+      "max_delta": 0
+    }
+  },
+  {
+    "id": "conformance/packets_poc_clamped_values.j2k",
+    "reference_samples_sha256": "732e19ab48d019f8f65f2ae97f069bd554cc49d9123f5516f8a41786b54af014",
+    "openjpeg": {
+      "status": "ok",
+      "different_samples": 36863,
+      "max_delta": 255
+    },
+    "shim": {
+      "status": "ok",
+      "different_samples": 0,
+      "max_delta": 0
+    },
+    "ffi": {
+      "status": "ok",
+      "different_samples": 0,
+      "max_delta": 0
+    }
+  },
+  {
+    "id": "conformance/packets_poc_tile_parts.j2k",
+    "reference_samples_sha256": "732e19ab48d019f8f65f2ae97f069bd554cc49d9123f5516f8a41786b54af014",
+    "openjpeg": {
+      "status": "ok",
+      "different_samples": 0,
+      "max_delta": 0
+    },
+    "shim": {
+      "status": "ok",
+      "different_samples": 0,
+      "max_delta": 0
+    },
+    "ffi": {
+      "status": "ok",
+      "different_samples": 0,
+      "max_delta": 0
+    }
+  },
+  {
+    "id": "conformance/packets_poc_main_header_tile_override.j2k",
+    "reference_samples_sha256": "732e19ab48d019f8f65f2ae97f069bd554cc49d9123f5516f8a41786b54af014",
+    "openjpeg": {
+      "status": "ok",
+      "different_samples": 17678,
+      "max_delta": 255
+    },
+    "shim": {
+      "status": "ok",
+      "different_samples": 0,
+      "max_delta": 0
+    },
+    "ffi": {
+      "status": "ok",
+      "different_samples": 0,
+      "max_delta": 0
+    }
+  },
+  {
+    "id": "conformance/jp2_colr_sycc_420.jp2",
+    "reference_samples_sha256": "2b070bc6412ec08b588ab4571fc8c82f3d17030c9000be91e8a9ede8371a9131",
+    "openjpeg": {
+      "status": "ok",
+      "different_samples": 1505,
+      "max_delta": 1
+    },
+    "shim": {
+      "status": "ok",
+      "different_samples": 1505,
+      "max_delta": 1
+    },
+    "ffi": {
+      "status": "ok",
+      "different_samples": 1804,
+      "max_delta": 1
+    }
+  },
+  {
+    "id": "conformance/jp2_colr_sycc_422.jp2",
+    "reference_samples_sha256": "0839fffa0f26980f1b12bb1eb26231a6c6dbd6a027203e29838a1e97eb4a1b29",
+    "openjpeg": {
+      "status": "ok",
+      "different_samples": 1538,
+      "max_delta": 1
+    },
+    "shim": {
+      "status": "ok",
+      "different_samples": 1538,
+      "max_delta": 1
+    },
+    "ffi": {
+      "status": "ok",
+      "different_samples": 1841,
+      "max_delta": 1
+    }
+  },
+  {
+    "id": "conformance/jp2_colr_sycc_444.jp2",
+    "reference_samples_sha256": "cd8ac9db3e0379db25ca394e6cb19dac28f1b6c0cb4346417e5a71aa85fcee0a",
+    "openjpeg": {
+      "status": "ok",
+      "different_samples": 1620,
+      "max_delta": 1
+    },
+    "shim": {
+      "status": "ok",
+      "different_samples": 1620,
+      "max_delta": 1
+    },
+    "ffi": {
+      "status": "ok",
+      "different_samples": 1850,
+      "max_delta": 1
+    }
+  }
+]
