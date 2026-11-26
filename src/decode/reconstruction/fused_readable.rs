@@ -40,9 +40,10 @@ fn compact_word_reconstructed_magnitude(value: u64) -> u64 {
         } else {
             let shift: u64 = (bp - 1) as u64;
             assert(midpoint == (1u64 << shift));
-            assert((1u64 << shift) <= (1u64 << 61)) by(bit_vector)
+            assert((1u64 << shift) <= 0x2000_0000_0000_0000u64) by(bit_vector)
                 requires shift < 62u64;
         }
+        assert(midpoint <= 0x2000_0000_0000_0000u64);
         assert(magnitude as int + midpoint as int <= u64::MAX as int);
     }
     magnitude + midpoint
