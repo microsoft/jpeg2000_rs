@@ -1,0 +1,21 @@
+{
+  "cpu": "Neoverse-N2",
+  "architecture": "aarch64",
+  "shared_host": true,
+  "compiler": "clang version 24.0.0git (https://chromium.googlesource.com/external/github.com/llvm/llvm-project c3223914b50811fb3be915840f06456acb83d096)",
+  "rustc_verbose": "rustc 1.101.0-nightly (41b321963 2026-10-29) (96a18bf5ffa2b24f9cf3d1c731a9eb121c1acad9-5-llvmorg-24-init-17044-gc3223914 chromium)\nbinary: rustc\ncommit-hash: 41b321963cf979d564d4bb447d9a09347664659f\ncommit-date: 2026-10-29\nhost: aarch64-unknown-linux-gnu\nrelease: 1.101.0-nightly\nLLVM version: 24.0.0\n",
+  "cpu_functional": 2,
+  "cpu_timing": 2,
+  "original_harness_commit": "90dd9f013c35739a7d67de869180b62a08bcea23",
+  "public_pdfium": "68f43efa71ac66ba843ba286bb76d075aa1c49df",
+  "prepared_integration": "fde5c34ad6305392ced34e7cd7128fc1e1334c66",
+  "pdfium_tests": "2bcc4fdc9abe4c4c115c82c486ac4c46f1d474c5",
+  "hayro": "e7ada1354dff4041cdeed3d8ba56fe01b6186132",
+  "default_features": true,
+  "data_cap_bytes": 2147483648,
+  "address_space_cap": false,
+  "allocator_source_sha256": "e8056c0972212ce502cebd6bbdcfab592fc0b5f1dfc5ff0be366b095f54407cb",
+  "no_new_rss_measurement": true,
+  "no_runtime_changes": true,
+  "no_merge_authorization": true
+}

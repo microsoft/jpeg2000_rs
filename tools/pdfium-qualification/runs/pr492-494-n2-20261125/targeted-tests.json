@@ -1,0 +1,13 @@
+{
+  "total": 23,
+  "consumers": {
+    "BaseShim": {
+      "tests": 17,
+      "failures": 0
+    },
+    "BaseFfi": {
+      "tests": 6,
+      "failures": 0
+    }
+  }
+}
