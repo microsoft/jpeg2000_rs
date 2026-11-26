@@ -46,7 +46,7 @@ pub(crate) open spec fn compact_admission(before:Tier1DecoderState,passes:u32,de
     let count=before.plane.width as nat*before.plane.height as nat;
     before.next_pass==0 && before.decoded_segments==0 && before.bitplane<31
         && before.bitplane_state.is_none() && before.legacy_segment.is_none()
-        && passes==before.maximum_passes && passes==3*(before.bitplane as nat+1)-2
+        && passes>0 && passes<=before.maximum_passes && before.maximum_passes==3*(before.bitplane as nat+1)-2
         && 0<count<=4096 && before.plane.coefficients.len()==count
         && before.style.block_coding is Legacy && !before.style.force_high_throughput
         && !before.style.selective_arithmetic_coding_bypass && !before.style.reset_contexts

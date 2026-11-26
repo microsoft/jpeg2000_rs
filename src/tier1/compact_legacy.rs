@@ -1166,8 +1166,9 @@ impl Tier1CodeBlockDecoder {
             || self.bitplane >= 31
             || self.bitplane_state.is_some()
             || self.legacy_segment.is_some()
-            || passes != self.maximum_passes
-            || passes != 3 * (u32::from(self.bitplane) + 1) - 2
+            || passes == 0
+            || passes > self.maximum_passes
+            || self.maximum_passes != 3 * (u32::from(self.bitplane) + 1) - 2
             || count == 0
             || count > 4096
             || self.plane.coefficients.len() != count
@@ -1396,7 +1397,7 @@ impl Tier1CodeBlockDecoder {
 
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires old(self).next_pass==0,old(self).bitplane_state.is_none(),old(self).bitplane<31,
-            passes==old(self).maximum_passes,passes==3*(old(self).bitplane as nat+1)-2,
+            passes>0,passes<=old(self).maximum_passes,old(self).maximum_passes==3*(old(self).bitplane as nat+1)-2,
             !old(self).style.selective_arithmetic_coding_bypass,!old(self).style.reset_contexts,!old(self).style.segmentation_symbols,
             old(packed).view()==super::code_block_plane_view(&old(self).plane),
             crate::specs::compact_block_phase(old(self).bitplane,0,old(packed).width,old(packed).height,old(packed).entries@,old(self).bitplane,None),
@@ -1441,8 +1442,8 @@ impl Tier1CodeBlockDecoder {
             crate::specs::compact_progress_start(initial,passes);
         }
         #[cfg_attr(verus_keep_ghost, verus_spec(
-            invariant decoded<=passes,passes==initial.decoder.maximum_passes,self.maximum_passes==passes,
-                initial.decoder.bitplane<31,passes==3*(initial.decoder.bitplane as nat+1)-2,
+            invariant decoded<=passes,passes>0,passes<=initial.decoder.maximum_passes,self.maximum_passes==initial.decoder.maximum_passes,
+                initial.decoder.bitplane<31,initial.decoder.maximum_passes==3*(initial.decoder.bitplane as nat+1)-2,
                 !initial.decoder.style.selective_arithmetic_coding_bypass,
                 !initial.decoder.style.reset_contexts,!initial.decoder.style.segmentation_symbols,
                 packed.shape(),self.bitplane<31,packed.width==old(packed).width,packed.height==old(packed).height,
@@ -1491,8 +1492,8 @@ impl Tier1CodeBlockDecoder {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires {
             let initial=ghost_initial@;let passes=ghost_passes@;let decoded=ghost_decoded@;let prefix=ghost_prefix@;
-            decoded<passes && passes==initial.decoder.maximum_passes && old(self).maximum_passes==passes
-            && initial.decoder.bitplane<31 && passes==3*(initial.decoder.bitplane as nat+1)-2
+            decoded<passes && passes<=initial.decoder.maximum_passes && old(self).maximum_passes==initial.decoder.maximum_passes
+            && initial.decoder.bitplane<31 && initial.decoder.maximum_passes==3*(initial.decoder.bitplane as nat+1)-2
             && !initial.decoder.style.selective_arithmetic_coding_bypass
             && !initial.decoder.style.reset_contexts && !initial.decoder.style.segmentation_symbols
             && old(packed).shape() && old(self).bitplane<31
@@ -1509,7 +1510,7 @@ impl Tier1CodeBlockDecoder {
             let initial=ghost_initial@;let passes=ghost_passes@;let decoded=ghost_decoded@;
             final(packed).shape() && final(packed).width==old(packed).width && final(packed).height==old(packed).height
             && super::code_block_plane_view(&final(self).plane)==initial.decoder.plane
-            && final(self).maximum_passes==passes && final(self).style==initial.decoder.style
+            && final(self).maximum_passes==initial.decoder.maximum_passes && final(self).style==initial.decoder.style
             && final(self).orientation==initial.decoder.orientation
             && crate::specs::compact_physical_frame(initial.decoder,super::tier1_decoder_state(final(self)))
             && match result {
@@ -1769,8 +1770,15 @@ mod tests {
             bytes - 1,
             core::mem::size_of::<CoefficientState>()
         ));
-        assert!(!original.compact_eligible(
+        assert!(original.compact_eligible(
             original.maximum_passes - 1,
+            bytes,
+            core::mem::size_of::<CoefficientState>()
+        ));
+        assert!(original.compact_eligible(1, bytes, core::mem::size_of::<CoefficientState>()));
+        assert!(!original.compact_eligible(0, bytes, core::mem::size_of::<CoefficientState>()));
+        assert!(!original.compact_eligible(
+            original.maximum_passes + 1,
             bytes,
             core::mem::size_of::<CoefficientState>()
         ));
@@ -1920,6 +1928,39 @@ mod tests {
         super::super::state::initialize_tier1_contexts(&mut mq).unwrap();
         let passes = block.maximum_passes;
         assert!(block.try_compact_legacy(&mut mq, passes, &limits).is_some());
+    }
+
+    #[test]
+    fn compact_partial_pass_counts_match_wide_decoder_and_bitplane_state() {
+        let limits = ResourceLimits::default();
+        let input = [0x84, 0x3f, 0x00, 0xff, 0x7f, 0x12, 0x55];
+        for causal in [false, true] {
+            for passes in [1_u32, 2, 3, 4, 5, 7, 10, 12] {
+                let mut compact = block(5, 7, 5, causal);
+                let mut wide = compact.clone();
+                let scalar_limits = limits.with_maximum_decoded_bytes(5 * 7 * 56).unwrap();
+                let mut mq_compact =
+                    crate::mq::mq_from_input(&input, 100, limits.maximum_work_units()).unwrap();
+                super::super::state::initialize_tier1_contexts(&mut mq_compact).unwrap();
+                assert!(
+                    compact
+                        .try_compact_legacy(&mut mq_compact, passes, &limits)
+                        .is_some(),
+                    "passes={passes} causal={causal} should enter compact kernel"
+                );
+                let mut compact_seg = block(5, 7, 5, causal);
+                assert_eq!(
+                    compact_seg.decode_segment(&input, passes as u8, &limits),
+                    wide.decode_segment(&input, passes as u8, &scalar_limits),
+                    "passes={passes} causal={causal}"
+                );
+                assert_eq!(
+                    format!("{compact_seg:?}"),
+                    format!("{wide:?}"),
+                    "passes={passes} causal={causal}"
+                );
+            }
+        }
     }
 
     #[test]
