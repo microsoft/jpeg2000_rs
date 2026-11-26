@@ -561,6 +561,7 @@ impl<'a> MqDecoder<'a> {
         ensures (result, mq_decoder_view(final(self))) == crate::specs::part1_mq_decode(
             mq_decoder_view(old(self)), context_index),
     ))]
+    #[inline]
     pub fn decode(&mut self, context_index: usize) -> Result<bool, DecodeError> {
         if context_index >= self.contexts.len() {
             return Err(mq_error(self.byte_index, MalformedKind::InvalidMqState));
@@ -752,6 +753,7 @@ impl<'a> MqDecoder<'a> {
         ensures (result, mq_decoder_view(final(self))) == crate::specs::part1_mq_charge(
             mq_decoder_view(old(self))),
     ))]
+    #[inline]
     fn charge_work(&mut self) -> Result<(), DecodeError> {
         self.work_units = match self.work_units.checked_add(1) {
             Some(work) => work,

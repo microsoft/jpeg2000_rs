@@ -1,6 +1,6 @@
-use super::state::{
-    ht_statistics_zero, invalid_code_block, sign_context, significant_neighbor_count,
-};
+#[cfg(test)]
+use super::state::significant_neighbor_count;
+use super::state::{ht_statistics_zero, invalid_code_block, sign_context};
 use super::{
     CoefficientState, NeighborSummary, RUN_LENGTH_CONTEXT, SubbandOrientation, Tier1BitplaneState,
     Tier1BlockCoding, Tier1CodeBlockDecoder, Tier1PassKind, Tier1PassStatistics, UNIFORM_CONTEXT,
@@ -788,13 +788,19 @@ impl CompactPlane {
         let index = y * self.width + x;
         if state.significant_before[index] {
             let before = self.entries[index];
-            let neighbors = if before & REFINED != 0 {
-                0
+            let context = if before & REFINED != 0 {
+                crate::refinement::tier1_refinement_context(true, 0)
             } else {
-                significant_neighbor_count(self.summary(x, y, causal))
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    let mask=if causal && y%4==3{0x1fu8}else{0xffu8};
+                    crate::specs::compact_mask_context(
+                        ((before>>41) as u8)&mask,
+                        ((before>>49) as u8)&mask,SubbandOrientation::Ll);
+                }
+                let sig = significance_mask(before, y, causal);
+                crate::refinement::tier1_refinement_context(false, if sig != 0 { 1 } else { 0 })
             };
-            let context =
-                crate::refinement::tier1_refinement_context(before & REFINED != 0, neighbors);
             let bit = decoder.decode(usize::from(context))?;
             stats.coding_symbols += 1;
             #[cfg(verus_keep_ghost)]
