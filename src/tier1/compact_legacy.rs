@@ -932,6 +932,7 @@ impl CompactPlane {
             self.view(),super::legacy_bitplane_view(state),x as u16,y as u16,causal),
             result ==> self.entries@[(y*self.width+x) as int] & SIG==0,
     ))]
+    #[inline(always)]
     fn run_candidate(&self, x: usize, y: usize, state: &Tier1BitplaneState, causal: bool) -> bool {
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -970,6 +971,7 @@ impl CompactPlane {
                     super::legacy_bitplane_view(final(state)),coordinate.1,coordinate.3,coordinate.0,coordinate.3)
             }else{crate::specs::compact_before_frontier(final(self).entries@,super::legacy_bitplane_view(final(state)),context.0 is Cleanup)},
     ))]
+    #[inline(always)]
     fn rows(
         &mut self,
         state: &mut Tier1BitplaneState,
@@ -1091,6 +1093,7 @@ impl CompactPlane {
             }else{crate::specs::compact_before_frontier(final(self).entries@,super::legacy_bitplane_view(final(state)),context.0 is Cleanup)},
     ))]
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+    #[inline(always)]
     fn column(
         &mut self,
         state: &mut Tier1BitplaneState,
@@ -1182,6 +1185,47 @@ impl CompactPlane {
         orientation: SubbandOrientation,
         causal: bool,
     ) -> Result<Tier1PassStatistics, DecodeError> {
+        match kind {
+            Tier1PassKind::SignificancePropagation => {
+                self.pass_specialized::<0>(state, decoder, kind, orientation, causal)
+            }
+            Tier1PassKind::MagnitudeRefinement => {
+                self.pass_specialized::<1>(state, decoder, kind, orientation, causal)
+            }
+            Tier1PassKind::Cleanup => {
+                self.pass_specialized::<2>(state, decoder, kind, orientation, causal)
+            }
+        }
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        requires old(self).ready(old(state)),crate::specs::compact_pass_order(super::legacy_bitplane_view(old(state)),kind),
+            crate::specs::compact_before_frontier(old(self).entries@,super::legacy_bitplane_view(old(state)),kind is Cleanup),
+            (KIND == 0) == (kind is SignificancePropagation),
+            (KIND == 1) == (kind is MagnitudeRefinement),
+            (KIND == 2) == (kind is Cleanup),
+        ensures final(self).ready(final(state)),final(self).width==old(self).width,final(self).height==old(self).height,
+            (result,final(self).view(),super::legacy_bitplane_view(final(state)),crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(final(decoder))))
+                ==crate::specs::compact_pass_model(old(self).view(),super::legacy_bitplane_view(old(state)),
+                    crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(old(decoder))),kind,orientation,causal),
+            crate::specs::compact_pass_flags(super::legacy_bitplane_view(old(state)),super::legacy_bitplane_view(final(state)),kind,result.is_ok()),
+            match result{Err(_)=>true,Ok(statistics)=>crate::specs::compact_statistics_le(statistics,crate::specs::compact_stripe_bound(old(self).width,old(self).height))
+                && crate::specs::compact_before_frontier(final(self).entries@,super::legacy_bitplane_view(final(state)),!(kind is SignificancePropagation))},
+    ))]
+    #[inline(never)]
+    fn pass_specialized<const KIND: u8>(
+        &mut self,
+        state: &mut Tier1BitplaneState,
+        decoder: &mut MqDecoder<'_>,
+        #[allow(unused_variables)] kind: Tier1PassKind,
+        orientation: SubbandOrientation,
+        causal: bool,
+    ) -> Result<Tier1PassStatistics, DecodeError> {
+        let kind = match KIND {
+            0 => Tier1PassKind::SignificancePropagation,
+            1 => Tier1PassKind::MagnitudeRefinement,
+            _ => Tier1PassKind::Cleanup,
+        };
         let mut stats = ht_statistics_zero();
         let mut stripe = 0;
         #[cfg(verus_keep_ghost)]
