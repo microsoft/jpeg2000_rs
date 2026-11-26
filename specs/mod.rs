@@ -8928,7 +8928,7 @@ pub open spec fn part2_tier1_initial_decoder(
         match tier1_empty_plane(width, height) {
             Err(error) => Err(error),
             Ok(plane) => Ok(Tier1DecoderState {
-                plane, orientation, style, maximum_passes: (significant as int * 3 - 2) as u32,
+                plane, private_plan: false, orientation, style, maximum_passes: (significant as int * 3 - 2) as u32,
                 next_pass: 0, bitplane: (significant - 1) as u16, zero_bitplanes: None,
                 bitplane_state: None, mq_context_state: None, reset_contexts_before_mq: false,
                 decoded_segments: 0, decoded_bytes: 0, legacy_segment: None, legacy_decode_work: 0,
@@ -10224,7 +10224,7 @@ pub open spec fn part2_decode_tile_parts_owned(
             match part2_progression_tile_plan_owned(
                 size, metadata.first.coding_style, &metadata.first.component_coding_styles,
                 metadata.first.component_quantizations, &metadata.first.roi_shifts, (tile, levels),
-                (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps)), limits,
+                (part2_profile_multiple_sets(caps), part2_profile_magnitude_bound(caps), part2_profile_force_ht(caps), true), limits,
             ) {
                 Err(error) => Err(error),
                 Ok(plan) => match part2_planned_tile_accounting(plan, maximum, initial, limits) {
@@ -10304,7 +10304,7 @@ pub struct Part2ProgressionTilePlan {
 pub open spec fn part2_tile_plan_components(
     size: &crate::codestream::ImageSize, coding_style: crate::codestream::CodingStyle,
     styles: &crate::codestream::ComponentCodingStyles, quantizations: (u16, Seq<crate::codestream::Quantization>),
-    roi: &crate::codestream::RoiShifts, selection: (u16, u8), policy: (bool, u8, bool),
+    roi: &crate::codestream::RoiShifts, selection: (u16, u8), policy: (bool, u8, bool, bool),
     limits: &crate::ResourceLimits, grid: Part1PacketGrid, component: u16, before: Part2TilePlanBuffers,
 ) -> Result<Part2ProgressionTilePlan, crate::DecodeError>
     decreases if component < crate::codestream::image_size_component_count(size) {
@@ -10332,7 +10332,7 @@ pub open spec fn part2_tile_plan_components(
 pub open spec fn part2_progression_tile_plan(
     size: &crate::codestream::ImageSize, coding_style: crate::codestream::CodingStyle,
     styles: &crate::codestream::ComponentCodingStyles, quantizations: &crate::codestream::ComponentQuantizations,
-    roi: &crate::codestream::RoiShifts, selection: (u16, u8), policy: (bool, u8, bool), limits: &crate::ResourceLimits,
+    roi: &crate::codestream::RoiShifts, selection: (u16, u8), policy: (bool, u8, bool, bool), limits: &crate::ResourceLimits,
 ) -> Result<Part2ProgressionTilePlan, crate::DecodeError> {
     part2_progression_tile_plan_owned(size, coding_style, styles, crate::codestream::quantization_owner_view(quantizations),
         roi, selection, policy, limits)
@@ -10341,7 +10341,7 @@ pub open spec fn part2_progression_tile_plan(
 pub open spec fn part2_progression_tile_plan_owned(
     size: &crate::codestream::ImageSize, coding_style: crate::codestream::CodingStyle,
     styles: &crate::codestream::ComponentCodingStyles, quantizations: (u16, Seq<crate::codestream::Quantization>),
-    roi: &crate::codestream::RoiShifts, selection: (u16, u8), policy: (bool, u8, bool), limits: &crate::ResourceLimits,
+    roi: &crate::codestream::RoiShifts, selection: (u16, u8), policy: (bool, u8, bool, bool), limits: &crate::ResourceLimits,
 ) -> Result<Part2ProgressionTilePlan, crate::DecodeError> {
     match part2_selection_tile_bounds(crate::codestream::selection_geometry_view(size), selection.0) {
         Err(error) => Err(error),
@@ -10367,13 +10367,13 @@ pub struct Part2PlannedComponent {
 
 pub open spec fn part2_component_plan_precinct(
     component: u16, resolution: u8, meta: Part2ComponentPlanMetadata, data: Part2ResolutionPlanMetadata,
-    policy: (bool, u8, bool), limits: &crate::ResourceLimits, precinct: u32, before: Part2ComponentPlanBuffers,
+    policy: (bool, u8, bool, bool), limits: &crate::ResourceLimits, precinct: u32, before: Part2ComponentPlanBuffers,
 ) -> Result<Part2ComponentPlanBuffers, crate::DecodeError> {
     match part2_planned_precinct_origin(data.first_precinct, data.geometry.precincts_across, precinct, data.band_size) {
         Err(error) => Err(error),
         Ok(origin) => match part2_planned_precinct(
             [origin[0], origin[1], data.band_size[0], data.band_size[1]], data.block_size, meta.subbands,
-            (data.first_subband, data.subband_count), meta.tier1_style, (policy.0, policy.1),
+            (data.first_subband, data.subband_count), meta.tier1_style, (policy.0, policy.1, policy.3),
             (component, resolution, precinct, before.precincts.len() as usize), before.placements, before.planned_code_blocks,
             resolution <= meta.output_resolution, limits,
         ) {
@@ -10389,7 +10389,7 @@ pub open spec fn part2_component_plan_precinct(
 #[verifier::opaque]
 pub open spec fn part2_component_plan_precincts(
     component: u16, resolution: u8, meta: Part2ComponentPlanMetadata, data: Part2ResolutionPlanMetadata,
-    policy: (bool, u8, bool), limits: &crate::ResourceLimits, precinct: nat, before: Part2ComponentPlanBuffers,
+    policy: (bool, u8, bool, bool), limits: &crate::ResourceLimits, precinct: nat, before: Part2ComponentPlanBuffers,
 ) -> Result<Part2ComponentPlanBuffers, crate::DecodeError>
     decreases if precinct < data.precincts_in_resolution { (data.precincts_in_resolution as int - precinct) as nat } else { 0nat },
 {
@@ -10404,7 +10404,7 @@ pub open spec fn part2_component_plan_precincts(
 #[verifier::opaque]
 pub open spec fn part2_component_plan_resolutions(
     size: &crate::codestream::ImageSize, component: u16, tile: u16, meta: Part2ComponentPlanMetadata,
-    policy: (bool, u8, bool), limits: &crate::ResourceLimits, resolution: nat, before: Part2ComponentPlanBuffers,
+    policy: (bool, u8, bool, bool), limits: &crate::ResourceLimits, resolution: nat, before: Part2ComponentPlanBuffers,
 ) -> Result<Part2PlannedComponent, crate::DecodeError>
     decreases if resolution <= meta.coding_style.decomposition_levels { (meta.coding_style.decomposition_levels as int + 1 - resolution) as nat } else { 0nat },
 {
@@ -10431,7 +10431,7 @@ pub open spec fn part2_component_plan_resolutions(
 pub open spec fn part2_planned_component(
     size: &crate::codestream::ImageSize, styles: &crate::codestream::ComponentCodingStyles,
     quantizations: &crate::codestream::ComponentQuantizations, roi: &crate::codestream::RoiShifts,
-    component: u16, selection: (u16, u8), policy: (bool, u8, bool), precincts: Seq<Part1PacketPrecinctState>,
+    component: u16, selection: (u16, u8), policy: (bool, u8, bool, bool), precincts: Seq<Part1PacketPrecinctState>,
     total: u64, limits: &crate::ResourceLimits,
 ) -> Result<Part2PlannedComponent, crate::DecodeError> {
     part2_planned_component_owned(size, styles, crate::codestream::quantization_owner_view(quantizations), roi,
@@ -10441,7 +10441,7 @@ pub open spec fn part2_planned_component(
 pub open spec fn part2_planned_component_owned(
     size: &crate::codestream::ImageSize, styles: &crate::codestream::ComponentCodingStyles,
     quantizations: (u16, Seq<crate::codestream::Quantization>), roi: &crate::codestream::RoiShifts,
-    component: u16, selection: (u16, u8), policy: (bool, u8, bool), precincts: Seq<Part1PacketPrecinctState>,
+    component: u16, selection: (u16, u8), policy: (bool, u8, bool, bool), precincts: Seq<Part1PacketPrecinctState>,
     total: u64, limits: &crate::ResourceLimits,
 ) -> Result<Part2PlannedComponent, crate::DecodeError> {
     match part2_component_plan_metadata_owned(size, styles, quantizations, roi, component, selection, policy.2) {
@@ -10580,7 +10580,7 @@ pub struct Part2PlannedPrecinct {
 
 pub open spec fn part2_planned_precinct_subband(
     band: [u32; 4], block_size: [u32; 2], subbands: Seq<crate::decode::SubbandGeometry>,
-    first: usize, local: usize, style: crate::tier1::Tier1CodingStyle, policy: (bool, u8),
+    first: usize, local: usize, style: crate::tier1::Tier1CodingStyle, policy: (bool, u8, bool),
     precinct_index: usize, selected: bool, limits: &crate::ResourceLimits, before: Part2PrecinctPlanBuilder,
 ) -> Result<Part2PrecinctPlanBuilder, crate::DecodeError> {
     let index = first as nat + local as nat;
@@ -10601,7 +10601,7 @@ pub open spec fn part2_planned_precinct_subband(
 #[verifier::opaque]
 pub open spec fn part2_planned_precinct_rows(
     band: [u32; 4], block_size: [u32; 2], subbands: Seq<crate::decode::SubbandGeometry>, range: (usize, usize),
-    style: crate::tier1::Tier1CodingStyle, policy: (bool, u8), location: (u16, u8, u32, usize),
+    style: crate::tier1::Tier1CodingStyle, policy: (bool, u8, bool), location: (u16, u8, u32, usize),
     selected: bool, limits: &crate::ResourceLimits, local: nat, builder: Part2PrecinctPlanBuilder,
 ) -> Result<Part2PlannedPrecinct, crate::DecodeError>
     decreases if local < range.1 { (range.1 as int - local) as nat } else { 0nat },
@@ -10622,7 +10622,7 @@ pub open spec fn part2_planned_precinct_rows(
 
 pub open spec fn part2_planned_precinct(
     band: [u32; 4], block_size: [u32; 2], subbands: Seq<crate::decode::SubbandGeometry>, range: (usize, usize),
-    style: crate::tier1::Tier1CodingStyle, policy: (bool, u8), location: (u16, u8, u32, usize),
+    style: crate::tier1::Tier1CodingStyle, policy: (bool, u8, bool), location: (u16, u8, u32, usize),
     placements: Seq<crate::decode::ProgressionCodeBlockPlacement>, total: u64, selected: bool, limits: &crate::ResourceLimits,
 ) -> Result<Part2PlannedPrecinct, crate::DecodeError> {
     part2_planned_precinct_rows(band, block_size, subbands, range, style, policy, location, selected, limits, 0,
@@ -10693,7 +10693,7 @@ pub struct Part2PlannedSubbandExecution {
 
 pub open spec fn part2_planned_subband_execution(
     band: [u32; 4], block_size: [u32; 2], subband: crate::decode::SubbandGeometry,
-    style: crate::tier1::Tier1CodingStyle, policy: (bool, u8), indices: (usize, usize, usize),
+    style: crate::tier1::Tier1CodingStyle, policy: (bool, u8, bool), indices: (usize, usize, usize),
     placements: Seq<crate::decode::ProgressionCodeBlockPlacement>, total: u64, selected: bool, limits: &crate::ResourceLimits,
 ) -> Result<Part2PlannedSubbandExecution, crate::DecodeError> {
     match part2_planned_subband_lattice(band, block_size, subband) {
@@ -10725,13 +10725,13 @@ pub struct Part2PlannedCodeBlocks {
 pub open spec fn part2_planned_codeblock_cell(
     grid: [u32; 4], clip: [u32; 4], block: [u32; 2],
     subband: crate::decode::SubbandGeometry, style: crate::tier1::Tier1CodingStyle,
-    policy: (bool, u8), indices: (usize, usize), before: Part2PlannedCodeBlocks,
+    policy: (bool, u8, bool), indices: (usize, usize), before: Part2PlannedCodeBlocks,
 ) -> Result<Part2PlannedCodeBlocks, crate::DecodeError> {
     match part2_planned_codeblock_geometry(grid, clip, block) {
         Err(error) => Err(error),
-        Ok(geometry) => match part2_tier1_configured_decoder(
+        Ok(geometry) => match part2_with_ht_checkpoint(part2_tier1_configured_decoder(
             geometry.2, geometry.3, subband.significant_bitplanes, subband.orientation, style, policy.0, policy.1,
-        ) {
+        ), policy.2) {
             Err(error) => Err(error),
             Ok(decoder) => {
                 let x = geometry.0 as int - subband.x0 as int;
@@ -10758,7 +10758,7 @@ pub open spec fn part2_planned_codeblock_cell(
 pub open spec fn part2_planned_codeblock_columns(
     grid: [u32; 4], clip: [u32; 4], across: u32,
     subband: crate::decode::SubbandGeometry, style: crate::tier1::Tier1CodingStyle,
-    policy: (bool, u8), indices: (usize, usize), row: u32, column: nat, state: Part2PlannedCodeBlocks,
+    policy: (bool, u8, bool), indices: (usize, usize), row: u32, column: nat, state: Part2PlannedCodeBlocks,
 ) -> Result<Part2PlannedCodeBlocks, crate::DecodeError>
     decreases if column < across { (across as int - column) as nat } else { 0nat },
 {
@@ -10775,7 +10775,7 @@ pub open spec fn part2_planned_codeblock_columns(
 pub open spec fn part2_planned_codeblock_rows(
     grid: [u32; 4], clip: [u32; 4], blocks: [u32; 2],
     subband: crate::decode::SubbandGeometry, style: crate::tier1::Tier1CodingStyle,
-    policy: (bool, u8), indices: (usize, usize), row: nat, state: Part2PlannedCodeBlocks,
+    policy: (bool, u8, bool), indices: (usize, usize), row: nat, state: Part2PlannedCodeBlocks,
 ) -> Result<Part2PlannedCodeBlocks, crate::DecodeError>
     decreases if row < blocks[1] { (blocks[1] as int - row) as nat } else { 0nat },
 {
@@ -10792,7 +10792,7 @@ pub open spec fn part2_planned_codeblock_rows(
 pub open spec fn part2_planned_codeblocks(
     grid: [u32; 4], clip: [u32; 4], blocks: [u32; 2],
     subband: crate::decode::SubbandGeometry, style: crate::tier1::Tier1CodingStyle,
-    policy: (bool, u8), indices: (usize, usize, usize),
+    policy: (bool, u8, bool), indices: (usize, usize, usize),
     placements: Seq<crate::decode::ProgressionCodeBlockPlacement>, total: u64,
     selected: bool, limits: &crate::ResourceLimits,
 ) -> Result<Part2PlannedCodeBlocks, crate::DecodeError> {
@@ -10825,6 +10825,7 @@ pub open spec fn part2_tier1_magnitude_bound(before: Tier1DecoderState, bound: u
 
 pub struct Tier1DecoderState {
     pub plane: Tier1RawPlane,
+    pub private_plan: bool,
     pub orientation: crate::tier1::SubbandOrientation,
     pub style: crate::tier1::Tier1CodingStyle,
     pub maximum_passes: u32,
@@ -10846,6 +10847,20 @@ pub struct Tier1DecoderState {
     pub ht_sets_seen: u16,
     pub allow_multiple_ht_sets: bool,
     pub ht_magnitude_bound: u8,
+}
+
+pub open spec fn part2_with_ht_checkpoint(
+    result: Result<Tier1DecoderState, crate::DecodeError>, pack: bool,
+) -> Result<Tier1DecoderState, crate::DecodeError> {
+    match result {
+        Ok(state) => Ok(Tier1DecoderState { private_plan: pack && ht_block_coding_enabled(state.style.block_coding), ..state }),
+        Err(error) => Err(error),
+    }
+}
+
+pub open spec fn part2_configured_checkpoint(width:u16,height:u16,significant:u16,orientation:crate::tier1::SubbandOrientation,
+    style:crate::tier1::Tier1CodingStyle,allowed:bool,bound:u8,pack:bool)->Result<Tier1DecoderState,crate::DecodeError> {
+    part2_with_ht_checkpoint(part2_tier1_configured_decoder(width,height,significant,orientation,style,allowed,bound),pack)
 }
 
 pub open spec fn tier1_duplicate_plane(plane: Tier1RawPlane) -> Result<Tier1RawPlane, crate::DecodeError> {

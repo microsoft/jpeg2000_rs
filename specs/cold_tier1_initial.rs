@@ -3,6 +3,7 @@ use super::*;
 verus! {
 pub enum Part2Tier1StorageEvent {
     CompactInitialCapacity {width:usize,height:usize,elements:nat,succeeded:bool},
+    HtPackedCleanup {source:Tier1RawPlane,elements:nat,succeeded:bool},
     MultiContributions {context:Part2MultiContributionsContext,elements:nat,succeeded:bool},
     PayloadMetadataCopy {source:Part2OwnedTilePart,calls:Seq<Part1ColdStorageEvent>},
     MctRuntimeCapacity {context:Part2MctRuntimeCapacity,elements:nat,succeeded:bool},
@@ -253,9 +254,29 @@ pub(crate) proof fn part2_tier1_configured_initial_error(width:u16,height:u16,si
     part2_tier1_storage_bind_frame(|calls|part2_tier1_initial_run(width,height,significant,orientation,style,calls),
         |_:Tier1DecoderState,rest|Some((part2_tier1_configured_decoder(width,height,significant,orientation,style,allowed,bound),rest)),Err(error),Err(error));
 }
+pub(crate) open spec fn part2_tier1_configured_checkpoint_run(width:u16,height:u16,significant:u16,orientation:crate::tier1::SubbandOrientation,
+    style:crate::tier1::Tier1CodingStyle,allowed:bool,bound:u8,pack:bool,calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<Tier1DecoderState> {
+    part2_tier1_storage_resume(part2_tier1_configured_run(width,height,significant,orientation,style,allowed,bound,calls),
+        |configured:Result<Tier1DecoderState,crate::DecodeError>,rest|Some((part2_with_ht_checkpoint(configured,pack),rest)))
+}
+pub(crate) open spec fn part2_tier1_configured_checkpoint_result(width:u16,height:u16,significant:u16,orientation:crate::tier1::SubbandOrientation,
+    style:crate::tier1::Tier1CodingStyle,allowed:bool,bound:u8,pack:bool,result:Result<Tier1DecoderState,crate::DecodeError>)->bool {
+    part2_tier1_storage_framed(|calls|part2_tier1_configured_checkpoint_run(width,height,significant,orientation,style,allowed,bound,pack,calls),result)
+}
+pub(crate) proof fn part2_tier1_configured_checkpoint_observed(width:u16,height:u16,significant:u16,orientation:crate::tier1::SubbandOrientation,
+    style:crate::tier1::Tier1CodingStyle,allowed:bool,bound:u8,pack:bool,configured:Result<Tier1DecoderState,crate::DecodeError>)
+    requires part1_tier1_configured_storage_result(width,height,significant,orientation,style,allowed,bound,configured),
+    ensures part2_tier1_configured_checkpoint_result(width,height,significant,orientation,style,allowed,bound,pack,part2_with_ht_checkpoint(configured,pack)),
+{
+    reveal(part1_tier1_configured_storage_result);
+    let result=part2_with_ht_checkpoint(configured,pack);
+    part2_tier1_storage_pure(result);
+    part2_tier1_resume_frame(|calls|part2_tier1_configured_run(width,height,significant,orientation,style,allowed,bound,calls),
+        |configured:Result<Tier1DecoderState,crate::DecodeError>,rest|Some((part2_with_ht_checkpoint(configured,pack),rest)),configured,result);
+}
 pub struct Part2Tier1CallContext {
     pub width:u16,pub height:u16,pub significant:u16,pub orientation:crate::tier1::SubbandOrientation,pub style:crate::tier1::Tier1CodingStyle,
-    pub allowed:bool,pub bound:u8,pub grid:[u32;4],pub clip:[u32;4],pub block:[u32;2],pub indices:(usize,usize),pub before:Part2PlannedCodeBlocks,
+    pub allowed:bool,pub bound:u8,pub pack_ht_checkpoint:bool,pub grid:[u32;4],pub clip:[u32;4],pub block:[u32;2],pub indices:(usize,usize),pub before:Part2PlannedCodeBlocks,
 }
 pub(crate) open spec fn part2_tier1_call_admit(context:Part2Tier1CallContext)->Result<usize,crate::DecodeError> {
     if context.significant==0 || context.significant>crate::tier1::MAX_TIER1_BITPLANES{Err(ht_reader_error(crate::MalformedKind::InvalidCodeBlock))}
@@ -264,11 +285,11 @@ pub(crate) open spec fn part2_tier1_call_admit(context:Part2Tier1CallContext)->R
 pub(crate) open spec fn part2_tier1_call_run(context:Part2Tier1CallContext,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Tier1DecoderState> {
     match part2_tier1_call_admit(context) {
         Err(error)=>Some((Err(error),events)),
-        Ok(count)=>if count==0{Some((part2_tier1_configured_decoder(context.width,context.height,context.significant,context.orientation,context.style,context.allowed,context.bound),events))}
+        Ok(count)=>if count==0{Some((part2_configured_checkpoint(context.width,context.height,context.significant,context.orientation,context.style,context.allowed,context.bound,context.pack_ht_checkpoint),events))}
         else if events.len()==0{None}else{
             match events[0] {
                 Part2JpipSnapshotEvent::Tier1Initial {context:actual,calls}=>if actual!=context{None}else{
-                    match part2_tier1_configured_run(context.width,context.height,context.significant,context.orientation,context.style,context.allowed,context.bound,calls){
+                    match part2_tier1_configured_checkpoint_run(context.width,context.height,context.significant,context.orientation,context.style,context.allowed,context.bound,context.pack_ht_checkpoint,calls){
                         Some((result,rest))=>if rest.len()==0{Some((result,events.drop_first()))}else{None},None=>None,
                     }
                 },
@@ -278,12 +299,12 @@ pub(crate) open spec fn part2_tier1_call_run(context:Part2Tier1CallContext,event
     }
 }
 pub(crate) proof fn part2_tier1_call_observed(context:Part2Tier1CallContext,result:Result<Tier1DecoderState,crate::DecodeError>)
-    requires part1_tier1_configured_storage_result(context.width,context.height,context.significant,context.orientation,context.style,context.allowed,context.bound,result),
+    requires part2_tier1_configured_checkpoint_result(context.width,context.height,context.significant,context.orientation,context.style,context.allowed,context.bound,context.pack_ht_checkpoint,result),
     ensures part2_cold_framed(|events|part2_tier1_call_run(context,events),result),
         forall|other:spec_fn(Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Tier1DecoderState>|
             (forall|events| #[trigger] other(events)==part2_tier1_call_run(context,events)) ==> #[trigger] part2_cold_framed(other,result),
 {
-    let raw=|calls|part2_tier1_configured_run(context.width,context.height,context.significant,context.orientation,context.style,context.allowed,context.bound,calls);
+    let raw=|calls|part2_tier1_configured_checkpoint_run(context.width,context.height,context.significant,context.orientation,context.style,context.allowed,context.bound,context.pack_ht_checkpoint,calls);
     let calls=choose|prefix| #[trigger] part2_tier1_storage_prefix(raw,prefix,result);
     assert(calls+Seq::empty() =~= calls);assert(raw(calls)==Some((result,Seq::empty())));
     let prefix=match part2_tier1_call_admit(context){
@@ -297,9 +318,11 @@ pub(crate) proof fn part2_tier1_call_observed(context:Part2Tier1CallContext,resu
 }
 pub(crate) proof fn part2_tier1_call_normal(context:Part2Tier1CallContext)
     ensures part2_cold_framed(|events|part2_tier1_call_run(context,events),
-        part2_tier1_configured_decoder(context.width,context.height,context.significant,context.orientation,context.style,context.allowed,context.bound)),
+        part2_configured_checkpoint(context.width,context.height,context.significant,context.orientation,context.style,context.allowed,context.bound,context.pack_ht_checkpoint)),
 {
     part2_tier1_configured_normal(context.width,context.height,context.significant,context.orientation,context.style,context.allowed,context.bound);
-    part2_tier1_call_observed(context,part2_tier1_configured_decoder(context.width,context.height,context.significant,context.orientation,context.style,context.allowed,context.bound));
+    part2_tier1_configured_checkpoint_observed(context.width,context.height,context.significant,context.orientation,context.style,
+        context.allowed,context.bound,context.pack_ht_checkpoint,part2_tier1_configured_decoder(context.width,context.height,context.significant,context.orientation,context.style,context.allowed,context.bound));
+    part2_tier1_call_observed(context,part2_configured_checkpoint(context.width,context.height,context.significant,context.orientation,context.style,context.allowed,context.bound,context.pack_ht_checkpoint));
 }
 }

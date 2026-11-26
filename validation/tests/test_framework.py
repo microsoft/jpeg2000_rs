@@ -9970,7 +9970,7 @@ class FrameworkTests(WorkingFiles):
             ("src/tier1/state.rs", "CodeBlockPlane::try_duplicate_raw", "width: self.width", "width: 1"),
             ("src/tier1/state.rs", "CodeBlockPlane::clone", "self.coefficients.clone()", "Vec::new()"),
             ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate", "self.plane.try_duplicate_raw(role, false, false)", "self.plane.try_duplicate_raw(role, true, false)"),
-            ("src/tier1/contributions.rs", "Tier1CodeBlockDecoder::try_duplicate", "source.try_duplicate_raw(role, true, false)", "source.try_duplicate_raw(role, false, false)"),
+            ("src/tier1/ht_checkpoint.rs", "HtCleanupCheckpoint::try_duplicate_for_storage", "plane.try_duplicate_raw(role, true, false)", "plane.try_duplicate_raw(role, false, false)"),
         )
         for relative, symbol, before, after in cases:
             source = framework.ROOT / relative
@@ -10544,7 +10544,7 @@ class FrameworkTests(WorkingFiles):
             ("specs/cold_tier1_planes.rs", "part2_plane_refinement_after_flags", "Err(error)=>Some((Err(error),calls))", "Err(error)=>Some((Err(error),Seq::empty()))"),
             ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance", "empty_with_capacity(count)", "empty_with_capacity(1)"),
             ("src/tier1/ht_refinement.rs", "ht_collect_cleanup_significance", "coefficients[index].significant", "coefficients[index].negative"),
-            ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane", "ht_collect_cleanup_significance(cleanup_plane.coefficients())", "ht_collect_cleanup_significance(output.coefficients())"),
+            ("src/tier1/ht_refinement.rs", "decode_ht_refinement_plane", "ht_collect_cleanup_significance(output.coefficients())", "ht_collect_cleanup_significance(&[])"),
         ):
             source = framework.ROOT / relative
             original = source.read_text()
@@ -10953,6 +10953,44 @@ class FrameworkTests(WorkingFiles):
         ]
         with self.assertRaisesRegex(ValueError, "remaining plane storage requires bounded"):
             framework.validate_normative_coverage(missing)
+
+    def test_inventory_ht_checkpoint_binds_private_mode_packed_tape_and_refinement_source(self):
+        coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
+        entry = next(item for item in coverage["requirements"] if item["id"] == "part15-cleanup-only-actual-symbol-caller")
+        data = dict(coverage, requirements=[entry])
+        self.assertEqual(framework.validate_normative_coverage(data)["status"], "passed")
+        read_text = Path.read_text
+        for relative, before, after in (
+            ("src/tier1/ht_cleanup.rs", "retain_ht_cleanup(&output, private_plan)",
+             "retain_ht_cleanup(&output, true)"),
+            ("src/tier1/ht_contributions.rs", "decode_ht_refinement_plane(\n                cleanup_plane.read(),",
+             "decode_ht_refinement_plane(\n                fake_cleanup,"),
+            ("src/tier1/ht_checkpoint.rs", "words.push(pack_word(source.coefficients[index]))", "words.push(0)"),
+            ("specs/cold_tier1_planes.rs", "actual!=source || elements!=source.coefficients.len()+1",
+             "actual!=source || elements!=source.coefficients.len()"),
+            ("src/tier1/ht_checkpoint.rs", "geometry_word(source.width, source.height)", "geometry_word(source.width, source.width)"),
+            ("src/tier1/ht_checkpoint.rs", "&self.words[1..]", "&self.words[..]"),
+            ("src/tier1/ht_checkpoint.rs", "return (0, 0, &[])", "return (1, 0, &[])"),
+            ("src/tier1/ht_checkpoint.rs", "code_block_plane_from_dimensions(width, height, role)",
+             "code_block_plane_from_dimensions(height, width, role)"),
+            ("src/decode/planning.rs", "        false,\n        74,\n        false,\n        false,\n        limits,",
+             "        false,\n        74,\n        false,\n        true,\n        limits,"),
+            ("src/decode/execution.rs", "        profile.part15_requires_all_ht_blocks(),\n        true,\n        limits,",
+             "        profile.part15_requires_all_ht_blocks(),\n        false,\n        limits,"),
+            ("src/tier1/contributions.rs", "decoder.private_plan = pack_ht_checkpoint && style.block_coding.uses_high_throughput();",
+             "decoder.private_plan = pack_ht_checkpoint;"),
+        ):
+            source = framework.ROOT / relative
+            original = source.read_text()
+            self.assertIn(before, original)
+            changed = original.replace(before, after, 1)
+
+            def altered(path, *args, **kwargs):
+                return changed if path == source else read_text(path, *args, **kwargs)
+
+            with self.subTest(source=relative), mock.patch.object(Path, "read_text", altered), \
+                    self.assertRaisesRegex(ValueError, "remaining plane storage"):
+                framework.validate_normative_coverage(data)
 
     def test_inventory_nested_packet_precinct_storage_requires_primitive_calls_roles_and_prior_owners(self):
         coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
@@ -12294,7 +12332,7 @@ class FrameworkTests(WorkingFiles):
         original_coverage = json.loads((framework.VALIDATION / "normative-coverage.json").read_text())
         cases = (
             ("decode_ht_refinement_plane", "ht_refinement_plane", "ht_plane_outcome", None,
-             ((r"code_block_plane_view\(cleanup_plane\)", "code_block_plane_view(unrelated)"),
+             ((r"cleanup_plane\.view\(\)", "unrelated.view()"),
               (r"resource_work_limit\(limits\)", "resource_work_limit(unrelated)"))),
             ("HtRefinementPlaneState::magnitude_sample", "ht_magref_sample", None, "ht_refinement_core_view",
              ((r"magnitude_value\(delta\)", "magnitude_limbs(delta)"),)),

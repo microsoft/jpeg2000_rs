@@ -3,13 +3,13 @@ use super::*;
 verus! {
 pub(crate) open spec fn part2_component_owner_context(size:&crate::codestream::ImageSize,style:crate::codestream::CodingStyle,
     styles:&crate::codestream::ComponentCodingStyles,quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,
-    selection:(u16,u8),policy:(bool,u8,bool))->Part2ComponentCapacityContext {
+    selection:(u16,u8),policy:(bool,u8,bool,bool))->Part2ComponentCapacityContext {
     Part2ComponentCapacityContext::Components {size:*size,style,styles:*styles,quantizations,roi:*roi,selection,policy}
 }
 #[verifier::opaque]
 pub(crate) open spec fn part2_component_plan_fold(size:&crate::codestream::ImageSize,style:crate::codestream::CodingStyle,
     styles:&crate::codestream::ComponentCodingStyles,quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,
-    selection:(u16,u8),policy:(bool,u8,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid,component:u16,before:Part2TilePlanBuffers,
+    selection:(u16,u8),policy:(bool,u8,bool,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid,component:u16,before:Part2TilePlanBuffers,
     events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2ProgressionTilePlan>
     decreases if component<crate::codestream::image_size_component_count(size){(crate::codestream::image_size_component_count(size) as int-component as int) as nat}else{0nat},
 {
@@ -23,7 +23,7 @@ pub(crate) open spec fn part2_component_plan_fold(size:&crate::codestream::Image
 }
 pub(crate) proof fn part2_component_plan_fold_normal(size:&crate::codestream::ImageSize,style:crate::codestream::CodingStyle,
     styles:&crate::codestream::ComponentCodingStyles,quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,
-    selection:(u16,u8),policy:(bool,u8,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid,component:u16,before:Part2TilePlanBuffers)
+    selection:(u16,u8),policy:(bool,u8,bool,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid,component:u16,before:Part2TilePlanBuffers)
     ensures part2_cold_framed(|events|part2_component_plan_fold(size,style,styles,quantizations,roi,selection,policy,limits,grid,component,before,events),
         part2_tile_plan_components(size,style,styles,quantizations,roi,selection,policy,limits,grid,component,before)),
     decreases if component<crate::codestream::image_size_component_count(size){(crate::codestream::image_size_component_count(size) as int-component as int) as nat}else{0nat},
@@ -46,14 +46,14 @@ pub(crate) proof fn part2_component_plan_fold_normal(size:&crate::codestream::Im
 }
 pub(crate) open spec fn part2_plan_after_grid_run(size:&crate::codestream::ImageSize,style:crate::codestream::CodingStyle,
     styles:&crate::codestream::ComponentCodingStyles,quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,
-    selection:(u16,u8),policy:(bool,u8,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2ProgressionTilePlan> {
+    selection:(u16,u8),policy:(bool,u8,bool,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid,events:Seq<Part2JpipSnapshotEvent>)->Part2ColdRun<Part2ProgressionTilePlan> {
     part2_jpip_snapshot_bind(part2_component_capacity_run(part2_component_owner_context(size,style,styles,quantizations,roi,selection,policy),events),
         |_:(),rest|part2_component_plan_fold(size,style,styles,quantizations,roi,selection,policy,limits,grid,0,
             Part2TilePlanBuffers {precincts:Seq::empty(),components:Seq::empty(),planned_code_blocks:0},rest))
 }
 pub(crate) proof fn part2_plan_after_grid_normal(size:&crate::codestream::ImageSize,style:crate::codestream::CodingStyle,
     styles:&crate::codestream::ComponentCodingStyles,quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,
-    selection:(u16,u8),policy:(bool,u8,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid)
+    selection:(u16,u8),policy:(bool,u8,bool,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid)
     requires part2_selection_tile_bounds(crate::codestream::selection_geometry_view(size),selection.0).is_ok(),
         part2_spatial_packet_grid_from_components(size,styles,style.layers,limits,Some(selection.0),selection.1)==Ok(grid),
     ensures part2_cold_framed(|events|part2_plan_after_grid_run(size,style,styles,quantizations,roi,selection,policy,limits,grid,events),
@@ -71,7 +71,7 @@ pub(crate) proof fn part2_plan_after_grid_normal(size:&crate::codestream::ImageS
 }
 pub(crate) proof fn part2_plan_component_owner_refused(size:&crate::codestream::ImageSize,style:crate::codestream::CodingStyle,
     styles:&crate::codestream::ComponentCodingStyles,quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,
-    selection:(u16,u8),policy:(bool,u8,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid)
+    selection:(u16,u8),policy:(bool,u8,bool,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid)
     requires part2_selection_tile_bounds(crate::codestream::selection_geometry_view(size),selection.0).is_ok(),
         part2_spatial_derived_grid_result(size,styles,style.layers,limits,Some(selection.0),selection.1,Ok(grid)),
         part2_component_capacity_result(part2_component_owner_context(size,style,styles,quantizations,roi,selection,policy),Err(crate::DecodeError::AllocationFailed)),
@@ -88,7 +88,7 @@ pub(crate) proof fn part2_plan_component_owner_refused(size:&crate::codestream::
 }
 pub(crate) proof fn part2_plan_component_prefix(size:&crate::codestream::ImageSize,style:crate::codestream::CodingStyle,
     styles:&crate::codestream::ComponentCodingStyles,quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,
-    selection:(u16,u8),policy:(bool,u8,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid)->(prefix:Seq<Part2JpipSnapshotEvent>)
+    selection:(u16,u8),policy:(bool,u8,bool,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid)->(prefix:Seq<Part2JpipSnapshotEvent>)
     requires part2_selection_tile_bounds(crate::codestream::selection_geometry_view(size),selection.0).is_ok(),
         part2_spatial_derived_grid_result(size,styles,style.layers,limits,Some(selection.0),selection.1,Ok(grid)),
         part2_component_capacity_result(part2_component_owner_context(size,style,styles,quantizations,roi,selection,policy),Ok(())),
@@ -111,7 +111,7 @@ pub(crate) proof fn part2_plan_component_prefix(size:&crate::codestream::ImageSi
 }
 pub(crate) proof fn part2_component_fold_step(size:&crate::codestream::ImageSize,style:crate::codestream::CodingStyle,
     styles:&crate::codestream::ComponentCodingStyles,quantizations:(u16,Seq<crate::codestream::Quantization>),roi:&crate::codestream::RoiShifts,
-    selection:(u16,u8),policy:(bool,u8,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid,component:u16,before:Part2TilePlanBuffers)
+    selection:(u16,u8),policy:(bool,u8,bool,bool),limits:&crate::ResourceLimits,grid:Part1PacketGrid,component:u16,before:Part2TilePlanBuffers)
     requires component<crate::codestream::image_size_component_count(size),
     ensures forall|events| #[trigger] part2_component_plan_fold(size,style,styles,quantizations,roi,selection,policy,limits,grid,component,before,events)
         ==part2_jpip_snapshot_bind(part2_planned_component_run(size,styles,quantizations,roi,component,selection,policy,before.precincts,before.planned_code_blocks,limits,events),

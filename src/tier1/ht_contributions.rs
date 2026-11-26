@@ -1,3 +1,4 @@
+use super::ht_checkpoint::HtCleanupCheckpoint;
 use super::ht_cleanup::{ht_significant_bitplanes, prepare_ht_cleanup_symbols};
 use super::ht_refinement::{copy_ht_refinement_bytes, decode_ht_refinement_plane};
 use super::ht_segments::{ht_pass_group_from_packet, parse_ht_block_segments};
@@ -222,9 +223,18 @@ impl Tier1CodeBlockDecoder {
         limits: &ResourceLimits,
     ) -> Result<Tier1SegmentDecode, DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof_decl! {let ghost before=tier1_decoder_state(self);}
-        #[cfg(verus_keep_ghost)]
-        proof! {crate::specs::part2_ht_coeff_normal(before,ht_block_segments_view(&segments),pass_count,maximum_u,skipped_bitplanes,crate::limits::resource_work_limit(limits));}
+        proof_decl! {
+            let ghost before=tier1_decoder_state(self);
+            let ghost coded=ht_block_segments_view(&segments);
+            let ghost work=crate::limits::resource_work_limit(limits);
+            let ghost ordinary=crate::specs::ht_coefficient_symbols(before,coded,pass_count,maximum_u,skipped_bitplanes,work);
+            let ghost cleared=crate::specs::ht_clear_refinement_state(before);
+            let ghost mut committed=ordinary;
+            proof! {
+                reveal(tier1_decoder_state);
+                crate::specs::part2_ht_coeff_normal(before,coded,pass_count,maximum_u,skipped_bitplanes,work);
+            }
+        }
         let prepared_result = prepare_ht_cleanup_symbols(
             &self.plane,
             segments.cleanup(),
@@ -232,23 +242,40 @@ impl Tier1CodeBlockDecoder {
             maximum_u,
             skipped_bitplanes,
             limits,
+            self.private_plan,
         );
         #[cfg(verus_keep_ghost)]
-        proof! {if let Err(error)=prepared_result {crate::specs::part2_ht_coeff_prepare_error(before,ht_block_segments_view(&segments),pass_count,maximum_u,skipped_bitplanes,crate::limits::resource_work_limit(limits),error);}}
+        proof! {
+            if let Err(error)=prepared_result {
+                crate::specs::part2_ht_coeff_prepare_error(before,coded,pass_count,maximum_u,skipped_bitplanes,work,error);
+                if error!=DecodeError::AllocationFailed { assert(ordinary==(Err(error),before)); }
+            }
+        }
         let (plane, cleanup_plane, statistics, decoded_bitplanes) = prepared_result?;
         #[cfg(verus_keep_ghost)]
-        proof_decl! {let ghost prepared=(code_block_plane_view(&plane),code_block_plane_view(&cleanup_plane),statistics,decoded_bitplanes);}
+        proof_decl! {let ghost prepared=(code_block_plane_view(&plane),cleanup_plane.view(),statistics,decoded_bitplanes);}
         let mut output = plane;
         let mut statistics = statistics;
         self.clear_ht_refinement_state();
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(tier1_decoder_state(self)==cleared);
+            assert(crate::specs::ht_cleanup_prepare(before.plane,coded.cleanup,before.maximum_passes,maximum_u,skipped_bitplanes,work)==Ok(prepared));
+            if coded.refinement.is_none(){
+                committed=crate::specs::ht_store_coefficient_symbols(cleared,prepared.0,prepared.1,prepared.2,prepared.3,pass_count,coded.bytes,false);
+                assert(committed==ordinary);
+            }
+        }
         if let Some(refinement) = segments.refinement() {
             let following_passes = pass_count.saturating_sub(1);
             if following_passes > u32::from(u8::MAX) {
+                #[cfg(verus_keep_ghost)]
+                proof! { assert(ordinary==(Err(crate::specs::ht_reader_error(crate::MalformedKind::ArithmeticOverflow)),cleared)); }
                 return Err(arithmetic_overflow());
             }
             let refinement_passes = following_passes as u8;
             let refined_result = decode_ht_refinement_plane(
-                &cleanup_plane,
+                cleanup_plane.read(),
                 refinement,
                 refinement_passes,
                 decoded_bitplanes,
@@ -256,13 +283,20 @@ impl Tier1CodeBlockDecoder {
                 limits,
             );
             #[cfg(verus_keep_ghost)]
-            proof! {if let Err(error)=refined_result {crate::specs::part2_ht_coeff_refinement_error(before,ht_block_segments_view(&segments),pass_count,maximum_u,skipped_bitplanes,
-            crate::limits::resource_work_limit(limits),prepared,ht_refinement_segment_view(&refinement),error);}}
+            proof! {
+                if let Err(error)=refined_result {
+                    crate::specs::part2_ht_coeff_refinement_error(before,coded,pass_count,maximum_u,skipped_bitplanes,work,prepared,ht_refinement_segment_view(&refinement),error);
+                    if error!=DecodeError::AllocationFailed { assert(ordinary==(Err(error),cleared)); }
+                }
+            }
             let (refined, refinement_statistics) = refined_result?;
             #[cfg(verus_keep_ghost)]
             proof_decl! {let ghost refinement_output=(code_block_plane_view(&refined),refinement_statistics);}
             output = refined;
-            statistics.merge(refinement_statistics)?;
+            let merged = statistics.merge(refinement_statistics);
+            #[cfg(verus_keep_ghost)]
+            proof! { if let Err(error)=merged { assert(ordinary==(Err(error),cleared)); } }
+            merged?;
             let copied = copy_ht_refinement_bytes(
                 refinement.encoded(),
                 super::HtRefinementCopyRole::CleanupRetention,
@@ -273,8 +307,19 @@ impl Tier1CodeBlockDecoder {
             refinement_output,error);}}
             self.ht_refinement_data = copied?;
             self.ht_refinement_passes = refinement_passes;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let retained=crate::specs::Tier1DecoderState {
+                    ht_refinement_data:ht_refinement_segment_view(&refinement).encoded,
+                    ht_refinement_passes:refinement_passes,..cleared
+                };
+                assert(tier1_decoder_state(self)==retained);
+                committed=crate::specs::ht_store_coefficient_symbols(retained,refinement_output.0,prepared.1,statistics,decoded_bitplanes,
+                    pass_count,coded.bytes,true);
+                assert(committed==ordinary);
+            }
         }
-        self.store_ht_coefficient_symbols(
+        let result = self.store_ht_coefficient_symbols(
             output,
             cleanup_plane,
             statistics,
@@ -282,7 +327,10 @@ impl Tier1CodeBlockDecoder {
             pass_count,
             segments.bytes(),
             segments.refinement().is_some(),
-        )
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! { assert((result,tier1_decoder_state(self))==committed); }
+        result
     }
 
     #[inline]
@@ -300,35 +348,62 @@ impl Tier1CodeBlockDecoder {
     )]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         ensures (result, tier1_decoder_state(final(self))) == crate::specs::ht_store_coefficient_symbols(
-            tier1_decoder_state(old(self)), code_block_plane_view(&output), code_block_plane_view(&cleanup_plane),
+            tier1_decoder_state(old(self)), code_block_plane_view(&output), cleanup_plane.view(),
             statistics, decoded_bitplanes, pass_count, bytes, has_refinement),
     ))]
     fn store_ht_coefficient_symbols(
         &mut self,
         output: CodeBlockPlane,
-        cleanup_plane: CodeBlockPlane,
+        cleanup_plane: HtCleanupCheckpoint,
         statistics: Tier1PassStatistics,
         decoded_bitplanes: u16,
         pass_count: u32,
         bytes: u32,
         has_refinement: bool,
     ) -> Result<Tier1SegmentDecode, DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost before=tier1_decoder_state(self);
+            let ghost planes=crate::specs::Tier1DecoderState {
+                plane:code_block_plane_view(&output),ht_cleanup_plane:Some(cleanup_plane.view()),
+                ht_current_set_has_cleanup:true,ht_decoded_bitplanes:decoded_bitplanes,..before
+            };
+        }
         self.plane = output;
         self.ht_cleanup_plane = Some(cleanup_plane);
         self.ht_current_set_has_cleanup = true;
         self.ht_decoded_bitplanes = decoded_bitplanes;
+        #[cfg(verus_keep_ghost)]
+        proof! { reveal(tier1_decoder_state); assert(tier1_decoder_state(self)==planes); }
         self.ht_sets_seen = self
             .ht_sets_seen
             .checked_add(1)
             .ok_or_else(arithmetic_overflow)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost sets=crate::specs::Tier1DecoderState {ht_sets_seen:(planes.ht_sets_seen+1) as u16,..planes};
+            proof! { assert(tier1_decoder_state(self)==sets); }
+        }
         self.next_pass = self
             .next_pass
             .checked_add(pass_count)
             .ok_or_else(arithmetic_overflow)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost passes=crate::specs::Tier1DecoderState {next_pass:(sets.next_pass+pass_count) as u32,..sets};
+            proof! { assert(tier1_decoder_state(self)==passes); }
+        }
         self.decoded_segments = self
             .decoded_segments
             .checked_add(if has_refinement { 2 } else { 1 })
             .ok_or_else(arithmetic_overflow)?;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let count=if has_refinement {2nat}else{1nat};
+            assert(tier1_decoder_state(self)==(crate::specs::Tier1DecoderState {
+                decoded_segments:(passes.decoded_segments+count) as u32,..passes
+            }));
+        }
         self.decoded_bytes = self
             .decoded_bytes
             .checked_add(u64::from(bytes))
@@ -553,7 +628,7 @@ impl Tier1CodeBlockDecoder {
         };
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert(code_block_plane_view(cleanup_plane) == start.ht_cleanup_plane.get_Some_0());
+            assert(cleanup_plane.view() == start.ht_cleanup_plane.get_Some_0());
             assert(refinement_passes as nat == start.ht_refinement_passes as nat + passes as nat);
             assert(ht_refinement_segment_view(&segment) == crate::specs::HtRefinementSegmentState {
                 encoded: refinement_data@,
@@ -562,7 +637,7 @@ impl Tier1CodeBlockDecoder {
             });
         }
         let replayed = decode_ht_refinement_plane(
-            cleanup_plane,
+            cleanup_plane.read(),
             segment,
             refinement_passes,
             self.ht_decoded_bitplanes,
@@ -574,7 +649,7 @@ impl Tier1CodeBlockDecoder {
             crate::specs::part2_ht_replay_admission_fields(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits));
             if let Err(error)=replayed {
                 crate::specs::part2_ht_replay_error(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),
-                    (code_block_plane_view(cleanup_plane),ht_refinement_segment_view(&segment),refinement_passes),error);
+                    (cleanup_plane.view(),ht_refinement_segment_view(&segment),refinement_passes),error);
                 crate::specs::part2_ht_replay_primary_consequence(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),(Err(error),start));
             }
         }
@@ -587,7 +662,7 @@ impl Tier1CodeBlockDecoder {
         #[cfg(verus_keep_ghost)]
         proof! {
             t=crate::specs::part2_replay_finish_from_child(start,input@,passes,crate::limits::resource_code_block_byte_limit(limits),crate::limits::resource_work_limit(limits),
-                (code_block_plane_view(cleanup_plane),ht_refinement_segment_view(&segment),refinement_passes),code_block_plane_view(&plane),statistics);
+                (cleanup_plane.view(),ht_refinement_segment_view(&segment),refinement_passes),code_block_plane_view(&plane),statistics);
         }
         self.plane = plane;
         #[cfg(verus_keep_ghost)]

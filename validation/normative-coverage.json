@@ -9642,10 +9642,11 @@
     },
     {
       "id": "part2-complete-native-codeblock-planning",
-      "topic": "Complete actual per-codeblock checked lattice/clipping/u16 dimension Result and configured decoder initial-state Result from raw grid/clip/block coordinates, bits/orientation/style/HT policy. Original nominal-axis arithmetic and clipped narrowing remain; zero dimensions are deliberately forwarded to the real decoder initializer rather than normalized here. Actual decoder initialization precedes multiple-set and magnitude-bound policy, including allocation/admission/error order. The real tile loop consumes both producers; no supplied placement/decoder/geometry result, admitted dimensions or successful allocation/budget premise. Whole tile-plan and F2/F4/F8 joins remain separate.",
+      "topic": "Complete actual per-codeblock lattice, clipping, checked dimensions and configured decoder state. Dense constructor admission and allocation precede later HT mode, which changes only private checkpoint retention, never the current output. The real tile loop consumes both producers and the actual initial storage tape.",
       "implementation_refs": [
         {"path": "src/decode/planning.rs", "symbol": "plan_progression_tile_at_selected"},
-        {"path": "src/decode/planning.rs", "symbol": "append_planned_codeblock"}
+        {"path": "src/decode/planning.rs", "symbol": "append_planned_codeblock"},
+        {"path": "src/tier1/contributions.rs", "symbol": "tier1_configured_decoder_with_checkpoint"}
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "part2_planned_codeblock_geometry"},
@@ -9661,6 +9662,8 @@
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_initial_run"},
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_initial_storage_result"},
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_checkpoint_run"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_checkpoint_result"},
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part1_tier1_configured_storage_result"},
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_admit"},
         {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_call_run"}
@@ -9671,6 +9674,7 @@
       ],
       "proof_refs": [
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_initial_decoder_outcome"},
+        {"path": "specs/cold_tier1_initial.rs", "symbol": "part2_tier1_configured_checkpoint_observed"},
         {"path": "src/tier1/contributions.rs", "symbol": "tier1_decoder_from_dimensions"},
         {"path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::set_multiple_ht_sets_allowed"},
         {"path": "src/tier1/contributions.rs", "symbol": "Tier1CodeBlockDecoder::set_ht_magnitude_bound"},
@@ -15495,7 +15499,7 @@
     },
     {
       "id": "part15-cleanup-only-actual-symbol-caller",
-      "topic": "Explicit absent-refinement actual symbol-caller composition from supplied parsed segments through real metadata/numeric/duplicate producers and complete decoder state, including ordered partial accounting errors; public byte preflight and refinement/mixed sequences remain open",
+      "topic": "Explicit absent-refinement actual symbol-caller composition through real metadata/numeric/cleanup checkpoint producers and complete decoder state, including ordered partial accounting errors and private packed versus public wide checkpoint allocation",
       "contract_refs": [
         {"path": "src/tier1/ht_cleanup.rs", "symbol": "prepare_ht_cleanup_symbols"},
         {"path": "src/tier1/ht_contributions.rs", "symbol": "Tier1CodeBlockDecoder::store_ht_coefficient_symbols"},
@@ -15503,7 +15507,8 @@
       ],
       "implementation_refs": [
         {"path": "src/tier1/ht_contributions.rs", "symbol": "Tier1CodeBlockDecoder::decode_ht_coefficient_symbols"},
-        {"path": "src/tier1/ht_cleanup.rs", "symbol": "prepare_ht_cleanup_symbols"}
+        {"path": "src/tier1/ht_cleanup.rs", "symbol": "prepare_ht_cleanup_symbols"},
+        {"path": "src/tier1/ht_checkpoint.rs", "symbol": "retain_ht_cleanup"}
       ],
       "spec_refs": [
         {"path": "specs/mod.rs", "symbol": "ht_cleanup_prepare"},
@@ -15514,7 +15519,9 @@
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part1_plane_duplicate_storage_result"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_run"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_result"},
-        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_after_metadata"}
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_after_metadata"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_run"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_selected"}
       ],
       "proof_refs": [
         {"path": "src/tier1/proof_support.rs", "symbol": "tier1_decoder_state"},
@@ -15527,7 +15534,9 @@
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_normal"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_after_normal"},
         {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_metadata_error"},
-        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_metadata_join"}
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_plane_prepare_metadata_join"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_packed"},
+        {"path": "specs/cold_tier1_planes.rs", "symbol": "part2_ht_checkpoint_wide"}
       ],
       "test_refs": [
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_caller_composes_real_metadata_numeric_duplicate_and_complete_decoder_state"},
@@ -15538,7 +15547,13 @@
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_caller_preserves_metadata_before_native_pass_error_order_and_full_failure_frame"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_caller_metadata_work_failure_retains_every_decoder_field"},
         {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_caller_accounting_failures_preserve_ordered_commits_not_rollback"},
-        {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_duplicate_preserves_full_raw_coefficients_and_rejects_bad_shapes"}
+        {"path": "src/tier1/tests.rs", "symbol": "ht_cleanup_duplicate_preserves_full_raw_coefficients_and_rejects_bad_shapes"},
+        {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_preserves_replay_and_replacement_state"},
+        {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_uses_actual_fields_and_refuses_real_allocations"},
+        {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_expired_materialization_leaves_source_exact"},
+        {"path": "src/tier1/tests.rs", "symbol": "private_ht_checkpoint_does_not_skip_dense_initial_allocation_or_snapshot"},
+        {"path": "src/tier1/tests.rs", "symbol": "checkpoint_header_replays_geometry_independent_of_current_output"},
+        {"path": "src/tier1/ht_checkpoint.rs", "symbol": "checkpoint_header_snapshot_keeps_full_raw_dimensions_and_payload"}
       ]
     },
     {

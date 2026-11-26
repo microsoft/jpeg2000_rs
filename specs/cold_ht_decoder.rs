@@ -37,7 +37,7 @@ pub(crate) open spec fn part2_ht_coeff_after_prepare(before:Tier1DecoderState,se
 }
 pub(crate) open spec fn part2_ht_coeff_run(before:Tier1DecoderState,segments:HtBlockSegmentsState,passes:u32,maximum_u:u8,skipped:u16,work:u64,
     calls:Seq<Part2Tier1StorageEvent>)->Part2Tier1Run<HtDecoderResult> {
-    part2_tier1_storage_resume(part2_plane_prepare_run(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,calls),
+    part2_tier1_storage_resume(part2_plane_prepare_run(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,before.private_plan,calls),
         |prepared:Result<(Tier1RawPlane,Tier1RawPlane,crate::tier1::Tier1PassStatistics,u16),crate::DecodeError>,rest|
             part2_ht_coeff_after_prepare(before,segments,passes,maximum_u,skipped,work,prepared,rest))
 }
@@ -94,29 +94,29 @@ pub(crate) proof fn part2_ht_coeff_after_normal(before:Tier1DecoderState,segment
 pub(crate) proof fn part2_ht_coeff_normal(before:Tier1DecoderState,segments:HtBlockSegmentsState,passes:u32,maximum_u:u8,skipped:u16,work:u64)
     ensures part2_ht_coeff_result(before,segments,passes,maximum_u,skipped,work,ht_coefficient_symbols(before,segments,passes,maximum_u,skipped,work)),
 {
-    part2_plane_prepare_normal(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work);
+    part2_plane_prepare_normal(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,before.private_plan);
     let prepared=ht_cleanup_prepare(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work);
     part2_ht_coeff_after_normal(before,segments,passes,maximum_u,skipped,work);
     part2_tier1_storage_eta(|calls|part2_ht_coeff_after_prepare(before,segments,passes,maximum_u,skipped,work,prepared,calls),
         Ok(ht_coefficient_symbols(before,segments,passes,maximum_u,skipped,work)));
-    part2_tier1_resume_frame(|calls|part2_plane_prepare_run(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,calls),
+    part2_tier1_resume_frame(|calls|part2_plane_prepare_run(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,before.private_plan,calls),
         |prepared:Result<(Tier1RawPlane,Tier1RawPlane,crate::tier1::Tier1PassStatistics,u16),crate::DecodeError>,rest|
             part2_ht_coeff_after_prepare(before,segments,passes,maximum_u,skipped,work,prepared,rest),prepared,
         Ok(ht_coefficient_symbols(before,segments,passes,maximum_u,skipped,work)));
 }
 pub(crate) proof fn part2_ht_coeff_prepare_error(before:Tier1DecoderState,segments:HtBlockSegmentsState,passes:u32,maximum_u:u8,skipped:u16,work:u64,error:crate::DecodeError)
-    requires part2_plane_prepare_result(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,Err(error)),
+    requires part2_plane_prepare_result(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,before.private_plan,Err(error)),
     ensures part2_ht_coeff_result(before,segments,passes,maximum_u,skipped,work,(Err(error),before)),
 {
     part2_tier1_storage_pure::<HtDecoderResult>(Ok((Err(error),before)));
-    part2_tier1_resume_frame(|calls|part2_plane_prepare_run(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,calls),
+    part2_tier1_resume_frame(|calls|part2_plane_prepare_run(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,before.private_plan,calls),
         |prepared:Result<(Tier1RawPlane,Tier1RawPlane,crate::tier1::Tier1PassStatistics,u16),crate::DecodeError>,rest|
             part2_ht_coeff_after_prepare(before,segments,passes,maximum_u,skipped,work,prepared,rest),Err(error),Ok((Err(error),before)));
 }
 pub(crate) proof fn part2_ht_coeff_refinement_error(before:Tier1DecoderState,segments:HtBlockSegmentsState,passes:u32,maximum_u:u8,skipped:u16,work:u64,
     output:(Tier1RawPlane,Tier1RawPlane,crate::tier1::Tier1PassStatistics,u16),refinement:HtRefinementSegmentState,error:crate::DecodeError)
     requires segments.refinement==Some(refinement),part2_ht_following(passes)<=u8::MAX,
-        part2_plane_prepare_result(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,Ok(output)),
+        part2_plane_prepare_result(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,before.private_plan,Ok(output)),
         part2_plane_refinement_result(output.1,refinement,part2_ht_following(passes) as u8,output.3,before.style.vertical_causal_context,work,Err(error)),
     ensures part2_ht_coeff_result(before,segments,passes,maximum_u,skipped,work,(Err(error),ht_clear_refinement_state(before))),
 {
@@ -126,7 +126,7 @@ pub(crate) proof fn part2_ht_coeff_refinement_error(before:Tier1DecoderState,seg
     part2_tier1_resume_frame(|calls|part2_plane_refinement_run(output.1,refinement,part2_ht_following(passes) as u8,output.3,cleared.style.vertical_causal_context,work,calls),
         |refined:Result<(Tier1RawPlane,crate::tier1::Tier1PassStatistics),crate::DecodeError>,rest|
             part2_ht_coeff_after_refinement(before,segments,passes,maximum_u,skipped,work,output,refinement,refined,rest),Err(error),Ok(result));
-    part2_tier1_resume_frame(|calls|part2_plane_prepare_run(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,calls),
+    part2_tier1_resume_frame(|calls|part2_plane_prepare_run(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,before.private_plan,calls),
         |prepared:Result<(Tier1RawPlane,Tier1RawPlane,crate::tier1::Tier1PassStatistics,u16),crate::DecodeError>,rest|
             part2_ht_coeff_after_prepare(before,segments,passes,maximum_u,skipped,work,prepared,rest),Ok(output),Ok(result));
 }
@@ -134,7 +134,7 @@ pub(crate) proof fn part2_ht_coeff_bytes_error(before:Tier1DecoderState,segments
     output:(Tier1RawPlane,Tier1RawPlane,crate::tier1::Tier1PassStatistics,u16),refinement:HtRefinementSegmentState,
     refined:(Tier1RawPlane,crate::tier1::Tier1PassStatistics),error:crate::DecodeError)
     requires segments.refinement==Some(refinement),part2_ht_following(passes)<=u8::MAX,
-        part2_plane_prepare_result(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,Ok(output)),
+        part2_plane_prepare_result(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,before.private_plan,Ok(output)),
         part2_plane_refinement_result(output.1,refinement,part2_ht_following(passes) as u8,output.3,before.style.vertical_causal_context,work,Ok(refined)),
         tier1_statistics_merge(output.2,refined.1).0.is_ok(),
         part2_ht_bytes_result(refinement.encoded,crate::tier1::HtRefinementCopyRole::CleanupRetention,Err(error)),
@@ -150,7 +150,7 @@ pub(crate) proof fn part2_ht_coeff_bytes_error(before:Tier1DecoderState,segments
         |refined:Result<(Tier1RawPlane,crate::tier1::Tier1PassStatistics),crate::DecodeError>,rest|
             part2_ht_coeff_after_refinement(before,segments,passes,maximum_u,skipped,work,output,refinement,refined,rest),Ok(refined),Ok(result));
     part2_tier1_storage_eta(|calls|part2_ht_coeff_after_prepare(before,segments,passes,maximum_u,skipped,work,Ok(output),calls),Ok(result));
-    part2_tier1_resume_frame(|calls|part2_plane_prepare_run(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,calls),
+    part2_tier1_resume_frame(|calls|part2_plane_prepare_run(before.plane,segments.cleanup,before.maximum_passes,maximum_u,skipped,work,before.private_plan,calls),
         |prepared:Result<(Tier1RawPlane,Tier1RawPlane,crate::tier1::Tier1PassStatistics,u16),crate::DecodeError>,rest|
             part2_ht_coeff_after_prepare(before,segments,passes,maximum_u,skipped,work,prepared,rest),Ok(output),Ok(result));
 }

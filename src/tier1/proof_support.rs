@@ -323,12 +323,12 @@ verus! {
 
 #[cfg(verus_keep_ghost)]
 verus! {
-    spec fn ht_cleanup_prepare_outcome(result: Result<(CodeBlockPlane, CodeBlockPlane, Tier1PassStatistics, u16), DecodeError>)
+    spec fn ht_cleanup_prepare_outcome(result: Result<(CodeBlockPlane, ht_checkpoint::HtCleanupCheckpoint, Tier1PassStatistics, u16), DecodeError>)
         -> Result<(crate::specs::Tier1RawPlane, crate::specs::Tier1RawPlane, Tier1PassStatistics, u16), DecodeError> {
         match result {
             Err(error) => Err(error),
             Ok((plane, cleanup, statistics, bitplanes)) =>
-                Ok((code_block_plane_view(&plane), code_block_plane_view(&cleanup), statistics, bitplanes)),
+                Ok((code_block_plane_view(&plane), cleanup.view(), statistics, bitplanes)),
         }
     }
 }
@@ -472,6 +472,7 @@ verus! {
     pub closed spec fn tier1_decoder_state(decoder: &Tier1CodeBlockDecoder) -> crate::specs::Tier1DecoderState {
         crate::specs::Tier1DecoderState {
             plane: code_block_plane_view(&decoder.plane), orientation: decoder.orientation,
+            private_plan: decoder.private_plan,
             style: decoder.style, maximum_passes: decoder.maximum_passes, next_pass: decoder.next_pass,
             bitplane: decoder.bitplane, zero_bitplanes: decoder.zero_bitplanes,
             bitplane_state: match decoder.bitplane_state {
@@ -487,7 +488,7 @@ verus! {
                 Some(legacy) => Some(legacy_segment_view(&legacy)),
             },
             legacy_decode_work: decoder.legacy_decode_work,
-            ht_cleanup_plane: match decoder.ht_cleanup_plane { None => None, Some(plane) => Some(code_block_plane_view(&plane)) },
+            ht_cleanup_plane: match decoder.ht_cleanup_plane { None => None, Some(plane) => Some(plane.view()) },
             ht_refinement_data: decoder.ht_refinement_data@, ht_refinement_passes: decoder.ht_refinement_passes,
             ht_decoded_bitplanes: decoder.ht_decoded_bitplanes,
             ht_current_set_has_cleanup: decoder.ht_current_set_has_cleanup, ht_sets_seen: decoder.ht_sets_seen,

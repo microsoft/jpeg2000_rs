@@ -399,6 +399,7 @@ struct LegacySegmentState {
 #[cfg_attr(not(verus_keep_ghost), derive(Debug))]
 pub struct Tier1CodeBlockDecoder {
     plane: CodeBlockPlane,
+    private_plan: bool,
     orientation: SubbandOrientation,
     style: Tier1CodingStyle,
     maximum_passes: u32,
@@ -412,7 +413,7 @@ pub struct Tier1CodeBlockDecoder {
     decoded_bytes: u64,
     legacy_segment: Option<LegacySegmentState>,
     legacy_decode_work: u64,
-    ht_cleanup_plane: Option<CodeBlockPlane>,
+    ht_cleanup_plane: Option<ht_checkpoint::HtCleanupCheckpoint>,
     ht_refinement_data: Vec<u8>,
     ht_refinement_passes: u8,
     ht_decoded_bitplanes: u16,
@@ -554,12 +555,16 @@ pub(crate) use coding::tier1_block_coding_from_code_block_style;
 pub(crate) use coding::tier1_coding_style_from_code_block_style;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod contributions;
+#[cfg(test)]
 pub(crate) use contributions::tier1_configured_decoder;
+pub(crate) use contributions::tier1_configured_decoder_with_checkpoint;
 #[cfg(any(test, verus_keep_ghost))]
 pub(crate) use contributions::tier1_decoder_from_dimensions;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod ht_cleanup;
 pub use ht_cleanup::complete_ht_kappa;
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod ht_checkpoint;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod ht_cleanup_readers;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
@@ -607,9 +612,7 @@ use ht_metadata::{
     decode_ht_metadata_words,
 };
 #[cfg(test)]
-use ht_refinement::{
-    decode_ht_refinement_plane, ht_collect_cleanup_significance, run_ht_significance_pass,
-};
+use ht_refinement::{ht_collect_cleanup_significance, run_ht_significance_pass};
 #[cfg(test)]
 use ht_refinement_readers::ht_refinement_readers_from_inputs;
 #[cfg(test)]
