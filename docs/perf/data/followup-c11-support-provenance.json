@@ -6,6 +6,7 @@
   "interpretation": "Counts only: every block in selected tiles was decoded; outside bytes/passes are observed quantities, not skipped MQ decisions, wall-time gains or proof-qualified pruning.",
   "validation": "Exhaustive small1D intervals, both origin parities/singletons; actual8Kmiddle/edge/odd/full; actualoffset(3,5)full/selected integration; full0outside and9/7explicitrefusal.",
   "offset_source_commit": "509a7c4cfc6d86b14448bcfed5182fb878a05ac3",
+  "multilevel_and_scope_test_source_commit": "088ebb783952af29bfddfd3bbb7c6025f35ee1b4",
   "offset_binary_sha256": "b1d473953fa74eb7f6e8d5113107f1f67568773f12eafcc24157a435cb5a6531",
   "offset_input_sha256": "52abb436a812638524e936e88924dbdab4fd0d15d04ea4f90a9a663e3d0a51e1"
 }

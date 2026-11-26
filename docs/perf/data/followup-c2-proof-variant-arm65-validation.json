@@ -1,0 +1,68 @@
+{
+  "candidate": "fe3ca8f1994066e9aacfe897dd699842a940bf6a",
+  "summaries": 130,
+  "samples": 133530,
+  "full_protocol_processes": 520,
+  "indexed_payloads_checked": 0,
+  "counter_outcomes_checked": 0,
+  "original_299_before_after_checks": 12,
+  "classes": [
+    {
+      "config": "generic",
+      "class": "A",
+      "images": 8,
+      "change_percent": -8.701289061622063,
+      "inside_combined_iqr": 0
+    },
+    {
+      "config": "generic",
+      "class": "B",
+      "images": 24,
+      "change_percent": 0.09509851007951653,
+      "inside_combined_iqr": 24
+    },
+    {
+      "config": "generic",
+      "class": "C",
+      "images": 14,
+      "change_percent": -4.690313909695288,
+      "inside_combined_iqr": 8
+    },
+    {
+      "config": "generic",
+      "class": "D",
+      "images": 19,
+      "change_percent": -9.062032889792293,
+      "inside_combined_iqr": 0
+    },
+    {
+      "config": "consumer",
+      "class": "A",
+      "images": 8,
+      "change_percent": -8.701812122279618,
+      "inside_combined_iqr": 0
+    },
+    {
+      "config": "consumer",
+      "class": "B",
+      "images": 24,
+      "change_percent": 0.12846845171652355,
+      "inside_combined_iqr": 24
+    },
+    {
+      "config": "consumer",
+      "class": "C",
+      "images": 14,
+      "change_percent": -5.259664513913009,
+      "inside_combined_iqr": 6
+    },
+    {
+      "config": "consumer",
+      "class": "D",
+      "images": 19,
+      "change_percent": -9.245921227462894,
+      "inside_combined_iqr": 0
+    }
+  ],
+  "scope": "Independent raw/summary/command/hash checks; exact_output is the captured runner comparison, not retained full pixels or a formal conformance claim."
+}

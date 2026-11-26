@@ -144,12 +144,16 @@ class ComparisonTests(unittest.TestCase):
                          "timings/consumer/case/rust-typed-r0.json",
                          "timings/consumer/cargo/rust-typed-r0.json",
                          "instructions/consumer/case/rust.stdout", "instructions/consumer/case/rust.json",
-                         "qualification/case/rust.stdout", "qualification/case/rust.json"]:
+                         "qualification/case/rust.stdout", "qualification/case/rust.json",
+                         "paired/consumer/299/lossy-baseline.stdout", "paired/consumer/299/lossy-baseline.json",
+                         "instructions/consumer/case/baseline-0.stdout", "instructions/consumer/case/baseline-0.json"]:
                 path = work / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b"fixture")
             (work / "instructions/consumer/case/rust.json").write_text(json.dumps(dict(command=["driver", "typed"])))
             (work / "qualification/case/rust.json").write_text(json.dumps(dict(command=["driver", "dump"])))
+            (work / "paired/consumer/299/lossy-baseline.json").write_text(json.dumps(dict(command=["driver", "dump"])))
+            (work / "instructions/consumer/case/baseline-0.json").write_text(json.dumps(dict(command=["driver", "typed"])))
             command = [sys.executable, Path(__file__).with_name("collect.py"),
                        "--work", work, "--output", output]
             subprocess.run(command, check=True, capture_output=True)
@@ -160,7 +164,8 @@ class ComparisonTests(unittest.TestCase):
                               "timings/consumer/build.json", "timings/consumer/case/rust-typed-r0.json",
                               "timings/consumer/cargo/rust-typed-r0.json",
                               "instructions/consumer/case/rust.stdout", "instructions/consumer/case/rust.json",
-                              "qualification/case/rust.json"})
+                              "qualification/case/rust.json", "paired/consumer/299/lossy-baseline.json",
+                              "instructions/consumer/case/baseline-0.stdout", "instructions/consumer/case/baseline-0.json"})
             self.assertTrue(all(entry["sha256"] == sha((work / entry["path"]).read_bytes())
                                 for entry in index["entries"]))
             self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)

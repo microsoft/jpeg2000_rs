@@ -1,0 +1,9 @@
+config,class,images,change_percent,inside_combined_iqr
+generic,A,8,-8.701289061622063,0
+generic,B,24,0.09509851007951653,24
+generic,C,14,-4.690313909695288,8
+generic,D,19,-9.062032889792293,0
+consumer,A,8,-8.701812122279618,0
+consumer,B,24,0.12846845171652355,24
+consumer,C,14,-5.259664513913009,6
+consumer,D,19,-9.245921227462894,0

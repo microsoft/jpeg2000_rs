@@ -1,0 +1,61 @@
+{
+  "evaluation_finished": true,
+  "adoption_approved": false,
+  "scope": "Four requested follow-up candidates; not the original full A-G definition of done",
+  "recommendations": {
+    "C11": "needs more data: counting-only, no pruning or speedup",
+    "C7": "no-go: exact guard below retention threshold",
+    "C4": "no-go: exact f64 product slower and proof frontend unsupported",
+    "C2_literal": "no-go: failed proof qualification",
+    "C2_verified": "needs more data: broad gain/proofs pass; EPYC7763v3B+1.416% guard not disproven by EPYC9V74+0.034% repeat"
+  },
+  "matrices": [
+    {
+      "matrix": "paired-c7-exact-charge",
+      "samples": 24245,
+      "summaries": 22,
+      "full_protocol_processes": 88
+    },
+    {
+      "matrix": "paired-c2-direct-flags",
+      "samples": 25589,
+      "summaries": 22,
+      "full_protocol_processes": 88
+    },
+    {
+      "matrix": "paired-c4-exact-f64",
+      "samples": 24164,
+      "summaries": 22,
+      "full_protocol_processes": 88
+    },
+    {
+      "matrix": "paired-c2-proof-variant",
+      "samples": 24762,
+      "summaries": 22,
+      "full_protocol_processes": 88
+    },
+    {
+      "matrix": "paired-c2-proof-full65",
+      "samples": 133530,
+      "summaries": 130,
+      "full_protocol_processes": 520
+    },
+    {
+      "matrix": "hosted-c2-v3/paired",
+      "samples": 100185,
+      "summaries": 114,
+      "full_protocol_processes": 456
+    },
+    {
+      "matrix": "hosted-c2-v3-confirmation/paired",
+      "samples": 3870,
+      "summaries": 44,
+      "full_protocol_processes": 176
+    }
+  ],
+  "total_samples": 336345,
+  "total_processes": 1504,
+  "total_summaries": 376,
+  "matching_output_or_baseline_refusal_requests": 536,
+  "original_checkout_unchanged": true
+}

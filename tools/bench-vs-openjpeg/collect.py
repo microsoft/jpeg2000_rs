@@ -34,12 +34,21 @@ def main():
             path = Path(directory) / name
             if path.is_symlink() or name.endswith("-dump.stdout"):
                 continue
-            if name in {"rust.stdout", "openjpeg.stdout"}:
+            if path.suffix == ".stdout":
                 metrics = path.with_suffix(".json")
-                if not metrics.is_file():
+                backend_name = name in {"rust.stdout", "openjpeg.stdout"}
+                if backend_name and not metrics.is_file():
                     raise ValueError(f"cannot distinguish pixels from process text: {path}")
-                if "dump" in json.loads(metrics.read_text())["command"]:
-                    continue
+                if metrics.is_file():
+                    observation = json.loads(metrics.read_text())
+                    if "command" in observation:
+                        command = observation["command"]
+                        if not isinstance(command, list) or not all(isinstance(arg, str) for arg in command):
+                            raise ValueError(f"invalid captured command: {metrics}")
+                        if "dump" in command:
+                            continue
+                    elif backend_name:
+                        raise ValueError(f"cannot distinguish pixels from process text: {path}")
             if path.suffix not in {".csv", ".json", ".stdout", ".stderr", ".log",
                                    ".md", ".txt", ".j2k", ".s", ".asm", ".out"}:
                 continue

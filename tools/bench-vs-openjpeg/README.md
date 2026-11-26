@@ -199,6 +199,8 @@ Build-cache detection is structural: a real configuration or case named
 for omitted per-process and instruction evidence before the index is issued.
 For ambiguous backend stdout names, the captured process mode distinguishes
 pixel dumps from instrumented `SAMPLE` text; filenames alone are insufficient.
+This also applies to arbitrarily named original #299 baseline/candidate stdout;
+the process metadata is retained even when its pixel stdout is omitted.
 
 For a completed full-protocol matrix, independently verify all raw sample
 counts/durations, worker/cap metadata, case coverage and reproducible summary

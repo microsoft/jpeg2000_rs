@@ -1,0 +1,74 @@
+{
+  "candidate_commit": "fe3ca8f1994066e9aacfe897dd699842a940bf6a",
+  "disassembler": "capstone5.0.6 / pyelftools0.32; actual consuming ARM64 generic ELF",
+  "records": {
+    "baseline": {
+      "binary_sha256": "fa6424a8a4b693966f541a7ac33b8da538acaafe04464fc1b8fce41ff4b6dd9b",
+      "text_bytes": 576080,
+      "functions": [
+        {
+          "name": "_ZN16jpeg2000_decoder5tier114compact_legacy12CompactPlane4rows17h07e549a414d0148bE",
+          "bytes": 1740,
+          "address": 461184
+        },
+        {
+          "name": "_ZN16jpeg2000_decoder2mq9MqDecoder11renormalize17h382ad07000195416E",
+          "bytes": 476,
+          "address": 524964
+        },
+        {
+          "name": "_ZN16jpeg2000_decoder9transform8wavelets11inverse_9_717h6b54d0a2f94b5563E",
+          "bytes": 1400,
+          "address": 523008
+        },
+        {
+          "name": "_ZN16jpeg2000_decoder2mq9MqDecoder6decode17h55516a4744ba1089E",
+          "bytes": 572,
+          "address": 525440
+        }
+      ],
+      "needles": [
+        "2mq9MqDecoder6decode",
+        "2mq9MqDecoder11renormalize",
+        "14compact_legacy12CompactPlane4rows",
+        "word_flag_summary",
+        "8wavelets11inverse_9_7",
+        "8wavelets12inverse_lift"
+      ]
+    },
+    "candidate": {
+      "binary_sha256": "e10ccdb3a1f17f47acc033bf8af5c441f6551b2f5b1681154f3c086368c67422",
+      "text_bytes": 576032,
+      "functions": [
+        {
+          "name": "_ZN16jpeg2000_decoder2mq9MqDecoder11renormalize17hacf18d8f2a795937E",
+          "bytes": 476,
+          "address": 493464
+        },
+        {
+          "name": "_ZN16jpeg2000_decoder5tier114compact_legacy12CompactPlane4rows17h9142c3f297a38344E",
+          "bytes": 1700,
+          "address": 539504
+        },
+        {
+          "name": "_ZN16jpeg2000_decoder9transform8wavelets11inverse_9_717h519a2b5e69850b3cE",
+          "bytes": 1400,
+          "address": 456604
+        },
+        {
+          "name": "_ZN16jpeg2000_decoder2mq9MqDecoder6decode17hc01f4d99a1e05ad9E",
+          "bytes": 572,
+          "address": 493940
+        }
+      ],
+      "needles": [
+        "2mq9MqDecoder6decode",
+        "2mq9MqDecoder11renormalize",
+        "14compact_legacy12CompactPlane4rows",
+        "word_flag_summary",
+        "8wavelets11inverse_9_7",
+        "8wavelets12inverse_lift"
+      ]
+    }
+  }
+}
