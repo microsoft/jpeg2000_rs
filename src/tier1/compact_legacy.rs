@@ -601,6 +601,7 @@ impl CompactPlane {
             forall|i:int|0<=i<final(self).entries.len() && old(state).significant_before@[i]
                 ==> final(self).entries@[i] & 0x1ff_ffff_ffffu64==old(self).entries@[i] & 0x1ff_ffff_ffffu64,
     ))]
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     fn sig_cell(
         &mut self,
         coordinate: (usize, usize),
@@ -963,6 +964,7 @@ impl CompactPlane {
                     super::legacy_bitplane_view(final(state)),coordinate.1,coordinate.2,coordinate.0,coordinate.2)
             }else{crate::specs::compact_before_frontier(final(self).entries@,super::legacy_bitplane_view(final(state)),context.0 is Cleanup)},
     ))]
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     fn column(
         &mut self,
         state: &mut Tier1BitplaneState,
@@ -1855,19 +1857,28 @@ mod tests {
             let actual_result = crate::allocation::with_refusal(refusal, || {
                 actual.decode_legacy_contribution(&[0x3f, 0x00, 0xff, 0x7f], remaining, &limits)
             });
-            let expected_result = crate::allocation::with_refusal(refusal, || {
-                expected.decode_legacy_contribution(
-                    &[0x3f, 0x00, 0xff, 0x7f],
-                    remaining,
-                    &wide_limits,
-                )
-            });
-            assert_eq!(actual_result, expected_result, "refusal {refusal}");
-            assert_eq!(
-                format!("{actual:?}"),
-                format!("{expected:?}"),
-                "refusal {refusal}"
-            );
+            // Replaying into the compact kernel inserts one compact scratch reservation
+            // immediately after the 3 legacy replay allocations (append + plane/bitplane restore):
+            // refusals 0..3 hit identical replay-setup prefixes; refusal 3 hits compact scratch;
+            // refusal >= 4 shifts by 1 relative to the wide decoder.
+            if refusal == 3 {
+                assert_eq!(actual_result, Err(DecodeError::AllocationFailed));
+            } else {
+                let wide_refusal = if refusal > 3 { refusal - 1 } else { refusal };
+                let expected_result = crate::allocation::with_refusal(wide_refusal, || {
+                    expected.decode_legacy_contribution(
+                        &[0x3f, 0x00, 0xff, 0x7f],
+                        remaining,
+                        &wide_limits,
+                    )
+                });
+                assert_eq!(actual_result, expected_result, "refusal {refusal}");
+                assert_eq!(
+                    format!("{actual:?}"),
+                    format!("{expected:?}"),
+                    "refusal {refusal}"
+                );
+            }
         }
     }
 

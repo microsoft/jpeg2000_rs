@@ -7268,7 +7268,7 @@ _LEGACY_SNAPSHOT_NATIVE_ORDER = {
         "if let Err(error)=segment.append(input,replay_passes)", "if had_segment", "self.legacy_segment=Some(segment)",
         "part2_legacy_replay_append_error(", "return Err(error)",
         "self.restore_legacy_segment(&segment)", "part2_legacy_replay_restored(", "restored?",
-        "self.decode_legacy_segment_with_compact(&segment.input,segment.passes,limits,false)", "part2_legacy_replay_segment_observed(", "decoded?", "self.commit_legacy_replay(segment)",
+        "self.decode_legacy_segment_with_compact(&segment.input,segment.passes,limits,true)", "part2_legacy_replay_segment_observed(", "decoded?", "self.commit_legacy_replay(segment)",
     ),
     ("src/packet/body.rs", "decode_legacy_code_block_segment"): (
         "contribution.segment(*segment_index)?", "usize::try_from(segment.data_length)", "checked_add(segment_length)", "if end>body.len()",
