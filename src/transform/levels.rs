@@ -1231,9 +1231,9 @@ mod zero_level {
                     let r = i / w;
                     let c = i % w;
                     let xa = c / 2;
-                    assert(0 <= xa && xa < lw) by(nonlinear_arith)
-                        requires 0 <= c < w, lw == w / 2 + w % 2;
-                    assert(0 <= r * lw + xa && r * lw + xa < ll_samples.len()
+                    assert(0 <= xa && xa < lw);
+                    assert(0 <= r * lw && (r + 1) * lw == r * lw + lw && (r + 1) * lw <= ll_samples.len()
+                        && 0 <= r * lw + xa && r * lw + xa < ll_samples.len()
                         && (xa + 1 < lw ==> 0 <= r * lw + xa + 1 && r * lw + xa + 1 < ll_samples.len())) by(nonlinear_arith)
                         requires 0 <= r < lh, 0 <= xa < lw, ll_samples.len() == lw * lh;
                     let row_s = ll_samples.subrange(r * lw, (r + 1) * lw);
@@ -1617,9 +1617,11 @@ mod zero_level {
                 proof! {
                     assert(y < lh);
                     let xa = (x as int) / 2;
-                    assert(0 <= xa && xa < lw as int) by(nonlinear_arith)
-                        requires x < w, lw == w / 2 + w % 2;
-                    assert(0 <= (y as int) * (lw as int) + xa && (y as int) * (lw as int) + xa < ll.len()
+                    assert(0 <= xa && xa < lw as int);
+                    assert(0 <= (y as int) * (lw as int)
+                        && (y as int + 1) * (lw as int) == (y as int) * (lw as int) + (lw as int)
+                        && (y as int + 1) * (lw as int) <= ll.len()
+                        && 0 <= (y as int) * (lw as int) + xa && (y as int) * (lw as int) + xa < ll.len()
                         && (xa + 1 < lw as int ==> 0 <= (y as int) * (lw as int) + xa + 1 && (y as int) * (lw as int) + xa + 1 < ll.len())) by(nonlinear_arith)
                         requires y < lh, 0 <= xa < lw, lw * lh == ll.len();
                     assert(-1_073_741_824i64 <= a <= 1_073_741_824i64 && -1_073_741_824i64 <= b <= 1_073_741_824i64) by {
@@ -1633,7 +1635,10 @@ mod zero_level {
                         avg_bounded(la, ra);
                         if 2 * y + 2 < h {
                             assert(y + 1 < lh);
-                            assert(0 <= (y as int + 1) * (lw as int) + xa && (y as int + 1) * (lw as int) + xa < ll.len()
+                            assert(0 <= (y as int + 1) * (lw as int)
+                                && (y as int + 2) * (lw as int) == (y as int + 1) * (lw as int) + (lw as int)
+                                && (y as int + 2) * (lw as int) <= ll.len()
+                                && 0 <= (y as int + 1) * (lw as int) + xa && (y as int + 1) * (lw as int) + xa < ll.len()
                                 && (xa + 1 < lw as int ==> 0 <= (y as int + 1) * (lw as int) + xa + 1 && (y as int + 1) * (lw as int) + xa + 1 < ll.len())) by(nonlinear_arith)
                                 requires y + 1 < lh, 0 <= xa < lw, lw * lh == ll.len();
                             let row_b = ll@.subrange((y as int + 1) * (lw as int), (y as int + 2) * (lw as int));
