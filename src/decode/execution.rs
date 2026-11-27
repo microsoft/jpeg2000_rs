@@ -1184,6 +1184,8 @@ fn compute_ict_chunk(r: &[i64], g: &[i64], b: &[i64]) -> ([i64; 64], [i64; 64], 
         index + 64 <= old(prepared)@[component as int].samples.len(),
     ensures
         final(prepared).len() == old(prepared).len(),
+        forall |c: int| 0 <= c < final(prepared).len() ==>
+            final(prepared)@[c].samples.len() == old(prepared)@[c].samples.len(),
         forall |c: int| 0 <= c < final(prepared).len() && c != component ==>
             prepared_components_view(final(prepared)@)[c] == prepared_components_view(old(prepared)@)[c],
         ({

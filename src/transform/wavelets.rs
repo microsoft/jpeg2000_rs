@@ -182,6 +182,12 @@ mod bounded {
         while index < last {
             #[cfg(verus_keep_ghost)]
             proof_decl! { let ghost before = samples@; }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(samples[index as int] == original[index as int]);
+                assert(samples[index as int - 1] == original[index as int - 1]);
+                assert(samples[index as int + 1] == original[index as int + 1]);
+            }
             let val = reversible_lift_row_bounded(
                 samples[index],
                 samples[index - 1],
@@ -198,6 +204,8 @@ mod bounded {
         if index == last {
             #[cfg(verus_keep_ghost)]
             proof! {
+                assert(samples[last as int] == original[last as int]);
+                assert(samples[last as int - 1] == original[last as int - 1]);
                 crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, last as nat, target_even, kind, 0);
             }
             samples[last] = reversible_lift_row_bounded(
@@ -408,6 +416,12 @@ mod bounded {
         while index < last {
             #[cfg(verus_keep_ghost)]
             proof_decl! { let ghost before = samples@; }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(samples[index as int] == original[index as int]);
+                assert(samples[index as int - 1] == original[index as int - 1]);
+                assert(samples[index as int + 1] == original[index as int + 1]);
+            }
             let val = fixed_lift_row_bounded(
                 samples[index],
                 samples[index - 1],
@@ -425,6 +439,8 @@ mod bounded {
         if index == last {
             #[cfg(verus_keep_ghost)]
             proof! {
+                assert(samples[last as int] == original[last as int]);
+                assert(samples[last as int - 1] == original[last as int - 1]);
                 crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, last as nat, target_even, 2u8, factor);
             }
             samples[last] = fixed_lift_row_bounded(
