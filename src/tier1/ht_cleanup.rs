@@ -1078,14 +1078,13 @@ pub(super) fn reconstruct_ht_cleanup_plane(
             let idx = (quad_index - 1) as int;
             vstd::arithmetic::div_mod::lemma_add_mod_noop(idx, 1, q);
             if quads_per_row == 1 {
-                vstd::arithmetic::div_mod::lemma_mod_self_zero(1);
-                assert(column == 0 && (quad_index as nat) % 1nat == 0);
+                assert((quad_index as int) % 1 == 0) by (nonlinear_arith);
             } else {
                 vstd::arithmetic::div_mod::lemma_small_mod(1nat, quads_per_row as nat);
                 if prev_column + 1 < quads_per_row {
                     vstd::arithmetic::div_mod::lemma_small_mod((prev_column + 1) as nat, quads_per_row as nat);
                 } else {
-                    vstd::arithmetic::div_mod::lemma_mod_self_zero(q);
+                    vstd::arithmetic::div_mod::lemma_mod_self_0(q);
                 }
             }
         }
