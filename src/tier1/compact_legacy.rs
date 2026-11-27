@@ -1,9 +1,12 @@
 #[cfg(test)]
+use super::state::sign_context;
+#[cfg(test)]
 use super::state::significant_neighbor_count;
-use super::state::{ht_statistics_zero, invalid_code_block, sign_context};
+use super::state::{ht_statistics_zero, invalid_code_block};
 use super::{
-    CoefficientState, NeighborSummary, RUN_LENGTH_CONTEXT, SubbandOrientation, Tier1BitplaneState,
-    Tier1BlockCoding, Tier1CodeBlockDecoder, Tier1PassKind, Tier1PassStatistics, UNIFORM_CONTEXT,
+    CoefficientState, NeighborSummary, RUN_LENGTH_CONTEXT, SignContext, SubbandOrientation,
+    Tier1BitplaneState, Tier1BlockCoding, Tier1CodeBlockDecoder, Tier1PassKind,
+    Tier1PassStatistics, UNIFORM_CONTEXT,
 };
 use crate::mq::MqDecoder;
 use crate::{DecodeError, ResourceLimits};
@@ -30,7 +33,6 @@ const DIRECTIONS: [(i32, i32); 8] = [
     (1, 1),
 ];
 
-#[cfg(test)]
 const ZERO_NORMAL: [u8; 256] = [
     0, 1, 3, 3, 1, 2, 3, 3, 5, 6, 7, 7, 6, 6, 7, 7, 5, 6, 7, 7, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
     1, 2, 3, 3, 2, 2, 3, 3, 6, 6, 7, 7, 6, 6, 7, 7, 6, 6, 7, 7, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
@@ -41,7 +43,6 @@ const ZERO_NORMAL: [u8; 256] = [
     3, 3, 4, 4, 3, 3, 4, 4, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
     3, 3, 4, 4, 3, 3, 4, 4, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
 ];
-#[cfg(test)]
 const ZERO_HL: [u8; 256] = [
     0, 1, 5, 6, 1, 2, 6, 6, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 4, 4, 7, 7, 4, 4, 7, 7,
     1, 2, 6, 6, 2, 2, 6, 6, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 3, 3, 7, 7, 4, 4, 7, 7, 4, 4, 7, 7,
@@ -52,7 +53,6 @@ const ZERO_HL: [u8; 256] = [
     6, 6, 8, 8, 6, 6, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8,
     6, 6, 8, 8, 6, 6, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8, 7, 7, 8, 8,
 ];
-#[cfg(test)]
 const ZERO_HH: [u8; 256] = [
     0, 3, 1, 4, 3, 6, 4, 7, 1, 4, 2, 5, 4, 7, 5, 7, 1, 4, 2, 5, 4, 7, 5, 7, 2, 5, 2, 5, 5, 7, 5, 7,
     3, 6, 4, 7, 6, 8, 7, 8, 4, 7, 5, 7, 7, 8, 7, 8, 4, 7, 5, 7, 7, 8, 7, 8, 5, 7, 5, 7, 7, 8, 7, 8,
@@ -63,22 +63,349 @@ const ZERO_HH: [u8; 256] = [
     4, 7, 5, 7, 7, 8, 7, 8, 5, 7, 5, 7, 7, 8, 7, 8, 5, 7, 5, 7, 7, 8, 7, 8, 5, 7, 5, 7, 7, 8, 7, 8,
     7, 8, 7, 8, 8, 8, 8, 8, 7, 8, 7, 8, 8, 8, 8, 8, 7, 8, 7, 8, 8, 8, 8, 8, 7, 8, 7, 8, 8, 8, 8, 8,
 ];
+const SIGN_TABLE: [u8; 256] = [
+    18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 20, 21, 20, 21, 20, 21, 20, 21,
+    20, 21, 20, 21, 20, 21, 20, 21, 24, 24, 25, 25, 24, 24, 25, 25, 24, 24, 25, 25, 24, 24, 25, 25,
+    26, 22, 23, 27, 26, 22, 23, 27, 26, 22, 23, 27, 26, 22, 23, 27, 24, 24, 24, 24, 25, 25, 25, 25,
+    24, 24, 24, 24, 25, 25, 25, 25, 26, 22, 26, 22, 23, 27, 23, 27, 26, 22, 26, 22, 23, 27, 23, 27,
+    24, 24, 18, 18, 18, 18, 25, 25, 24, 24, 18, 18, 18, 18, 25, 25, 26, 22, 20, 21, 20, 21, 23, 27,
+    26, 22, 20, 21, 20, 21, 23, 27, 20, 20, 20, 20, 20, 20, 20, 20, 21, 21, 21, 21, 21, 21, 21, 21,
+    20, 18, 20, 18, 20, 18, 20, 18, 18, 21, 18, 21, 18, 21, 18, 21, 26, 26, 23, 23, 26, 26, 23, 23,
+    22, 22, 27, 27, 22, 22, 27, 27, 26, 24, 23, 25, 26, 24, 23, 25, 24, 22, 25, 27, 24, 22, 25, 27,
+    26, 26, 26, 26, 23, 23, 23, 23, 22, 22, 22, 22, 27, 27, 27, 27, 26, 24, 26, 24, 23, 25, 23, 25,
+    24, 22, 24, 22, 25, 27, 25, 27, 26, 26, 20, 20, 20, 20, 23, 23, 22, 22, 21, 21, 21, 21, 27, 27,
+    26, 24, 20, 18, 20, 18, 23, 25, 24, 22, 18, 21, 18, 21, 25, 27,
+];
+
+#[cfg(verus_keep_ghost)]
+verus! {
+    proof fn u8_bits_to_arith(x: u8)
+        ensures
+            (x & 1u8) == (x % 2u8),
+            ((x >> 1u8) & 1u8) == ((x / 2u8) % 2u8),
+            ((x >> 2u8) & 1u8) == ((x / 4u8) % 2u8),
+            ((x >> 3u8) & 1u8) == ((x / 8u8) % 2u8),
+            ((x >> 4u8) & 1u8) == ((x / 16u8) % 2u8),
+            ((x >> 5u8) & 1u8) == ((x / 32u8) % 2u8),
+            ((x >> 6u8) & 1u8) == ((x / 64u8) % 2u8),
+            ((x >> 7u8) & 1u8) == ((x / 128u8) % 2u8),
+            (0u8 & x) == 0u8,
+    {
+        assert(
+            (x & 1u8) == (x % 2u8)
+            && ((x >> 1u8) & 1u8) == ((x / 2u8) % 2u8)
+            && ((x >> 2u8) & 1u8) == ((x / 4u8) % 2u8)
+            && ((x >> 3u8) & 1u8) == ((x / 8u8) % 2u8)
+            && ((x >> 4u8) & 1u8) == ((x / 16u8) % 2u8)
+            && ((x >> 5u8) & 1u8) == ((x / 32u8) % 2u8)
+            && ((x >> 6u8) & 1u8) == ((x / 64u8) % 2u8)
+            && ((x >> 7u8) & 1u8) == ((x / 128u8) % 2u8)
+            && (0u8 & x) == 0u8
+        ) by (bit_vector);
+    }
+
+    spec fn zero_lut_spec(sig: u8, orientation: SubbandOrientation) -> u8 {
+        crate::specs::part1_legacy_zero_context(
+            crate::specs::compact_flag_summary(sig, 0), orientation)
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn zero_lut_normal_q0(sig: u8)
+        requires 0 <= sig, sig < 64,
+        ensures ZERO_NORMAL@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Ll),
+    {
+        u8_bits_to_arith(sig);
+        assert(sig == 0u8 || sig == 1u8 || sig == 2u8 || sig == 3u8 || sig == 4u8 || sig == 5u8 || sig == 6u8 || sig == 7u8 || sig == 8u8 || sig == 9u8 || sig == 10u8 || sig == 11u8 || sig == 12u8 || sig == 13u8 || sig == 14u8 || sig == 15u8 || sig == 16u8 || sig == 17u8 || sig == 18u8 || sig == 19u8 || sig == 20u8 || sig == 21u8 || sig == 22u8 || sig == 23u8 || sig == 24u8 || sig == 25u8 || sig == 26u8 || sig == 27u8 || sig == 28u8 || sig == 29u8 || sig == 30u8 || sig == 31u8 || sig == 32u8 || sig == 33u8 || sig == 34u8 || sig == 35u8 || sig == 36u8 || sig == 37u8 || sig == 38u8 || sig == 39u8 || sig == 40u8 || sig == 41u8 || sig == 42u8 || sig == 43u8 || sig == 44u8 || sig == 45u8 || sig == 46u8 || sig == 47u8 || sig == 48u8 || sig == 49u8 || sig == 50u8 || sig == 51u8 || sig == 52u8 || sig == 53u8 || sig == 54u8 || sig == 55u8 || sig == 56u8 || sig == 57u8 || sig == 58u8 || sig == 59u8 || sig == 60u8 || sig == 61u8 || sig == 62u8 || sig == 63u8);
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn zero_lut_normal_q1(sig: u8)
+        requires 64 <= sig, sig < 128,
+        ensures ZERO_NORMAL@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Ll),
+    {
+        u8_bits_to_arith(sig);
+        assert(sig == 64u8 || sig == 65u8 || sig == 66u8 || sig == 67u8 || sig == 68u8 || sig == 69u8 || sig == 70u8 || sig == 71u8 || sig == 72u8 || sig == 73u8 || sig == 74u8 || sig == 75u8 || sig == 76u8 || sig == 77u8 || sig == 78u8 || sig == 79u8 || sig == 80u8 || sig == 81u8 || sig == 82u8 || sig == 83u8 || sig == 84u8 || sig == 85u8 || sig == 86u8 || sig == 87u8 || sig == 88u8 || sig == 89u8 || sig == 90u8 || sig == 91u8 || sig == 92u8 || sig == 93u8 || sig == 94u8 || sig == 95u8 || sig == 96u8 || sig == 97u8 || sig == 98u8 || sig == 99u8 || sig == 100u8 || sig == 101u8 || sig == 102u8 || sig == 103u8 || sig == 104u8 || sig == 105u8 || sig == 106u8 || sig == 107u8 || sig == 108u8 || sig == 109u8 || sig == 110u8 || sig == 111u8 || sig == 112u8 || sig == 113u8 || sig == 114u8 || sig == 115u8 || sig == 116u8 || sig == 117u8 || sig == 118u8 || sig == 119u8 || sig == 120u8 || sig == 121u8 || sig == 122u8 || sig == 123u8 || sig == 124u8 || sig == 125u8 || sig == 126u8 || sig == 127u8);
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn zero_lut_normal_q2(sig: u8)
+        requires 128 <= sig, sig < 192,
+        ensures ZERO_NORMAL@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Ll),
+    {
+        u8_bits_to_arith(sig);
+        assert(sig == 128u8 || sig == 129u8 || sig == 130u8 || sig == 131u8 || sig == 132u8 || sig == 133u8 || sig == 134u8 || sig == 135u8 || sig == 136u8 || sig == 137u8 || sig == 138u8 || sig == 139u8 || sig == 140u8 || sig == 141u8 || sig == 142u8 || sig == 143u8 || sig == 144u8 || sig == 145u8 || sig == 146u8 || sig == 147u8 || sig == 148u8 || sig == 149u8 || sig == 150u8 || sig == 151u8 || sig == 152u8 || sig == 153u8 || sig == 154u8 || sig == 155u8 || sig == 156u8 || sig == 157u8 || sig == 158u8 || sig == 159u8 || sig == 160u8 || sig == 161u8 || sig == 162u8 || sig == 163u8 || sig == 164u8 || sig == 165u8 || sig == 166u8 || sig == 167u8 || sig == 168u8 || sig == 169u8 || sig == 170u8 || sig == 171u8 || sig == 172u8 || sig == 173u8 || sig == 174u8 || sig == 175u8 || sig == 176u8 || sig == 177u8 || sig == 178u8 || sig == 179u8 || sig == 180u8 || sig == 181u8 || sig == 182u8 || sig == 183u8 || sig == 184u8 || sig == 185u8 || sig == 186u8 || sig == 187u8 || sig == 188u8 || sig == 189u8 || sig == 190u8 || sig == 191u8);
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn zero_lut_normal_q3(sig: u8)
+        requires 192 <= sig, sig < 256,
+        ensures ZERO_NORMAL@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Ll),
+    {
+        u8_bits_to_arith(sig);
+        assert(sig == 192u8 || sig == 193u8 || sig == 194u8 || sig == 195u8 || sig == 196u8 || sig == 197u8 || sig == 198u8 || sig == 199u8 || sig == 200u8 || sig == 201u8 || sig == 202u8 || sig == 203u8 || sig == 204u8 || sig == 205u8 || sig == 206u8 || sig == 207u8 || sig == 208u8 || sig == 209u8 || sig == 210u8 || sig == 211u8 || sig == 212u8 || sig == 213u8 || sig == 214u8 || sig == 215u8 || sig == 216u8 || sig == 217u8 || sig == 218u8 || sig == 219u8 || sig == 220u8 || sig == 221u8 || sig == 222u8 || sig == 223u8 || sig == 224u8 || sig == 225u8 || sig == 226u8 || sig == 227u8 || sig == 228u8 || sig == 229u8 || sig == 230u8 || sig == 231u8 || sig == 232u8 || sig == 233u8 || sig == 234u8 || sig == 235u8 || sig == 236u8 || sig == 237u8 || sig == 238u8 || sig == 239u8 || sig == 240u8 || sig == 241u8 || sig == 242u8 || sig == 243u8 || sig == 244u8 || sig == 245u8 || sig == 246u8 || sig == 247u8 || sig == 248u8 || sig == 249u8 || sig == 250u8 || sig == 251u8 || sig == 252u8 || sig == 253u8 || sig == 254u8 || sig == 255u8);
+    }
+
+    proof fn zero_lut_normal(sig: u8)
+        ensures ZERO_NORMAL@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Ll),
+    {
+        if sig < 64 { zero_lut_normal_q0(sig); }
+        else if sig < 128 { zero_lut_normal_q1(sig); }
+        else if sig < 192 { zero_lut_normal_q2(sig); }
+        else { zero_lut_normal_q3(sig); }
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn zero_lut_hl_q0(sig: u8)
+        requires 0 <= sig, sig < 64,
+        ensures ZERO_HL@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Hl),
+    {
+        u8_bits_to_arith(sig);
+        assert(sig == 0u8 || sig == 1u8 || sig == 2u8 || sig == 3u8 || sig == 4u8 || sig == 5u8 || sig == 6u8 || sig == 7u8 || sig == 8u8 || sig == 9u8 || sig == 10u8 || sig == 11u8 || sig == 12u8 || sig == 13u8 || sig == 14u8 || sig == 15u8 || sig == 16u8 || sig == 17u8 || sig == 18u8 || sig == 19u8 || sig == 20u8 || sig == 21u8 || sig == 22u8 || sig == 23u8 || sig == 24u8 || sig == 25u8 || sig == 26u8 || sig == 27u8 || sig == 28u8 || sig == 29u8 || sig == 30u8 || sig == 31u8 || sig == 32u8 || sig == 33u8 || sig == 34u8 || sig == 35u8 || sig == 36u8 || sig == 37u8 || sig == 38u8 || sig == 39u8 || sig == 40u8 || sig == 41u8 || sig == 42u8 || sig == 43u8 || sig == 44u8 || sig == 45u8 || sig == 46u8 || sig == 47u8 || sig == 48u8 || sig == 49u8 || sig == 50u8 || sig == 51u8 || sig == 52u8 || sig == 53u8 || sig == 54u8 || sig == 55u8 || sig == 56u8 || sig == 57u8 || sig == 58u8 || sig == 59u8 || sig == 60u8 || sig == 61u8 || sig == 62u8 || sig == 63u8);
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn zero_lut_hl_q1(sig: u8)
+        requires 64 <= sig, sig < 128,
+        ensures ZERO_HL@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Hl),
+    {
+        u8_bits_to_arith(sig);
+        assert(sig == 64u8 || sig == 65u8 || sig == 66u8 || sig == 67u8 || sig == 68u8 || sig == 69u8 || sig == 70u8 || sig == 71u8 || sig == 72u8 || sig == 73u8 || sig == 74u8 || sig == 75u8 || sig == 76u8 || sig == 77u8 || sig == 78u8 || sig == 79u8 || sig == 80u8 || sig == 81u8 || sig == 82u8 || sig == 83u8 || sig == 84u8 || sig == 85u8 || sig == 86u8 || sig == 87u8 || sig == 88u8 || sig == 89u8 || sig == 90u8 || sig == 91u8 || sig == 92u8 || sig == 93u8 || sig == 94u8 || sig == 95u8 || sig == 96u8 || sig == 97u8 || sig == 98u8 || sig == 99u8 || sig == 100u8 || sig == 101u8 || sig == 102u8 || sig == 103u8 || sig == 104u8 || sig == 105u8 || sig == 106u8 || sig == 107u8 || sig == 108u8 || sig == 109u8 || sig == 110u8 || sig == 111u8 || sig == 112u8 || sig == 113u8 || sig == 114u8 || sig == 115u8 || sig == 116u8 || sig == 117u8 || sig == 118u8 || sig == 119u8 || sig == 120u8 || sig == 121u8 || sig == 122u8 || sig == 123u8 || sig == 124u8 || sig == 125u8 || sig == 126u8 || sig == 127u8);
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn zero_lut_hl_q2(sig: u8)
+        requires 128 <= sig, sig < 192,
+        ensures ZERO_HL@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Hl),
+    {
+        u8_bits_to_arith(sig);
+        assert(sig == 128u8 || sig == 129u8 || sig == 130u8 || sig == 131u8 || sig == 132u8 || sig == 133u8 || sig == 134u8 || sig == 135u8 || sig == 136u8 || sig == 137u8 || sig == 138u8 || sig == 139u8 || sig == 140u8 || sig == 141u8 || sig == 142u8 || sig == 143u8 || sig == 144u8 || sig == 145u8 || sig == 146u8 || sig == 147u8 || sig == 148u8 || sig == 149u8 || sig == 150u8 || sig == 151u8 || sig == 152u8 || sig == 153u8 || sig == 154u8 || sig == 155u8 || sig == 156u8 || sig == 157u8 || sig == 158u8 || sig == 159u8 || sig == 160u8 || sig == 161u8 || sig == 162u8 || sig == 163u8 || sig == 164u8 || sig == 165u8 || sig == 166u8 || sig == 167u8 || sig == 168u8 || sig == 169u8 || sig == 170u8 || sig == 171u8 || sig == 172u8 || sig == 173u8 || sig == 174u8 || sig == 175u8 || sig == 176u8 || sig == 177u8 || sig == 178u8 || sig == 179u8 || sig == 180u8 || sig == 181u8 || sig == 182u8 || sig == 183u8 || sig == 184u8 || sig == 185u8 || sig == 186u8 || sig == 187u8 || sig == 188u8 || sig == 189u8 || sig == 190u8 || sig == 191u8);
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn zero_lut_hl_q3(sig: u8)
+        requires 192 <= sig, sig < 256,
+        ensures ZERO_HL@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Hl),
+    {
+        u8_bits_to_arith(sig);
+        assert(sig == 192u8 || sig == 193u8 || sig == 194u8 || sig == 195u8 || sig == 196u8 || sig == 197u8 || sig == 198u8 || sig == 199u8 || sig == 200u8 || sig == 201u8 || sig == 202u8 || sig == 203u8 || sig == 204u8 || sig == 205u8 || sig == 206u8 || sig == 207u8 || sig == 208u8 || sig == 209u8 || sig == 210u8 || sig == 211u8 || sig == 212u8 || sig == 213u8 || sig == 214u8 || sig == 215u8 || sig == 216u8 || sig == 217u8 || sig == 218u8 || sig == 219u8 || sig == 220u8 || sig == 221u8 || sig == 222u8 || sig == 223u8 || sig == 224u8 || sig == 225u8 || sig == 226u8 || sig == 227u8 || sig == 228u8 || sig == 229u8 || sig == 230u8 || sig == 231u8 || sig == 232u8 || sig == 233u8 || sig == 234u8 || sig == 235u8 || sig == 236u8 || sig == 237u8 || sig == 238u8 || sig == 239u8 || sig == 240u8 || sig == 241u8 || sig == 242u8 || sig == 243u8 || sig == 244u8 || sig == 245u8 || sig == 246u8 || sig == 247u8 || sig == 248u8 || sig == 249u8 || sig == 250u8 || sig == 251u8 || sig == 252u8 || sig == 253u8 || sig == 254u8 || sig == 255u8);
+    }
+
+    proof fn zero_lut_hl(sig: u8)
+        ensures ZERO_HL@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Hl),
+    {
+        if sig < 64 { zero_lut_hl_q0(sig); }
+        else if sig < 128 { zero_lut_hl_q1(sig); }
+        else if sig < 192 { zero_lut_hl_q2(sig); }
+        else { zero_lut_hl_q3(sig); }
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn zero_lut_hh_q0(sig: u8)
+        requires 0 <= sig, sig < 64,
+        ensures ZERO_HH@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Hh),
+    {
+        u8_bits_to_arith(sig);
+        assert(sig == 0u8 || sig == 1u8 || sig == 2u8 || sig == 3u8 || sig == 4u8 || sig == 5u8 || sig == 6u8 || sig == 7u8 || sig == 8u8 || sig == 9u8 || sig == 10u8 || sig == 11u8 || sig == 12u8 || sig == 13u8 || sig == 14u8 || sig == 15u8 || sig == 16u8 || sig == 17u8 || sig == 18u8 || sig == 19u8 || sig == 20u8 || sig == 21u8 || sig == 22u8 || sig == 23u8 || sig == 24u8 || sig == 25u8 || sig == 26u8 || sig == 27u8 || sig == 28u8 || sig == 29u8 || sig == 30u8 || sig == 31u8 || sig == 32u8 || sig == 33u8 || sig == 34u8 || sig == 35u8 || sig == 36u8 || sig == 37u8 || sig == 38u8 || sig == 39u8 || sig == 40u8 || sig == 41u8 || sig == 42u8 || sig == 43u8 || sig == 44u8 || sig == 45u8 || sig == 46u8 || sig == 47u8 || sig == 48u8 || sig == 49u8 || sig == 50u8 || sig == 51u8 || sig == 52u8 || sig == 53u8 || sig == 54u8 || sig == 55u8 || sig == 56u8 || sig == 57u8 || sig == 58u8 || sig == 59u8 || sig == 60u8 || sig == 61u8 || sig == 62u8 || sig == 63u8);
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn zero_lut_hh_q1(sig: u8)
+        requires 64 <= sig, sig < 128,
+        ensures ZERO_HH@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Hh),
+    {
+        u8_bits_to_arith(sig);
+        assert(sig == 64u8 || sig == 65u8 || sig == 66u8 || sig == 67u8 || sig == 68u8 || sig == 69u8 || sig == 70u8 || sig == 71u8 || sig == 72u8 || sig == 73u8 || sig == 74u8 || sig == 75u8 || sig == 76u8 || sig == 77u8 || sig == 78u8 || sig == 79u8 || sig == 80u8 || sig == 81u8 || sig == 82u8 || sig == 83u8 || sig == 84u8 || sig == 85u8 || sig == 86u8 || sig == 87u8 || sig == 88u8 || sig == 89u8 || sig == 90u8 || sig == 91u8 || sig == 92u8 || sig == 93u8 || sig == 94u8 || sig == 95u8 || sig == 96u8 || sig == 97u8 || sig == 98u8 || sig == 99u8 || sig == 100u8 || sig == 101u8 || sig == 102u8 || sig == 103u8 || sig == 104u8 || sig == 105u8 || sig == 106u8 || sig == 107u8 || sig == 108u8 || sig == 109u8 || sig == 110u8 || sig == 111u8 || sig == 112u8 || sig == 113u8 || sig == 114u8 || sig == 115u8 || sig == 116u8 || sig == 117u8 || sig == 118u8 || sig == 119u8 || sig == 120u8 || sig == 121u8 || sig == 122u8 || sig == 123u8 || sig == 124u8 || sig == 125u8 || sig == 126u8 || sig == 127u8);
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn zero_lut_hh_q2(sig: u8)
+        requires 128 <= sig, sig < 192,
+        ensures ZERO_HH@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Hh),
+    {
+        u8_bits_to_arith(sig);
+        assert(sig == 128u8 || sig == 129u8 || sig == 130u8 || sig == 131u8 || sig == 132u8 || sig == 133u8 || sig == 134u8 || sig == 135u8 || sig == 136u8 || sig == 137u8 || sig == 138u8 || sig == 139u8 || sig == 140u8 || sig == 141u8 || sig == 142u8 || sig == 143u8 || sig == 144u8 || sig == 145u8 || sig == 146u8 || sig == 147u8 || sig == 148u8 || sig == 149u8 || sig == 150u8 || sig == 151u8 || sig == 152u8 || sig == 153u8 || sig == 154u8 || sig == 155u8 || sig == 156u8 || sig == 157u8 || sig == 158u8 || sig == 159u8 || sig == 160u8 || sig == 161u8 || sig == 162u8 || sig == 163u8 || sig == 164u8 || sig == 165u8 || sig == 166u8 || sig == 167u8 || sig == 168u8 || sig == 169u8 || sig == 170u8 || sig == 171u8 || sig == 172u8 || sig == 173u8 || sig == 174u8 || sig == 175u8 || sig == 176u8 || sig == 177u8 || sig == 178u8 || sig == 179u8 || sig == 180u8 || sig == 181u8 || sig == 182u8 || sig == 183u8 || sig == 184u8 || sig == 185u8 || sig == 186u8 || sig == 187u8 || sig == 188u8 || sig == 189u8 || sig == 190u8 || sig == 191u8);
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn zero_lut_hh_q3(sig: u8)
+        requires 192 <= sig, sig < 256,
+        ensures ZERO_HH@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Hh),
+    {
+        u8_bits_to_arith(sig);
+        assert(sig == 192u8 || sig == 193u8 || sig == 194u8 || sig == 195u8 || sig == 196u8 || sig == 197u8 || sig == 198u8 || sig == 199u8 || sig == 200u8 || sig == 201u8 || sig == 202u8 || sig == 203u8 || sig == 204u8 || sig == 205u8 || sig == 206u8 || sig == 207u8 || sig == 208u8 || sig == 209u8 || sig == 210u8 || sig == 211u8 || sig == 212u8 || sig == 213u8 || sig == 214u8 || sig == 215u8 || sig == 216u8 || sig == 217u8 || sig == 218u8 || sig == 219u8 || sig == 220u8 || sig == 221u8 || sig == 222u8 || sig == 223u8 || sig == 224u8 || sig == 225u8 || sig == 226u8 || sig == 227u8 || sig == 228u8 || sig == 229u8 || sig == 230u8 || sig == 231u8 || sig == 232u8 || sig == 233u8 || sig == 234u8 || sig == 235u8 || sig == 236u8 || sig == 237u8 || sig == 238u8 || sig == 239u8 || sig == 240u8 || sig == 241u8 || sig == 242u8 || sig == 243u8 || sig == 244u8 || sig == 245u8 || sig == 246u8 || sig == 247u8 || sig == 248u8 || sig == 249u8 || sig == 250u8 || sig == 251u8 || sig == 252u8 || sig == 253u8 || sig == 254u8 || sig == 255u8);
+    }
+
+    proof fn zero_lut_hh(sig: u8)
+        ensures ZERO_HH@[sig as int] == zero_lut_spec(sig, SubbandOrientation::Hh),
+    {
+        if sig < 64 { zero_lut_hh_q0(sig); }
+        else if sig < 128 { zero_lut_hh_q1(sig); }
+        else if sig < 192 { zero_lut_hh_q2(sig); }
+        else { zero_lut_hh_q3(sig); }
+    }
+
+    spec fn sign_lut_entry_spec(idx: u8) -> u8 {
+        let s1 = (idx / 16u8) % 2u8;
+        let s3 = (idx / 32u8) % 2u8;
+        let s4 = (idx / 64u8) % 2u8;
+        let s6 = (idx / 128u8) % 2u8;
+        let n1 = if s1 == 1u8 { idx % 2u8 } else { 0u8 };
+        let n3 = if s3 == 1u8 { (idx / 2u8) % 2u8 } else { 0u8 };
+        let n4 = if s4 == 1u8 { (idx / 4u8) % 2u8 } else { 0u8 };
+        let n6 = if s6 == 1u8 { (idx / 8u8) % 2u8 } else { 0u8 };
+        let summary = NeighborSummary {
+            horizontal_significant: (s3 + s4) as u8,
+            vertical_significant: (s1 + s6) as u8,
+            diagonal_significant: 0u8,
+            horizontal_sign_balance: ((s3 as int + s4 as int) - 2 * (n3 as int + n4 as int)) as i8,
+            vertical_sign_balance: ((s1 as int + s6 as int) - 2 * (n1 as int + n6 as int)) as i8,
+        };
+        let sc = crate::specs::part1_legacy_sign_context(summary);
+        ((sc.context as int) * 2 + if sc.predicted_negative { 1int } else { 0int }) as u8
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn sign_lut_q0(idx: u8)
+        requires 0 <= idx, idx < 64,
+        ensures SIGN_TABLE@[idx as int] == sign_lut_entry_spec(idx),
+    {
+        assert(idx == 0u8 || idx == 1u8 || idx == 2u8 || idx == 3u8 || idx == 4u8 || idx == 5u8 || idx == 6u8 || idx == 7u8 || idx == 8u8 || idx == 9u8 || idx == 10u8 || idx == 11u8 || idx == 12u8 || idx == 13u8 || idx == 14u8 || idx == 15u8 || idx == 16u8 || idx == 17u8 || idx == 18u8 || idx == 19u8 || idx == 20u8 || idx == 21u8 || idx == 22u8 || idx == 23u8 || idx == 24u8 || idx == 25u8 || idx == 26u8 || idx == 27u8 || idx == 28u8 || idx == 29u8 || idx == 30u8 || idx == 31u8 || idx == 32u8 || idx == 33u8 || idx == 34u8 || idx == 35u8 || idx == 36u8 || idx == 37u8 || idx == 38u8 || idx == 39u8 || idx == 40u8 || idx == 41u8 || idx == 42u8 || idx == 43u8 || idx == 44u8 || idx == 45u8 || idx == 46u8 || idx == 47u8 || idx == 48u8 || idx == 49u8 || idx == 50u8 || idx == 51u8 || idx == 52u8 || idx == 53u8 || idx == 54u8 || idx == 55u8 || idx == 56u8 || idx == 57u8 || idx == 58u8 || idx == 59u8 || idx == 60u8 || idx == 61u8 || idx == 62u8 || idx == 63u8);
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn sign_lut_q1(idx: u8)
+        requires 64 <= idx, idx < 128,
+        ensures SIGN_TABLE@[idx as int] == sign_lut_entry_spec(idx),
+    {
+        assert(idx == 64u8 || idx == 65u8 || idx == 66u8 || idx == 67u8 || idx == 68u8 || idx == 69u8 || idx == 70u8 || idx == 71u8 || idx == 72u8 || idx == 73u8 || idx == 74u8 || idx == 75u8 || idx == 76u8 || idx == 77u8 || idx == 78u8 || idx == 79u8 || idx == 80u8 || idx == 81u8 || idx == 82u8 || idx == 83u8 || idx == 84u8 || idx == 85u8 || idx == 86u8 || idx == 87u8 || idx == 88u8 || idx == 89u8 || idx == 90u8 || idx == 91u8 || idx == 92u8 || idx == 93u8 || idx == 94u8 || idx == 95u8 || idx == 96u8 || idx == 97u8 || idx == 98u8 || idx == 99u8 || idx == 100u8 || idx == 101u8 || idx == 102u8 || idx == 103u8 || idx == 104u8 || idx == 105u8 || idx == 106u8 || idx == 107u8 || idx == 108u8 || idx == 109u8 || idx == 110u8 || idx == 111u8 || idx == 112u8 || idx == 113u8 || idx == 114u8 || idx == 115u8 || idx == 116u8 || idx == 117u8 || idx == 118u8 || idx == 119u8 || idx == 120u8 || idx == 121u8 || idx == 122u8 || idx == 123u8 || idx == 124u8 || idx == 125u8 || idx == 126u8 || idx == 127u8);
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn sign_lut_q2(idx: u8)
+        requires 128 <= idx, idx < 192,
+        ensures SIGN_TABLE@[idx as int] == sign_lut_entry_spec(idx),
+    {
+        assert(idx == 128u8 || idx == 129u8 || idx == 130u8 || idx == 131u8 || idx == 132u8 || idx == 133u8 || idx == 134u8 || idx == 135u8 || idx == 136u8 || idx == 137u8 || idx == 138u8 || idx == 139u8 || idx == 140u8 || idx == 141u8 || idx == 142u8 || idx == 143u8 || idx == 144u8 || idx == 145u8 || idx == 146u8 || idx == 147u8 || idx == 148u8 || idx == 149u8 || idx == 150u8 || idx == 151u8 || idx == 152u8 || idx == 153u8 || idx == 154u8 || idx == 155u8 || idx == 156u8 || idx == 157u8 || idx == 158u8 || idx == 159u8 || idx == 160u8 || idx == 161u8 || idx == 162u8 || idx == 163u8 || idx == 164u8 || idx == 165u8 || idx == 166u8 || idx == 167u8 || idx == 168u8 || idx == 169u8 || idx == 170u8 || idx == 171u8 || idx == 172u8 || idx == 173u8 || idx == 174u8 || idx == 175u8 || idx == 176u8 || idx == 177u8 || idx == 178u8 || idx == 179u8 || idx == 180u8 || idx == 181u8 || idx == 182u8 || idx == 183u8 || idx == 184u8 || idx == 185u8 || idx == 186u8 || idx == 187u8 || idx == 188u8 || idx == 189u8 || idx == 190u8 || idx == 191u8);
+    }
+
+    #[verifier::spinoff_prover]
+    proof fn sign_lut_q3(idx: u8)
+        requires 192 <= idx, idx < 256,
+        ensures SIGN_TABLE@[idx as int] == sign_lut_entry_spec(idx),
+    {
+        assert(idx == 192u8 || idx == 193u8 || idx == 194u8 || idx == 195u8 || idx == 196u8 || idx == 197u8 || idx == 198u8 || idx == 199u8 || idx == 200u8 || idx == 201u8 || idx == 202u8 || idx == 203u8 || idx == 204u8 || idx == 205u8 || idx == 206u8 || idx == 207u8 || idx == 208u8 || idx == 209u8 || idx == 210u8 || idx == 211u8 || idx == 212u8 || idx == 213u8 || idx == 214u8 || idx == 215u8 || idx == 216u8 || idx == 217u8 || idx == 218u8 || idx == 219u8 || idx == 220u8 || idx == 221u8 || idx == 222u8 || idx == 223u8 || idx == 224u8 || idx == 225u8 || idx == 226u8 || idx == 227u8 || idx == 228u8 || idx == 229u8 || idx == 230u8 || idx == 231u8 || idx == 232u8 || idx == 233u8 || idx == 234u8 || idx == 235u8 || idx == 236u8 || idx == 237u8 || idx == 238u8 || idx == 239u8 || idx == 240u8 || idx == 241u8 || idx == 242u8 || idx == 243u8 || idx == 244u8 || idx == 245u8 || idx == 246u8 || idx == 247u8 || idx == 248u8 || idx == 249u8 || idx == 250u8 || idx == 251u8 || idx == 252u8 || idx == 253u8 || idx == 254u8 || idx == 255u8);
+    }
+
+    proof fn sign_lut(idx: u8)
+        ensures SIGN_TABLE@[idx as int] == sign_lut_entry_spec(idx),
+    {
+        if idx < 64 { sign_lut_q0(idx); }
+        else if idx < 128 { sign_lut_q1(idx); }
+        else if idx < 192 { sign_lut_q2(idx); }
+        else { sign_lut_q3(idx); }
+    }
+
+    proof fn sign_index_bits(sig: u8, neg: u8, cs: u8, cn: u8, idx: u8, masked: u8)
+        requires
+            cs == (((sig >> 1u8) & 1u8) | ((sig >> 2u8) & 6u8) | ((sig >> 3u8) & 8u8)),
+            cn == (((neg >> 1u8) & 1u8) | ((neg >> 2u8) & 6u8) | ((neg >> 3u8) & 8u8)),
+            idx == ((cs << 4u8) | cn),
+            masked == (neg & sig),
+        ensures
+            ((sig >> 1u8) & 1u8) == ((idx / 16u8) % 2u8),
+            ((sig >> 3u8) & 1u8) == ((idx / 32u8) % 2u8),
+            ((sig >> 4u8) & 1u8) == ((idx / 64u8) % 2u8),
+            ((sig >> 6u8) & 1u8) == ((idx / 128u8) % 2u8),
+            ((masked >> 1u8) & 1u8) == (if ((idx / 16u8) % 2u8) == 1u8 { idx % 2u8 } else { 0u8 }),
+            ((masked >> 3u8) & 1u8) == (if ((idx / 32u8) % 2u8) == 1u8 { (idx / 2u8) % 2u8 } else { 0u8 }),
+            ((masked >> 4u8) & 1u8) == (if ((idx / 64u8) % 2u8) == 1u8 { (idx / 4u8) % 2u8 } else { 0u8 }),
+            ((masked >> 6u8) & 1u8) == (if ((idx / 128u8) % 2u8) == 1u8 { (idx / 8u8) % 2u8 } else { 0u8 }),
+    {
+        assert(
+            ((sig >> 1u8) & 1u8) == ((idx / 16u8) % 2u8)
+            && ((sig >> 3u8) & 1u8) == ((idx / 32u8) % 2u8)
+            && ((sig >> 4u8) & 1u8) == ((idx / 64u8) % 2u8)
+            && ((sig >> 6u8) & 1u8) == ((idx / 128u8) % 2u8)
+            && ((masked >> 1u8) & 1u8) == (if ((idx / 16u8) % 2u8) == 1u8 { idx % 2u8 } else { 0u8 })
+            && ((masked >> 3u8) & 1u8) == (if ((idx / 32u8) % 2u8) == 1u8 { (idx / 2u8) % 2u8 } else { 0u8 })
+            && ((masked >> 4u8) & 1u8) == (if ((idx / 64u8) % 2u8) == 1u8 { (idx / 4u8) % 2u8 } else { 0u8 })
+            && ((masked >> 6u8) & 1u8) == (if ((idx / 128u8) % 2u8) == 1u8 { (idx / 8u8) % 2u8 } else { 0u8 })
+        ) by (bit_vector)
+            requires
+                cs == (((sig >> 1u8) & 1u8) | ((sig >> 2u8) & 6u8) | ((sig >> 3u8) & 8u8)),
+                cn == (((neg >> 1u8) & 1u8) | ((neg >> 2u8) & 6u8) | ((neg >> 3u8) & 8u8)),
+                idx == ((cs << 4u8) | cn),
+                masked == (neg & sig);
+    }
+}
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == crate::specs::part1_legacy_zero_context(
         crate::specs::compact_flag_summary(sig, 0), orientation),
 ))]
-#[inline]
+#[inline(always)]
 fn cached_zero_context(sig: u8, orientation: SubbandOrientation) -> u8 {
-    super::state::zero_coding_context(word_flag_summary(sig, 0), orientation)
+    match orientation {
+        SubbandOrientation::Hl => {
+            #[cfg(verus_keep_ghost)]
+            proof! { zero_lut_hl(sig); }
+            ZERO_HL[usize::from(sig)]
+        }
+        SubbandOrientation::Hh => {
+            #[cfg(verus_keep_ghost)]
+            proof! { zero_lut_hh(sig); }
+            ZERO_HH[usize::from(sig)]
+        }
+        SubbandOrientation::Ll | SubbandOrientation::Lh => {
+            #[cfg(verus_keep_ghost)]
+            proof! { zero_lut_normal(sig); }
+            ZERO_NORMAL[usize::from(sig)]
+        }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == crate::specs::part1_legacy_sign_context(
+        crate::specs::compact_flag_summary(sig, neg)),
+))]
+#[inline(always)]
+fn cached_sign_context(sig: u8, neg: u8) -> SignContext {
+    let cs = ((sig >> 1) & 1) | ((sig >> 2) & 6) | ((sig >> 3) & 8);
+    let cn = ((neg >> 1) & 1) | ((neg >> 2) & 6) | ((neg >> 3) & 8);
+    let idx = (cs << 4) | cn;
+    let entry = SIGN_TABLE[usize::from(idx)];
+    let context = entry >> 1;
+    let predicted_negative = (entry & 1) != 0;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        sign_index_bits(sig, neg, cs, cn, idx, neg & sig);
+        sign_lut(idx);
+        let sc = crate::specs::part1_legacy_sign_context(crate::specs::compact_flag_summary(sig, neg));
+        assert(sc.context <= 13);
+        assert(entry == ((sc.context as int) * 2 + if sc.predicted_negative { 1int } else { 0int }) as u8);
+        assert((entry >> 1u8) == (entry / 2u8) && ((entry & 1u8) != 0) == ((entry % 2u8) != 0)) by (bit_vector);
+        assert(context == sc.context && predicted_negative == sc.predicted_negative);
+    }
+    SignContext {
+        context,
+        predicted_negative,
+    }
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result == ((value >> 41) as u8) & if causal && y % 4 == 3 { 0x1fu8 } else { 0xffu8 },
 ))]
-#[inline]
+#[inline(always)]
 fn significance_mask(value: u64, y: usize, causal: bool) -> u8 {
     ((value >> SIG_NEIGHBORS) as u8) & if causal && y % 4 == 3 { 0x1f } else { 0xff }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == ((value >> 49) as u8) & if causal && y % 4 == 3 { 0x1fu8 } else { 0xffu8 },
+))]
+#[inline(always)]
+fn negative_mask(value: u64, y: usize, causal: bool) -> u8 {
+    ((value >> NEG_NEIGHBORS) as u8) & if causal && y % 4 == 3 { 0x1f } else { 0xff }
 }
 
 #[cfg(test)]
@@ -98,9 +425,10 @@ mod cached_context_tests {
                             | (u64::from(sig) << SIG_NEIGHBORS)
                             | (u64::from(neg) << NEG_NEIGHBORS);
                         let mask = significance_mask(word, y, causal);
-                        let signs = if causal && y == 3 { neg & 0x1f } else { neg };
+                        let signs = negative_mask(word, y, causal);
                         let summary = word_flag_summary(mask, signs);
                         assert_eq!(mask == 0, significant_neighbor_count(summary) == 0);
+                        assert_eq!(cached_sign_context(mask, signs), sign_context(summary));
                         for orientation in [
                             SubbandOrientation::Ll,
                             SubbandOrientation::Hl,
@@ -361,6 +689,7 @@ pub(super) fn pack_word(coefficient: CoefficientState) -> u64 {
         result>>41==value>>41,
         crate::specs::compact_precision_word(result),
 ))]
+#[inline(always)]
 fn mark_word(value: u64, bp: u16, negative: bool) -> u64 {
     let marked = (value & !(MAG | BP_MASK | NEG | REFINED))
         | (1u64 << bp)
@@ -393,6 +722,7 @@ fn mark_word(value: u64, bp: u16, negative: bool) -> u64 {
         result & 0x1ff_ffff_ffffu64==value & 0x1ff_ffff_ffffu64,
         crate::specs::compact_precision_word(result)==crate::specs::compact_precision_word(value),
 ))]
+#[inline(always)]
 fn cache_word(value: u64, direction: u32, negative: bool) -> u64 {
     let updated = value
         | (1u64 << (SIG_NEIGHBORS + direction))
@@ -428,6 +758,7 @@ fn cache_word(value: u64, direction: u32, negative: bool) -> u64 {
         result>>41==value>>41,result & MAG<1u64<<31,
         crate::specs::compact_refinement_frontier(value,bp) ==> crate::specs::compact_precision_word(result),
 ))]
+#[inline(always)]
 fn refine_word(value: u64, bp: u16, bit: bool) -> u64 {
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -453,6 +784,7 @@ fn refine_word(value: u64, bp: u16, bit: bool) -> u64 {
     refined
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures result==crate::specs::compact_flag_summary(sig,neg),
         result.horizontal_significant<=2,result.vertical_significant<=2,result.diagonal_significant<=4,
@@ -483,6 +815,7 @@ fn word_flag_summary(sig: u8, neg: u8) -> NeighborSummary {
 }
 
 impl CompactPlane {
+    #[cfg_attr(not(test), allow(dead_code))]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires self.shape(),x<self.width,y<self.height,
             crate::specs::compact_cache(self.width,self.height,self.entries@),
@@ -519,23 +852,131 @@ impl CompactPlane {
                     && crate::specs::compact_coefficient(final(self).entries@[(y*old(self).width+x) as int]).legacy_bitplane==Some(bp)},
             (result,final(self).view(),crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(final(decoder))))
                 ==crate::specs::part1_legacy_sign_mark(old(self).view(),
-                    crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(old(decoder))),x as u16,y as u16,bp,summary),
+                    crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(old(decoder))),x as u16,y as u16,bp,
+                    crate::specs::compact_flag_summary(
+                        ((old(self).entries@[(y*old(self).width+x) as int]>>41) as u8) & if causal && y%4==3{0x1fu8}else{0xffu8},
+                        ((old(self).entries@[(y*old(self).width+x) as int]>>49) as u8) & if causal && y%4==3{0x1fu8}else{0xffu8})),
     ))]
+    #[inline]
     fn sign_and_mark(
         &mut self,
         x: usize,
         y: usize,
         bp: u16,
-        summary: NeighborSummary,
+        causal: bool,
         decoder: &mut MqDecoder<'_>,
     ) -> Result<(), DecodeError> {
         #[cfg(verus_keep_ghost)]
-        proof! {reveal(crate::specs::part1_legacy_sign_mark);reveal(crate::specs::part1_legacy_symbol);}
-        let sign = sign_context(summary);
+        proof! {
+            reveal(crate::specs::part1_legacy_sign_mark);
+            reveal(crate::specs::part1_legacy_symbol);
+            crate::specs::compact_index(self.width,self.height,self.entries@,x,y);
+        }
+        let word = self.entries[y * self.width + x];
+        let sig = significance_mask(word, y, causal);
+        let neg = negative_mask(word, y, causal);
+        let sign = cached_sign_context(sig, neg);
         let bit = decoder.decode(usize::from(sign.context))?;
         let negative = crate::refinement::tier1_decoded_sign(bit, sign.predicted_negative, false);
         self.mark(x, y, bp, negative);
         Ok(())
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        requires old(self).shape(), x < old(self).width, y < old(self).height, d < 8,
+            target < old(self).entries.len(),
+            crate::specs::compact_neighbor_index(old(self).width, old(self).height, x as int, y as int, d) == Some(target as int),
+            crate::specs::compact_pending_cache(old(self).width, old(self).height, old(self).entries@, x as int, y as int, d),
+            crate::specs::compact_coefficient(old(self).entries@[(y * old(self).width + x) as int]).significant,
+            crate::specs::compact_coefficient(old(self).entries@[(y * old(self).width + x) as int]).negative == negative,
+            forall|i:int| 0 <= i < old(self).entries.len() ==> crate::specs::compact_precision_word(old(self).entries@[i]),
+        ensures final(self).shape(), final(self).width == old(self).width, final(self).height == old(self).height,
+            final(self).view() == old(self).view(),
+            crate::specs::compact_pending_cache(final(self).width, final(self).height, final(self).entries@, x as int, y as int, (d + 1) as u32),
+            crate::specs::compact_coefficient(final(self).entries@[(y * old(self).width + x) as int]).significant,
+            crate::specs::compact_coefficient(final(self).entries@[(y * old(self).width + x) as int]).negative == negative,
+            forall|i:int| 0 <= i < final(self).entries.len() ==> crate::specs::compact_precision_word(final(self).entries@[i]),
+            forall|i:int| 0 <= i < final(self).entries.len() ==>
+                final(self).entries@[i] & 0x1ff_ffff_ffffu64 == old(self).entries@[i] & 0x1ff_ffff_ffffu64,
+    ))]
+    #[inline(always)]
+    fn update_neighbor(
+        &mut self,
+        #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] x: usize,
+        #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] y: usize,
+        target: usize,
+        d: u32,
+        negative: bool,
+    ) {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::compact_index(self.width, self.height, self.entries@, x, y);
+            crate::specs::compact_cache_mark_step(self.width, self.height, self.entries@, x, y, d, negative);
+        }
+        self.entries[target] = cache_word(self.entries[target], 7 - d, negative);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(self.view().coefficients =~= old(self).view().coefficients);
+        }
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        requires old(self).shape(),
+            0 < x, x + 1 < old(self).width,
+            0 < y, y + 1 < old(self).height,
+            index == y * old(self).width + x,
+            crate::specs::compact_pending_cache(old(self).width, old(self).height, old(self).entries@, x as int, y as int, 0),
+            crate::specs::compact_coefficient(old(self).entries@[index as int]).significant,
+            crate::specs::compact_coefficient(old(self).entries@[index as int]).negative == negative,
+            forall|i:int| 0 <= i < old(self).entries.len() ==> crate::specs::compact_precision_word(old(self).entries@[i]),
+        ensures final(self).shape(), final(self).width == old(self).width, final(self).height == old(self).height,
+            final(self).view() == old(self).view(),
+            crate::specs::compact_pending_cache(final(self).width, final(self).height, final(self).entries@, x as int, y as int, 8),
+            crate::specs::compact_coefficient(final(self).entries@[index as int]).significant,
+            crate::specs::compact_coefficient(final(self).entries@[index as int]).negative == negative,
+            forall|i:int| 0 <= i < final(self).entries.len() ==> crate::specs::compact_precision_word(final(self).entries@[i]),
+            forall|i:int| 0 <= i < final(self).entries.len() ==>
+                final(self).entries@[i] & 0x1ff_ffff_ffffu64 == old(self).entries@[i] & 0x1ff_ffff_ffffu64,
+    ))]
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+    #[inline(always)]
+    fn mark_interior(&mut self, x: usize, y: usize, index: usize, negative: bool) {
+        let width = self.width;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::compact_index(width, self.height, self.entries@, (x - 1) as usize, (y - 1) as usize);
+            crate::specs::compact_index(width, self.height, self.entries@, x, (y - 1) as usize);
+            crate::specs::compact_index(width, self.height, self.entries@, (x + 1) as usize, (y - 1) as usize);
+            crate::specs::compact_index(width, self.height, self.entries@, (x - 1) as usize, y);
+            crate::specs::compact_index(width, self.height, self.entries@, (x + 1) as usize, y);
+            crate::specs::compact_index(width, self.height, self.entries@, (x - 1) as usize, (y + 1) as usize);
+            crate::specs::compact_index(width, self.height, self.entries@, x, (y + 1) as usize);
+            crate::specs::compact_index(width, self.height, self.entries@, (x + 1) as usize, (y + 1) as usize);
+            assert(index >= width) by (nonlinear_arith)
+                requires index == y * width + x, y > 0, width > 0;
+            assert(index - width == (y - 1) * width + x) by (nonlinear_arith)
+                requires index == y * width + x, y > 0, width > 0;
+            assert(index - width - 1 == (y - 1) * width + (x - 1)) by (nonlinear_arith)
+                requires index == y * width + x, x > 0, y > 0, width > 0;
+            assert(index - width + 1 == (y - 1) * width + (x + 1)) by (nonlinear_arith)
+                requires index == y * width + x, y > 0, width > 0;
+            assert(index + width - 1 == (y + 1) * width + (x - 1)) by (nonlinear_arith)
+                requires index == y * width + x, x > 0, width > 0;
+            assert(index + width == (y + 1) * width + x) by (nonlinear_arith)
+                requires index == y * width + x, width > 0;
+            assert(index + width + 1 == (y + 1) * width + (x + 1)) by (nonlinear_arith)
+                requires index == y * width + x, width > 0;
+        }
+        let prev = index - width;
+        let next = index + width;
+        self.update_neighbor(x, y, prev - 1, 0, negative);
+        self.update_neighbor(x, y, prev, 1, negative);
+        self.update_neighbor(x, y, prev + 1, 2, negative);
+        self.update_neighbor(x, y, index - 1, 3, negative);
+        self.update_neighbor(x, y, index + 1, 4, negative);
+        self.update_neighbor(x, y, next - 1, 5, negative);
+        self.update_neighbor(x, y, next, 6, negative);
+        self.update_neighbor(x, y, next + 1, 7, negative);
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(
@@ -555,6 +996,8 @@ impl CompactPlane {
             final(self).view().coefficients==old(self).view().coefficients.update((y*old(self).width+x) as int,
                 crate::specs::compact_coefficient(crate::specs::compact_mark_word(old(self).entries@[(y*old(self).width+x) as int],bp,negative))),
     ))]
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+    #[inline]
     fn mark(&mut self, x: usize, y: usize, bp: u16, negative: bool) {
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -563,56 +1006,61 @@ impl CompactPlane {
             vstd::arithmetic::power2::lemma_pow2_pos(bp as nat);
             crate::specs::compact_cache_mark_start(self.width,self.height,self.entries@,x,y,bp,negative);
         }
-        let index = y * self.width + x;
+        let width = self.width;
+        let index = y * width + x;
         self.entries[index] = mark_word(self.entries[index], bp, negative);
         #[cfg(verus_keep_ghost)]
         proof_decl! {let ghost marked=self.view();}
-        let mut direction = 0;
-        #[cfg_attr(verus_keep_ghost, verus_spec(
-            invariant direction<=8,self.shape(),self.width==old(self).width,self.height==old(self).height,
-                self.view()==marked,marked.coefficients==old(self).view().coefficients.update(index as int,
-                    crate::specs::compact_coefficient(crate::specs::compact_mark_word(old(self).entries@[index as int],bp,negative))),
-                index==y*self.width+x,x<self.width,y<self.height,
-                old(self).shape(),old(self).entries@[index as int] & SIG==0,bp<31,
-                crate::specs::compact_pending_cache(self.width,self.height,self.entries@,x as int,y as int,direction as u32),
-                crate::specs::compact_coefficient(self.entries@[index as int]).significant,
-                crate::specs::compact_coefficient(self.entries@[index as int]).negative==negative,
-                forall|i:int|0<=i<self.entries.len() ==> crate::specs::compact_precision_word(self.entries@[i]),
-                forall|i:int|0<=i<self.entries.len() ==> self.entries@[i] & 0x1ff_ffff_ffffu64==
-                    (if i==index{crate::specs::compact_mark_word(old(self).entries@[i],bp,negative)}else{old(self).entries@[i]}) & 0x1ff_ffff_ffffu64,
-            decreases 8-direction,
-        ))]
-        while direction < 8 {
-            #[cfg(verus_keep_ghost)]
-            proof_decl! {let ghost before_words=self.entries@;}
-            let (dx, dy) = DIRECTIONS[direction];
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(direction==0 || direction==1 || direction==2 || direction==3
-                    || direction==4 || direction==5 || direction==6 || direction==7);
-                assert(dx as int==crate::specs::compact_dx(direction as u32));
-                assert(dy as int==crate::specs::compact_dy(direction as u32));
-                crate::specs::compact_cache_mark_step(self.width,self.height,before_words,x,y,direction as u32,negative);
-            }
-            let nx = x as i32 + dx;
-            let ny = y as i32 + dy;
-            if nx >= 0 && ny >= 0 && nx < self.width as i32 && ny < self.height as i32 {
-                let bit = 7 - direction;
+        if x > 0 && x + 1 < width && y > 0 && y + 1 < self.height {
+            self.mark_interior(x, y, index, negative);
+        } else {
+            let mut direction = 0;
+            #[cfg_attr(verus_keep_ghost, verus_spec(
+                invariant direction<=8,self.shape(),self.width==old(self).width,self.height==old(self).height,
+                    self.view()==marked,marked.coefficients==old(self).view().coefficients.update(index as int,
+                        crate::specs::compact_coefficient(crate::specs::compact_mark_word(old(self).entries@[index as int],bp,negative))),
+                    index==y*self.width+x,x<self.width,y<self.height,
+                    old(self).shape(),old(self).entries@[index as int] & SIG==0,bp<31,
+                    crate::specs::compact_pending_cache(self.width,self.height,self.entries@,x as int,y as int,direction as u32),
+                    crate::specs::compact_coefficient(self.entries@[index as int]).significant,
+                    crate::specs::compact_coefficient(self.entries@[index as int]).negative==negative,
+                    forall|i:int|0<=i<self.entries.len() ==> crate::specs::compact_precision_word(self.entries@[i]),
+                    forall|i:int|0<=i<self.entries.len() ==> self.entries@[i] & 0x1ff_ffff_ffffu64==
+                        (if i==index{crate::specs::compact_mark_word(old(self).entries@[i],bp,negative)}else{old(self).entries@[i]}) & 0x1ff_ffff_ffffu64,
+                decreases 8-direction,
+            ))]
+            while direction < 8 {
                 #[cfg(verus_keep_ghost)]
-                proof! {crate::specs::compact_index(self.width,self.height,self.entries@,nx as usize,ny as usize);}
-                let target = ny as usize * self.width + nx as usize;
-                self.entries[target] = cache_word(self.entries[target], bit as u32, negative);
+                proof_decl! {let ghost before_words=self.entries@;}
+                let (dx, dy) = DIRECTIONS[direction];
                 #[cfg(verus_keep_ghost)]
-                proof! {assert(self.view().coefficients =~= marked.coefficients);}
+                proof! {
+                    assert(direction==0 || direction==1 || direction==2 || direction==3
+                        || direction==4 || direction==5 || direction==6 || direction==7);
+                    assert(dx as int==crate::specs::compact_dx(direction as u32));
+                    assert(dy as int==crate::specs::compact_dy(direction as u32));
+                    crate::specs::compact_cache_mark_step(self.width,self.height,before_words,x,y,direction as u32,negative);
+                }
+                let nx = x as i32 + dx;
+                let ny = y as i32 + dy;
+                if nx >= 0 && ny >= 0 && nx < self.width as i32 && ny < self.height as i32 {
+                    let bit = 7 - direction;
+                    #[cfg(verus_keep_ghost)]
+                    proof! {crate::specs::compact_index(self.width,self.height,self.entries@,nx as usize,ny as usize);}
+                    let target = ny as usize * self.width + nx as usize;
+                    self.entries[target] = cache_word(self.entries[target], bit as u32, negative);
+                    #[cfg(verus_keep_ghost)]
+                    proof! {assert(self.view().coefficients =~= marked.coefficients);}
+                }
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(self.entries@==match crate::specs::compact_neighbor_index(self.width,self.height,x as int,y as int,direction as u32){
+                        None=>before_words,
+                        Some(target)=>before_words.update(target,crate::specs::compact_add_neighbor(before_words[target],(7-direction) as u32,negative)),
+                    });
+                }
+                direction += 1;
             }
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(self.entries@==match crate::specs::compact_neighbor_index(self.width,self.height,x as int,y as int,direction as u32){
-                    None=>before_words,
-                    Some(target)=>before_words.update(target,crate::specs::compact_add_neighbor(before_words[target],(7-direction) as u32,negative)),
-                });
-            }
-            direction += 1;
         }
         #[cfg(verus_keep_ghost)]
         proof! {
@@ -699,6 +1147,7 @@ impl CompactPlane {
                 ==> final(self).entries@[i] & 0x1ff_ffff_ffffu64==old(self).entries@[i] & 0x1ff_ffff_ffffu64,
     ))]
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+    #[inline(always)]
     fn sig_cell(
         &mut self,
         coordinate: (usize, usize),
@@ -735,8 +1184,7 @@ impl CompactPlane {
                 state.significance_visited[index] = true;
                 stats.coding_symbols += 1;
                 if bit {
-                    let summary = self.summary(x, y, causal);
-                    let marked = self.sign_and_mark(x, y, state.bitplane, summary, decoder);
+                    let marked = self.sign_and_mark(x, y, state.bitplane, causal, decoder);
                     #[cfg(verus_keep_ghost)]
                     proof! {
                         crate::specs::compact_membership_cell(self.width,self.height,before_words,self.entries@,
@@ -765,6 +1213,7 @@ impl CompactPlane {
             result.is_ok() && state.significant_before@[(y*old(self).width+x) as int] ==>
                 ((final(self).entries@[(y*old(self).width+x) as int]>>32)&63)==state.bitplane,
     ))]
+    #[inline(always)]
     fn refine_cell(
         &mut self,
         x: usize,
@@ -836,6 +1285,7 @@ impl CompactPlane {
                 ==> final(self).entries@[i] & 0x1ff_ffff_ffffu64==old(self).entries@[i] & 0x1ff_ffff_ffffu64,
     ))]
     #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+    #[inline(always)]
     fn cleanup_cell(
         &mut self,
         coordinate: (usize, usize),
@@ -869,8 +1319,7 @@ impl CompactPlane {
             let bit = decoder.decode(usize::from(cached_zero_context(sig, orientation)))?;
             stats.coding_symbols += 1;
             if bit {
-                let summary = self.summary(x, y, causal);
-                let marked = self.sign_and_mark(x, y, state.bitplane, summary, decoder);
+                let marked = self.sign_and_mark(x, y, state.bitplane, causal, decoder);
                 #[cfg(verus_keep_ghost)]
                 proof! {
                     crate::specs::compact_membership_cell(self.width,self.height,before_words,self.entries@,
@@ -890,17 +1339,23 @@ impl CompactPlane {
             crate::specs::compact_statistics_room(*old(stats)),
         ensures final(self).ready(state),final(self).width==old(self).width,final(self).height==old(self).height,
             (result,final(self).frame(state,final(decoder),*final(stats)))==crate::specs::part1_legacy_sign_mark_stat(
-                old(self).frame(state,old(decoder),*old(stats)),coordinate.0 as u16,coordinate.1 as u16,summary),
+                old(self).frame(state,old(decoder),*old(stats)),coordinate.0 as u16,coordinate.1 as u16,
+                crate::specs::compact_flag_summary(
+                    ((old(self).entries@[(coordinate.1*old(self).width+coordinate.0) as int]>>41) as u8)
+                        & if causal && coordinate.1%4==3{0x1fu8}else{0xffu8},
+                    ((old(self).entries@[(coordinate.1*old(self).width+coordinate.0) as int]>>49) as u8)
+                        & if causal && coordinate.1%4==3{0x1fu8}else{0xffu8})),
             crate::specs::compact_statistics_delta(*old(stats),*final(stats),1),
             forall|i:int|0<=i<final(self).entries.len() && state.significant_before@[i]
                 ==> final(self).entries@[i] & 0x1ff_ffff_ffffu64==old(self).entries@[i] & 0x1ff_ffff_ffffu64,
     ))]
+    #[inline(always)]
     fn run_sign(
         &mut self,
         state: &Tier1BitplaneState,
         decoder: &mut MqDecoder<'_>,
         coordinate: (usize, usize),
-        summary: NeighborSummary,
+        causal: bool,
         stats: &mut Tier1PassStatistics,
     ) -> Result<(), DecodeError> {
         #[cfg(verus_keep_ghost)]
@@ -912,7 +1367,7 @@ impl CompactPlane {
             crate::specs::compact_index(self.width,self.height,self.entries@,coordinate.0,coordinate.1);
         }
         let (x, y) = coordinate;
-        let marked = self.sign_and_mark(x, y, state.bitplane, summary, decoder);
+        let marked = self.sign_and_mark(x, y, state.bitplane, causal, decoder);
         #[cfg(verus_keep_ghost)]
         proof! {
             crate::specs::compact_membership_cell(self.width,self.height,before_words,self.entries@,
@@ -1147,11 +1602,11 @@ impl CompactPlane {
             proof! {
                 assert(row==0 || row==1 || row==2 || row==3);
                 assert(self.entries@[((stripe+row)*self.width+x) as int] & SIG==0);
+                crate::specs::compact_cached_summary(self.width,self.height,self.entries@,x,(stripe+row) as usize,context.2);
             }
-            let summary = self.summary(x, stripe + row, context.2);
             #[cfg(verus_keep_ghost)]
             proof_decl! {let ghost before_words=self.entries@;let ghost before_state=super::legacy_bitplane_view(state);}
-            let marked = self.run_sign(state, decoder, (x, stripe + row), summary, stats);
+            let marked = self.run_sign(state, decoder, (x, stripe + row), context.2, stats);
             #[cfg(verus_keep_ghost)]
             proof! {crate::specs::compact_before_frontier_preserved(before_words,self.entries@,before_state,super::legacy_bitplane_view(state),true);}
             marked?;
