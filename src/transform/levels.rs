@@ -1254,13 +1254,13 @@ mod zero_level {
                 assert(above_start + w <= output_len && odd_start + w <= output_len && below_start + w <= output_len) by(nonlinear_arith)
                     requires 2 * y + 1 < h, w * h == output_len,
                         above_start == (2 * y) * w, odd_start == (2 * y + 1) * w,
-                        below_start == if 2 * y + 2 < h { (2 * y + 2) * w } else { above_start };
+                        below_start == if 2 * y + 2 < h { (2 * y + 2) * w } else { above_start as int };
             }
             let mut x = 0_usize;
             #[cfg_attr(verus_keep_ghost, verus_spec(
                 invariant x <= w, 2 * y + 1 < h,
                     above_start == (2 * y) * w, odd_start == (2 * y + 1) * w,
-                    below_start == if 2 * y + 2 < h { (2 * y + 2) * w } else { above_start },
+                    below_start == if 2 * y + 2 < h { (2 * y + 2) * w } else { above_start as int },
                     above_start + w <= output_len, odd_start + w <= output_len, below_start + w <= output_len,
                     w == level.output_width, h == level.output_height,
                     lw == level.ll.width, lh == level.ll.height,
