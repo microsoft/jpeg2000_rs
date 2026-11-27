@@ -190,13 +190,43 @@ pub(crate) fn copy_values<T: Copy>(source: &[T]) -> Result<Vec<T>, DecodeError> 
         }
         #[cfg(any(not(feature = "cooperative-deadlines"), verus_keep_ghost))]
         {
-            values.extend_from_slice(source);
+            let mut index = 0_usize;
+            #[cfg_attr(verus_keep_ghost, verus_spec(
+                invariant index <= source.len(),
+                    values@.len() == index as int,
+                    forall|i: int| 0 <= i < index as int ==> values@[i] == source@[i],
+                decreases source.len() - index,
+            ))]
+            while index < source.len() {
+                let remaining = source.len() - index;
+                let step = if remaining >= 256 { 256 } else { remaining };
+                let next = index + step;
+                #[cfg(verus_keep_ghost)]
+                proof_decl! { let ghost before = values@; }
+                values.resize(next, source[0]);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(values@.len() == next as int);
+                    assert(values@.subrange(0, index as int) == before);
+                }
+                values.as_mut_slice()[index..next].copy_from_slice(&source[index..next]);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(values@.subrange(0, index as int) =~= before);
+                    assert(values@.subrange(index as int, next as int) =~= source@.subrange(index as int, next as int));
+                    assert forall|i: int| 0 <= i < next as int implies values@[i] == source@[i] by {
+                        if i < index as int {
+                            assert(values@[i] == values@.subrange(0, index as int)[i]);
+                        } else {
+                            assert(values@[i] == values@.subrange(index as int, next as int)[i - index as int]);
+                        }
+                    }
+                }
+                index = next;
+            }
         }
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert forall|i: int| 0 <= i < source.len() implies values@[i] == source@[i] by {
-                assert(vstd::pervasive::cloned::<T>(source@[i], values@[i]));
-            }
             assert(values@ =~= source@);
         }
         return Ok(values);
@@ -246,13 +276,63 @@ pub(crate) fn filled_values<T: Copy>(value: T, count: usize) -> Result<Vec<T>, D
         }
         #[cfg(any(not(feature = "cooperative-deadlines"), verus_keep_ghost))]
         {
-            values.resize(count, value);
+            let chunk = [value; 64];
+            let mut filled = 0_usize;
+            #[cfg_attr(verus_keep_ghost, verus_spec(
+                invariant filled <= count,
+                    values@.len() == filled as int,
+                    chunk@.len() == 64,
+                    forall|k: int| 0 <= k < 64 ==> chunk@[k] == value,
+                    forall|i: int| 0 <= i < filled as int ==> values@[i] == value,
+                decreases count - filled,
+            ))]
+            while filled < count {
+                let remaining = count - filled;
+                let step = if remaining >= 256 { 256 } else { remaining };
+                let next = filled + step;
+                #[cfg(verus_keep_ghost)]
+                proof_decl! { let ghost before_outer = values@; }
+                values.resize(next, value);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(values@.len() == next as int);
+                    assert(values@.subrange(0, filled as int) == before_outer);
+                }
+                let mut pos = filled;
+                #[cfg_attr(verus_keep_ghost, verus_spec(
+                    invariant filled <= pos <= next,
+                        next <= count,
+                        values@.len() == next as int,
+                        chunk@.len() == 64,
+                        forall|k: int| 0 <= k < 64 ==> chunk@[k] == value,
+                        forall|i: int| 0 <= i < pos as int ==> values@[i] == value,
+                    decreases next - pos,
+                ))]
+                while pos < next {
+                    let piece = if next - pos >= 64 { 64 } else { next - pos };
+                    let piece_end = pos + piece;
+                    #[cfg(verus_keep_ghost)]
+                    proof_decl! { let ghost before_inner = values@; }
+                    values.as_mut_slice()[pos..piece_end].copy_from_slice(&chunk[0..piece]);
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        assert(values@.subrange(0, pos as int) =~= before_inner.subrange(0, pos as int));
+                        assert(values@.subrange(pos as int, piece_end as int) =~= chunk@.subrange(0, piece as int));
+                        assert forall|i: int| 0 <= i < piece_end as int implies values@[i] == value by {
+                            if i < pos as int {
+                                assert(values@[i] == values@.subrange(0, pos as int)[i]);
+                            } else {
+                                assert(values@[i] == values@.subrange(pos as int, piece_end as int)[i - pos as int]);
+                            }
+                        }
+                    }
+                    pos = piece_end;
+                }
+                filled = next;
+            }
         }
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert forall|i: int| 0 <= i < count implies values@[i] == value by {
-                assert(vstd::pervasive::cloned::<T>(value, values@[i]));
-            }
             assert(values@ =~= Seq::new(count as nat, |_: int| value));
         }
         return Ok(values);
@@ -418,6 +498,20 @@ mod tests {
             assert_eq!(copy_values(&source).unwrap(), source);
         });
         assert_eq!(copy_values(&source).unwrap(), source);
+    }
+
+    #[test]
+    fn bulk_filled_and_copied_values_match_exact_elements_across_chunk_boundaries() {
+        for len in [63_usize, 64, 65, 128, 255, 256, 300, 513] {
+            let filled = filled_values(0x5a_u8, len).unwrap();
+            assert_eq!(filled.len(), len);
+            assert!(filled.iter().all(|&byte| byte == 0x5a_u8));
+            let source: Vec<u16> = (0..len)
+                .map(|i| (i as u16).wrapping_mul(17) ^ 0x1234)
+                .collect();
+            let copied = copy_values(&source).unwrap();
+            assert_eq!(copied, source);
+        }
     }
 
     #[test]
