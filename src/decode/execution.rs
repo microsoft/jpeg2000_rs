@@ -1268,6 +1268,13 @@ pub(super) fn apply_prepared_component_transform(
                 crate::specs::part1_prepared_standard_admission(before, transform.1) == Ok(length),
                 crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat)
                     == (Ok(()), prepared_components_view(prepared@)),
+                forall |c: int| 3 <= c < before.len() ==>
+                    prepared_components_view(prepared@)[c] == before[c],
+                forall |c: int| 0 <= c < 3 ==>
+                    prepared_components_view(prepared@)[c] == (
+                        before[c].0, before[c].1, before[c].2, before[c].3, before[c].4, before[c].5,
+                        prepared_components_view(prepared@)[c].6,
+                    ),
                 forall |j: int| index <= j < length ==>
                     prepared@[0].samples@[j] == before[0].6[j]
                     && prepared@[1].samples@[j] == before[1].6[j]

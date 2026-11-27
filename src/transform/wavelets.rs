@@ -131,6 +131,8 @@ mod bounded {
         proof_decl! {
             let ghost original = samples@;
             let ghost kind: u8 = if predict { 1u8 } else { 0u8 };
+            let ghost in_bound: int = if predict { 2147483648int } else { 1073741824int };
+            let ghost out_bound: int = if predict { 4294967296int } else { 2147483648int };
         }
         let len = samples.len();
         let mut index = if target_even { 0_usize } else { 1_usize };
@@ -164,15 +166,13 @@ mod bounded {
                 len == samples.len(), len > 1, last == len - 1,
                 original == old(samples)@, samples.len() == original.len(),
                 kind == if predict { 1u8 } else { 0u8 },
+                in_bound == if predict { 2147483648int } else { 1073741824int },
+                out_bound == if predict { 4294967296int } else { 2147483648int },
                 (index % 2 == 0) == target_even,
-                forall |i: int| 0 <= i < original.len() ==>
-                    -(if predict { 2147483648int } else { 1073741824int }) <= #[trigger] original[i]
-                        <= if predict { 2147483648int } else { 1073741824int },
+                forall |i: int| 0 <= i < original.len() ==> -in_bound <= #[trigger] original[i] <= in_bound,
                 forall |i: int| 0 <= i < samples.len() && (i >= index || (i % 2 == 0) != target_even) ==>
                     samples[i] == original[i],
-                forall |i: int| 0 <= i < samples.len() ==>
-                    -(if predict { 4294967296int } else { 2147483648int }) <= #[trigger] samples[i]
-                        <= if predict { 4294967296int } else { 2147483648int },
+                forall |i: int| 0 <= i < samples.len() ==> -out_bound <= #[trigger] samples[i] <= out_bound,
                 crate::specs::part1_lifting_prefix(
                     original, target_even, kind, 0,
                     if index <= len { index as nat } else { len as nat },
@@ -216,6 +216,7 @@ mod bounded {
             );
             #[cfg(verus_keep_ghost)]
             proof! {
+                reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
                 assert(crate::specs::part1_lifting_prefix(original, target_even, kind, 0, len as nat) == (Ok(()), samples@));
             }
         }
