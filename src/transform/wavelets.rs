@@ -18,6 +18,97 @@ mod bounded {
 
     #[cfg(verus_keep_ghost)]
     verus! {
+        #[verifier::spinoff_prover]
+        proof fn advance_lifting_skip_zero(
+            original: Seq<i64>,
+            target_even: bool,
+            kind: u8,
+            factor: i64,
+        )
+            requires
+                original.len() > 1,
+                !target_even,
+            ensures
+                crate::specs::part1_lifting_prefix(original, target_even, kind, factor, 1)
+                    == (Ok::<(), DecodeError>(()), original),
+        {
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+            assert(original =~= original.update(0, original[0]));
+        }
+
+        #[verifier::spinoff_prover]
+        proof fn advance_lifting_zero(
+            original: Seq<i64>,
+            after: Seq<i64>,
+            target_even: bool,
+            kind: u8,
+            factor: i64,
+            new_val: i64,
+        )
+            requires
+                original.len() > 1,
+                target_even,
+                after == original.update(0, new_val),
+                crate::specs::part1_lifting_sample(
+                    seq![original[1], original[0], original[1]],
+                    1, false, kind, factor,
+                ) == Ok(new_val),
+            ensures
+                crate::specs::part1_lifting_prefix(original, target_even, kind, factor, 2)
+                    == (Ok::<(), DecodeError>(()), after),
+                forall |i: int| 0 <= i < after.len() && (i >= 2 || (i % 2 == 0) != target_even) ==>
+                    after[i] == original[i],
+        {
+            crate::proofs::production_impl::production_lifting_sample_frame(
+                original, original, 0, target_even, kind, factor,
+            );
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 3);
+            assert(crate::specs::part1_lifting_prefix(original, target_even, kind, factor, 1)
+                == (Ok(()), after));
+            crate::proofs::production_impl::production_lifting_sample_frame(
+                original, after, 1, target_even, kind, factor,
+            );
+            assert(after =~= after.update(1, original[1]));
+        }
+
+        #[verifier::spinoff_prover]
+        proof fn advance_lifting_last(
+            original: Seq<i64>,
+            before: Seq<i64>,
+            after: Seq<i64>,
+            target_even: bool,
+            kind: u8,
+            factor: i64,
+            new_val: i64,
+        )
+            requires
+                original.len() > 1,
+                before.len() == original.len(),
+                ((original.len() - 1) % 2 == 0) == target_even,
+                after == before.update(original.len() - 1, new_val),
+                forall |i: int| 0 <= i < before.len() && (i >= original.len() - 1 || (i % 2 == 0) != target_even) ==>
+                    before[i] == original[i],
+                crate::specs::part1_lifting_prefix(
+                    original, target_even, kind, factor, (original.len() - 1) as nat,
+                ) == (Ok::<(), DecodeError>(()), before),
+                crate::specs::part1_lifting_sample(
+                    seq![before[original.len() - 2], before[original.len() - 1], before[original.len() - 2]],
+                    1, false, kind, factor,
+                ) == Ok(new_val),
+            ensures
+                crate::specs::part1_lifting_prefix(original, target_even, kind, factor, original.len())
+                    == (Ok::<(), DecodeError>(()), after),
+        {
+            let last = (original.len() - 1) as nat;
+            crate::proofs::production_impl::production_lifting_sample_frame(
+                original, before, last, target_even, kind, factor,
+            );
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+            assert(crate::specs::part1_lifting_prefix(original, target_even, kind, factor, original.len())
+                == (Ok(()), after));
+        }
+
+        #[verifier::spinoff_prover]
         proof fn advance_lifting_pair(
             original: Seq<i64>,
             before: Seq<i64>,
@@ -139,24 +230,15 @@ mod bounded {
         #[cfg(verus_keep_ghost)]
         proof! {
             if !target_even {
-                reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
-                assert(samples@ =~= original.update(0, original[0]));
-                assert(crate::specs::part1_lifting_prefix(original, target_even, kind, 0, 1) == (Ok(()), samples@));
+                advance_lifting_skip_zero(original, target_even, kind, 0);
             }
         }
         if index == 0 {
+            let val0 = reversible_lift_row_bounded(samples[0], samples[1], samples[1], predict);
+            samples[0] = val0;
             #[cfg(verus_keep_ghost)]
             proof! {
-                crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, 0, target_even, kind, 0);
-            }
-            samples[0] = reversible_lift_row_bounded(samples[0], samples[1], samples[1], predict);
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
-                assert(crate::specs::part1_lifting_prefix(original, target_even, kind, 0, 1) == (Ok(()), samples@));
-                crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, 1, target_even, kind, 0);
-                assert(samples@ =~= samples@.update(1, original[1]));
-                assert(crate::specs::part1_lifting_prefix(original, target_even, kind, 0, 2) == (Ok(()), samples@));
+                advance_lifting_zero(original, samples@, target_even, kind, 0, val0);
             }
             index = 2;
         }
@@ -203,21 +285,22 @@ mod bounded {
         }
         if index == last {
             #[cfg(verus_keep_ghost)]
+            proof_decl! { let ghost before_last = samples@; }
+            #[cfg(verus_keep_ghost)]
             proof! {
                 assert(samples[last as int] == original[last as int]);
                 assert(samples[last as int - 1] == original[last as int - 1]);
-                crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, last as nat, target_even, kind, 0);
             }
-            samples[last] = reversible_lift_row_bounded(
+            let val_last = reversible_lift_row_bounded(
                 samples[last],
                 samples[last - 1],
                 samples[last - 1],
                 predict,
             );
+            samples[last] = val_last;
             #[cfg(verus_keep_ghost)]
             proof! {
-                reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
-                assert(crate::specs::part1_lifting_prefix(original, target_even, kind, 0, len as nat) == (Ok(()), samples@));
+                advance_lifting_last(original, before_last, samples@, target_even, kind, 0, val_last);
             }
         }
     }
