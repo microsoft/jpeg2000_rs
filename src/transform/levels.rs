@@ -854,11 +854,11 @@ mod zero_level {
                 let lc = Seq::new(low.1 as nat, |row: int| low.2[row * (low.0 as int) + prev as int]);
                 let hc = Seq::new(high.1 as nat, |row: int| high.2[row * (high.0 as int) + prev as int]);
                 assert forall |r: int| 0 <= r < lc.len() implies #[trigger] lc[r] == 0i64 by {
-                    assert(0 <= r * (low.0 as int) + prev as int && r * (low.0 as int) + prev as int < low.2.len()) by(nonlinear_arith)
+                    assert(0 <= r * (low.0 as int) + (prev as int) && r * (low.0 as int) + (prev as int) < low.2.len()) by(nonlinear_arith)
                         requires 0 <= r < low.1, prev < low.0, low.2.len() == (low.0 as int) * (low.1 as int);
                 }
                 assert forall |r: int| 0 <= r < hc.len() implies #[trigger] hc[r] == 0i64 by {
-                    assert(0 <= r * (high.0 as int) + prev as int && r * (high.0 as int) + prev as int < high.2.len()) by(nonlinear_arith)
+                    assert(0 <= r * (high.0 as int) + (prev as int) && r * (high.0 as int) + (prev as int) < high.2.len()) by(nonlinear_arith)
                         requires 0 <= r < high.1, prev < high.0, high.2.len() == (high.0 as int) * (high.1 as int);
                 }
                 zero_1d_wavelet(lc, hc, first, irreversible);

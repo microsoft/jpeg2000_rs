@@ -233,26 +233,42 @@ pub(crate) fn filled_values<T: Copy>(value: T, count: usize) -> Result<Vec<T>, D
         return Ok(Vec::new());
     }
     let mut values = empty_with_capacity(count)?;
-    #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
-    {
-        let mut index = 0_usize;
-        while index < count {
-            crate::deadline::checkpoint_periodic(index)?;
-            let next = (index + 1024).min(count);
-            values.resize(next, value);
-            index = next;
+    if count >= 64 {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        {
+            let mut index = 0_usize;
+            while index < count {
+                crate::deadline::checkpoint_periodic(index)?;
+                let next = (index + 1024).min(count);
+                values.resize(next, value);
+                index = next;
+            }
         }
-    }
-    #[cfg(any(not(feature = "cooperative-deadlines"), verus_keep_ghost))]
-    {
-        values.resize(count, value);
-    }
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        assert forall|i: int| 0 <= i < count implies values@[i] == value by {
-            assert(vstd::pervasive::cloned::<T>(value, values@[i]));
+        #[cfg(any(not(feature = "cooperative-deadlines"), verus_keep_ghost))]
+        {
+            values.resize(count, value);
         }
-        assert(values@ =~= Seq::new(count as nat, |_: int| value));
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert forall|i: int| 0 <= i < count implies values@[i] == value by {
+                assert(vstd::pervasive::cloned::<T>(value, values@[i]));
+            }
+            assert(values@ =~= Seq::new(count as nat, |_: int| value));
+        }
+        return Ok(values);
+    }
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= count, values@ == Seq::new(index as nat, |_: int| value),
+        decreases count - index,
+    ))]
+    while index < count {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(index)?;
+        values.push(value);
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(Seq::new(index as nat + 1, |_: int| value) =~= Seq::new(index as nat, |_: int| value).push(value)); }
+        index += 1;
     }
     Ok(values)
 }
