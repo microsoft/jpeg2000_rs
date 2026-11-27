@@ -25,6 +25,7 @@ use vstd::prelude::*;
             final(current_patterns).len() == old(current_patterns).len(),
     )
 )]
+#[inline]
 pub(super) fn decode_ht_metadata_words(
     readers: &mut HtCleanupReaders<'_>,
     current_patterns: &mut [u8],
@@ -118,7 +119,7 @@ pub(super) fn decode_ht_metadata_words(
         } else {
             0
         };
-        member = member.checked_add(1).ok_or_else(arithmetic_overflow)?;
+        member += 1;
     }
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -147,6 +148,7 @@ pub(super) fn decode_ht_metadata_words(
     clippy::too_many_arguments,
     reason = "Explicit codec inputs and disjoint mutable outputs keep state frames auditable."
 )]
+#[inline]
 pub(super) fn append_ht_metadata_quad(
     readers: &mut HtCleanupReaders<'_>,
     quads: &mut Vec<HtQuadMetadata>,
@@ -179,57 +181,70 @@ pub(super) fn append_ht_metadata_quad(
     if !crate::refinement::ht_quad_origin_valid(x, y, width, height) {
         return Err(invalid_code_block());
     }
-    let mut sample = 0_u8;
-    #[cfg_attr(
-        verus_keep_ghost,
-        verus_spec(
-            invariant sample <= 4, x == quad_index * 2, y == quad_row * 2,
-                quad_index < 32768, quad_row < 32768, x <= 65534, y <= 65534,
-                start_readers == ht_cleanup_readers_view(old(readers)),
-                start_readers == ht_cleanup_readers_view(readers),
-                start_quads == old(quads)@, start_quads == quads@,
-                start_significant == *old(significant_samples),
-                input == ht_metadata_quad_input(quad_index, quad_row, width, height, maximum_u, word, context, significance, u_value, initial),
-                crate::specs::ht_quad_origin_valid(x as nat, y as nat, width as nat, height as nat),
-                u_value <= maximum_u,
-                crate::specs::ht_metadata_emit(start_readers, start_quads, start_significant, input)
-                    == crate::specs::ht_metadata_emit_after_samples(
-                        crate::specs::ht_metadata_samples(*significant_samples, significance, x, y, width, height, sample),
-                        start_readers, start_quads, input),
-            decreases 4 - sample,
-        )
-    )]
-    while sample < 4 {
+    if significance != 0 {
+        let mut sample = 0_u8;
+        #[cfg_attr(
+            verus_keep_ghost,
+            verus_spec(
+                invariant sample <= 4, x == quad_index * 2, y == quad_row * 2,
+                    quad_index < 32768, quad_row < 32768, x <= 65534, y <= 65534,
+                    start_readers == ht_cleanup_readers_view(old(readers)),
+                    start_readers == ht_cleanup_readers_view(readers),
+                    start_quads == old(quads)@, start_quads == quads@,
+                    start_significant == *old(significant_samples),
+                    input == ht_metadata_quad_input(quad_index, quad_row, width, height, maximum_u, word, context, significance, u_value, initial),
+                    crate::specs::ht_quad_origin_valid(x as nat, y as nat, width as nat, height as nat),
+                    u_value <= maximum_u,
+                    crate::specs::ht_metadata_emit(start_readers, start_quads, start_significant, input)
+                        == crate::specs::ht_metadata_emit_after_samples(
+                            crate::specs::ht_metadata_samples(*significant_samples, significance, x, y, width, height, sample),
+                            start_readers, start_quads, input),
+                decreases 4 - sample,
+            )
+        )]
+        while sample < 4 {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::proofs::production_impl::production_ht_metadata_samples_unfold(*significant_samples, significance, x, y, width, height, sample);
+                assert(sample >> 1u8 <= 1) by(bit_vector) requires sample < 4;
+                assert(sample & 1u8 <= 1) by(bit_vector);
+                assert(sample >> 1u8 == sample / 2u8) by(bit_vector);
+                assert(sample & 1u8 == sample % 2u8) by(bit_vector);
+            }
+            if significance & (1_u8 << sample) != 0 {
+                let sample_x = x
+                    .checked_add(u16::from(sample >> 1))
+                    .ok_or_else(arithmetic_overflow)?;
+                let sample_y = y
+                    .checked_add(u16::from(sample & 1))
+                    .ok_or_else(arithmetic_overflow)?;
+                if !crate::refinement::ht_quad_sample_in_bounds(x, y, sample, width, height)
+                    || sample_x >= width
+                    || sample_y >= height
+                {
+                    return Err(invalid_code_block());
+                }
+                *significant_samples = significant_samples
+                    .checked_add(1)
+                    .ok_or_else(arithmetic_overflow)?;
+            }
+            sample += 1;
+        }
         #[cfg(verus_keep_ghost)]
         proof! {
             crate::proofs::production_impl::production_ht_metadata_samples_unfold(*significant_samples, significance, x, y, width, height, sample);
-            assert(sample >> 1u8 <= 1) by(bit_vector) requires sample < 4;
-            assert(sample & 1u8 <= 1) by(bit_vector);
-            assert(sample >> 1u8 == sample / 2u8) by(bit_vector);
-            assert(sample & 1u8 == sample % 2u8) by(bit_vector);
         }
-        if significance & (1_u8 << sample) != 0 {
-            let sample_x = x
-                .checked_add(u16::from(sample >> 1))
-                .ok_or_else(arithmetic_overflow)?;
-            let sample_y = y
-                .checked_add(u16::from(sample & 1))
-                .ok_or_else(arithmetic_overflow)?;
-            if !crate::refinement::ht_quad_sample_in_bounds(x, y, sample, width, height)
-                || sample_x >= width
-                || sample_y >= height
-            {
-                return Err(invalid_code_block());
-            }
-            *significant_samples = significant_samples
-                .checked_add(1)
-                .ok_or_else(arithmetic_overflow)?;
+    } else {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert((0u8 & (1u8 << 0u8)) == 0 && (0u8 & (1u8 << 1u8)) == 0
+                && (0u8 & (1u8 << 2u8)) == 0 && (0u8 & (1u8 << 3u8)) == 0) by (bit_vector);
+            crate::proofs::production_impl::production_ht_metadata_samples_unfold(*significant_samples, 0, x, y, width, height, 0);
+            crate::proofs::production_impl::production_ht_metadata_samples_unfold(*significant_samples, 0, x, y, width, height, 1);
+            crate::proofs::production_impl::production_ht_metadata_samples_unfold(*significant_samples, 0, x, y, width, height, 2);
+            crate::proofs::production_impl::production_ht_metadata_samples_unfold(*significant_samples, 0, x, y, width, height, 3);
+            crate::proofs::production_impl::production_ht_metadata_samples_unfold(*significant_samples, 0, x, y, width, height, 4);
         }
-        sample = sample.checked_add(1).ok_or_else(arithmetic_overflow)?;
-    }
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        crate::proofs::production_impl::production_ht_metadata_samples_unfold(*significant_samples, significance, x, y, width, height, sample);
     }
     quads.push(HtQuadMetadata {
         x,
@@ -267,6 +282,7 @@ pub(super) fn append_ht_metadata_quad(
     clippy::too_many_arguments,
     reason = "Explicit codec inputs and disjoint mutable outputs keep state frames auditable."
 )]
+#[inline]
 fn decode_ht_metadata_pair(
     readers: &mut HtCleanupReaders<'_>,
     quads: &mut Vec<HtQuadMetadata>,
@@ -300,7 +316,9 @@ fn decode_ht_metadata_pair(
     if initial && mode == 3 && readers.mel_event()? {
         mode = 4;
     }
-    let u_values = if initial {
+    let u_values = if mode == 0 {
+        [1_u8, 1_u8]
+    } else if initial {
         readers.decode_initial_u(mode)?
     } else {
         readers.decode_non_initial_u(mode)?
@@ -355,7 +373,7 @@ fn decode_ht_metadata_pair(
             u_value,
             initial,
         )?;
-        member = member.checked_add(1).ok_or_else(arithmetic_overflow)?;
+        member += 1;
     }
     #[cfg(verus_keep_ghost)]
     proof! {

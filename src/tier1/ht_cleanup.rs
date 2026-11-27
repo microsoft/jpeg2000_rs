@@ -147,6 +147,7 @@ verus! {
     ensures result == crate::specs::ht_complete_kappa(
         u_base, significance, north_west_exponent, north_east_exponent, maximum_u),
 ))]
+#[inline(always)]
 pub fn complete_ht_kappa(
     u_base: u8,
     significance: u8,
@@ -175,6 +176,7 @@ pub fn complete_ht_kappa(
         == crate::specs::ht_numeric_payload(ht_magsgn_view(old(reader)), magnitude_bits as nat,
             0, 0, false, 0),
 ))]
+#[inline(always)]
 fn read_ht_payload_word(
     reader: &mut HtForwardMagSgnReader<'_>,
     magnitude_bits: u8,
@@ -206,8 +208,72 @@ fn read_ht_payload_word(
     ))]
     while bit < magnitude_bits {
         #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost before_load = ht_magsgn_view(reader); }
+        let loaded = reader.ensure_byte();
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::proofs::production_impl::production_ht_numeric_payload_unfold(
+                before_load, (magnitude_bits - bit) as nat, bit as nat,
+                word as nat, negative, exponent);
+            if loaded.is_ok() {
+                crate::proofs::production_impl::production_ht_numeric_payload_unfold(
+                    ht_magsgn_view(reader), (magnitude_bits - bit) as nat, bit as nat,
+                    word as nat, negative, exponent);
+            }
+        }
+        loaded?;
+        #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost old_reader = ht_magsgn_view(reader); }
-        if let Some((width, field)) = reader.take_resident_physical(magnitude_bits - bit) {
+        let rem = magnitude_bits - bit;
+        let two_bytes = if rem <= 16 {
+            reader.take_resident_physical_two(rem)
+        } else {
+            None
+        };
+        if let Some((w1, f1, _w2, f2)) = two_bytes {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                use vstd::arithmetic::power2::{pow2, lemma_pow2_strictly_increases};
+                let after1 = magsgn_consumed(old_reader, w1);
+                let loaded2 = crate::specs::ht_magsgn_load(after1).1;
+                resident_payload_equivalence(old_reader, w1, rem as nat,
+                    bit as nat, word as nat, negative, exponent);
+                let word1: u64 = word + ((f1 as u64) << bit);
+                let neg1 = negative || (bit == 0 && (f1 & 1) != 0);
+                let exp1: u8 = if f1 != 0 { (bit + field_bits(f1)) as u8 } else { exponent };
+                if bit + w1 < 64 { lemma_pow2_strictly_increases((bit + w1) as nat, 64); }
+                vstd::bits::lemma_u64_shl_is_mul(f1 as u64, bit as u64);
+                assert((f1 as u64) << bit == (f1 as u64) << (bit as u64)) by (bit_vector);
+                vstd::std_specs::bits::axiom_u8_leading_zeros(f1);
+                crate::proofs::production_impl::production_ht_numeric_payload_unfold(
+                    after1, _w2 as nat, (bit + w1) as nat, word1 as nat, neg1, exp1);
+                crate::proofs::production_impl::production_ht_numeric_payload_unfold(
+                    loaded2, _w2 as nat, (bit + w1) as nat, word1 as nat, neg1, exp1);
+                resident_payload_equivalence(loaded2, _w2, _w2 as nat,
+                    (bit + w1) as nat, word1 as nat, neg1, exp1);
+                if bit + w1 + _w2 < 64 { lemma_pow2_strictly_increases((bit + w1 + _w2) as nat, 64); }
+                vstd::bits::lemma_u64_shl_is_mul(f2 as u64, (bit + w1) as u64);
+                assert((f2 as u64) << (bit + w1) == (f2 as u64) << ((bit + w1) as u64)) by (bit_vector);
+                vstd::std_specs::bits::axiom_u8_leading_zeros(f2);
+            }
+            word += u64::from(f1) << bit;
+            negative |= bit == 0 && f1 & 1 != 0;
+            if f1 != 0 {
+                exponent = bit + (8 - f1.leading_zeros()) as u8;
+            }
+            let bit1 = bit + w1;
+            word += u64::from(f2) << bit1;
+            if f2 != 0 {
+                exponent = bit1 + (8 - f2.leading_zeros()) as u8;
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                crate::proofs::production_impl::production_ht_numeric_payload_unfold(
+                    ht_magsgn_view(reader), 0, magnitude_bits as nat, word as nat, negative, exponent);
+            }
+            return Ok((word, negative, exponent));
+        }
+        if let Some((width, field)) = reader.take_resident_physical(rem) {
             #[cfg(verus_keep_ghost)]
             proof! {
                 use vstd::arithmetic::power2::{pow2, lemma_pow2_strictly_increases};
@@ -265,21 +331,20 @@ fn read_ht_payload_word(
         Some((value, sign, exp)) =>
             crate::specs::ht_numeric_center(base as nat, negative, initial_exponent,
                 magnitude_bits, embedded_value, decoded_bitplanes)
-                    == Ok((crate::magnitude::magnitude_value(value), sign, exp))
-            && crate::magnitude::magnitude_value(value) > 0
-            && crate::magnitude::magnitude_value(value) < crate::specs::part1_magnitude_capacity()
-            && crate::magnitude::magnitude_limbs(value)
-                == crate::specs::tier1_value_limbs(crate::magnitude::magnitude_value(value)),
+                    == Ok((value as nat, sign, exp))
+            && value > 0
+            && (value as nat) < crate::specs::part1_magnitude_capacity(),
     },
 ))]
-fn try_center_ht_word(
+#[inline(always)]
+fn try_center_ht_u64(
     base: u64,
     negative: bool,
     initial_exponent: u8,
     magnitude_bits: u8,
     embedded_value: bool,
     decoded_bitplanes: u16,
-) -> Option<(Magnitude, bool, u8)> {
+) -> Option<(u64, bool, u8)> {
     #[cfg(verus_keep_ghost)]
     proof! {
         vstd::arithmetic::power2::lemma2_to64();
@@ -325,13 +390,47 @@ fn try_center_ht_word(
     if value == 0 {
         return None;
     }
+    Some((value, negative, exponent))
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires magnitude_bits <= 75, 1 <= decoded_bitplanes <= 292,
+    ensures match result {
+        None => true,
+        Some((value, sign, exp)) =>
+            crate::specs::ht_numeric_center(base as nat, negative, initial_exponent,
+                magnitude_bits, embedded_value, decoded_bitplanes)
+                    == Ok((crate::magnitude::magnitude_value(value), sign, exp))
+            && crate::magnitude::magnitude_value(value) > 0
+            && crate::magnitude::magnitude_value(value) < crate::specs::part1_magnitude_capacity()
+            && crate::magnitude::magnitude_limbs(value)
+                == crate::specs::tier1_value_limbs(crate::magnitude::magnitude_value(value)),
+    },
+))]
+#[inline]
+fn try_center_ht_word(
+    base: u64,
+    negative: bool,
+    initial_exponent: u8,
+    magnitude_bits: u8,
+    embedded_value: bool,
+    decoded_bitplanes: u16,
+) -> Option<(Magnitude, bool, u8)> {
+    let (value, sign, exponent) = try_center_ht_u64(
+        base,
+        negative,
+        initial_exponent,
+        magnitude_bits,
+        embedded_value,
+        decoded_bitplanes,
+    )?;
     let magnitude = crate::magnitude::magnitude_from_u64(value);
     #[cfg(verus_keep_ghost)]
     proof! {
         crate::magnitude::representation_proofs::magnitude_limbs_shape(magnitude);
         crate::proofs::production_impl::production_tier1_value_limbs(crate::magnitude::magnitude_limbs(magnitude));
     }
-    Some((magnitude, negative, exponent))
+    Some((magnitude, sign, exponent))
 }
 
 #[cfg_attr(
@@ -532,6 +631,7 @@ impl HtCleanupPlaneReconstruction<'_> {
             final(self).previous_exponents@ == old(self).previous_exponents@,
             result == Ok(()) || result.is_err(),
     ))]
+    #[inline(always)]
     pub(super) fn sample(
         &mut self,
         quad: HtQuadMetadata,
@@ -559,15 +659,50 @@ impl HtCleanupPlaneReconstruction<'_> {
             if quad.significance & (1_u8 << sample) != 0 {
                 let embedded_bit = quad.embedded_bit_mask & (1_u8 << sample) != 0;
                 let embedded_value = quad.embedded_magnitude & (1_u8 << sample) != 0;
-                let (magnitude, negative, exponent) = reconstruct_ht_magnitude(
-                    &mut self.reader,
-                    completed_u,
-                    embedded_bit,
-                    embedded_value,
-                    decoded_bitplanes,
-                )?;
-                self.output
-                    .mark_significant_magnitude(x, y, magnitude, negative)?;
+                let exponent = if completed_u > 0
+                    && completed_u <= MAX_HT_MAGSGN_BITS
+                    && decoded_bitplanes > 0
+                    && decoded_bitplanes <= MAX_TIER1_BITPLANES
+                    && completed_u - u8::from(embedded_bit) <= 64
+                {
+                    let magnitude_bits = completed_u - u8::from(embedded_bit);
+                    let (word, negative, raw_exponent) =
+                        read_ht_payload_word(&mut self.reader, magnitude_bits)?;
+                    if let Some((value, sign, exp)) = try_center_ht_u64(
+                        word,
+                        negative,
+                        raw_exponent,
+                        magnitude_bits,
+                        embedded_value,
+                        decoded_bitplanes,
+                    ) {
+                        self.output.mark_significant_u64(x, y, value, sign)?;
+                        exp
+                    } else {
+                        let (magnitude, sign, exp) = center_ht_numeric_magnitude(
+                            crate::magnitude::magnitude_from_u64(word),
+                            negative,
+                            raw_exponent,
+                            magnitude_bits,
+                            embedded_value,
+                            decoded_bitplanes,
+                        )?;
+                        self.output
+                            .mark_significant_magnitude(x, y, magnitude, sign)?;
+                        exp
+                    }
+                } else {
+                    let (magnitude, negative, exp) = reconstruct_ht_magnitude(
+                        &mut self.reader,
+                        completed_u,
+                        embedded_bit,
+                        embedded_value,
+                        decoded_bitplanes,
+                    )?;
+                    self.output
+                        .mark_significant_magnitude(x, y, magnitude, negative)?;
+                    exp
+                };
                 self.statistics.decoded_symbols(1)?;
                 self.statistics.became_significant()?;
                 if sample == 1 {
@@ -591,6 +726,7 @@ impl HtCleanupPlaneReconstruction<'_> {
         clippy::too_many_arguments,
         reason = "The shared quad stage preserves the real caller's metadata and traversal inputs."
     )]
+    #[cfg_attr(not(test), allow(dead_code))]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires 0 < quads_per_row <= 32768,
             old(self).current_exponents.len() == quads_per_row + 1,
@@ -612,11 +748,48 @@ impl HtCleanupPlaneReconstruction<'_> {
         quads_per_row: usize,
         quad_index: usize,
     ) -> Result<(), DecodeError> {
-        #[cfg(verus_keep_ghost)]
-        proof_decl! { let ghost start = ht_plane_view(self); }
         let column = quad_index
             .checked_rem(quads_per_row)
             .ok_or_else(arithmetic_overflow)?;
+        self.quad_at_column(
+            quad,
+            width,
+            height,
+            maximum_u,
+            decoded_bitplanes,
+            quads_per_row,
+            column,
+        )
+    }
+
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "The shared quad stage preserves the real caller's metadata and traversal inputs."
+    )]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        requires 0 < quads_per_row <= 32768, column < quads_per_row,
+            old(self).current_exponents.len() == quads_per_row + 1,
+            old(self).previous_exponents.len() == quads_per_row + 1,
+        ensures (result, ht_plane_view(final(self))) == crate::specs::ht_plane_quad(
+            ht_plane_view(old(self)), quad, width, height, maximum_u, decoded_bitplanes,
+            quads_per_row as nat, column as nat),
+            final(self).current_exponents.len() == quads_per_row + 1,
+            final(self).previous_exponents.len() == quads_per_row + 1,
+            result == Ok(()) || result.is_err(),
+    ))]
+    #[inline]
+    fn quad_at_column(
+        &mut self,
+        quad: HtQuadMetadata,
+        width: u16,
+        height: u16,
+        maximum_u: u8,
+        decoded_bitplanes: u16,
+        quads_per_row: usize,
+        column: usize,
+    ) -> Result<(), DecodeError> {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost start = ht_plane_view(self); }
         if column == 0 {
             let mut exponent_index = 0_usize;
             #[cfg_attr(
@@ -635,13 +808,8 @@ impl HtCleanupPlaneReconstruction<'_> {
                 )
             )]
             while exponent_index < self.current_exponents.len() {
-                *self
-                    .current_exponents
-                    .get_mut(exponent_index)
-                    .ok_or_else(invalid_code_block)? = 0;
-                exponent_index = exponent_index
-                    .checked_add(1)
-                    .ok_or_else(arithmetic_overflow)?;
+                self.current_exponents[exponent_index] = 0;
+                exponent_index += 1;
             }
             #[cfg(verus_keep_ghost)]
             proof! { assert(self.current_exponents@ =~= Seq::new(start.current.len(), |i: int| 0u8)); }
@@ -671,49 +839,66 @@ impl HtCleanupPlaneReconstruction<'_> {
         proof_decl! { let ghost samples_start = ht_plane_view(self); }
         #[cfg(verus_keep_ghost)]
         proof! { reveal(crate::specs::ht_plane_samples); }
-        let mut sample = 0_u8;
-        #[cfg_attr(
-            verus_keep_ghost,
-            verus_spec(
-                invariant sample <= 4, column < quads_per_row, next_column == column + 1,
-                    samples_start.current.len() == quads_per_row + 1,
-                    self.current_exponents.len() == quads_per_row + 1,
-                    self.previous_exponents.len() == quads_per_row + 1,
-                    crate::specs::ht_plane_quad(ht_plane_view(old(self)), quad, width, height,
-                        maximum_u, decoded_bitplanes, quads_per_row as nat, quad_index as nat)
-                        == crate::specs::ht_plane_quad_finish(crate::specs::ht_plane_samples(
-                            samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, 4),
-                            quads_per_row as nat, column as nat),
-                    (Ok::<(), DecodeError>(()), ht_plane_view(self)) == crate::specs::ht_plane_samples(
-                        samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, sample as nat),
-                decreases 4 - sample,
-            )
-        )]
-        while sample < 4 {
-            let result = self.sample(
-                quad,
-                width,
-                height,
-                column,
-                completed_u,
-                decoded_bitplanes,
-                sample,
-            );
+        if quad.significance == 0
+            && width > 0
+            && height > 0
+            && quad.x < width - 1
+            && quad.y < height - 1
+            && self.statistics.coefficients_scanned <= u32::MAX - 4
+        {
+            self.statistics.scanned(4)?;
             #[cfg(verus_keep_ghost)]
             proof! {
-                reveal(crate::specs::ht_plane_samples);
-                assert((result, ht_plane_view(self)) == crate::specs::ht_plane_samples(
-                    samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, sample as nat + 1));
+                assert((0u8 & (1u8 << 0u8)) == 0 && (0u8 & (1u8 << 1u8)) == 0
+                    && (0u8 & (1u8 << 2u8)) == 0 && (0u8 & (1u8 << 3u8)) == 0) by (bit_vector);
+                assert((Ok::<(), DecodeError>(()), ht_plane_view(self)) == crate::specs::ht_plane_samples(
+                    samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, 4));
             }
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                if result.is_err() {
-                    crate::proofs::production_impl::production_ht_plane_samples_error(
-                        samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, sample as nat + 1, 4);
+        } else {
+            let mut sample = 0_u8;
+            #[cfg_attr(
+                verus_keep_ghost,
+                verus_spec(
+                    invariant sample <= 4, column < quads_per_row, next_column == column + 1,
+                        samples_start.current.len() == quads_per_row + 1,
+                        self.current_exponents.len() == quads_per_row + 1,
+                        self.previous_exponents.len() == quads_per_row + 1,
+                        crate::specs::ht_plane_quad(ht_plane_view(old(self)), quad, width, height,
+                            maximum_u, decoded_bitplanes, quads_per_row as nat, column as nat)
+                            == crate::specs::ht_plane_quad_finish(crate::specs::ht_plane_samples(
+                                samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, 4),
+                                quads_per_row as nat, column as nat),
+                        (Ok::<(), DecodeError>(()), ht_plane_view(self)) == crate::specs::ht_plane_samples(
+                            samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, sample as nat),
+                    decreases 4 - sample,
+                )
+            )]
+            while sample < 4 {
+                let result = self.sample(
+                    quad,
+                    width,
+                    height,
+                    column,
+                    completed_u,
+                    decoded_bitplanes,
+                    sample,
+                );
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    reveal(crate::specs::ht_plane_samples);
+                    assert((result, ht_plane_view(self)) == crate::specs::ht_plane_samples(
+                        samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, sample as nat + 1));
                 }
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    if result.is_err() {
+                        crate::proofs::production_impl::production_ht_plane_samples_error(
+                            samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, sample as nat + 1, 4);
+                    }
+                }
+                result?;
+                sample += 1;
             }
-            result?;
-            sample = sample.checked_add(1).ok_or_else(arithmetic_overflow)?;
         }
         if next_column == quads_per_row {
             core::mem::swap(&mut self.previous_exponents, &mut self.current_exponents);
@@ -736,6 +921,7 @@ impl HtCleanupPlaneReconstruction<'_> {
         code_block_plane_view(plane), ht_cleanup_segment_view(&cleanup), ht_cleanup_metadata_view(metadata),
         maximum_u, decoded_bitplanes, crate::limits::resource_work_limit(limits)),
 ))]
+#[inline(never)]
 pub(super) fn reconstruct_ht_cleanup_plane(
     plane: &CodeBlockPlane,
     cleanup: HtCleanupSegment<'_>,
@@ -810,8 +996,11 @@ pub(super) fn reconstruct_ht_cleanup_plane(
         reveal(crate::specs::ht_plane_quads);
     }
     let mut quad_index = 0_usize;
+    let mut column = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant quad_index <= metadata.quads.len(), 0 < quads_per_row <= 32768,
+            column == (quad_index as nat) % (quads_per_row as nat),
+            column < quads_per_row,
             crate::specs::part2_plane_cleanup_result(code_block_plane_view(plane),ht_cleanup_segment_view(&cleanup),ht_cleanup_metadata_view(metadata),
                 maximum_u,decoded_bitplanes,crate::limits::resource_work_limit(limits),
                 crate::specs::ht_cleanup_plane(code_block_plane_view(plane),ht_cleanup_segment_view(&cleanup),ht_cleanup_metadata_view(metadata),maximum_u,decoded_bitplanes,crate::limits::resource_work_limit(limits))),
@@ -836,17 +1025,18 @@ pub(super) fn reconstruct_ht_cleanup_plane(
             .quads
             .get(quad_index)
             .ok_or_else(invalid_code_block)?;
-        let result = state.quad(
+        let result = state.quad_at_column(
             quad,
             metadata.width,
             metadata.height,
             maximum_u,
             decoded_bitplanes,
             quads_per_row,
-            quad_index,
+            column,
         );
         #[cfg(verus_keep_ghost)]
         proof! {
+            assert((column as nat) % (quads_per_row as nat) == column as nat);
             reveal(crate::specs::ht_plane_quads);
             assert((result, ht_plane_view(&state)) == crate::specs::ht_plane_quads(
                 start, metadata.quads@, metadata.width, metadata.height, maximum_u,
@@ -862,6 +1052,16 @@ pub(super) fn reconstruct_ht_cleanup_plane(
         }
         result?;
         quad_index = quad_index.checked_add(1).ok_or_else(arithmetic_overflow)?;
+        column += 1;
+        if column == quads_per_row {
+            column = 0;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            vstd::arithmetic::div_mod::lemma_add_mod_noop(
+                (quad_index - 1) as int, 1, quads_per_row as int,
+            );
+        }
     }
     state.finish()?;
     Ok((state.output, state.statistics))
