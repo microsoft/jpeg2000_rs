@@ -187,6 +187,50 @@ impl DecodedImage {
     }
 }
 
+#[cfg(verus_keep_ghost)]
+verus! {
+    proof fn advance_unsigned_chunk(
+        samples: Seq<i64>,
+        fraction_bits: u8,
+        precision: u8,
+        level_shift: i64,
+        unsigned_max: u64,
+        index: usize,
+        before_len: usize,
+        output: Seq<u64>,
+        k: nat,
+    )
+        requires
+            k <= 64,
+            0 < precision <= 38,
+            level_shift == 1i64 << ((precision - 1) as u8),
+            unsigned_max == (1u64 << precision) - 1,
+            index + 64 <= samples.len(),
+            output.len() == before_len + 64,
+            crate::specs::part1_decoded_unsigned_prefix(samples, fraction_bits, precision, index as nat)
+                == Ok(output.subrange(0, before_len as int)),
+            forall |j: int| 0 <= j < 64 ==>
+                crate::specs::part1_decoded_unsigned_value(samples[index as int + j], fraction_bits, level_shift, unsigned_max)
+                    == Ok(#[trigger] output[before_len as int + j]),
+        ensures
+            crate::specs::part1_decoded_unsigned_prefix(samples, fraction_bits, precision, index as nat + k)
+                == Ok(output.subrange(0, (before_len + k) as int)),
+        decreases k,
+    {
+        if k > 0 {
+            advance_unsigned_chunk(
+                samples, fraction_bits, precision, level_shift, unsigned_max,
+                index, before_len, output, (k - 1) as nat,
+            );
+            crate::proofs::production_impl::production_decoded_unsigned_step(
+                samples, fraction_bits, precision, index as nat + (k - 1) as nat,
+            );
+            assert(output.subrange(0, (before_len + (k - 1)) as int).push(output[before_len as int + (k - 1) as int])
+                =~= output.subrange(0, (before_len + k) as int));
+        }
+    }
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires fraction_bits <= 62,
         0 < level_shift <= 137_438_953_472i64,
@@ -546,29 +590,10 @@ impl DecodedComponent {
                         );
                         #[cfg(verus_keep_ghost)]
                         proof! {
-                            let mut k: nat = 0;
-                            while k < 64
-                                invariant
-                                    k <= 64,
-                                    index + 64 <= self.samples.len(),
-                                    before_len == before_out.len(),
-                                    output.len() == before_len + 64,
-                                    output@.subrange(0, before_len as int) == before_out,
-                                    crate::specs::part1_decoded_unsigned_prefix(
-                                        self.samples@, self.fraction_bits, self.info.precision, index as nat + k,
-                                    ) == Ok(output@.subrange(0, (before_len + k) as int)),
-                                    forall |j: int| 0 <= j < 64 ==>
-                                        crate::specs::part1_decoded_unsigned_value(self.samples@[index as int + j], self.fraction_bits, level_shift, unsigned_max)
-                                            == Ok(#[trigger] output@[before_len as int + j]),
-                                decreases 64 - k,
-                            {
-                                crate::proofs::production_impl::production_decoded_unsigned_step(
-                                    self.samples@, self.fraction_bits, self.info.precision, index as nat + k,
-                                );
-                                assert(output@.subrange(0, (before_len + k) as int).push(output@[before_len as int + k as int])
-                                    =~= output@.subrange(0, (before_len + k + 1) as int));
-                                k = k + 1;
-                            }
+                            advance_unsigned_chunk(
+                                self.samples@, self.fraction_bits, self.info.precision,
+                                level_shift, unsigned_max, index, before_len, output@, 64,
+                            );
                             assert(output@.subrange(0, output.len() as int) =~= output@);
                         }
                         index += 64;

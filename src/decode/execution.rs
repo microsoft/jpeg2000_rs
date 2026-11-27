@@ -973,6 +973,76 @@ pub(super) fn reconstruct_planned_tile(
     result
 }
 
+#[cfg(verus_keep_ghost)]
+verus! {
+    proof fn advance_standard_chunk(
+        before: Seq<crate::specs::Part1AssemblyTile>,
+        irreversible: bool,
+        index: usize,
+        length: usize,
+        r_samples: Seq<i64>,
+        g_samples: Seq<i64>,
+        b_samples: Seq<i64>,
+        k: nat,
+    )
+        requires
+            k <= 64,
+            index + 64 <= length,
+            before.len() >= 3,
+            r_samples.len() == length,
+            g_samples.len() == length,
+            b_samples.len() == length,
+            before[0].6.len() == length,
+            before[1].6.len() == length,
+            before[2].6.len() == length,
+            forall |j: int| 0 <= j < 64 ==>
+                crate::specs::part1_component_values(
+                    before[0].6[index as int + j],
+                    before[1].6[index as int + j],
+                    before[2].6[index as int + j],
+                    irreversible,
+                ) == Ok((
+                    r_samples[index as int + j],
+                    g_samples[index as int + j],
+                    b_samples[index as int + j],
+                )),
+            ({
+                let p = crate::specs::part1_prepared_standard_prefix(before, irreversible, index as nat);
+                p.0 == Ok::<(), DecodeError>(())
+                    && p.1.len() == before.len()
+                    && (forall |c: int| 3 <= c < before.len() ==> p.1[c] == before[c])
+                    && p.1[0] == (before[0].0, before[0].1, before[0].2, before[0].3, before[0].4, before[0].5,
+                        Seq::new(length as nat, |j: int| if j < index as int { r_samples[j] } else { before[0].6[j] }))
+                    && p.1[1] == (before[1].0, before[1].1, before[1].2, before[1].3, before[1].4, before[1].5,
+                        Seq::new(length as nat, |j: int| if j < index as int { g_samples[j] } else { before[1].6[j] }))
+                    && p.1[2] == (before[2].0, before[2].1, before[2].2, before[2].3, before[2].4, before[2].5,
+                        Seq::new(length as nat, |j: int| if j < index as int { b_samples[j] } else { before[2].6[j] }))
+            }),
+        ensures ({
+            let p = crate::specs::part1_prepared_standard_prefix(before, irreversible, index as nat + k);
+            p.0 == Ok::<(), DecodeError>(())
+                && p.1.len() == before.len()
+                && (forall |c: int| 3 <= c < before.len() ==> p.1[c] == before[c])
+                && p.1[0] == (before[0].0, before[0].1, before[0].2, before[0].3, before[0].4, before[0].5,
+                    Seq::new(length as nat, |j: int| if j < index as int + k { r_samples[j] } else { before[0].6[j] }))
+                && p.1[1] == (before[1].0, before[1].1, before[1].2, before[1].3, before[1].4, before[1].5,
+                    Seq::new(length as nat, |j: int| if j < index as int + k { g_samples[j] } else { before[1].6[j] }))
+                && p.1[2] == (before[2].0, before[2].1, before[2].2, before[2].3, before[2].4, before[2].5,
+                    Seq::new(length as nat, |j: int| if j < index as int + k { b_samples[j] } else { before[2].6[j] }))
+        }),
+        decreases k,
+    {
+        if k > 0 {
+            advance_standard_chunk(before, irreversible, index, length, r_samples, g_samples, b_samples, (k - 1) as nat);
+            crate::proofs::production_impl::production_prepared_standard_step(before, irreversible, index as nat + (k - 1) as nat);
+            let p_next = crate::specs::part1_prepared_standard_prefix(before, irreversible, index as nat + k);
+            assert(p_next.1[0].6 =~= Seq::new(length as nat, |j: int| if j < index as int + k { r_samples[j] } else { before[0].6[j] }));
+            assert(p_next.1[1].6 =~= Seq::new(length as nat, |j: int| if j < index as int + k { g_samples[j] } else { before[1].6[j] }));
+            assert(p_next.1[2].6 =~= Seq::new(length as nat, |j: int| if j < index as int + k { b_samples[j] } else { before[2].6[j] }));
+        }
+    }
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires slice.len() == 64,
     ensures result == forall |i: int| 0 <= i < 64 ==> -bound <= #[trigger] slice@[i] <= bound,
@@ -1197,47 +1267,11 @@ pub(super) fn apply_prepared_component_transform(
                         }
                         #[cfg(verus_keep_ghost)]
                         proof! {
-                            let mut k: nat = 0;
-                            while k < 64
-                                invariant
-                                    k <= 64,
-                                    index + 64 <= length,
-                                    before.len() >= 3,
-                                    first.samples.len() == length,
-                                    second.samples.len() == length,
-                                    third.samples.len() == length,
-                                    forall |j: int| 0 <= j < 64 ==>
-                                        crate::specs::part1_component_values(
-                                            before[0].6[index as int + j],
-                                            before[1].6[index as int + j],
-                                            before[2].6[index as int + j],
-                                            transform.1
-                                        ) == Ok((
-                                            first.samples@[index as int + j],
-                                            second.samples@[index as int + j],
-                                            third.samples@[index as int + j],
-                                        )),
-                                    ({
-                                        let p = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat + k);
-                                        p.0 == Ok::<(), DecodeError>(())
-                                            && p.1.len() == before.len()
-                                            && (forall |c: int| 3 <= c < before.len() ==> p.1[c] == before[c])
-                                            && p.1[0] == (before[0].0, before[0].1, before[0].2, before[0].3, before[0].4, before[0].5,
-                                                Seq::new(length as nat, |j: int| if j < index as int + k { first.samples@[j] } else { before[0].6[j] }))
-                                            && p.1[1] == (before[1].0, before[1].1, before[1].2, before[1].3, before[1].4, before[1].5,
-                                                Seq::new(length as nat, |j: int| if j < index as int + k { second.samples@[j] } else { before[1].6[j] }))
-                                            && p.1[2] == (before[2].0, before[2].1, before[2].2, before[2].3, before[2].4, before[2].5,
-                                                Seq::new(length as nat, |j: int| if j < index as int + k { third.samples@[j] } else { before[2].6[j] }))
-                                    }),
-                                decreases 64 - k,
-                            {
-                                crate::proofs::production_impl::production_prepared_standard_step(before, transform.1, index as nat + k);
-                                let p_next = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat + k + 1);
-                                assert(p_next.1[0].6 =~= Seq::new(length as nat, |j: int| if j < index as int + k + 1 { first.samples@[j] } else { before[0].6[j] }));
-                                assert(p_next.1[1].6 =~= Seq::new(length as nat, |j: int| if j < index as int + k + 1 { second.samples@[j] } else { before[1].6[j] }));
-                                assert(p_next.1[2].6 =~= Seq::new(length as nat, |j: int| if j < index as int + k + 1 { third.samples@[j] } else { before[2].6[j] }));
-                                k = k + 1;
-                            }
+                            let p0 = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat);
+                            assert(p0.1[0].6 =~= Seq::new(length as nat, |j: int| if j < index as int { first.samples@[j] } else { before[0].6[j] }));
+                            assert(p0.1[1].6 =~= Seq::new(length as nat, |j: int| if j < index as int { second.samples@[j] } else { before[1].6[j] }));
+                            assert(p0.1[2].6 =~= Seq::new(length as nat, |j: int| if j < index as int { third.samples@[j] } else { before[2].6[j] }));
+                            advance_standard_chunk(before, transform.1, index, length, first.samples@, second.samples@, third.samples@, 64);
                             let p_done = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat + 64);
                             assert(p_done.1[0].6 =~= first.samples@);
                             assert(p_done.1[1].6 =~= second.samples@);
