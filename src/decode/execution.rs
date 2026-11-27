@@ -1051,7 +1051,7 @@ verus! {
 fn chunk_within_bound(slice: &[i64], bound: i64) -> bool {
     let mut index = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
-        invariant index <= 64, slice.len() == 64,
+        invariant index <= 64, slice.len() == 64, bound >= 0,
             forall |i: int| 0 <= i < index ==> -bound <= #[trigger] slice@[i] <= bound,
         decreases 64 - index,
     ))]
@@ -1286,6 +1286,23 @@ pub(super) fn apply_prepared_component_transform(
         core::mem::swap(&mut r, &mut prepared[0].samples);
         core::mem::swap(&mut g, &mut prepared[1].samples);
         core::mem::swap(&mut b, &mut prepared[2].samples);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let p_after = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat);
+            assert forall |c: int| 0 <= c < before.len() implies
+                p_after.1[c] == prepared_components_view(prepared@)[c] by {
+                if c == 0 {
+                    assert(prepared_component_view(prepared@[0]) == (before[0].0, before[0].1, before[0].2, before[0].3, before[0].4, before[0].5, prepared@[0].samples@));
+                } else if c == 1 {
+                    assert(prepared_component_view(prepared@[1]) == (before[1].0, before[1].1, before[1].2, before[1].3, before[1].4, before[1].5, prepared@[1].samples@));
+                } else if c == 2 {
+                    assert(prepared_component_view(prepared@[2]) == (before[2].0, before[2].1, before[2].2, before[2].3, before[2].4, before[2].5, prepared@[2].samples@));
+                } else {
+                    assert(prepared@[c] == old(prepared)@[c]);
+                }
+            };
+            assert(p_after.1 =~= prepared_components_view(prepared@));
+        }
     }
     #[cfg(verus_keep_ghost)]
     proof! {
