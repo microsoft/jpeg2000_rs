@@ -1,0 +1,65 @@
+{
+  "phase": "functional-only",
+  "source_results": {
+    "Base": {
+      "source": "ec5d3f038192ef51928bc62600d9f28f127b8003",
+      "functional_gate": "PASS",
+      "differences": 0,
+      "represented_outcomes": 7563,
+      "actual_processes": 7563
+    },
+    "PR503": {
+      "source": "8c82b53e7a97e5163833e5268cb2626d681a04c2",
+      "functional_gate": "PASS",
+      "differences": 0,
+      "represented_outcomes": 7563,
+      "actual_processes": 5042
+    }
+  },
+  "image_requests_per_source": 310,
+  "image_configurations_per_source": 2480,
+  "pdfs_per_source": 41,
+  "configurations_per_source": 2521,
+  "represented_backend_outcomes": 15126,
+  "actual_functional_processes": 12605,
+  "cpp_control": "Fresh immutable common-base capture reused after per-source binary/input identity checks.",
+  "independent_reference_controls_per_source": 10,
+  "targeted_tests": 46,
+  "environment": {
+    "cpu": "Neoverse-N2 ARM64",
+    "shared_host": true,
+    "original_llvm24": true,
+    "compiler_flags": "actual O3/native/ThinLTO/linkO3, same-revision C/Rust halves and identical shim/FFI core archives"
+  },
+  "performance": "pending",
+  "performance_note": "Original65-workload selection,3 rounds,7 image/5 PDF timed reps,3 warmups,CPU2; source and backend orders rotate. Base block shared across heads; comparisons correlated/descriptive, not independent confirmatory CIs.",
+  "rss_note": "Original consumer protocol captures elapsed p50/p90 and a2GiB data cap; no new per-process RSS attribution is fabricated.",
+  "merge_authorization": false,
+  "runtime_modified": false,
+  "replacement_gate": false,
+  "files": {
+    "Base/build-audit.json": "4b9a6143f6076f6bb24a5bca468671d168afc0f1817a6c62a81c033165d573ed",
+    "Base/diagnostic-parity.json": "013fe0bcbff8aa336e896128f0622ec2bd347cb67044b8992c095cd357ab560f",
+    "Base/ffi-tests.xml": "cf8c0586afc8a1b8403e02fa90463fc7f8cc238d31599935d119dedab93a9d49",
+    "Base/functional-gate.json": "8964bad9340cb19b82d35b2cb5eacea563c1f97c5595eca9810002416b5cd53e",
+    "Base/functionality.json": "730d6d555e0484182e91b0c9ee5a42a295609e1271155c827324558012c53142",
+    "Base/references.json": "d3d1be1988c223ebad8220fcf4987d16d08788d6a648591cb6efe8ba173d8eb2",
+    "Base/shim-tests.xml": "60ab3e49eb96f4eb402258b9f1eccc38d2f99686218dd8c30a1380bf273ca7f3",
+    "PR503/build-audit.json": "7cc2511638a65432656f944887056d78cd70fdfa6ba80ff38eb2d8beea507d41",
+    "PR503/comparison-gate.json": "779a01c460e7616737a99d6f3b674fcbaebbf540cab7ef2fd110cea29432b2e8",
+    "PR503/diagnostic-parity.json": "013fe0bcbff8aa336e896128f0622ec2bd347cb67044b8992c095cd357ab560f",
+    "PR503/ffi-tests.xml": "e068fc96bf1bdab23d1ab6676a44514a1e322df161d6b55ad6bc6d0983910bd4",
+    "PR503/functional-gate.json": "eab0db7a639dadf24cc0e40425d29828237d9fafd778c0af60a313feae050810",
+    "PR503/functionality.json": "730d6d555e0484182e91b0c9ee5a42a295609e1271155c827324558012c53142",
+    "PR503/references.json": "d3d1be1988c223ebad8220fcf4987d16d08788d6a648591cb6efe8ba173d8eb2",
+    "PR503/shim-tests.xml": "acd39b1877e83dcb0208a9fad46bab336ac1c614b61415c398a03c0ea4df8b82",
+    "README.md": "5250ec2ce34b487ca5d33cc38839ddbc95ba7164873f929f8bd37405bb2ef9ce",
+    "actual-command-projections.json.gz": "371ff49ab956939e91c405aa6ce5739bb18bbd7d97bdf38a19db7a75155e62fc",
+    "diagnostic-parity.json": "e3216f041e2ce8078eee1dbed92e5d098b5a0563076506db98bec2a16b87da2d",
+    "environment.json": "86f37da113cded4f0ab38f1ebe94588ff70b7d46b4dd8ba762ad9c2c0e02cb2b",
+    "input-verification.json": "841419474cf522e603ed10d574711add8197756419ec742066753d3f9edc8fb4",
+    "native-tests.json": "c205925b381d286f1fc488584575ac7a631a04e283b65c8119a5105d04a1babb",
+    "sources.json": "182fc6c4f6ecdae434911adf4c469ddb840774cceed437c4f1885740cf72651f",
+    "targeted-tests.json": "d96003e48d98e80617061b1d9bed14b467591b6f5603f871491669d79d62e56f"
+  }
+}
