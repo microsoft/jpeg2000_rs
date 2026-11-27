@@ -5,7 +5,7 @@ use super::arithmetic::{
 use super::geometry::{
     band_row, collect_column, low_count, store_column, validate_level, validate_level_bands,
 };
-use super::wavelets::{inverse_5_3, inverse_9_7};
+use super::wavelets::{inverse_5_3, inverse_9_7, try_append_inverse_5_3, try_append_inverse_9_7};
 use super::{FIXED_BITS, ReconstructedPlane, WaveletBand, WaveletLevel};
 #[cfg(verus_keep_ghost)]
 use super::{
@@ -234,6 +234,36 @@ fn inverse_rows(
         )
     )]
     while y < low.height {
+        #[allow(
+            clippy::collapsible_if,
+            reason = "Avoid let-chains for MSRV 1.88 and Verus compatibility."
+        )]
+        if kernel.is_none() && low.height >= 4 {
+            if let (Ok(low_row), Ok(high_row)) = (band_row(low, y), band_row(high, y)) {
+                let appended_in_place = if irreversible {
+                    try_append_inverse_9_7(&mut samples, low_row, high_row, low_pass_first)
+                } else {
+                    try_append_inverse_5_3(&mut samples, low_row, high_row, low_pass_first)
+                };
+                if appended_in_place {
+                    #[cfg(verus_keep_ghost)]
+                    proof! {
+                        assert(crate::specs::part1_horizontal_row(
+                            wavelet_band_view(low), wavelet_band_view(high), y, low_pass_first, irreversible,
+                        ) == if irreversible {
+                            crate::specs::part1_inverse_nine_seven(low_row@, high_row@, low_pass_first)
+                        } else {
+                            crate::specs::part1_inverse_five_three(low_row@, high_row@, low_pass_first)
+                        });
+                        assert(crate::specs::part1_horizontal_prefix(
+                            wavelet_band_view(low), wavelet_band_view(high), low_pass_first, irreversible, y as nat + 1,
+                        ) == Ok(samples@));
+                    }
+                    y = y.checked_add(1).ok_or_else(arithmetic_overflow)?;
+                    continue;
+                }
+            }
+        }
         let row = match inverse_row_pair(low, high, y, low_pass_first, irreversible, kernel) {
             Ok(row) => row,
             Err(error) => {
@@ -643,6 +673,707 @@ fn inverse_column_pair(
     result
 }
 
+#[cfg_attr(verus_keep_ghost, verifier::verify)]
+mod zero_level {
+    use super::super::WaveletLevel;
+    #[cfg(verus_keep_ghost)]
+    use super::super::wavelet_level_view;
+    #[cfg(verus_keep_ghost)]
+    use crate::DecodeError;
+    #[cfg(verus_keep_ghost)]
+    use vstd::prelude::*;
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == forall |i: int| 0 <= i < samples.len() ==> #[trigger] samples@[i] == 0i64,
+    ))]
+    #[inline]
+    pub(super) fn slice_is_all_zero(samples: &[i64]) -> bool {
+        let mut i = 0_usize;
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant i <= samples.len(),
+                forall |k: int| 0 <= k < i ==> #[trigger] samples@[k] == 0i64,
+            decreases samples.len() - i,
+        ))]
+        while i < samples.len() {
+            if samples[i] != 0 {
+                return false;
+            }
+            i += 1;
+        }
+        true
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures result == forall |i: int| 0 <= i < samples.len() ==> -1_073_741_824i64 <= #[trigger] samples@[i] <= 1_073_741_824i64,
+    ))]
+    #[inline]
+    fn slice_within_bound(samples: &[i64]) -> bool {
+        let mut i = 0_usize;
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant i <= samples.len(),
+                forall |k: int| 0 <= k < i ==> -1_073_741_824i64 <= #[trigger] samples@[k] <= 1_073_741_824i64,
+            decreases samples.len() - i,
+        ))]
+        while i < samples.len() {
+            let v = samples[i];
+            #[allow(
+                clippy::manual_range_contains,
+                reason = "Direct comparisons keep Verus loop invariants simple."
+            )]
+            if v < -1_073_741_824 || v > 1_073_741_824 {
+                return false;
+            }
+            i += 1;
+        }
+        true
+    }
+
+    #[cfg(verus_keep_ghost)]
+    verus! {
+        spec fn zeros(n: nat) -> Seq<i64> {
+            Seq::new(n, |_: int| 0i64)
+        }
+
+        proof fn zero_interleave(low: Seq<i64>, high: Seq<i64>, first: bool)
+            requires
+                low.len() + high.len() <= usize::MAX,
+                low.len() == if first { (low.len() + high.len()) / 2 + (low.len() + high.len()) % 2 } else { (low.len() + high.len()) / 2 },
+                forall |i: int| 0 <= i < low.len() ==> #[trigger] low[i] == 0i64,
+                forall |i: int| 0 <= i < high.len() ==> #[trigger] high[i] == 0i64,
+            ensures
+                crate::specs::part1_interleaved(low, high, first) == Ok::<Seq<i64>, DecodeError>(zeros(low.len() + high.len())),
+        {
+            let expected = crate::specs::part1_interleaved(low, high, first).get_Ok_0();
+            assert(expected =~= zeros(low.len() + high.len()));
+        }
+
+        proof fn zero_scale_prefix(n: nat, low_parity: bool, factor: i64, k: nat)
+            requires k <= n,
+            ensures crate::specs::part1_scaling_prefix(zeros(n), low_parity, factor, k) == (Ok::<(), DecodeError>(()), zeros(n)),
+            decreases k,
+        {
+            reveal_with_fuel(crate::specs::part1_scaling_prefix, 2);
+            if k > 0 {
+                zero_scale_prefix(n, low_parity, factor, (k - 1) as nat);
+                assert(((0i64 as int) * (factor as int) + 32768) == 32768int);
+                assert(((32768i64) >> 16i64) == 0i64) by(bit_vector);
+                assert(zeros(n).update((k - 1) as int, 0i64) =~= zeros(n));
+            }
+        }
+
+        proof fn zero_lifting_prefix(n: nat, target_even: bool, kind: u8, factor: i64, k: nat)
+            requires k <= n,
+            ensures crate::specs::part1_lifting_prefix(zeros(n), target_even, kind, factor, k) == (Ok::<(), DecodeError>(()), zeros(n)),
+            decreases k,
+        {
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+            if k > 0 {
+                zero_lifting_prefix(n, target_even, kind, factor, (k - 1) as nat);
+                assert(((0i64 + 2i64) >> 2i64) == 0i64 && (0i64 >> 1i64) == 0i64 && ((32768i64) >> 16i64) == 0i64) by(bit_vector);
+                assert(((0i64 as int) * (factor as int) + 32768) == 32768int);
+                assert(zeros(n).update((k - 1) as int, 0i64) =~= zeros(n));
+            }
+        }
+
+        #[verifier::spinoff_prover]
+        proof fn zero_1d_wavelet(low: Seq<i64>, high: Seq<i64>, first: bool, irreversible: bool)
+            requires
+                low.len() + high.len() <= usize::MAX,
+                low.len() == if first { (low.len() + high.len()) / 2 + (low.len() + high.len()) % 2 } else { (low.len() + high.len()) / 2 },
+                forall |i: int| 0 <= i < low.len() ==> #[trigger] low[i] == 0i64,
+                forall |i: int| 0 <= i < high.len() ==> #[trigger] high[i] == 0i64,
+            ensures
+                (if irreversible {
+                    crate::specs::part1_inverse_nine_seven(low, high, first)
+                } else {
+                    crate::specs::part1_inverse_five_three(low, high, first)
+                }) == Ok::<Seq<i64>, DecodeError>(zeros(low.len() + high.len())),
+        {
+            let n = low.len() + high.len();
+            zero_interleave(low, high, first);
+            if n == 1 && !first {
+                assert((0i64 >> 1i64) == 0i64) by(bit_vector);
+                assert(zeros(1).update(0, 0i64) =~= zeros(1));
+            } else if irreversible {
+                if n > 1 {
+                    zero_scale_prefix(n, first, crate::specs::part1_nine_seven_scale(true), n);
+                    zero_scale_prefix(n, !first, crate::specs::part1_nine_seven_scale(false), n);
+                    reveal_with_fuel(crate::specs::part1_nine_seven_lifting_prefix, 5);
+                    zero_lifting_prefix(n, first, 2u8, crate::specs::part1_nine_seven_lift(0), n);
+                    zero_lifting_prefix(n, !first, 2u8, crate::specs::part1_nine_seven_lift(1), n);
+                    zero_lifting_prefix(n, first, 2u8, crate::specs::part1_nine_seven_lift(2), n);
+                    zero_lifting_prefix(n, !first, 2u8, crate::specs::part1_nine_seven_lift(3), n);
+                }
+            } else {
+                zero_lifting_prefix(n, first, 0u8, 0, n);
+                zero_lifting_prefix(n, !first, 1u8, 0, n);
+            }
+        }
+
+        proof fn zero_horizontal_prefix(
+            low: crate::specs::Part1WaveletBand,
+            high: crate::specs::Part1WaveletBand,
+            first: bool,
+            irreversible: bool,
+            y: nat,
+        )
+            requires
+                y <= low.1,
+                low.1 == high.1,
+                low.0 as nat + high.0 as nat <= usize::MAX,
+                low.0 as nat == if first { (low.0 as nat + high.0 as nat) / 2 + (low.0 as nat + high.0 as nat) % 2 } else { (low.0 as nat + high.0 as nat) / 2 },
+                low.2.len() == (low.0 as nat) * (low.1 as nat),
+                high.2.len() == (high.0 as nat) * (high.1 as nat),
+                (low.0 as nat + high.0 as nat) * (low.1 as nat) <= usize::MAX,
+                forall |i: int| 0 <= i < low.2.len() ==> #[trigger] low.2[i] == 0i64,
+                forall |i: int| 0 <= i < high.2.len() ==> #[trigger] high.2[i] == 0i64,
+            ensures
+                crate::specs::part1_horizontal_prefix(low, high, first, irreversible, y)
+                    == Ok::<Seq<i64>, DecodeError>(zeros(y * (low.0 as nat + high.0 as nat))),
+            decreases y,
+        {
+            if y == 0 {
+                assert(Seq::<i64>::empty() =~= zeros(0));
+            } else {
+                let prev = (y - 1) as nat;
+                zero_horizontal_prefix(low, high, first, irreversible, prev);
+                let lw = low.0 as nat;
+                let hw = high.0 as nat;
+                let w = lw + hw;
+                assert(prev * lw + lw <= low.2.len() && prev * hw + hw <= high.2.len()) by(nonlinear_arith)
+                    requires prev < low.1, low.2.len() == lw * (low.1 as nat), high.2.len() == hw * (low.1 as nat);
+                let lr = low.2.subrange((prev * lw) as int, (prev * lw + lw) as int);
+                let hr = high.2.subrange((prev * hw) as int, (prev * hw + hw) as int);
+                zero_1d_wavelet(lr, hr, first, irreversible);
+                assert(zeros(prev * w) + zeros(w) =~= zeros(y * w)) by {
+                    assert(prev * w + w == y * w) by(nonlinear_arith) requires y == prev + 1;
+                }
+            }
+        }
+
+        proof fn zero_vertical_prefix(
+            low: crate::specs::Part1WaveletBand,
+            high: crate::specs::Part1WaveletBand,
+            output_height: u32,
+            first: bool,
+            irreversible: bool,
+            output_len: usize,
+            x: nat,
+        )
+            requires
+                x <= low.0,
+                low.0 == high.0,
+                low.1 as nat + high.1 as nat == output_height as nat,
+                output_height <= usize::MAX,
+                low.1 as nat == if first { output_height as nat / 2 + output_height as nat % 2 } else { output_height as nat / 2 },
+                low.2.len() == (low.0 as nat) * (low.1 as nat),
+                high.2.len() == (high.0 as nat) * (high.1 as nat),
+                output_len as nat == (low.0 as nat) * (output_height as nat),
+                forall |i: int| 0 <= i < low.2.len() ==> #[trigger] low.2[i] == 0i64,
+                forall |i: int| 0 <= i < high.2.len() ==> #[trigger] high.2[i] == 0i64,
+            ensures
+                crate::specs::part1_vertical_prefix(low, high, output_height, first, irreversible, output_len, x)
+                    == Ok::<Seq<i64>, DecodeError>(zeros(output_len as nat)),
+            decreases x,
+        {
+            if x == 0 {
+                assert(Seq::new(output_len as nat, |_: int| 0i64) =~= zeros(output_len as nat));
+            } else {
+                let prev = (x - 1) as nat;
+                zero_vertical_prefix(low, high, output_height, first, irreversible, output_len, prev);
+                let lc = Seq::new(low.1 as nat, |row: int| low.2[row * (low.0 as int) + prev as int]);
+                let hc = Seq::new(high.1 as nat, |row: int| high.2[row * (high.0 as int) + prev as int]);
+                assert forall |r: int| 0 <= r < lc.len() implies #[trigger] lc[r] == 0i64 by {
+                    assert(0 <= r * (low.0 as int) + prev as int < low.2.len()) by(nonlinear_arith)
+                        requires 0 <= r < low.1, prev < low.0, low.2.len() == (low.0 as int) * (low.1 as int);
+                }
+                assert forall |r: int| 0 <= r < hc.len() implies #[trigger] hc[r] == 0i64 by {
+                    assert(0 <= r * (high.0 as int) + prev as int < high.2.len()) by(nonlinear_arith)
+                        requires 0 <= r < high.1, prev < high.0, high.2.len() == (high.0 as int) * (high.1 as int);
+                }
+                zero_1d_wavelet(lc, hc, first, irreversible);
+                let stored = crate::specs::part1_store_column(zeros(output_len as nat), low.0, output_height, prev as u32, zeros(output_height as nat)).get_Ok_0();
+                assert(stored =~= zeros(output_len as nat));
+            }
+        }
+
+        spec fn upsample_1d(low: Seq<i64>, out_len: nat) -> Seq<i64> {
+            Seq::new(out_len, |i: int| {
+                if i % 2 == 0 {
+                    low[i / 2]
+                } else {
+                    let left = low[i / 2];
+                    let right = if i / 2 + 1 < low.len() { low[i / 2 + 1] } else { low[i / 2] };
+                    ((left as int + right as int) as i64) >> 1
+                }
+            })
+        }
+
+        proof fn zero_high_5_3_update_prefix(inter: Seq<i64>, k: nat)
+            requires
+                inter.len() > 1,
+                k <= inter.len(),
+                forall |i: int| 0 <= i < inter.len() && i % 2 == 1 ==> #[trigger] inter[i] == 0i64,
+            ensures
+                crate::specs::part1_lifting_prefix(inter, true, 0u8, 0, k) == (Ok::<(), DecodeError>(()), inter),
+            decreases k,
+        {
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+            if k > 0 {
+                let idx = (k - 1) as nat;
+                zero_high_5_3_update_prefix(inter, idx);
+                if idx % 2 == 0 {
+                    let left_i = if idx == 0 { 1int } else { idx as int - 1 };
+                    let right_i = if idx + 1 < inter.len() { idx as int + 1 } else { idx as int - 1 };
+                    assert(inter[left_i] == 0i64 && inter[right_i] == 0i64);
+                    assert(((0i64 + 2i64) >> 2i64) == 0i64) by(bit_vector);
+                    assert(inter.update(idx as int, inter[idx as int]) =~= inter);
+                } else {
+                    assert(inter.update(idx as int, inter[idx as int]) =~= inter);
+                }
+            }
+        }
+
+        proof fn zero_high_5_3_predict_prefix(low: Seq<i64>, inter: Seq<i64>, k: nat)
+            requires
+                inter.len() > 1,
+                k <= inter.len(),
+                low.len() == inter.len() / 2 + inter.len() % 2,
+                forall |i: int| 0 <= i < low.len() ==> -1_073_741_824i64 <= #[trigger] low[i] <= 1_073_741_824i64,
+                forall |i: int| 0 <= i < inter.len() ==>
+                    #[trigger] inter[i] == if i % 2 == 0 { low[i / 2] } else { 0i64 },
+            ensures
+                crate::specs::part1_lifting_prefix(inter, false, 1u8, 0, k)
+                    == (Ok::<(), DecodeError>(()), Seq::new(inter.len(), |i: int| if i < k { upsample_1d(low, inter.len())[i] } else { inter[i] })),
+            decreases k,
+        {
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+            if k == 0 {
+                assert(inter =~= Seq::new(inter.len(), |i: int| if i < 0 { upsample_1d(low, inter.len())[i] } else { inter[i] }));
+            } else {
+                let idx = (k - 1) as nat;
+                zero_high_5_3_predict_prefix(low, inter, idx);
+                let prev = Seq::new(inter.len(), |i: int| if i < idx { upsample_1d(low, inter.len())[i] } else { inter[i] });
+                let target = Seq::new(inter.len(), |i: int| if i < k { upsample_1d(low, inter.len())[i] } else { inter[i] });
+                if idx % 2 == 1 {
+                    let left = low[(idx as int) / 2];
+                    let right = if (idx as int) / 2 + 1 < low.len() { low[(idx as int) / 2 + 1] } else { low[(idx as int) / 2] };
+                    assert(-2_147_483_648 <= (left as int) + (right as int) <= 2_147_483_648);
+                    assert(prev.update(idx as int, upsample_1d(low, inter.len())[idx as int]) =~= target);
+                } else {
+                    assert(prev.update(idx as int, inter[idx as int]) =~= target);
+                }
+            }
+        }
+
+        #[verifier::spinoff_prover]
+        proof fn zero_high_5_3_row(low: Seq<i64>, high: Seq<i64>)
+            requires
+                low.len() + high.len() > 1,
+                low.len() + high.len() <= usize::MAX,
+                low.len() == (low.len() + high.len()) / 2 + (low.len() + high.len()) % 2,
+                forall |i: int| 0 <= i < low.len() ==> -1_073_741_824i64 <= #[trigger] low[i] <= 1_073_741_824i64,
+                forall |i: int| 0 <= i < high.len() ==> #[trigger] high[i] == 0i64,
+            ensures
+                crate::specs::part1_inverse_five_three(low, high, true)
+                    == Ok::<Seq<i64>, DecodeError>(upsample_1d(low, low.len() + high.len())),
+        {
+            let n = low.len() + high.len();
+            let inter = crate::specs::part1_interleaved(low, high, true).get_Ok_0();
+            zero_high_5_3_update_prefix(inter, n);
+            zero_high_5_3_predict_prefix(low, inter, n);
+            assert(Seq::new(n, |i: int| if i < n { upsample_1d(low, n)[i] } else { inter[i] }) =~= upsample_1d(low, n));
+        }
+
+        proof fn zero_high_5_3_horizontal_prefix(
+            ll: crate::specs::Part1WaveletBand,
+            hl: crate::specs::Part1WaveletBand,
+            output_width: u32,
+            y: nat,
+        )
+            requires
+                y <= ll.1,
+                ll.1 == hl.1,
+                output_width >= 4,
+                ll.0 as nat + hl.0 as nat == output_width as nat,
+                ll.0 as nat == output_width as nat / 2 + output_width as nat % 2,
+                ll.2.len() == (ll.0 as nat) * (ll.1 as nat),
+                hl.2.len() == (hl.0 as nat) * (hl.1 as nat),
+                (output_width as nat) * (ll.1 as nat) <= usize::MAX,
+                forall |i: int| 0 <= i < ll.2.len() ==> -1_073_741_824i64 <= #[trigger] ll.2[i] <= 1_073_741_824i64,
+                forall |i: int| 0 <= i < hl.2.len() ==> #[trigger] hl.2[i] == 0i64,
+            ensures
+                crate::specs::part1_horizontal_prefix(ll, hl, true, false, y)
+                    == Ok::<Seq<i64>, DecodeError>(Seq::new(y * (output_width as nat), |idx: int| {
+                        let r = idx / (output_width as int);
+                        let c = idx % (output_width as int);
+                        let lr = ll.2.subrange(r * (ll.0 as int), (r + 1) * (ll.0 as int));
+                        upsample_1d(lr, output_width as nat)[c]
+                    })),
+            decreases y,
+        {
+            let w = output_width as nat;
+            if y == 0 {
+                assert(Seq::<i64>::empty() =~= Seq::new(0nat, |idx: int| {
+                    let r = idx / (output_width as int);
+                    let c = idx % (output_width as int);
+                    let lr = ll.2.subrange(r * (ll.0 as int), (r + 1) * (ll.0 as int));
+                    upsample_1d(lr, w)[c]
+                }));
+            } else {
+                let prev = (y - 1) as nat;
+                zero_high_5_3_horizontal_prefix(ll, hl, output_width, prev);
+                let lw = ll.0 as nat;
+                let hw = hl.0 as nat;
+                assert(prev * lw + lw <= ll.2.len() && prev * hw + hw <= hl.2.len()) by(nonlinear_arith)
+                    requires prev < ll.1, ll.2.len() == lw * (ll.1 as nat), hl.2.len() == hw * (ll.1 as nat);
+                let lr = ll.2.subrange((prev * lw) as int, (prev * lw + lw) as int);
+                let hr = hl.2.subrange((prev * hw) as int, (prev * hw + hw) as int);
+                zero_high_5_3_row(lr, hr);
+                let left = crate::specs::part1_horizontal_prefix(ll, hl, true, false, prev).get_Ok_0();
+                let combined = left + upsample_1d(lr, w);
+                let target = Seq::new(y * w, |idx: int| {
+                    let r = idx / (output_width as int);
+                    let c = idx % (output_width as int);
+                    let row_s = ll.2.subrange(r * (ll.0 as int), (r + 1) * (ll.0 as int));
+                    upsample_1d(row_s, w)[c]
+                });
+                assert(prev * w + w == y * w) by(nonlinear_arith) requires y == prev + 1;
+                assert forall |idx: int| 0 <= idx < (y * w) as int implies combined[idx] == target[idx] by {
+                    if idx < (prev * w) as int {
+                    } else {
+                        let c = idx - (prev * w) as int;
+                        crate::specs::rowwise_index(prev as int, c, output_width as int);
+                        assert((prev as int) * (ll.0 as int) + (ll.0 as int) == (prev as int + 1) * (ll.0 as int)) by(nonlinear_arith);
+                    }
+                }
+                assert(combined =~= target);
+            }
+        }
+    }
+
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        requires
+            crate::specs::part1_validate_level(wavelet_level_view(level)) == Ok(()),
+            level.output_width as nat * level.output_height as nat == output_len as nat,
+            crate::specs::part1_validate_output_size(output_len, maximum) == Ok(()),
+            level.output_width >= 4 && level.output_height >= 4,
+            forall |i: int| 0 <= i < level.ll.samples.len() ==> #[trigger] level.ll.samples@[i] == 0i64,
+            forall |i: int| 0 <= i < level.hl.samples.len() ==> #[trigger] level.hl.samples@[i] == 0i64,
+            forall |i: int| 0 <= i < level.lh.samples.len() ==> #[trigger] level.lh.samples@[i] == 0i64,
+            forall |i: int| 0 <= i < level.hh.samples.len() ==> #[trigger] level.hh.samples@[i] == 0i64,
+        ensures
+            match result {
+                Some(output) => Ok((level.output_width, level.output_height, if irreversible { 16u8 } else { 0u8 }, output@))
+                    == crate::specs::part1_inverse_level(wavelet_level_view(level), irreversible, maximum),
+                None => true,
+            },
+    ))]
+    pub(super) fn try_all_zero(
+        #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] level: WaveletLevel<'_>,
+        output_len: usize,
+        #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] irreversible: bool,
+        #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] maximum: u64,
+    ) -> Option<Vec<i64>> {
+        let Ok(output) = crate::allocation::zero_i64_values(output_len) else {
+            return None;
+        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let lv = wavelet_level_view(level);
+            assert(lv.ll.0 as nat * lv.ll.1 as nat == lv.ll.2.len());
+            assert((lv.output_width as nat) * (lv.ll.1 as nat) <= output_len as nat) by(nonlinear_arith)
+                requires lv.ll.1 <= lv.output_height, (lv.output_width as nat) * (lv.output_height as nat) == output_len as nat;
+            assert((lv.output_width as nat) * (lv.lh.1 as nat) <= output_len as nat) by(nonlinear_arith)
+                requires lv.lh.1 <= lv.output_height, (lv.output_width as nat) * (lv.output_height as nat) == output_len as nat;
+            zero_horizontal_prefix(lv.ll, lv.hl, lv.low_pass_first_x, irreversible, lv.ll.1 as nat);
+            zero_horizontal_prefix(lv.lh, lv.hh, lv.low_pass_first_x, irreversible, lv.lh.1 as nat);
+            let low_band = (lv.output_width, lv.ll.1, zeros((lv.ll.1 as nat) * (lv.output_width as nat)));
+            let high_band = (lv.output_width, lv.lh.1, zeros((lv.lh.1 as nat) * (lv.output_width as nat)));
+            assert((lv.ll.1 as nat) * (lv.output_width as nat) == (lv.output_width as nat) * (lv.ll.1 as nat)) by(nonlinear_arith);
+            assert((lv.lh.1 as nat) * (lv.output_width as nat) == (lv.output_width as nat) * (lv.lh.1 as nat)) by(nonlinear_arith);
+            zero_vertical_prefix(low_band, high_band, lv.output_height, lv.low_pass_first_y, irreversible, output_len, lv.output_width as nat);
+            assert(output@ =~= zeros(output_len as nat));
+        }
+        Some(output)
+    }
+
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        requires
+            crate::specs::part1_validate_level(wavelet_level_view(level)) == Ok(()),
+            level.output_width as nat * level.output_height as nat == output_len as nat,
+            crate::specs::part1_validate_output_size(output_len, maximum) == Ok(()),
+            level.output_width >= 4 && level.output_height >= 4,
+            level.low_pass_first_x && level.low_pass_first_y,
+            forall |i: int| 0 <= i < level.hl.samples.len() ==> #[trigger] level.hl.samples@[i] == 0i64,
+            forall |i: int| 0 <= i < level.lh.samples.len() ==> #[trigger] level.lh.samples@[i] == 0i64,
+            forall |i: int| 0 <= i < level.hh.samples.len() ==> #[trigger] level.hh.samples@[i] == 0i64,
+        ensures
+            match result {
+                Some(output) => Ok((level.output_width, level.output_height, 0u8, output@))
+                    == crate::specs::part1_inverse_level(wavelet_level_view(level), false, maximum),
+                None => true,
+            },
+    ))]
+    pub(super) fn try_5_3_zero_detail(
+        level: WaveletLevel<'_>,
+        output_len: usize,
+        #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] maximum: u64,
+    ) -> Option<Vec<i64>> {
+        if !slice_within_bound(level.ll.samples) {
+            return None;
+        }
+        let Ok(mut output) = crate::allocation::zero_i64_values(output_len) else {
+            return None;
+        };
+        let w = level.output_width as usize;
+        let h = level.output_height as usize;
+        let lw = level.ll.width as usize;
+        let lh = level.ll.height as usize;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(lw >= 2 && lh >= 2) by(nonlinear_arith)
+                requires w >= 4, h >= 4, lw == w / 2 + w % 2, lh == h / 2 + h % 2;
+            assert(w * h == output_len && lw * lh == level.ll.samples.len());
+            assert((2 * (lh - 1) + 1) * w <= output_len) by(nonlinear_arith)
+                requires h >= 4, lh == h / 2 + h % 2, w * h == output_len;
+        }
+        let mut y = 0_usize;
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant y <= lh,
+                w == level.output_width, h == level.output_height,
+                lw == level.ll.width, lh == level.ll.height,
+                w >= 4, h >= 4, lw >= 2, lh >= 2,
+                lw == w / 2 + w % 2, lh == h / 2 + h % 2,
+                w * h == output_len, output.len() == output_len,
+                lw * lh == level.ll.samples.len(),
+                forall |i: int| 0 <= i < level.ll.samples.len() ==> -1_073_741_824i64 <= #[trigger] level.ll.samples@[i] <= 1_073_741_824i64,
+                forall |r: int, c: int| 0 <= r < y && 0 <= c < w ==>
+                    #[trigger] output@[(2 * r) * w + c]
+                        == upsample_1d(level.ll.samples@.subrange(r * lw, (r + 1) * lw), w as nat)[c],
+            decreases lh - y,
+        ))]
+        while y < lh {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(y * lw + lw <= level.ll.samples.len() && (2 * y + 1) * w <= output_len) by(nonlinear_arith)
+                    requires y < lh, lw * lh == level.ll.samples.len(), w * h == output_len, lh == h / 2 + h % 2;
+            }
+            let src_start = y * lw;
+            let dst_start = (2 * y) * w;
+            let mut x = 0_usize;
+            #[cfg_attr(verus_keep_ghost, verus_spec(
+                invariant x < lw, y < lh,
+                    src_start == y * lw, dst_start == (2 * y) * w,
+                    src_start + lw <= level.ll.samples.len(), dst_start + w <= output_len,
+                    w == level.output_width, h == level.output_height,
+                    lw == level.ll.width, lh == level.ll.height,
+                    lw == w / 2 + w % 2, lh == h / 2 + h % 2,
+                    w * h == output_len, output.len() == output_len,
+                    forall |i: int| 0 <= i < level.ll.samples.len() ==> -1_073_741_824i64 <= #[trigger] level.ll.samples@[i] <= 1_073_741_824i64,
+                    forall |r: int, c: int| 0 <= r < y && 0 <= c < w ==>
+                        #[trigger] output@[(2 * r) * w + c]
+                            == upsample_1d(level.ll.samples@.subrange(r * lw, (r + 1) * lw), w as nat)[c],
+                    forall |c: int| 0 <= c < 2 * x ==>
+                        #[trigger] output@[dst_start as int + c]
+                            == upsample_1d(level.ll.samples@.subrange(src_start as int, (src_start + lw) as int), w as nat)[c],
+                decreases lw - 1 - x,
+            ))]
+            while x + 1 < lw {
+                let a = level.ll.samples[src_start + x];
+                let b = level.ll.samples[src_start + x + 1];
+                output[dst_start + 2 * x] = a;
+                output[dst_start + 2 * x + 1] = (a + b) >> 1;
+                x += 1;
+            }
+            let last = level.ll.samples[src_start + lw - 1];
+            output[dst_start + 2 * (lw - 1)] = last;
+            if 2 * (lw - 1) + 1 < w {
+                output[dst_start + 2 * (lw - 1) + 1] = last;
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(((last + last) >> 1i64) == last) by(bit_vector)
+                        requires -1_073_741_824i64 <= last <= 1_073_741_824i64;
+                }
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert((y as int) * (lw as int) + (lw as int) == (y as int + 1) * (lw as int)) by(nonlinear_arith);
+            }
+            y += 1;
+        }
+        let mut y = 0_usize;
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant y <= h / 2,
+                w == level.output_width, h == level.output_height,
+                lw == level.ll.width, lh == level.ll.height,
+                w >= 4, h >= 4, lw >= 2, lh >= 2,
+                lw == w / 2 + w % 2, lh == h / 2 + h % 2,
+                w * h == output_len, output.len() == output_len,
+                lw * lh == level.ll.samples.len(),
+                forall |i: int| 0 <= i < level.ll.samples.len() ==> -1_073_741_824i64 <= #[trigger] level.ll.samples@[i] <= 1_073_741_824i64,
+                forall |r: int, c: int| 0 <= r < lh && 0 <= c < w ==>
+                    #[trigger] output@[(2 * r) * w + c]
+                        == upsample_1d(level.ll.samples@.subrange(r * lw, (r + 1) * lw), w as nat)[c],
+                forall |r: int, c: int| 0 <= r < y && 0 <= c < w ==> {
+                    let a = output@[(2 * r) * w + c];
+                    let b = if 2 * r + 2 < h { output@[(2 * r + 2) * w + c] } else { a };
+                    #[trigger] output@[(2 * r + 1) * w + c] == (((a as int) + (b as int)) as i64) >> 1
+                },
+            decreases h / 2 - y,
+        ))]
+        while 2 * y + 1 < h {
+            let above_start = (2 * y) * w;
+            let odd_start = (2 * y + 1) * w;
+            let below_start = if 2 * y + 2 < h {
+                (2 * y + 2) * w
+            } else {
+                above_start
+            };
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(above_start + w <= output_len && odd_start + w <= output_len && below_start + w <= output_len) by(nonlinear_arith)
+                    requires 2 * y + 1 < h, w * h == output_len,
+                        above_start == (2 * y) * w, odd_start == (2 * y + 1) * w,
+                        below_start == if 2 * y + 2 < h { (2 * y + 2) * w } else { above_start };
+            }
+            let mut x = 0_usize;
+            #[cfg_attr(verus_keep_ghost, verus_spec(
+                invariant x <= w, 2 * y + 1 < h,
+                    above_start == (2 * y) * w, odd_start == (2 * y + 1) * w,
+                    below_start == if 2 * y + 2 < h { (2 * y + 2) * w } else { above_start },
+                    above_start + w <= output_len, odd_start + w <= output_len, below_start + w <= output_len,
+                    w == level.output_width, h == level.output_height,
+                    lw == level.ll.width, lh == level.ll.height,
+                    lw == w / 2 + w % 2, lh == h / 2 + h % 2,
+                    w * h == output_len, output.len() == output_len,
+                    forall |i: int| 0 <= i < level.ll.samples.len() ==> -1_073_741_824i64 <= #[trigger] level.ll.samples@[i] <= 1_073_741_824i64,
+                    forall |r: int, c: int| 0 <= r < lh && 0 <= c < w ==>
+                        #[trigger] output@[(2 * r) * w + c]
+                            == upsample_1d(level.ll.samples@.subrange(r * lw, (r + 1) * lw), w as nat)[c],
+                    forall |r: int, c: int| 0 <= r < y && 0 <= c < w ==> {
+                        let a = output@[(2 * r) * w + c];
+                        let b = if 2 * r + 2 < h { output@[(2 * r + 2) * w + c] } else { a };
+                        #[trigger] output@[(2 * r + 1) * w + c] == (((a as int) + (b as int)) as i64) >> 1
+                    },
+                    forall |c: int| 0 <= c < x ==> {
+                        let a = output@[above_start as int + c];
+                        let b = output@[below_start as int + c];
+                        #[trigger] output@[odd_start as int + c] == (((a as int) + (b as int)) as i64) >> 1
+                    },
+                decreases w - x,
+            ))]
+            while x < w {
+                let a = output[above_start + x];
+                let b = output[below_start + x];
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(-1_073_741_824i64 <= a <= 1_073_741_824i64 && -1_073_741_824i64 <= b <= 1_073_741_824i64) by {
+                        let row_a = level.ll.samples@.subrange((y as int) * (lw as int), (y as int + 1) * (lw as int));
+                        let xa = (x as int) / 2;
+                        let la = row_a[xa];
+                        let ra = if xa + 1 < lw { row_a[xa + 1] } else { la };
+                        assert(-1_073_741_824i64 <= ((la + ra) >> 1i64) <= 1_073_741_824i64) by(bit_vector)
+                            requires -1_073_741_824i64 <= la <= 1_073_741_824i64, -1_073_741_824i64 <= ra <= 1_073_741_824i64;
+                        if 2 * y + 2 < h {
+                            let row_b = level.ll.samples@.subrange((y as int + 1) * (lw as int), (y as int + 2) * (lw as int));
+                            let lb = row_b[xa];
+                            let rb = if xa + 1 < lw { row_b[xa + 1] } else { lb };
+                            assert(-1_073_741_824i64 <= ((lb + rb) >> 1i64) <= 1_073_741_824i64) by(bit_vector)
+                                requires -1_073_741_824i64 <= lb <= 1_073_741_824i64, -1_073_741_824i64 <= rb <= 1_073_741_824i64;
+                        }
+                    }
+                }
+                output[odd_start + x] = (a + b) >> 1;
+                x += 1;
+            }
+            y += 1;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let lv = wavelet_level_view(level);
+            assert((lv.output_width as nat) * (lv.ll.1 as nat) <= output_len as nat) by(nonlinear_arith)
+                requires lv.ll.1 <= lv.output_height, (lv.output_width as nat) * (lv.output_height as nat) == output_len as nat;
+            assert((lv.output_width as nat) * (lv.lh.1 as nat) <= output_len as nat) by(nonlinear_arith)
+                requires lv.lh.1 <= lv.output_height, (lv.output_width as nat) * (lv.output_height as nat) == output_len as nat;
+            zero_high_5_3_horizontal_prefix(lv.ll, lv.hl, lv.output_width, lv.ll.1 as nat);
+            zero_horizontal_prefix(lv.lh, lv.hh, true, false, lv.lh.1 as nat);
+            let low_rows = crate::specs::part1_horizontal_prefix(lv.ll, lv.hl, true, false, lv.ll.1 as nat).get_Ok_0();
+            let high_rows = zeros((lv.lh.1 as nat) * (lv.output_width as nat));
+            assert((lv.lh.1 as nat) * (lv.output_width as nat) == (lv.output_width as nat) * (lv.lh.1 as nat)) by(nonlinear_arith);
+            let low_band = (lv.output_width, lv.ll.1, low_rows);
+            let high_band = (lv.output_width, lv.lh.1, high_rows);
+            assert(crate::specs::rowwise_bounded(low_rows)) by {
+                assert forall |i: int| 0 <= i < low_rows.len() implies -1_073_741_824 <= #[trigger] low_rows[i] <= 1_073_741_824 by {
+                    crate::specs::rowwise_coordinates(i, w as int, lh as int);
+                    let r = i / (w as int);
+                    let c = i % (w as int);
+                    let row_s = level.ll.samples@.subrange(r * (lw as int), (r + 1) * (lw as int));
+                    let xa = c / 2;
+                    let la = row_s[xa];
+                    let ra = if xa + 1 < lw { row_s[xa + 1] } else { la };
+                    assert(-1_073_741_824i64 <= ((la + ra) >> 1i64) <= 1_073_741_824i64) by(bit_vector)
+                        requires -1_073_741_824i64 <= la <= 1_073_741_824i64, -1_073_741_824i64 <= ra <= 1_073_741_824i64;
+                }
+            }
+            assert(crate::specs::rowwise_bounded(high_rows));
+            assert(crate::specs::rowwise_eligible(low_band, high_band, lv.output_height, true, output_len)) by {
+                assert((lv.output_width as int) * (lv.ll.1 as int) + (lv.output_width as int) * (lv.lh.1 as int) == output_len as int) by(nonlinear_arith)
+                    requires (lv.output_width as int) * (lv.output_height as int) == output_len as int,
+                        (lv.ll.1 as int) + (lv.lh.1 as int) == lv.output_height as int;
+            }
+            crate::specs::rowwise_equivalent(low_band, high_band, lv.output_height, true, output_len);
+            let inter = crate::specs::rowwise_interleaved(low_band, high_band, lv.output_height, true);
+            let upd = crate::specs::rowwise_stage(inter, w as nat, h as nat, true, false);
+            assert(upd =~= inter) by {
+                assert forall |i: int| 0 <= i < inter.len() implies upd[i] == inter[i] by {
+                    crate::specs::rowwise_coordinates(i, w as int, h as int);
+                    let r = i / (w as int);
+                    let c = i % (w as int);
+                    if r % 2 == 0 {
+                        let left_r = if r == 0 { 1int } else { r - 1 };
+                        let right_r = if r + 1 < h { r + 1 } else { r - 1 };
+                        crate::specs::rowwise_index(left_r, c, w as int);
+                        crate::specs::rowwise_index(right_r, c, w as int);
+                        assert(inter[left_r * (w as int) + c] == 0i64 && inter[right_r * (w as int) + c] == 0i64);
+                        assert(((0i64 + 2i64) >> 2i64) == 0i64) by(bit_vector);
+                    }
+                }
+            }
+            let final_spec = crate::specs::rowwise_output(low_band, high_band, lv.output_height, true);
+            assert(output@ =~= final_spec) by {
+                assert forall |i: int| 0 <= i < output_len as int implies output@[i] == final_spec[i] by {
+                    crate::specs::rowwise_coordinates(i, w as int, h as int);
+                    let r = i / (w as int);
+                    let c = i % (w as int);
+                    if r % 2 == 0 {
+                        let hr = r / 2;
+                        assert(2 * hr == r);
+                        crate::specs::rowwise_index(hr, c, w as int);
+                    } else {
+                        let hr = r / 2;
+                        assert(2 * hr + 1 == r);
+                        let left_r = r - 1;
+                        let right_r = if r + 1 < h { r + 1 } else { r - 1 };
+                        crate::specs::rowwise_index(left_r, c, w as int);
+                        crate::specs::rowwise_index(right_r, c, w as int);
+                        assert(inter[i] == 0i64);
+                        assert(inter[left_r * (w as int) + c] == output@[left_r * (w as int) + c]) by {
+                            crate::specs::rowwise_index(left_r / 2, c, w as int);
+                        }
+                        assert(inter[right_r * (w as int) + c] == output@[right_r * (w as int) + c]) by {
+                            crate::specs::rowwise_index(right_r / 2, c, w as int);
+                        }
+                    }
+                }
+            }
+        }
+        Some(output)
+    }
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part2_wavelet_level_result(wavelet_level_view(level),irreversible,arbitrary_kernel_option(kernel),crate::limits::resource_decoded_bytes_limit(limits),reconstruction_outcome(result)),
         kernel.is_none() && reconstruction_outcome(result)!=Err(DecodeError::AllocationFailed) ==> reconstruction_outcome(result) == crate::specs::part1_inverse_level(
@@ -667,6 +1398,44 @@ fn inverse_level(
         return Err(invalid_transform());
     }
     validate_output_size(output_len, limits)?;
+    if kernel.is_none()
+        && level.output_width >= 4
+        && level.output_height >= 4
+        && zero_level::slice_is_all_zero(level.hl.samples)
+        && zero_level::slice_is_all_zero(level.lh.samples)
+        && zero_level::slice_is_all_zero(level.hh.samples)
+    {
+        if zero_level::slice_is_all_zero(level.ll.samples) {
+            if let Some(samples) = zero_level::try_all_zero(
+                level,
+                output_len,
+                irreversible,
+                limits.maximum_decoded_bytes(),
+            ) {
+                return Ok(ReconstructedPlane {
+                    width: level.output_width,
+                    height: level.output_height,
+                    fraction_bits: if irreversible { FIXED_BITS } else { 0 },
+                    samples,
+                });
+            }
+        } else if !irreversible && level.low_pass_first_x && level.low_pass_first_y {
+            #[allow(
+                clippy::collapsible_if,
+                reason = "Avoid let-chains for MSRV 1.88 and Verus compatibility."
+            )]
+            if let Some(samples) =
+                zero_level::try_5_3_zero_detail(level, output_len, limits.maximum_decoded_bytes())
+            {
+                return Ok(ReconstructedPlane {
+                    width: level.output_width,
+                    height: level.output_height,
+                    fraction_bits: 0,
+                    samples,
+                });
+            }
+        }
+    }
     let low_height = level.ll.height;
     let high_height = level.lh.height;
     let low_capacity = checked_area(level.output_width, low_height)?;

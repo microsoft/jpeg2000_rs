@@ -2776,3 +2776,114 @@ fn inverse_nine_seven_preserves_constant_and_singleton_samples() {
     );
     assert_eq!(inverse_9_7(&[constant], &[], true).unwrap(), vec![constant]);
 }
+
+#[test]
+fn zero_level_zero_detail_and_in_place_rows_match_reference() {
+    let limits = ResourceLimits::default();
+    for (width, height) in [(4_u32, 4_u32), (5, 6), (9, 7), (70, 5)] {
+        for low_x in [true, false] {
+            for low_y in [true, false] {
+                let lw = super::geometry::low_count(width, low_x);
+                let hw = width - lw;
+                let lh = super::geometry::low_count(height, low_y);
+                let hh = height - lh;
+                let zeros_ll = vec![0_i64; (lw * lh) as usize];
+                let zeros_hl = vec![0_i64; (hw * lh) as usize];
+                let zeros_lh = vec![0_i64; (lw * hh) as usize];
+                let zeros_hh = vec![0_i64; (hw * hh) as usize];
+                let zero_level = WaveletLevel {
+                    ll: WaveletBand {
+                        width: lw,
+                        height: lh,
+                        samples: &zeros_ll,
+                    },
+                    hl: WaveletBand {
+                        width: hw,
+                        height: lh,
+                        samples: &zeros_hl,
+                    },
+                    lh: WaveletBand {
+                        width: lw,
+                        height: hh,
+                        samples: &zeros_lh,
+                    },
+                    hh: WaveletBand {
+                        width: hw,
+                        height: hh,
+                        samples: &zeros_hh,
+                    },
+                    output_width: width,
+                    output_height: height,
+                    low_pass_first_x: low_x,
+                    low_pass_first_y: low_y,
+                };
+                assert_eq!(
+                    observed_reconstruction(inverse_level_5_3(zero_level, &limits)),
+                    reference_level(zero_level, false, u64::MAX)
+                );
+                assert_eq!(
+                    observed_reconstruction(inverse_level_9_7(zero_level, &limits)),
+                    reference_level(zero_level, true, u64::MAX)
+                );
+
+                let ll_vals: Vec<i64> = (0..(lw * lh) as i64)
+                    .map(|i| ((i * 17) % 1024) - 512)
+                    .collect();
+                let zero_detail = WaveletLevel {
+                    ll: WaveletBand {
+                        width: lw,
+                        height: lh,
+                        samples: &ll_vals,
+                    },
+                    ..zero_level
+                };
+                assert_eq!(
+                    observed_reconstruction(inverse_level_5_3(zero_detail, &limits)),
+                    reference_level(zero_detail, false, u64::MAX)
+                );
+
+                // Also exercise in-place horizontal 5/3 and 9/7 with non-zero detail bands.
+                let hl_vals: Vec<i64> = (0..(hw * lh) as i64)
+                    .map(|i| ((i * 13) % 512) - 256)
+                    .collect();
+                let lh_vals: Vec<i64> = (0..(lw * hh) as i64)
+                    .map(|i| ((i * 11) % 512) - 256)
+                    .collect();
+                let hh_vals: Vec<i64> = (0..(hw * hh) as i64)
+                    .map(|i| ((i * 7) % 512) - 256)
+                    .collect();
+                let dense = WaveletLevel {
+                    ll: WaveletBand {
+                        width: lw,
+                        height: lh,
+                        samples: &ll_vals,
+                    },
+                    hl: WaveletBand {
+                        width: hw,
+                        height: lh,
+                        samples: &hl_vals,
+                    },
+                    lh: WaveletBand {
+                        width: lw,
+                        height: hh,
+                        samples: &lh_vals,
+                    },
+                    hh: WaveletBand {
+                        width: hw,
+                        height: hh,
+                        samples: &hh_vals,
+                    },
+                    ..zero_level
+                };
+                assert_eq!(
+                    observed_reconstruction(inverse_level_5_3(dense, &limits)),
+                    reference_level(dense, false, u64::MAX)
+                );
+                assert_eq!(
+                    observed_reconstruction(inverse_level_9_7(dense, &limits)),
+                    reference_level(dense, true, u64::MAX)
+                );
+            }
+        }
+    }
+}

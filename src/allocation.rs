@@ -177,22 +177,27 @@ pub(crate) fn copy_values<T: Copy>(source: &[T]) -> Result<Vec<T>, DecodeError> 
         return Ok(Vec::new());
     }
     let mut values = empty_with_capacity(source.len())?;
-    let mut index = 0_usize;
-    #[cfg_attr(verus_keep_ghost, verus_spec(
-        invariant index <= source.len(),
-            values@ == source@.take(index as int),
-        decreases source.len() - index,
-    ))]
-    while index < source.len() {
-        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
-        crate::deadline::checkpoint_periodic(index)?;
-        values.push(source[index]);
-        index += 1;
-        #[cfg(verus_keep_ghost)]
-        proof! { assert(values@ =~= source@.take(index as int)); }
+    #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+    {
+        let mut index = 0_usize;
+        while index < source.len() {
+            crate::deadline::checkpoint_periodic(index)?;
+            let end = (index + 1024).min(source.len());
+            values.extend_from_slice(&source[index..end]);
+            index = end;
+        }
+    }
+    #[cfg(any(not(feature = "cooperative-deadlines"), verus_keep_ghost))]
+    {
+        values.extend_from_slice(source);
     }
     #[cfg(verus_keep_ghost)]
-    proof! { assert(values@ =~= source@); }
+    proof! {
+        assert forall|i: int| 0 <= i < source.len() implies values@[i] == source@[i] by {
+            assert(vstd::pervasive::cloned::<T>(source@[i], values@[i]));
+        }
+        assert(values@ =~= source@);
+    }
     Ok(values)
 }
 
@@ -209,18 +214,26 @@ pub(crate) fn filled_values<T: Copy>(value: T, count: usize) -> Result<Vec<T>, D
         return Ok(Vec::new());
     }
     let mut values = empty_with_capacity(count)?;
-    let mut index = 0_usize;
-    #[cfg_attr(verus_keep_ghost, verus_spec(
-        invariant index <= count, values@ == Seq::new(index as nat, |_: int| value),
-        decreases count - index,
-    ))]
-    while index < count {
-        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
-        crate::deadline::checkpoint_periodic(index)?;
-        values.push(value);
-        #[cfg(verus_keep_ghost)]
-        proof! { assert(Seq::new(index as nat + 1, |_: int| value) =~= Seq::new(index as nat, |_: int| value).push(value)); }
-        index += 1;
+    #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+    {
+        let mut index = 0_usize;
+        while index < count {
+            crate::deadline::checkpoint_periodic(index)?;
+            let next = (index + 1024).min(count);
+            values.resize(next, value);
+            index = next;
+        }
+    }
+    #[cfg(any(not(feature = "cooperative-deadlines"), verus_keep_ghost))]
+    {
+        values.resize(count, value);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert forall|i: int| 0 <= i < count implies values@[i] == value by {
+            assert(vstd::pervasive::cloned::<T>(value, values@[i]));
+        }
+        assert(values@ =~= Seq::new(count as nat, |_: int| value));
     }
     Ok(values)
 }
