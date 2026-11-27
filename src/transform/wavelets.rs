@@ -16,15 +16,61 @@ mod bounded {
 
     pub(super) const HORIZONTAL_BOUND: i64 = 1_073_741_824;
 
+    #[cfg(verus_keep_ghost)]
+    verus! {
+        proof fn advance_lifting_pair(
+            original: Seq<i64>,
+            before: Seq<i64>,
+            after: Seq<i64>,
+            index: usize,
+            target_even: bool,
+            kind: u8,
+            factor: i64,
+            new_val: i64,
+        )
+            requires
+                1 <= index,
+                index + 1 < original.len(),
+                before.len() == original.len(),
+                after == before.update(index as int, new_val),
+                (index % 2 == 0) == target_even,
+                forall |i: int| 0 <= i < before.len() && (i >= index || (i % 2 == 0) != target_even) ==>
+                    before[i] == original[i],
+                crate::specs::part1_lifting_prefix(original, target_even, kind, factor, index as nat)
+                    == (Ok::<(), DecodeError>(()), before),
+                crate::specs::part1_lifting_sample(
+                    seq![before[index as int - 1], before[index as int], before[index as int + 1]],
+                    1, false, kind, factor,
+                ) == Ok(new_val),
+            ensures
+                crate::specs::part1_lifting_prefix(original, target_even, kind, factor, index as nat + 2)
+                    == (Ok::<(), DecodeError>(()), after),
+                forall |i: int| 0 <= i < after.len() && (i >= index + 2 || (i % 2 == 0) != target_even) ==>
+                    after[i] == original[i],
+        {
+            crate::proofs::production_impl::production_lifting_sample_frame(
+                original, before, index as nat, target_even, kind, factor,
+            );
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 3);
+            assert(crate::specs::part1_lifting_prefix(original, target_even, kind, factor, index as nat + 1)
+                == (Ok(()), after));
+            crate::proofs::production_impl::production_lifting_sample_frame(
+                original, after, (index + 1) as nat, target_even, kind, factor,
+            );
+            assert(((index + 1) % 2 == 0) != target_even);
+            assert(after =~= after.update((index + 1) as int, original[(index + 1) as int]));
+        }
+    }
+
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures result == forall |i: int| 0 <= i < samples.len() ==> -HORIZONTAL_BOUND <= #[trigger] samples@[i] <= HORIZONTAL_BOUND,
+        ensures result == forall |i: int| 0 <= i < samples.len() ==> -1_073_741_824i64 <= #[trigger] samples@[i] <= 1_073_741_824i64,
     ))]
     #[inline]
     pub(super) fn row_within_bound(samples: &[i64]) -> bool {
         let mut i = 0_usize;
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant i <= samples.len(),
-                forall |k: int| 0 <= k < i ==> -HORIZONTAL_BOUND <= #[trigger] samples@[k] <= HORIZONTAL_BOUND,
+                forall |k: int| 0 <= k < i ==> -1_073_741_824i64 <= #[trigger] samples@[k] <= 1_073_741_824i64,
             decreases samples.len() - i,
         ))]
         while i < samples.len() {
@@ -135,20 +181,17 @@ mod bounded {
         ))]
         while index < last {
             #[cfg(verus_keep_ghost)]
-            proof! {
-                crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, index as nat, target_even, kind, 0);
-            }
-            samples[index] = reversible_lift_row_bounded(
+            proof_decl! { let ghost before = samples@; }
+            let val = reversible_lift_row_bounded(
                 samples[index],
                 samples[index - 1],
                 samples[index + 1],
                 predict,
             );
+            samples[index] = val;
             #[cfg(verus_keep_ghost)]
             proof! {
-                assert(crate::specs::part1_lifting_prefix(original, target_even, kind, 0, index as nat + 1) == (Ok(()), samples@));
-                crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, (index + 1) as nat, target_even, kind, 0);
-                assert(crate::specs::part1_lifting_prefix(original, target_even, kind, 0, index as nat + 2) == (Ok(()), samples@));
+                advance_lifting_pair(original, before, samples@, index, target_even, kind, 0, val);
             }
             index += 2;
         }
@@ -293,6 +336,7 @@ mod bounded {
         }
     }
 
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires old(samples).len() > 1, stage < 4,
             forall |i: int| 0 <= i < old(samples).len() ==>
@@ -363,21 +407,18 @@ mod bounded {
         ))]
         while index < last {
             #[cfg(verus_keep_ghost)]
-            proof! {
-                crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, index as nat, target_even, 2u8, factor);
-            }
-            samples[index] = fixed_lift_row_bounded(
+            proof_decl! { let ghost before = samples@; }
+            let val = fixed_lift_row_bounded(
                 samples[index],
                 samples[index - 1],
                 samples[index + 1],
                 factor,
                 stage,
             );
+            samples[index] = val;
             #[cfg(verus_keep_ghost)]
             proof! {
-                assert(crate::specs::part1_lifting_prefix(original, target_even, 2u8, factor, index as nat + 1) == (Ok(()), samples@));
-                crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, (index + 1) as nat, target_even, 2u8, factor);
-                assert(crate::specs::part1_lifting_prefix(original, target_even, 2u8, factor, index as nat + 2) == (Ok(()), samples@));
+                advance_lifting_pair(original, before, samples@, index, target_even, 2u8, factor, val);
             }
             index += 2;
         }
@@ -402,8 +443,8 @@ mod bounded {
 }
 
 use bounded::{
-    HORIZONTAL_BOUND, inverse_lift_fixed_bounded, inverse_lift_reversible_bounded,
-    row_within_bound, scale_parity_bounded,
+    inverse_lift_fixed_bounded, inverse_lift_reversible_bounded, row_within_bound,
+    scale_parity_bounded,
 };
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -474,13 +515,13 @@ pub fn inverse_9_7(
             &mut output,
             low_pass_first,
             crate::refinement::nine_seven_scale(true),
-            HORIZONTAL_BOUND,
+            1_073_741_824,
         );
         scale_parity_bounded(
             &mut output,
             !low_pass_first,
             crate::refinement::nine_seven_scale(false),
-            HORIZONTAL_BOUND * 2,
+            2_147_483_648,
         );
         #[cfg(verus_keep_ghost)]
         proof! {

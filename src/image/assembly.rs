@@ -728,7 +728,9 @@ verus! {
             x_start as nat + count <= u32::MAX,
             dst_start + count <= original.3.len(),
             dst_start + count <= original.4.len(),
+            dst_start + count <= usize::MAX,
             src_start + count <= tile.6.len(),
+            src_start + count <= usize::MAX,
             match crop {
                 Some(origin) =>
                     x_start >= origin.0 && y >= origin.1
@@ -846,6 +848,116 @@ fn visited_span_clear(visited: &[bool], start: usize, count: usize) -> bool {
     true
 }
 
+#[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires row[0] < row[1],
+    ensures result ==> (Ok::<(), DecodeError>(()), final(plane)@) == crate::specs::part1_assembly_row_prefix(
+        old(plane)@, assembly_tile_view(tile), row[0], row[2], crop, (row[1] - row[0]) as nat,
+    ),
+    !result ==> final(plane)@ == old(plane)@,
+))]
+#[inline]
+fn try_assembly_row_bulk(
+    plane: &mut AssemblyPlane,
+    tile: TileComponent<'_>,
+    row: [u32; 3],
+    crop: Option<(u32, u32)>,
+) -> bool {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost original = plane@; }
+    let count_u32 = row[1] - row[0];
+    let Ok(count) = usize::try_from(count_u32) else {
+        return false;
+    };
+    let fast_offsets = match crop {
+        None => {
+            if let (Some(dx0), Some(dy)) = (tile.x.checked_add(row[0]), tile.y.checked_add(row[2]))
+            {
+                if dx0.checked_add(count_u32 - 1).is_some() {
+                    match (
+                        index(plane.width, dx0, dy),
+                        index(tile.width, row[0], row[2]),
+                    ) {
+                        (Ok(dst), Ok(src)) => Some((dst, src)),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+        Some(origin) => {
+            if row[0] >= origin.0 && row[2] >= origin.1 && row[0] >= tile.x && row[2] >= tile.y {
+                match (
+                    index(plane.width, row[0] - origin.0, row[2] - origin.1),
+                    index(tile.width, row[0] - tile.x, row[2] - tile.y),
+                ) {
+                    (Ok(dst), Ok(src)) => Some((dst, src)),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+    };
+    #[allow(
+        clippy::collapsible_if,
+        reason = "MSRV 1.88 and Verus require separate if-let bindings."
+    )]
+    if let Some((dst_start, src_start)) = fast_offsets {
+        if dst_start <= plane.samples.len()
+            && count <= plane.samples.len() - dst_start
+            && dst_start <= plane.visited.len()
+            && count <= plane.visited.len() - dst_start
+            && src_start <= tile.samples.len()
+            && count <= tile.samples.len() - src_start
+            && visited_span_clear(&plane.visited, dst_start, count)
+        {
+            let dst_s = &mut plane.samples.as_mut_slice()[dst_start..dst_start + count];
+            let src_s = &tile.samples[src_start..src_start + count];
+            let mut i = 0_usize;
+            #[cfg_attr(verus_keep_ghost, verus_spec(
+                invariant i <= count,
+                    dst_s.len() == count, src_s.len() == count,
+                    forall |j: int| 0 <= j < i ==> #[trigger] dst_s@[j] == src_s@[j],
+                decreases count - i,
+            ))]
+            while i < count {
+                dst_s[i] = src_s[i];
+                i += 1;
+            }
+            let dst_v = &mut plane.visited.as_mut_slice()[dst_start..dst_start + count];
+            let mut j = 0_usize;
+            #[cfg_attr(verus_keep_ghost, verus_spec(
+                invariant j <= count,
+                    dst_v.len() == count,
+                    forall |k: int| 0 <= k < j ==> #[trigger] dst_v@[k],
+                decreases count - j,
+            ))]
+            while j < count {
+                dst_v[j] = true;
+                j += 1;
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assembly_row_bulk_equivalence(
+                    original, assembly_tile_view(tile), row[0], row[2], crop,
+                    dst_start, src_start, count, count as nat,
+                );
+                let expected = crate::specs::part1_assembly_row_prefix(
+                    original, assembly_tile_view(tile), row[0], row[2], crop, count as nat,
+                );
+                assert(plane.samples@ =~= expected.1.3);
+                assert(plane.visited@ =~= expected.1.4);
+            }
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures (result, final(plane)@) == crate::specs::part1_assembly_row_prefix(
         old(plane)@, assembly_tile_view(tile), row[0], row[2], crop,
@@ -861,99 +973,11 @@ fn assembly_row(
     if row[0] >= row[1] {
         return Ok(());
     }
+    if try_assembly_row_bulk(plane, tile, row, crop) {
+        return Ok(());
+    }
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost original = plane@; }
-    let count_u32 = row[1] - row[0];
-    if let Ok(count) = usize::try_from(count_u32) {
-        let fast_offsets = match crop {
-            None => {
-                if let (Some(dx0), Some(dy)) =
-                    (tile.x.checked_add(row[0]), tile.y.checked_add(row[2]))
-                {
-                    if dx0.checked_add(count_u32 - 1).is_some() {
-                        match (
-                            index(plane.width, dx0, dy),
-                            index(tile.width, row[0], row[2]),
-                        ) {
-                            (Ok(dst), Ok(src)) => Some((dst, src)),
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }
-            Some(origin) => {
-                if row[0] >= origin.0 && row[2] >= origin.1 && row[0] >= tile.x && row[2] >= tile.y
-                {
-                    match (
-                        index(plane.width, row[0] - origin.0, row[2] - origin.1),
-                        index(tile.width, row[0] - tile.x, row[2] - tile.y),
-                    ) {
-                        (Ok(dst), Ok(src)) => Some((dst, src)),
-                        _ => None,
-                    }
-                } else {
-                    None
-                }
-            }
-        };
-        #[allow(
-            clippy::collapsible_if,
-            reason = "MSRV 1.88 and Verus require separate if-let bindings."
-        )]
-        if let Some((dst_start, src_start)) = fast_offsets {
-            if dst_start <= plane.samples.len()
-                && count <= plane.samples.len() - dst_start
-                && dst_start <= plane.visited.len()
-                && count <= plane.visited.len() - dst_start
-                && src_start <= tile.samples.len()
-                && count <= tile.samples.len() - src_start
-                && visited_span_clear(&plane.visited, dst_start, count)
-            {
-                let dst_s = &mut plane.samples.as_mut_slice()[dst_start..dst_start + count];
-                let src_s = &tile.samples[src_start..src_start + count];
-                let mut i = 0_usize;
-                #[cfg_attr(verus_keep_ghost, verus_spec(
-                    invariant i <= count,
-                        dst_s.len() == count, src_s.len() == count,
-                        forall |j: int| 0 <= j < i ==> #[trigger] dst_s@[j] == src_s@[j],
-                    decreases count - i,
-                ))]
-                while i < count {
-                    dst_s[i] = src_s[i];
-                    i += 1;
-                }
-                let dst_v = &mut plane.visited.as_mut_slice()[dst_start..dst_start + count];
-                let mut j = 0_usize;
-                #[cfg_attr(verus_keep_ghost, verus_spec(
-                    invariant j <= count,
-                        dst_v.len() == count,
-                        forall |k: int| 0 <= k < j ==> #[trigger] dst_v@[k],
-                    decreases count - j,
-                ))]
-                while j < count {
-                    dst_v[j] = true;
-                    j += 1;
-                }
-                #[cfg(verus_keep_ghost)]
-                proof! {
-                    assembly_row_bulk_equivalence(
-                        original, assembly_tile_view(tile), row[0], row[2], crop,
-                        dst_start, src_start, count, count as nat,
-                    );
-                    let expected = crate::specs::part1_assembly_row_prefix(
-                        original, assembly_tile_view(tile), row[0], row[2], crop, count as nat,
-                    );
-                    assert(plane.samples@ =~= expected.1.3);
-                    assert(plane.visited@ =~= expected.1.4);
-                }
-                return Ok(());
-            }
-        }
-    }
     let mut x = row[0];
     let mut passes = row[1].checked_sub(row[0]).ok_or_else(arithmetic_overflow)?;
     #[cfg_attr(verus_keep_ghost, verus_spec(

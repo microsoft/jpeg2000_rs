@@ -1066,35 +1066,30 @@ fn chunk_within_bound(slice: &[i64], bound: i64) -> bool {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    requires old(r).len() == 64, old(g).len() == 64, old(b).len() == 64,
-        forall |i: int| 0 <= i < 64 ==> -1152921504606846976 <= #[trigger] old(r)@[i] <= 1152921504606846976,
-        forall |i: int| 0 <= i < 64 ==> -1152921504606846976 <= #[trigger] old(g)@[i] <= 1152921504606846976,
-        forall |i: int| 0 <= i < 64 ==> -1152921504606846976 <= #[trigger] old(b)@[i] <= 1152921504606846976,
-    ensures final(r).len() == 64, final(g).len() == 64, final(b).len() == 64,
+    requires r.len() == 64, g.len() == 64, b.len() == 64,
+        forall |i: int| 0 <= i < 64 ==> -1152921504606846976 <= #[trigger] r@[i] <= 1152921504606846976,
+        forall |i: int| 0 <= i < 64 ==> -1152921504606846976 <= #[trigger] g@[i] <= 1152921504606846976,
+        forall |i: int| 0 <= i < 64 ==> -1152921504606846976 <= #[trigger] b@[i] <= 1152921504606846976,
+    ensures
         forall |i: int| 0 <= i < 64 ==>
-            crate::specs::part1_component_values(old(r)@[i], old(g)@[i], old(b)@[i], false)
-                == Ok((#[trigger] final(r)@[i], final(g)@[i], final(b)@[i])),
+            crate::specs::part1_component_values(r@[i], g@[i], b@[i], false)
+                == Ok((#[trigger] result.0@[i], result.1@[i], result.2@[i])),
 ))]
 #[inline]
-fn apply_rct_chunk(r: &mut [i64], g: &mut [i64], b: &mut [i64]) {
-    #[cfg(verus_keep_ghost)]
-    proof_decl! {
-        let ghost orig_r = r@;
-        let ghost orig_g = g@;
-        let ghost orig_b = b@;
-    }
+fn compute_rct_chunk(r: &[i64], g: &[i64], b: &[i64]) -> ([i64; 64], [i64; 64], [i64; 64]) {
+    let mut out_r = [0_i64; 64];
+    let mut out_g = [0_i64; 64];
+    let mut out_b = [0_i64; 64];
     let mut i = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant i <= 64,
             r.len() == 64, g.len() == 64, b.len() == 64,
-            orig_r == old(r)@, orig_g == old(g)@, orig_b == old(b)@,
-            forall |k: int| 0 <= k < 64 ==> -1152921504606846976 <= #[trigger] orig_r[k] <= 1152921504606846976,
-            forall |k: int| 0 <= k < 64 ==> -1152921504606846976 <= #[trigger] orig_g[k] <= 1152921504606846976,
-            forall |k: int| 0 <= k < 64 ==> -1152921504606846976 <= #[trigger] orig_b[k] <= 1152921504606846976,
-            forall |k: int| i <= k < 64 ==> #[trigger] r@[k] == orig_r[k] && g@[k] == orig_g[k] && b@[k] == orig_b[k],
+            forall |k: int| 0 <= k < 64 ==> -1152921504606846976 <= #[trigger] r@[k] <= 1152921504606846976,
+            forall |k: int| 0 <= k < 64 ==> -1152921504606846976 <= #[trigger] g@[k] <= 1152921504606846976,
+            forall |k: int| 0 <= k < 64 ==> -1152921504606846976 <= #[trigger] b@[k] <= 1152921504606846976,
             forall |k: int| 0 <= k < i ==>
-                crate::specs::part1_component_values(orig_r[k], orig_g[k], orig_b[k], false)
-                    == Ok((#[trigger] r@[k], g@[k], b@[k])),
+                crate::specs::part1_component_values(r@[k], g@[k], b@[k], false)
+                    == Ok((#[trigger] out_r@[k], out_g@[k], out_b@[k])),
         decreases 64 - i,
     ))]
     while i < 64 {
@@ -1111,43 +1106,39 @@ fn apply_rct_chunk(r: &mut [i64], g: &mut [i64], b: &mut [i64]) {
                     shift == (chroma_sum >> 2i64);
         }
         let green = y - shift;
-        r[i] = green + cr;
-        g[i] = green;
-        b[i] = green + cb;
+        out_r[i] = green + cr;
+        out_g[i] = green;
+        out_b[i] = green + cb;
         i += 1;
     }
+    (out_r, out_g, out_b)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    requires old(r).len() == 64, old(g).len() == 64, old(b).len() == 64,
-        forall |i: int| 0 <= i < 64 ==> -17592186044416 <= #[trigger] old(r)@[i] <= 17592186044416,
-        forall |i: int| 0 <= i < 64 ==> -17592186044416 <= #[trigger] old(g)@[i] <= 17592186044416,
-        forall |i: int| 0 <= i < 64 ==> -17592186044416 <= #[trigger] old(b)@[i] <= 17592186044416,
-    ensures final(r).len() == 64, final(g).len() == 64, final(b).len() == 64,
+    requires r.len() == 64, g.len() == 64, b.len() == 64,
+        forall |i: int| 0 <= i < 64 ==> -17592186044416 <= #[trigger] r@[i] <= 17592186044416,
+        forall |i: int| 0 <= i < 64 ==> -17592186044416 <= #[trigger] g@[i] <= 17592186044416,
+        forall |i: int| 0 <= i < 64 ==> -17592186044416 <= #[trigger] b@[i] <= 17592186044416,
+    ensures
         forall |i: int| 0 <= i < 64 ==>
-            crate::specs::part1_component_values(old(r)@[i], old(g)@[i], old(b)@[i], true)
-                == Ok((#[trigger] final(r)@[i], final(g)@[i], final(b)@[i])),
+            crate::specs::part1_component_values(r@[i], g@[i], b@[i], true)
+                == Ok((#[trigger] result.0@[i], result.1@[i], result.2@[i])),
 ))]
 #[inline]
-fn apply_ict_chunk(r: &mut [i64], g: &mut [i64], b: &mut [i64]) {
-    #[cfg(verus_keep_ghost)]
-    proof_decl! {
-        let ghost orig_r = r@;
-        let ghost orig_g = g@;
-        let ghost orig_b = b@;
-    }
+fn compute_ict_chunk(r: &[i64], g: &[i64], b: &[i64]) -> ([i64; 64], [i64; 64], [i64; 64]) {
+    let mut out_r = [0_i64; 64];
+    let mut out_g = [0_i64; 64];
+    let mut out_b = [0_i64; 64];
     let mut i = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant i <= 64,
             r.len() == 64, g.len() == 64, b.len() == 64,
-            orig_r == old(r)@, orig_g == old(g)@, orig_b == old(b)@,
-            forall |k: int| 0 <= k < 64 ==> -17592186044416 <= #[trigger] orig_r[k] <= 17592186044416,
-            forall |k: int| 0 <= k < 64 ==> -17592186044416 <= #[trigger] orig_g[k] <= 17592186044416,
-            forall |k: int| 0 <= k < 64 ==> -17592186044416 <= #[trigger] orig_b[k] <= 17592186044416,
-            forall |k: int| i <= k < 64 ==> #[trigger] r@[k] == orig_r[k] && g@[k] == orig_g[k] && b@[k] == orig_b[k],
+            forall |k: int| 0 <= k < 64 ==> -17592186044416 <= #[trigger] r@[k] <= 17592186044416,
+            forall |k: int| 0 <= k < 64 ==> -17592186044416 <= #[trigger] g@[k] <= 17592186044416,
+            forall |k: int| 0 <= k < 64 ==> -17592186044416 <= #[trigger] b@[k] <= 17592186044416,
             forall |k: int| 0 <= k < i ==>
-                crate::specs::part1_component_values(orig_r[k], orig_g[k], orig_b[k], true)
-                    == Ok((#[trigger] r@[k], g@[k], b@[k])),
+                crate::specs::part1_component_values(r@[k], g@[k], b@[k], true)
+                    == Ok((#[trigger] out_r@[k], out_g@[k], out_b@[k])),
         decreases 64 - i,
     ))]
     while i < 64 {
@@ -1180,10 +1171,54 @@ fn apply_ict_chunk(r: &mut [i64], g: &mut [i64], b: &mut [i64]) {
                     d_r == (p_r >> 16i64), d_g1 == (p_g1 >> 16i64),
                     d_g2 == (p_g2 >> 16i64), d_b == (p_b >> 16i64);
         }
-        r[i] = y + d_r;
-        g[i] = y - d_g1 - d_g2;
-        b[i] = y + d_b;
+        out_r[i] = y + d_r;
+        out_g[i] = y - d_g1 - d_g2;
+        out_b[i] = y + d_b;
         i += 1;
+    }
+    (out_r, out_g, out_b)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires component < old(prepared).len(),
+        index + 64 <= old(prepared)@[component as int].samples.len(),
+    ensures
+        final(prepared).len() == old(prepared).len(),
+        forall |c: int| 0 <= c < final(prepared).len() && c != component ==>
+            prepared_components_view(final(prepared)@)[c] == prepared_components_view(old(prepared)@)[c],
+        ({
+            let old_c = prepared_components_view(old(prepared)@)[component as int];
+            let new_c = prepared_components_view(final(prepared)@)[component as int];
+            new_c == (old_c.0, old_c.1, old_c.2, old_c.3, old_c.4, old_c.5,
+                Seq::new(old_c.6.len(), |j: int|
+                    if index <= j < index + 64 { values@[j - index as int] } else { old_c.6[j] }))
+        }),
+))]
+#[inline]
+fn store_prepared_chunk(
+    prepared: &mut [PreparedTileComponent],
+    component: usize,
+    index: usize,
+    values: &[i64; 64],
+) {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost before = prepared_components_view(prepared@); }
+    let dst = &mut prepared[component].samples.as_mut_slice()[index..index + 64];
+    let mut i = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant i <= 64, dst.len() == 64,
+            forall |j: int| 0 <= j < i ==> #[trigger] dst@[j] == values@[j],
+        decreases 64 - i,
+    ))]
+    while i < 64 {
+        dst[i] = values[i];
+        i += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let after = prepared_components_view(prepared@);
+        assert(after[component as int].6 =~= Seq::new(before[component as int].6.len(), |j: int|
+            if index <= j < index + 64 { values@[j - index as int] } else { before[component as int].6[j] }));
     }
 }
 
@@ -1214,12 +1249,6 @@ pub(super) fn apply_prepared_component_transform(
         && prepared[1].samples.len() == length
         && prepared[2].samples.len() == length
     {
-        let mut r = Vec::new();
-        let mut g = Vec::new();
-        let mut b = Vec::new();
-        core::mem::swap(&mut r, &mut prepared[0].samples);
-        core::mem::swap(&mut g, &mut prepared[1].samples);
-        core::mem::swap(&mut b, &mut prepared[2].samples);
         #[cfg_attr(
             verus_keep_ghost,
             verus_spec(
@@ -1230,84 +1259,57 @@ pub(super) fn apply_prepared_component_transform(
                 before[0].6.len() == length,
                 before[1].6.len() == length,
                 before[2].6.len() == length,
-                r.len() == length,
-                g.len() == length,
-                b.len() == length,
+                prepared[0].samples.len() == length,
+                prepared[1].samples.len() == length,
+                prepared[2].samples.len() == length,
                 bound == if transform.1 { 17_592_186_044_416_i64 } else { 1_152_921_504_606_846_976_i64 },
                 crate::specs::part1_prepared_standard_admission(before, transform.1) == Ok(length),
-                ({
-                    let prefix = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat);
-                    prefix.0 == Ok::<(), DecodeError>(())
-                        && prefix.1.len() == before.len()
-                        && prefix.1[0].6 == r@
-                        && prefix.1[1].6 == g@
-                        && prefix.1[2].6 == b@
-                        && (forall |c: int| 3 <= c < before.len() ==> prefix.1[c] == before[c])
-                        && prefix.1[0] == (before[0].0, before[0].1, before[0].2, before[0].3, before[0].4, before[0].5, r@)
-                        && prefix.1[1] == (before[1].0, before[1].1, before[1].2, before[1].3, before[1].4, before[1].5, g@)
-                        && prefix.1[2] == (before[2].0, before[2].1, before[2].2, before[2].3, before[2].4, before[2].5, b@)
-                        && (forall |j: int| index <= j < length ==>
-                            r@[j] == before[0].6[j]
-                            && g@[j] == before[1].6[j]
-                            && b@[j] == before[2].6[j])
-                }),
+                crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat)
+                    == (Ok(()), prepared_components_view(prepared@)),
+                forall |j: int| index <= j < length ==>
+                    prepared@[0].samples@[j] == before[0].6[j]
+                    && prepared@[1].samples@[j] == before[1].6[j]
+                    && prepared@[2].samples@[j] == before[2].6[j],
                 decreases length - index,
             )
         )]
         while length - index >= 64 {
-            let r_chunk = &mut r.as_mut_slice()[index..index + 64];
-            let g_chunk = &mut g.as_mut_slice()[index..index + 64];
-            let b_chunk = &mut b.as_mut_slice()[index..index + 64];
+            let r_chunk = &prepared[0].samples[index..index + 64];
+            let g_chunk = &prepared[1].samples[index..index + 64];
+            let b_chunk = &prepared[2].samples[index..index + 64];
             if !chunk_within_bound(r_chunk, bound)
                 || !chunk_within_bound(g_chunk, bound)
                 || !chunk_within_bound(b_chunk, bound)
             {
                 break;
             }
-            if transform.1 {
-                apply_ict_chunk(r_chunk, g_chunk, b_chunk);
+            let (out_r, out_g, out_b) = if transform.1 {
+                compute_ict_chunk(r_chunk, g_chunk, b_chunk)
             } else {
-                apply_rct_chunk(r_chunk, g_chunk, b_chunk);
-            }
+                compute_rct_chunk(r_chunk, g_chunk, b_chunk)
+            };
+            store_prepared_chunk(prepared, 0, index, &out_r);
+            store_prepared_chunk(prepared, 1, index, &out_g);
+            store_prepared_chunk(prepared, 2, index, &out_b);
             #[cfg(verus_keep_ghost)]
             proof! {
                 let p0 = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat);
-                assert(p0.1[0].6 =~= Seq::new(length as nat, |j: int| if j < index as int { r@[j] } else { before[0].6[j] }));
-                assert(p0.1[1].6 =~= Seq::new(length as nat, |j: int| if j < index as int { g@[j] } else { before[1].6[j] }));
-                assert(p0.1[2].6 =~= Seq::new(length as nat, |j: int| if j < index as int { b@[j] } else { before[2].6[j] }));
-                advance_standard_chunk(before, transform.1, index, length, r@, g@, b@, 64);
+                let cur = prepared_components_view(prepared@);
+                assert(p0.1[0].6 =~= Seq::new(length as nat, |j: int| if j < index as int { cur[0].6[j] } else { before[0].6[j] }));
+                assert(p0.1[1].6 =~= Seq::new(length as nat, |j: int| if j < index as int { cur[1].6[j] } else { before[1].6[j] }));
+                assert(p0.1[2].6 =~= Seq::new(length as nat, |j: int| if j < index as int { cur[2].6[j] } else { before[2].6[j] }));
+                advance_standard_chunk(before, transform.1, index, length, cur[0].6, cur[1].6, cur[2].6, 64);
                 let p_done = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat + 64);
-                assert(p_done.1[0].6 =~= r@);
-                assert(p_done.1[1].6 =~= g@);
-                assert(p_done.1[2].6 =~= b@);
+                assert(p_done.1 =~= cur) by {
+                    assert forall |c: int| 0 <= c < before.len() implies p_done.1[c] == cur[c] by {
+                        if c < 3 {
+                            assert(p_done.1[c].6 =~= cur[c].6);
+                        }
+                    }
+                };
             }
             index += 64;
         }
-        core::mem::swap(&mut r, &mut prepared[0].samples);
-        core::mem::swap(&mut g, &mut prepared[1].samples);
-        core::mem::swap(&mut b, &mut prepared[2].samples);
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            let p_after = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat);
-            assert forall |c: int| 0 <= c < before.len() implies
-                p_after.1[c] == prepared_components_view(prepared@)[c] by {
-                if c == 0 {
-                    assert(crate::decode::prepared_component_view(prepared@[0]) == (before[0].0, before[0].1, before[0].2, before[0].3, before[0].4, before[0].5, prepared@[0].samples@));
-                } else if c == 1 {
-                    assert(crate::decode::prepared_component_view(prepared@[1]) == (before[1].0, before[1].1, before[1].2, before[1].3, before[1].4, before[1].5, prepared@[1].samples@));
-                } else if c == 2 {
-                    assert(crate::decode::prepared_component_view(prepared@[2]) == (before[2].0, before[2].1, before[2].2, before[2].3, before[2].4, before[2].5, prepared@[2].samples@));
-                } else {
-                    assert(prepared@[c] == old(prepared)@[c]);
-                }
-            };
-            assert(p_after.1 =~= prepared_components_view(prepared@));
-        }
-    }
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        let p_mid = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat);
-        assert(p_mid.1 =~= prepared_components_view(prepared@));
     }
     #[cfg_attr(
         verus_keep_ghost,
