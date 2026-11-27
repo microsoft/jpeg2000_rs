@@ -5,7 +5,7 @@ use super::arithmetic::{
 use super::geometry::{
     band_row, collect_column, low_count, store_column, validate_level, validate_level_bands,
 };
-use super::wavelets::{inverse_5_3, inverse_9_7, try_append_inverse_5_3, try_append_inverse_9_7};
+use super::wavelets::{inverse_5_3, inverse_9_7};
 use super::{FIXED_BITS, ReconstructedPlane, WaveletBand, WaveletLevel};
 #[cfg(verus_keep_ghost)]
 use super::{
@@ -234,36 +234,6 @@ fn inverse_rows(
         )
     )]
     while y < low.height {
-        #[allow(
-            clippy::collapsible_if,
-            reason = "Avoid let-chains for MSRV 1.88 and Verus compatibility."
-        )]
-        if kernel.is_none() && low.height >= 4 {
-            if let (Ok(low_row), Ok(high_row)) = (band_row(low, y), band_row(high, y)) {
-                let appended_in_place = if irreversible {
-                    try_append_inverse_9_7(&mut samples, low_row, high_row, low_pass_first)
-                } else {
-                    try_append_inverse_5_3(&mut samples, low_row, high_row, low_pass_first)
-                };
-                if appended_in_place {
-                    #[cfg(verus_keep_ghost)]
-                    proof! {
-                        assert(crate::specs::part1_horizontal_row(
-                            wavelet_band_view(low), wavelet_band_view(high), y, low_pass_first, irreversible,
-                        ) == if irreversible {
-                            crate::specs::part1_inverse_nine_seven(low_row@, high_row@, low_pass_first)
-                        } else {
-                            crate::specs::part1_inverse_five_three(low_row@, high_row@, low_pass_first)
-                        });
-                        assert(crate::specs::part1_horizontal_prefix(
-                            wavelet_band_view(low), wavelet_band_view(high), low_pass_first, irreversible, y as nat + 1,
-                        ) == Ok(samples@));
-                    }
-                    y = y.checked_add(1).ok_or_else(arithmetic_overflow)?;
-                    continue;
-                }
-            }
-        }
         let row = match inverse_row_pair(low, high, y, low_pass_first, irreversible, kernel) {
             Ok(row) => row,
             Err(error) => {
@@ -769,7 +739,7 @@ mod zero_level {
             reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
             if k > 0 {
                 zero_lifting_prefix(n, target_even, kind, factor, (k - 1) as nat);
-                assert(((0i64 + 2i64) >> 2i64) == 0i64 && (0i64 >> 1i64) == 0i64 && ((32768i64) >> 16i64) == 0i64) by(bit_vector);
+                assert((2i64 >> 2i64) == 0i64 && (0i64 >> 1i64) == 0i64 && (32768i64 >> 16i64) == 0i64) by(bit_vector);
                 assert(((0i64 as int) * (factor as int) + 32768) == 32768int);
                 assert(zeros(n).update((k - 1) as int, 0i64) =~= zeros(n));
             }
@@ -884,11 +854,11 @@ mod zero_level {
                 let lc = Seq::new(low.1 as nat, |row: int| low.2[row * (low.0 as int) + prev as int]);
                 let hc = Seq::new(high.1 as nat, |row: int| high.2[row * (high.0 as int) + prev as int]);
                 assert forall |r: int| 0 <= r < lc.len() implies #[trigger] lc[r] == 0i64 by {
-                    assert(0 <= r * (low.0 as int) + prev as int < low.2.len()) by(nonlinear_arith)
+                    assert(0 <= r * (low.0 as int) + prev as int && r * (low.0 as int) + prev as int < low.2.len()) by(nonlinear_arith)
                         requires 0 <= r < low.1, prev < low.0, low.2.len() == (low.0 as int) * (low.1 as int);
                 }
                 assert forall |r: int| 0 <= r < hc.len() implies #[trigger] hc[r] == 0i64 by {
-                    assert(0 <= r * (high.0 as int) + prev as int < high.2.len()) by(nonlinear_arith)
+                    assert(0 <= r * (high.0 as int) + prev as int && r * (high.0 as int) + prev as int < high.2.len()) by(nonlinear_arith)
                         requires 0 <= r < high.1, prev < high.0, high.2.len() == (high.0 as int) * (high.1 as int);
                 }
                 zero_1d_wavelet(lc, hc, first, irreversible);
@@ -909,6 +879,30 @@ mod zero_level {
             })
         }
 
+        proof fn avg_bounded(a: i64, b: i64)
+            requires
+                -1_073_741_824i64 <= a && a <= 1_073_741_824i64,
+                -1_073_741_824i64 <= b && b <= 1_073_741_824i64,
+            ensures
+                -1_073_741_824i64 <= (((a as int + b as int) as i64) >> 1i64),
+                (((a as int + b as int) as i64) >> 1i64) <= 1_073_741_824i64,
+        {
+            let s: i64 = (a as int + b as int) as i64;
+            assert(-2_147_483_648i64 <= s && s <= 2_147_483_648i64);
+            assert(-1_073_741_824i64 <= (s >> 1i64) && (s >> 1i64) <= 1_073_741_824i64) by(bit_vector)
+                requires -2_147_483_648i64 <= s && s <= 2_147_483_648i64;
+        }
+
+        proof fn avg_self(a: i64)
+            requires -1_073_741_824i64 <= a && a <= 1_073_741_824i64,
+            ensures (((a as int + a as int) as i64) >> 1i64) == a,
+        {
+            let s: i64 = (a as int + a as int) as i64;
+            assert(s == add(a, a));
+            assert((add(a, a) >> 1i64) == a) by(bit_vector)
+                requires -1_073_741_824i64 <= a && a <= 1_073_741_824i64;
+        }
+
         proof fn zero_high_5_3_update_prefix(inter: Seq<i64>, k: nat)
             requires
                 inter.len() > 1,
@@ -926,7 +920,7 @@ mod zero_level {
                     let left_i = if idx == 0 { 1int } else { idx as int - 1 };
                     let right_i = if idx + 1 < inter.len() { idx as int + 1 } else { idx as int - 1 };
                     assert(inter[left_i] == 0i64 && inter[right_i] == 0i64);
-                    assert(((0i64 + 2i64) >> 2i64) == 0i64) by(bit_vector);
+                    assert((2i64 >> 2i64) == 0i64) by(bit_vector);
                     assert(inter.update(idx as int, inter[idx as int]) =~= inter);
                 } else {
                     assert(inter.update(idx as int, inter[idx as int]) =~= inter);
@@ -1194,8 +1188,7 @@ mod zero_level {
                 output[dst_start + 2 * (lw - 1) + 1] = last;
                 #[cfg(verus_keep_ghost)]
                 proof! {
-                    assert(((last + last) >> 1i64) == last) by(bit_vector)
-                        requires -1_073_741_824i64 <= last <= 1_073_741_824i64;
+                    avg_self(last);
                 }
             }
             #[cfg(verus_keep_ghost)]
@@ -1275,14 +1268,12 @@ mod zero_level {
                         let xa = (x as int) / 2;
                         let la = row_a[xa];
                         let ra = if xa + 1 < lw { row_a[xa + 1] } else { la };
-                        assert(-1_073_741_824i64 <= ((la + ra) >> 1i64) <= 1_073_741_824i64) by(bit_vector)
-                            requires -1_073_741_824i64 <= la <= 1_073_741_824i64, -1_073_741_824i64 <= ra <= 1_073_741_824i64;
+                        avg_bounded(la, ra);
                         if 2 * y + 2 < h {
                             let row_b = level.ll.samples@.subrange((y as int + 1) * (lw as int), (y as int + 2) * (lw as int));
                             let lb = row_b[xa];
                             let rb = if xa + 1 < lw { row_b[xa + 1] } else { lb };
-                            assert(-1_073_741_824i64 <= ((lb + rb) >> 1i64) <= 1_073_741_824i64) by(bit_vector)
-                                requires -1_073_741_824i64 <= lb <= 1_073_741_824i64, -1_073_741_824i64 <= rb <= 1_073_741_824i64;
+                            avg_bounded(lb, rb);
                         }
                     }
                 }
@@ -1314,8 +1305,7 @@ mod zero_level {
                     let xa = c / 2;
                     let la = row_s[xa];
                     let ra = if xa + 1 < lw { row_s[xa + 1] } else { la };
-                    assert(-1_073_741_824i64 <= ((la + ra) >> 1i64) <= 1_073_741_824i64) by(bit_vector)
-                        requires -1_073_741_824i64 <= la <= 1_073_741_824i64, -1_073_741_824i64 <= ra <= 1_073_741_824i64;
+                    avg_bounded(la, ra);
                 }
             }
             assert(crate::specs::rowwise_bounded(high_rows));
@@ -1338,7 +1328,7 @@ mod zero_level {
                         crate::specs::rowwise_index(left_r, c, w as int);
                         crate::specs::rowwise_index(right_r, c, w as int);
                         assert(inter[left_r * (w as int) + c] == 0i64 && inter[right_r * (w as int) + c] == 0i64);
-                        assert(((0i64 + 2i64) >> 2i64) == 0i64) by(bit_vector);
+                        assert((2i64 >> 2i64) == 0i64) by(bit_vector);
                     }
                 }
             }

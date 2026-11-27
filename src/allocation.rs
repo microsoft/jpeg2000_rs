@@ -177,27 +177,46 @@ pub(crate) fn copy_values<T: Copy>(source: &[T]) -> Result<Vec<T>, DecodeError> 
         return Ok(Vec::new());
     }
     let mut values = empty_with_capacity(source.len())?;
-    #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
-    {
-        let mut index = 0_usize;
-        while index < source.len() {
-            crate::deadline::checkpoint_periodic(index)?;
-            let end = (index + 1024).min(source.len());
-            values.extend_from_slice(&source[index..end]);
-            index = end;
+    if source.len() >= 64 {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        {
+            let mut index = 0_usize;
+            while index < source.len() {
+                crate::deadline::checkpoint_periodic(index)?;
+                let end = (index + 1024).min(source.len());
+                values.extend_from_slice(&source[index..end]);
+                index = end;
+            }
         }
+        #[cfg(any(not(feature = "cooperative-deadlines"), verus_keep_ghost))]
+        {
+            values.extend_from_slice(source);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert forall|i: int| 0 <= i < source.len() implies values@[i] == source@[i] by {
+                assert(vstd::pervasive::cloned::<T>(source@[i], values@[i]));
+            }
+            assert(values@ =~= source@);
+        }
+        return Ok(values);
     }
-    #[cfg(any(not(feature = "cooperative-deadlines"), verus_keep_ghost))]
-    {
-        values.extend_from_slice(source);
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= source.len(),
+            values@ == source@.take(index as int),
+        decreases source.len() - index,
+    ))]
+    while index < source.len() {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        crate::deadline::checkpoint_periodic(index)?;
+        values.push(source[index]);
+        index += 1;
+        #[cfg(verus_keep_ghost)]
+        proof! { assert(values@ =~= source@.take(index as int)); }
     }
     #[cfg(verus_keep_ghost)]
-    proof! {
-        assert forall|i: int| 0 <= i < source.len() implies values@[i] == source@[i] by {
-            assert(vstd::pervasive::cloned::<T>(source@[i], values@[i]));
-        }
-        assert(values@ =~= source@);
-    }
+    proof! { assert(values@ =~= source@); }
     Ok(values)
 }
 
