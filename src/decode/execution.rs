@@ -973,6 +973,257 @@ pub(super) fn reconstruct_planned_tile(
     result
 }
 
+#[cfg(verus_keep_ghost)]
+verus! {
+    proof fn advance_standard_chunk(
+        before: Seq<crate::specs::Part1AssemblyTile>,
+        irreversible: bool,
+        index: usize,
+        length: usize,
+        r_samples: Seq<i64>,
+        g_samples: Seq<i64>,
+        b_samples: Seq<i64>,
+        k: nat,
+    )
+        requires
+            k <= 64,
+            index + 64 <= length,
+            before.len() >= 3,
+            r_samples.len() == length,
+            g_samples.len() == length,
+            b_samples.len() == length,
+            before[0].6.len() == length,
+            before[1].6.len() == length,
+            before[2].6.len() == length,
+            forall |j: int| 0 <= j < 64 ==>
+                crate::specs::part1_component_values(
+                    before[0].6[index as int + j],
+                    before[1].6[index as int + j],
+                    before[2].6[index as int + j],
+                    irreversible,
+                ) == Ok((
+                    #[trigger] r_samples[index as int + j],
+                    g_samples[index as int + j],
+                    b_samples[index as int + j],
+                )),
+            ({
+                let p = crate::specs::part1_prepared_standard_prefix(before, irreversible, index as nat);
+                p.0 == Ok::<(), DecodeError>(())
+                    && p.1.len() == before.len()
+                    && (forall |c: int| 3 <= c < before.len() ==> p.1[c] == before[c])
+                    && p.1[0] == (before[0].0, before[0].1, before[0].2, before[0].3, before[0].4, before[0].5,
+                        Seq::new(length as nat, |j: int| if j < index as int { r_samples[j] } else { before[0].6[j] }))
+                    && p.1[1] == (before[1].0, before[1].1, before[1].2, before[1].3, before[1].4, before[1].5,
+                        Seq::new(length as nat, |j: int| if j < index as int { g_samples[j] } else { before[1].6[j] }))
+                    && p.1[2] == (before[2].0, before[2].1, before[2].2, before[2].3, before[2].4, before[2].5,
+                        Seq::new(length as nat, |j: int| if j < index as int { b_samples[j] } else { before[2].6[j] }))
+            }),
+        ensures ({
+            let p = crate::specs::part1_prepared_standard_prefix(before, irreversible, index as nat + k);
+            p.0 == Ok::<(), DecodeError>(())
+                && p.1.len() == before.len()
+                && (forall |c: int| 3 <= c < before.len() ==> p.1[c] == before[c])
+                && p.1[0] == (before[0].0, before[0].1, before[0].2, before[0].3, before[0].4, before[0].5,
+                    Seq::new(length as nat, |j: int| if j < index as int + k { r_samples[j] } else { before[0].6[j] }))
+                && p.1[1] == (before[1].0, before[1].1, before[1].2, before[1].3, before[1].4, before[1].5,
+                    Seq::new(length as nat, |j: int| if j < index as int + k { g_samples[j] } else { before[1].6[j] }))
+                && p.1[2] == (before[2].0, before[2].1, before[2].2, before[2].3, before[2].4, before[2].5,
+                    Seq::new(length as nat, |j: int| if j < index as int + k { b_samples[j] } else { before[2].6[j] }))
+        }),
+        decreases k,
+    {
+        if k > 0 {
+            advance_standard_chunk(before, irreversible, index, length, r_samples, g_samples, b_samples, (k - 1) as nat);
+            crate::proofs::production_impl::production_prepared_standard_step(before, irreversible, index as nat + (k - 1) as nat);
+            let p_next = crate::specs::part1_prepared_standard_prefix(before, irreversible, index as nat + k);
+            assert(p_next.1[0].6 =~= Seq::new(length as nat, |j: int| if j < index as int + k { r_samples[j] } else { before[0].6[j] }));
+            assert(p_next.1[1].6 =~= Seq::new(length as nat, |j: int| if j < index as int + k { g_samples[j] } else { before[1].6[j] }));
+            assert(p_next.1[2].6 =~= Seq::new(length as nat, |j: int| if j < index as int + k { b_samples[j] } else { before[2].6[j] }));
+        }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires slice.len() == 64, bound >= 0,
+    ensures result == forall |i: int| 0 <= i < 64 ==> -bound <= #[trigger] slice@[i] <= bound,
+))]
+#[inline(always)]
+fn chunk_within_bound(slice: &[i64], bound: i64) -> bool {
+    let mut index = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= 64, slice.len() == 64, bound >= 0,
+            forall |i: int| 0 <= i < index ==> -bound <= #[trigger] slice@[i] <= bound,
+        decreases 64 - index,
+    ))]
+    while index < 64 {
+        let value = slice[index];
+        if value < -bound || value > bound {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires r.len() == 64, g.len() == 64, b.len() == 64,
+        forall |i: int| 0 <= i < 64 ==> -1152921504606846976 <= #[trigger] r@[i] <= 1152921504606846976,
+        forall |i: int| 0 <= i < 64 ==> -1152921504606846976 <= #[trigger] g@[i] <= 1152921504606846976,
+        forall |i: int| 0 <= i < 64 ==> -1152921504606846976 <= #[trigger] b@[i] <= 1152921504606846976,
+    ensures
+        forall |i: int| 0 <= i < 64 ==>
+            crate::specs::part1_component_values(r@[i], g@[i], b@[i], false)
+                == Ok((#[trigger] result.0@[i], result.1@[i], result.2@[i])),
+))]
+#[inline]
+fn compute_rct_chunk(r: &[i64], g: &[i64], b: &[i64]) -> ([i64; 64], [i64; 64], [i64; 64]) {
+    let mut out_r = [0_i64; 64];
+    let mut out_g = [0_i64; 64];
+    let mut out_b = [0_i64; 64];
+    let mut i = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant i <= 64,
+            r.len() == 64, g.len() == 64, b.len() == 64,
+            forall |k: int| 0 <= k < 64 ==> -1152921504606846976 <= #[trigger] r@[k] <= 1152921504606846976,
+            forall |k: int| 0 <= k < 64 ==> -1152921504606846976 <= #[trigger] g@[k] <= 1152921504606846976,
+            forall |k: int| 0 <= k < 64 ==> -1152921504606846976 <= #[trigger] b@[k] <= 1152921504606846976,
+            forall |k: int| 0 <= k < i ==>
+                crate::specs::part1_component_values(r@[k], g@[k], b@[k], false)
+                    == Ok((#[trigger] out_r@[k], out_g@[k], out_b@[k])),
+        decreases 64 - i,
+    ))]
+    while i < 64 {
+        let y = r[i];
+        let cb = g[i];
+        let cr = b[i];
+        let chroma_sum = cb + cr;
+        let shift = chroma_sum >> 2;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(-2305843009213693952 <= chroma_sum <= 2305843009213693952);
+            assert(-576460752303423488 <= shift <= 576460752303423488) by (bit_vector)
+                requires -2305843009213693952i64 <= chroma_sum <= 2305843009213693952i64,
+                    shift == (chroma_sum >> 2i64);
+        }
+        let green = y - shift;
+        out_r[i] = green + cr;
+        out_g[i] = green;
+        out_b[i] = green + cb;
+        i += 1;
+    }
+    (out_r, out_g, out_b)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires r.len() == 64, g.len() == 64, b.len() == 64,
+        forall |i: int| 0 <= i < 64 ==> -17592186044416 <= #[trigger] r@[i] <= 17592186044416,
+        forall |i: int| 0 <= i < 64 ==> -17592186044416 <= #[trigger] g@[i] <= 17592186044416,
+        forall |i: int| 0 <= i < 64 ==> -17592186044416 <= #[trigger] b@[i] <= 17592186044416,
+    ensures
+        forall |i: int| 0 <= i < 64 ==>
+            crate::specs::part1_component_values(r@[i], g@[i], b@[i], true)
+                == Ok((#[trigger] result.0@[i], result.1@[i], result.2@[i])),
+))]
+#[inline]
+fn compute_ict_chunk(r: &[i64], g: &[i64], b: &[i64]) -> ([i64; 64], [i64; 64], [i64; 64]) {
+    let mut out_r = [0_i64; 64];
+    let mut out_g = [0_i64; 64];
+    let mut out_b = [0_i64; 64];
+    let mut i = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant i <= 64,
+            r.len() == 64, g.len() == 64, b.len() == 64,
+            forall |k: int| 0 <= k < 64 ==> -17592186044416 <= #[trigger] r@[k] <= 17592186044416,
+            forall |k: int| 0 <= k < 64 ==> -17592186044416 <= #[trigger] g@[k] <= 17592186044416,
+            forall |k: int| 0 <= k < 64 ==> -17592186044416 <= #[trigger] b@[k] <= 17592186044416,
+            forall |k: int| 0 <= k < i ==>
+                crate::specs::part1_component_values(r@[k], g@[k], b@[k], true)
+                    == Ok((#[trigger] out_r@[k], out_g@[k], out_b@[k])),
+        decreases 64 - i,
+    ))]
+    while i < 64 {
+        let y = r[i];
+        let cb = g[i];
+        let cr = b[i];
+        let p_r = cr * 91_881 + 32_768;
+        let p_g1 = cb * 22_553 + 32_768;
+        let p_g2 = cr * 46_797 + 32_768;
+        let p_b = cb * 116_130 + 32_768;
+        let d_r = p_r >> 16;
+        let d_g1 = p_g1 >> 16;
+        let d_g2 = p_g2 >> 16;
+        let d_b = p_b >> 16;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(-2147483648000000000i64 <= p_r <= 2147483648000000000i64
+                && -2147483648000000000i64 <= p_g1 <= 2147483648000000000i64
+                && -2147483648000000000i64 <= p_g2 <= 2147483648000000000i64
+                && -2147483648000000000i64 <= p_b <= 2147483648000000000i64);
+            assert(-32768000000000i64 <= d_r <= 32768000000000i64
+                && -32768000000000i64 <= d_g1 <= 32768000000000i64
+                && -32768000000000i64 <= d_g2 <= 32768000000000i64
+                && -32768000000000i64 <= d_b <= 32768000000000i64) by (bit_vector)
+                requires
+                    -2147483648000000000i64 <= p_r <= 2147483648000000000i64,
+                    -2147483648000000000i64 <= p_g1 <= 2147483648000000000i64,
+                    -2147483648000000000i64 <= p_g2 <= 2147483648000000000i64,
+                    -2147483648000000000i64 <= p_b <= 2147483648000000000i64,
+                    d_r == (p_r >> 16i64), d_g1 == (p_g1 >> 16i64),
+                    d_g2 == (p_g2 >> 16i64), d_b == (p_b >> 16i64);
+        }
+        out_r[i] = y + d_r;
+        out_g[i] = y - d_g1 - d_g2;
+        out_b[i] = y + d_b;
+        i += 1;
+    }
+    (out_r, out_g, out_b)
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires component < old(prepared).len(),
+        index + 64 <= old(prepared)@[component as int].samples.len(),
+    ensures
+        final(prepared).len() == old(prepared).len(),
+        forall |c: int| 0 <= c < final(prepared).len() ==>
+            final(prepared)@[c].samples.len() == old(prepared)@[c].samples.len(),
+        forall |c: int| 0 <= c < final(prepared).len() && c != component ==>
+            prepared_components_view(final(prepared)@)[c] == prepared_components_view(old(prepared)@)[c],
+        ({
+            let old_c = prepared_components_view(old(prepared)@)[component as int];
+            let new_c = prepared_components_view(final(prepared)@)[component as int];
+            new_c == (old_c.0, old_c.1, old_c.2, old_c.3, old_c.4, old_c.5,
+                Seq::new(old_c.6.len(), |j: int|
+                    if index <= j < index + 64 { values@[j - index as int] } else { old_c.6[j] }))
+        }),
+))]
+#[inline]
+fn store_prepared_chunk(
+    prepared: &mut [PreparedTileComponent],
+    component: usize,
+    index: usize,
+    values: &[i64; 64],
+) {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost before = prepared_components_view(prepared@); }
+    let dst = &mut prepared[component].samples.as_mut_slice()[index..index + 64];
+    let mut i = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant i <= 64, dst.len() == 64,
+            forall |j: int| 0 <= j < i ==> #[trigger] dst@[j] == values@[j],
+        decreases 64 - i,
+    ))]
+    while i < 64 {
+        dst[i] = values[i];
+        i += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let after = prepared_components_view(prepared@);
+        assert(after[component as int].6 =~= Seq::new(before[component as int].6.len(), |j: int|
+            if index <= j < index + 64 { values@[j - index as int] } else { before[component as int].6[j] }));
+    }
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures (result, prepared_components_view(final(prepared)@)) == crate::specs::part1_prepared_standard_transform(
         prepared_components_view(old(prepared)@), transform),
@@ -990,6 +1241,85 @@ pub(super) fn apply_prepared_component_transform(
     #[cfg(verus_keep_ghost)]
     proof! { crate::proofs::production_impl::production_prepared_standard_empty(before, transform.1); }
     let mut index = 0_usize;
+    let bound = if transform.1 {
+        17_592_186_044_416_i64
+    } else {
+        1_152_921_504_606_846_976_i64
+    };
+    if prepared.len() >= 3
+        && prepared[0].samples.len() == length
+        && prepared[1].samples.len() == length
+        && prepared[2].samples.len() == length
+    {
+        #[cfg_attr(
+            verus_keep_ghost,
+            verus_spec(
+                invariant index <= length, transform.0,
+                before == prepared_components_view(old(prepared)@),
+                before.len() >= 3,
+                prepared.len() == before.len(),
+                before[0].6.len() == length,
+                before[1].6.len() == length,
+                before[2].6.len() == length,
+                prepared[0].samples.len() == length,
+                prepared[1].samples.len() == length,
+                prepared[2].samples.len() == length,
+                bound == if transform.1 { 17_592_186_044_416_i64 } else { 1_152_921_504_606_846_976_i64 },
+                crate::specs::part1_prepared_standard_admission(before, transform.1) == Ok(length),
+                crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat)
+                    == (Ok(()), prepared_components_view(prepared@)),
+                forall |c: int| 3 <= c < before.len() ==>
+                    prepared_components_view(prepared@)[c] == before[c],
+                forall |c: int| 0 <= c < 3 ==>
+                    prepared_components_view(prepared@)[c] == (
+                        before[c].0, before[c].1, before[c].2, before[c].3, before[c].4, before[c].5,
+                        prepared_components_view(prepared@)[c].6,
+                    ),
+                forall |j: int| index <= j < length ==>
+                    prepared@[0].samples@[j] == before[0].6[j]
+                    && prepared@[1].samples@[j] == before[1].6[j]
+                    && prepared@[2].samples@[j] == before[2].6[j],
+                decreases length - index,
+            )
+        )]
+        while length - index >= 64 {
+            let r_chunk = &prepared[0].samples[index..index + 64];
+            let g_chunk = &prepared[1].samples[index..index + 64];
+            let b_chunk = &prepared[2].samples[index..index + 64];
+            if !chunk_within_bound(r_chunk, bound)
+                || !chunk_within_bound(g_chunk, bound)
+                || !chunk_within_bound(b_chunk, bound)
+            {
+                break;
+            }
+            let (out_r, out_g, out_b) = if transform.1 {
+                compute_ict_chunk(r_chunk, g_chunk, b_chunk)
+            } else {
+                compute_rct_chunk(r_chunk, g_chunk, b_chunk)
+            };
+            store_prepared_chunk(prepared, 0, index, &out_r);
+            store_prepared_chunk(prepared, 1, index, &out_g);
+            store_prepared_chunk(prepared, 2, index, &out_b);
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let p0 = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat);
+                let cur = prepared_components_view(prepared@);
+                assert(p0.1[0].6 =~= Seq::new(length as nat, |j: int| if j < index as int { cur[0].6[j] } else { before[0].6[j] }));
+                assert(p0.1[1].6 =~= Seq::new(length as nat, |j: int| if j < index as int { cur[1].6[j] } else { before[1].6[j] }));
+                assert(p0.1[2].6 =~= Seq::new(length as nat, |j: int| if j < index as int { cur[2].6[j] } else { before[2].6[j] }));
+                advance_standard_chunk(before, transform.1, index, length, cur[0].6, cur[1].6, cur[2].6, 64);
+                let p_done = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat + 64);
+                assert(p_done.1 =~= cur) by {
+                    assert forall |c: int| 0 <= c < before.len() implies p_done.1[c] == cur[c] by {
+                        if c < 3 {
+                            assert(p_done.1[c].6 =~= cur[c].6);
+                        }
+                    }
+                };
+            }
+            index += 64;
+        }
+    }
     #[cfg_attr(
         verus_keep_ghost,
         verus_spec(

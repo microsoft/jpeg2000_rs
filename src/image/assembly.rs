@@ -710,6 +710,254 @@ fn assembly_pixel(
     Ok(())
 }
 
+#[cfg(verus_keep_ghost)]
+verus! {
+    proof fn assembly_row_bulk_equivalence(
+        original: crate::specs::Part1AssemblyPlane,
+        tile: crate::specs::Part1AssemblyTile,
+        x_start: u32,
+        y: u32,
+        crop: Option<(u32, u32)>,
+        dst_start: usize,
+        src_start: usize,
+        count: usize,
+        k: nat,
+    )
+        requires
+            k <= count,
+            x_start as nat + count <= u32::MAX,
+            dst_start + count <= original.3.len(),
+            dst_start + count <= original.4.len(),
+            dst_start + count <= usize::MAX,
+            src_start + count <= tile.6.len(),
+            src_start + count <= usize::MAX,
+            match crop {
+                Some(origin) =>
+                    x_start >= origin.0 && y >= origin.1
+                    && x_start >= tile.1 && y >= tile.2
+                    && crate::specs::part1_transform_offset((y - origin.1) as u32, original.0, (x_start - origin.0) as u32) == Ok(dst_start)
+                    && crate::specs::part1_transform_offset((y - tile.2) as u32, tile.3, (x_start - tile.1) as u32) == Ok(src_start),
+                None =>
+                    (tile.1 as nat) + (x_start as nat) + count <= u32::MAX + 1
+                    && (tile.2 as nat) + (y as nat) <= u32::MAX
+                    && crate::specs::part1_transform_offset((tile.2 + y) as u32, original.0, (tile.1 + x_start) as u32) == Ok(dst_start)
+                    && crate::specs::part1_transform_offset(y, tile.3, x_start) == Ok(src_start),
+            },
+            forall |j: int| 0 <= j < count ==> !#[trigger] original.4[dst_start as int + j],
+        ensures ({
+            let res = crate::specs::part1_assembly_row_prefix(original, tile, x_start, y, crop, k);
+            res.0 == Ok::<(), DecodeError>(())
+                && res.1.0 == original.0
+                && res.1.1 == original.1
+                && res.1.2 == original.2
+                && res.1.3 =~= Seq::new(original.3.len(), |i: int|
+                    if dst_start <= i < dst_start + k { tile.6[src_start as int + (i - dst_start as int)] } else { original.3[i] })
+                && res.1.4 =~= Seq::new(original.4.len(), |i: int|
+                    if dst_start <= i < dst_start + k { true } else { original.4[i] })
+        }),
+        decreases k,
+    {
+        if k == 0 {
+            let res = crate::specs::part1_assembly_row_prefix(original, tile, x_start, y, crop, 0);
+            assert(res.1.3 =~= original.3);
+            assert(res.1.4 =~= original.4);
+        } else {
+            let prev_k = (k - 1) as nat;
+            assembly_row_bulk_equivalence(original, tile, x_start, y, crop, dst_start, src_start, count, prev_k);
+            let prev = crate::specs::part1_assembly_row_prefix(original, tile, x_start, y, crop, prev_k);
+            let x_cur = (x_start as nat + prev_k) as u32;
+            match crop {
+                Some(origin) => {
+                    let dy = (y - origin.1) as u32;
+                    let sy = (y - tile.2) as u32;
+                    let dx0 = (x_start - origin.0) as u32;
+                    let sx0 = (x_start - tile.1) as u32;
+                    let dx = (x_cur - origin.0) as u32;
+                    let sx = (x_cur - tile.1) as u32;
+                    assert(crate::specs::part1_transform_offset(dy, original.0, dx0) == Ok(dst_start));
+                    assert(crate::specs::part1_transform_offset(sy, tile.3, sx0) == Ok(src_start));
+                    let drow = (dy as int) * (original.0 as int);
+                    let srow = (sy as int) * (tile.3 as int);
+                    assert(drow >= 0 && srow >= 0) by (nonlinear_arith)
+                        requires dy >= 0, original.0 >= 0, sy >= 0, tile.3 >= 0,
+                            drow == (dy as int) * (original.0 as int),
+                            srow == (sy as int) * (tile.3 as int);
+                    assert(drow + (dx as int) == (dst_start as int) + (prev_k as int));
+                    assert(srow + (sx as int) == (src_start as int) + (prev_k as int));
+                    assert((dx as int) <= usize::MAX && drow + (dx as int) <= usize::MAX);
+                    assert((sx as int) <= usize::MAX && srow + (sx as int) <= usize::MAX);
+                    assert(crate::specs::part1_transform_offset(dy, original.0, dx)
+                        == Ok((dst_start + prev_k) as usize));
+                    assert(crate::specs::part1_transform_offset(sy, tile.3, sx)
+                        == Ok((src_start + prev_k) as usize));
+                }
+                None => {
+                    let dy = (tile.2 + y) as u32;
+                    let dx0 = (tile.1 + x_start) as u32;
+                    let dx = (tile.1 + x_cur) as u32;
+                    assert(crate::specs::part1_transform_offset(dy, original.0, dx0) == Ok(dst_start));
+                    assert(crate::specs::part1_transform_offset(y, tile.3, x_start) == Ok(src_start));
+                    let drow = (dy as int) * (original.0 as int);
+                    let srow = (y as int) * (tile.3 as int);
+                    assert(drow >= 0 && srow >= 0) by (nonlinear_arith)
+                        requires dy >= 0, original.0 >= 0, y >= 0, tile.3 >= 0,
+                            drow == (dy as int) * (original.0 as int),
+                            srow == (y as int) * (tile.3 as int);
+                    assert(drow + (dx as int) == (dst_start as int) + (prev_k as int));
+                    assert(srow + (x_cur as int) == (src_start as int) + (prev_k as int));
+                    assert((dx as int) <= usize::MAX && drow + (dx as int) <= usize::MAX);
+                    assert((x_cur as int) <= usize::MAX && srow + (x_cur as int) <= usize::MAX);
+                    assert(crate::specs::part1_transform_offset(dy, original.0, dx)
+                        == Ok((dst_start + prev_k) as usize));
+                    assert(crate::specs::part1_transform_offset(y, tile.3, x_cur)
+                        == Ok((src_start + prev_k) as usize));
+                }
+            }
+            assert(!prev.1.4[dst_start as int + prev_k as int]);
+            let res = crate::specs::part1_assembly_row_prefix(original, tile, x_start, y, crop, k);
+            assert(res.0 == Ok::<(), DecodeError>(()));
+            assert(res.1.3 =~= Seq::new(original.3.len(), |i: int|
+                if dst_start <= i < dst_start + k { tile.6[src_start as int + (i - dst_start as int)] } else { original.3[i] }));
+            assert(res.1.4 =~= Seq::new(original.4.len(), |i: int|
+                if dst_start <= i < dst_start + k { true } else { original.4[i] }));
+        }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires start + count <= visited.len(),
+    ensures result == forall |j: int| 0 <= j < count ==> !#[trigger] visited@[start as int + j],
+))]
+#[inline]
+fn visited_span_clear(visited: &[bool], start: usize, count: usize) -> bool {
+    let span = &visited[start..start + count];
+    let mut i = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant i <= count, span.len() == count,
+            start + count <= visited.len(),
+            forall |j: int| 0 <= j < count ==> span@[j] == visited@[start as int + j],
+            forall |j: int| 0 <= j < i ==> !#[trigger] visited@[start as int + j],
+        decreases count - i,
+    ))]
+    while i < count {
+        if span[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+#[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires row[0] < row[1],
+    ensures result ==> (Ok::<(), DecodeError>(()), final(plane)@) == crate::specs::part1_assembly_row_prefix(
+        old(plane)@, assembly_tile_view(tile), row[0], row[2], crop, (row[1] - row[0]) as nat,
+    ),
+    !result ==> final(plane)@ == old(plane)@,
+))]
+#[inline]
+fn try_assembly_row_bulk(
+    plane: &mut AssemblyPlane,
+    tile: TileComponent<'_>,
+    row: [u32; 3],
+    crop: Option<(u32, u32)>,
+) -> bool {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost original = plane@; }
+    let count_u32 = row[1] - row[0];
+    let Ok(count) = usize::try_from(count_u32) else {
+        return false;
+    };
+    let fast_offsets = match crop {
+        None => {
+            if let (Some(dx0), Some(dy)) = (tile.x.checked_add(row[0]), tile.y.checked_add(row[2]))
+            {
+                if dx0.checked_add(count_u32 - 1).is_some() {
+                    match (
+                        index(plane.width, dx0, dy),
+                        index(tile.width, row[0], row[2]),
+                    ) {
+                        (Ok(dst), Ok(src)) => Some((dst, src)),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+        Some(origin) => {
+            if row[0] >= origin.0 && row[2] >= origin.1 && row[0] >= tile.x && row[2] >= tile.y {
+                match (
+                    index(plane.width, row[0] - origin.0, row[2] - origin.1),
+                    index(tile.width, row[0] - tile.x, row[2] - tile.y),
+                ) {
+                    (Ok(dst), Ok(src)) => Some((dst, src)),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+    };
+    #[allow(
+        clippy::collapsible_if,
+        reason = "MSRV 1.88 and Verus require separate if-let bindings."
+    )]
+    if let Some((dst_start, src_start)) = fast_offsets {
+        if dst_start <= plane.samples.len()
+            && count <= plane.samples.len() - dst_start
+            && dst_start <= plane.visited.len()
+            && count <= plane.visited.len() - dst_start
+            && src_start <= tile.samples.len()
+            && count <= tile.samples.len() - src_start
+            && visited_span_clear(&plane.visited, dst_start, count)
+        {
+            let dst_s = &mut plane.samples.as_mut_slice()[dst_start..dst_start + count];
+            let src_s = &tile.samples[src_start..src_start + count];
+            let mut i = 0_usize;
+            #[cfg_attr(verus_keep_ghost, verus_spec(
+                invariant i <= count,
+                    dst_s.len() == count, src_s.len() == count,
+                    forall |j: int| 0 <= j < i ==> #[trigger] dst_s@[j] == src_s@[j],
+                decreases count - i,
+            ))]
+            while i < count {
+                dst_s[i] = src_s[i];
+                i += 1;
+            }
+            let dst_v = &mut plane.visited.as_mut_slice()[dst_start..dst_start + count];
+            let mut j = 0_usize;
+            #[cfg_attr(verus_keep_ghost, verus_spec(
+                invariant j <= count,
+                    dst_v.len() == count,
+                    forall |k: int| 0 <= k < j ==> #[trigger] dst_v@[k],
+                decreases count - j,
+            ))]
+            while j < count {
+                dst_v[j] = true;
+                j += 1;
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assembly_row_bulk_equivalence(
+                    original, assembly_tile_view(tile), row[0], row[2], crop,
+                    dst_start, src_start, count, count as nat,
+                );
+                let expected = crate::specs::part1_assembly_row_prefix(
+                    original, assembly_tile_view(tile), row[0], row[2], crop, count as nat,
+                );
+                assert(plane.samples@ =~= expected.1.3);
+                assert(plane.visited@ =~= expected.1.4);
+            }
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures (result, final(plane)@) == crate::specs::part1_assembly_row_prefix(
         old(plane)@, assembly_tile_view(tile), row[0], row[2], crop,
@@ -723,6 +971,9 @@ fn assembly_row(
     crop: Option<(u32, u32)>,
 ) -> Result<(), DecodeError> {
     if row[0] >= row[1] {
+        return Ok(());
+    }
+    if try_assembly_row_bulk(plane, tile, row, crop) {
         return Ok(());
     }
     #[cfg(verus_keep_ghost)]
