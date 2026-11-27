@@ -177,6 +177,28 @@ pub(crate) fn copy_values<T: Copy>(source: &[T]) -> Result<Vec<T>, DecodeError> 
         return Ok(Vec::new());
     }
     let mut values = empty_with_capacity(source.len())?;
+    if source.len() >= 64 {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        {
+            let mut index = 0_usize;
+            while index < source.len() {
+                crate::deadline::checkpoint_periodic(index)?;
+                let end = (index + 1024).min(source.len());
+                values.extend_from_slice(&source[index..end]);
+                index = end;
+            }
+        }
+        #[cfg(any(not(feature = "cooperative-deadlines"), verus_keep_ghost))]
+        {
+            values.resize(source.len(), source[0]);
+            values.as_mut_slice().copy_from_slice(source);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(values@ =~= source@);
+        }
+        return Ok(values);
+    }
     let mut index = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant index <= source.len(),
@@ -209,6 +231,58 @@ pub(crate) fn filled_values<T: Copy>(value: T, count: usize) -> Result<Vec<T>, D
         return Ok(Vec::new());
     }
     let mut values = empty_with_capacity(count)?;
+    if count >= 64 {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        {
+            let mut index = 0_usize;
+            while index < count {
+                crate::deadline::checkpoint_periodic(index)?;
+                let next = (index + 1024).min(count);
+                values.resize(next, value);
+                index = next;
+            }
+        }
+        #[cfg(any(not(feature = "cooperative-deadlines"), verus_keep_ghost))]
+        {
+            values.resize(count, value);
+            let chunk = [value; 128];
+            let mut filled = 0_usize;
+            #[cfg_attr(verus_keep_ghost, verus_spec(
+                invariant filled <= count,
+                    values@.len() == count as int,
+                    chunk@.len() == 128,
+                    forall|k: int| 0 <= k < 128 ==> chunk@[k] == value,
+                    forall|i: int| 0 <= i < filled as int ==> values@[i] == value,
+                decreases count - filled,
+            ))]
+            while filled < count {
+                let remaining = count - filled;
+                let piece = if remaining >= 128 { 128 } else { remaining };
+                let piece_end = filled + piece;
+                #[cfg(verus_keep_ghost)]
+                proof_decl! { let ghost before = values@; }
+                values.as_mut_slice()[filled..piece_end].copy_from_slice(&chunk[0..piece]);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(values@.subrange(0, filled as int) =~= before.subrange(0, filled as int));
+                    assert(values@.subrange(filled as int, piece_end as int) =~= chunk@.subrange(0, piece as int));
+                    assert forall|i: int| 0 <= i < piece_end as int implies values@[i] == value by {
+                        if i < filled as int {
+                            assert(values@[i] == values@.subrange(0, filled as int)[i]);
+                        } else {
+                            assert(values@[i] == values@.subrange(filled as int, piece_end as int)[i - filled as int]);
+                        }
+                    }
+                }
+                filled = piece_end;
+            }
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(values@ =~= Seq::new(count as nat, |_: int| value));
+        }
+        return Ok(values);
+    }
     let mut index = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant index <= count, values@ == Seq::new(index as nat, |_: int| value),
@@ -370,6 +444,20 @@ mod tests {
             assert_eq!(copy_values(&source).unwrap(), source);
         });
         assert_eq!(copy_values(&source).unwrap(), source);
+    }
+
+    #[test]
+    fn bulk_filled_and_copied_values_match_exact_elements_across_chunk_boundaries() {
+        for len in [63_usize, 64, 65, 128, 255, 256, 300, 513] {
+            let filled = filled_values(0x5a_u8, len).unwrap();
+            assert_eq!(filled.len(), len);
+            assert!(filled.iter().all(|&byte| byte == 0x5a_u8));
+            let source: Vec<u16> = (0..len)
+                .map(|i| (i as u16).wrapping_mul(17) ^ 0x1234)
+                .collect();
+            let copied = copy_values(&source).unwrap();
+            assert_eq!(copied, source);
+        }
     }
 
     #[test]
