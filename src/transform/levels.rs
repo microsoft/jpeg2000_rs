@@ -1100,18 +1100,18 @@ mod zero_level {
         #[cfg(verus_keep_ghost)]
         proof! {
             let lv = wavelet_level_view(level);
-            assert(lv.ll.0 as nat * lv.ll.1 as nat == lv.ll.2.len());
-            assert((lv.output_width as nat) * (lv.ll.1 as nat) <= output_len as nat) by(nonlinear_arith)
-                requires lv.ll.1 <= lv.output_height, (lv.output_width as nat) * (lv.output_height as nat) == output_len as nat;
-            assert((lv.output_width as nat) * (lv.lh.1 as nat) <= output_len as nat) by(nonlinear_arith)
-                requires lv.lh.1 <= lv.output_height, (lv.output_width as nat) * (lv.output_height as nat) == output_len as nat;
-            zero_horizontal_prefix(lv.ll, lv.hl, lv.low_pass_first_x, irreversible, lv.ll.1 as nat);
-            zero_horizontal_prefix(lv.lh, lv.hh, lv.low_pass_first_x, irreversible, lv.lh.1 as nat);
-            let low_band = (lv.output_width, lv.ll.1, zeros((lv.ll.1 as nat) * (lv.output_width as nat)));
-            let high_band = (lv.output_width, lv.lh.1, zeros((lv.lh.1 as nat) * (lv.output_width as nat)));
-            assert((lv.ll.1 as nat) * (lv.output_width as nat) == (lv.output_width as nat) * (lv.ll.1 as nat)) by(nonlinear_arith);
-            assert((lv.lh.1 as nat) * (lv.output_width as nat) == (lv.output_width as nat) * (lv.lh.1 as nat)) by(nonlinear_arith);
-            zero_vertical_prefix(low_band, high_band, lv.output_height, lv.low_pass_first_y, irreversible, output_len, lv.output_width as nat);
+            assert(lv.0.0 as nat * lv.0.1 as nat == lv.0.2.len());
+            assert((lv.4 as nat) * (lv.0.1 as nat) <= output_len as nat) by(nonlinear_arith)
+                requires lv.0.1 <= lv.5, (lv.4 as nat) * (lv.5 as nat) == output_len as nat;
+            assert((lv.4 as nat) * (lv.2.1 as nat) <= output_len as nat) by(nonlinear_arith)
+                requires lv.2.1 <= lv.5, (lv.4 as nat) * (lv.5 as nat) == output_len as nat;
+            zero_horizontal_prefix(lv.0, lv.1, lv.6, irreversible, lv.0.1 as nat);
+            zero_horizontal_prefix(lv.2, lv.3, lv.6, irreversible, lv.2.1 as nat);
+            let low_band = (lv.4, lv.0.1, zeros((lv.0.1 as nat) * (lv.4 as nat)));
+            let high_band = (lv.4, lv.2.1, zeros((lv.2.1 as nat) * (lv.4 as nat)));
+            assert((lv.0.1 as nat) * (lv.4 as nat) == (lv.4 as nat) * (lv.0.1 as nat)) by(nonlinear_arith);
+            assert((lv.2.1 as nat) * (lv.4 as nat) == (lv.4 as nat) * (lv.2.1 as nat)) by(nonlinear_arith);
+            zero_vertical_prefix(low_band, high_band, lv.5, lv.7, irreversible, output_len, lv.4 as nat);
             assert(output@ =~= zeros(output_len as nat));
         }
         Some(output)
@@ -1309,17 +1309,17 @@ mod zero_level {
         #[cfg(verus_keep_ghost)]
         proof! {
             let lv = wavelet_level_view(level);
-            assert((lv.output_width as nat) * (lv.ll.1 as nat) <= output_len as nat) by(nonlinear_arith)
-                requires lv.ll.1 <= lv.output_height, (lv.output_width as nat) * (lv.output_height as nat) == output_len as nat;
-            assert((lv.output_width as nat) * (lv.lh.1 as nat) <= output_len as nat) by(nonlinear_arith)
-                requires lv.lh.1 <= lv.output_height, (lv.output_width as nat) * (lv.output_height as nat) == output_len as nat;
-            zero_high_5_3_horizontal_prefix(lv.ll, lv.hl, lv.output_width, lv.ll.1 as nat);
-            zero_horizontal_prefix(lv.lh, lv.hh, true, false, lv.lh.1 as nat);
-            let low_rows = crate::specs::part1_horizontal_prefix(lv.ll, lv.hl, true, false, lv.ll.1 as nat).get_Ok_0();
-            let high_rows = zeros((lv.lh.1 as nat) * (lv.output_width as nat));
-            assert((lv.lh.1 as nat) * (lv.output_width as nat) == (lv.output_width as nat) * (lv.lh.1 as nat)) by(nonlinear_arith);
-            let low_band = (lv.output_width, lv.ll.1, low_rows);
-            let high_band = (lv.output_width, lv.lh.1, high_rows);
+            assert((lv.4 as nat) * (lv.0.1 as nat) <= output_len as nat) by(nonlinear_arith)
+                requires lv.0.1 <= lv.5, (lv.4 as nat) * (lv.5 as nat) == output_len as nat;
+            assert((lv.4 as nat) * (lv.2.1 as nat) <= output_len as nat) by(nonlinear_arith)
+                requires lv.2.1 <= lv.5, (lv.4 as nat) * (lv.5 as nat) == output_len as nat;
+            zero_high_5_3_horizontal_prefix(lv.0, lv.1, lv.4, lv.0.1 as nat);
+            zero_horizontal_prefix(lv.2, lv.3, true, false, lv.2.1 as nat);
+            let low_rows = crate::specs::part1_horizontal_prefix(lv.0, lv.1, true, false, lv.0.1 as nat).get_Ok_0();
+            let high_rows = zeros((lv.2.1 as nat) * (lv.4 as nat));
+            assert((lv.2.1 as nat) * (lv.4 as nat) == (lv.4 as nat) * (lv.2.1 as nat)) by(nonlinear_arith);
+            let low_band = (lv.4, lv.0.1, low_rows);
+            let high_band = (lv.4, lv.2.1, high_rows);
             assert(crate::specs::rowwise_bounded(low_rows)) by {
                 assert forall |i: int| 0 <= i < low_rows.len() implies -1_073_741_824 <= #[trigger] low_rows[i] <= 1_073_741_824 by {
                     crate::specs::rowwise_coordinates(i, w as int, lh as int);
@@ -1333,13 +1333,13 @@ mod zero_level {
                 }
             }
             assert(crate::specs::rowwise_bounded(high_rows));
-            assert(crate::specs::rowwise_eligible(low_band, high_band, lv.output_height, true, output_len)) by {
-                assert((lv.output_width as int) * (lv.ll.1 as int) + (lv.output_width as int) * (lv.lh.1 as int) == output_len as int) by(nonlinear_arith)
-                    requires (lv.output_width as int) * (lv.output_height as int) == output_len as int,
-                        (lv.ll.1 as int) + (lv.lh.1 as int) == lv.output_height as int;
+            assert(crate::specs::rowwise_eligible(low_band, high_band, lv.5, true, output_len)) by {
+                assert((lv.4 as int) * (lv.0.1 as int) + (lv.4 as int) * (lv.2.1 as int) == output_len as int) by(nonlinear_arith)
+                    requires (lv.4 as int) * (lv.5 as int) == output_len as int,
+                        (lv.0.1 as int) + (lv.2.1 as int) == lv.5 as int;
             }
-            crate::specs::rowwise_equivalent(low_band, high_band, lv.output_height, true, output_len);
-            let inter = crate::specs::rowwise_interleaved(low_band, high_band, lv.output_height, true);
+            crate::specs::rowwise_equivalent(low_band, high_band, lv.5, true, output_len);
+            let inter = crate::specs::rowwise_interleaved(low_band, high_band, lv.5, true);
             let upd = crate::specs::rowwise_stage(inter, w as nat, h as nat, true, false);
             assert(upd =~= inter) by {
                 assert forall |i: int| 0 <= i < inter.len() implies upd[i] == inter[i] by {
@@ -1356,7 +1356,7 @@ mod zero_level {
                     }
                 }
             }
-            let final_spec = crate::specs::rowwise_output(low_band, high_band, lv.output_height, true);
+            let final_spec = crate::specs::rowwise_output(low_band, high_band, lv.5, true);
             assert(output@ =~= final_spec) by {
                 assert forall |i: int| 0 <= i < output_len as int implies output@[i] == final_spec[i] by {
                     crate::specs::rowwise_coordinates(i, w as int, h as int);
