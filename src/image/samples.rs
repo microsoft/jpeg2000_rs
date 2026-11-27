@@ -187,6 +187,151 @@ impl DecodedImage {
     }
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires 0 < precision <= 38, fraction_bits <= 62,
+        level_shift == 1i64 << ((precision - 1) as u8),
+        maximum == (1u64 << precision) - 1,
+        samples.len() == 64,
+        old(output).len() + 64 <= usize::MAX,
+        ({
+            let bound: int = if fraction_bits == 0 {
+                i64::MAX as int - level_shift as int
+            } else {
+                i64::MAX as int - (1i64 << ((fraction_bits - 1) as u32)) as int
+            };
+            forall |k: int| 0 <= k < 64 ==> #[trigger] samples@[k] <= bound
+        }),
+    ensures final(output).len() == old(output).len() + 64,
+        final(output)@.subrange(0, old(output).len() as int) == old(output)@,
+        forall |k: int| 0 <= k < 64 ==>
+            crate::specs::part1_decoded_unsigned_value(samples@[k], fraction_bits, level_shift, maximum)
+                == Ok(#[trigger] final(output)@[old(output).len() as int + k]),
+))]
+#[inline]
+fn append_typed_unsigned_chunk(
+    samples: &[i64],
+    output: &mut Vec<u64>,
+    fraction_bits: u8,
+    level_shift: i64,
+    maximum: u64,
+    #[cfg(verus_keep_ghost)] precision: Ghost<u8>,
+) {
+    let mut chunk = [0_u64; 64];
+    if fraction_bits == 0 {
+        let mut k = 0_usize;
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant k <= 64, samples.len() == 64, fraction_bits == 0,
+                0 < precision@ <= 38,
+                level_shift == 1i64 << ((precision@ - 1) as u8),
+                maximum == (1u64 << precision@) - 1,
+                forall |j: int| 0 <= j < 64 ==> #[trigger] samples@[j] <= i64::MAX as int - level_shift as int,
+                forall |j: int| 0 <= j < k ==>
+                    crate::specs::part1_decoded_unsigned_value(samples@[j], 0, level_shift, maximum)
+                        == Ok(#[trigger] chunk@[j]),
+            decreases 64 - k,
+        ))]
+        while k < 64 {
+            let shifted = samples[k] + level_shift;
+            let clamped = if shifted < 0 {
+                0_u64
+            } else {
+                (shifted as u64).min(maximum)
+            };
+            chunk[k] = clamped;
+            k += 1;
+        }
+    } else if fraction_bits == 16 {
+        let mut k = 0_usize;
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant k <= 64, samples.len() == 64, fraction_bits == 16,
+                0 < precision@ <= 38,
+                level_shift == 1i64 << ((precision@ - 1) as u8),
+                maximum == (1u64 << precision@) - 1,
+                forall |j: int| 0 <= j < 64 ==> #[trigger] samples@[j] <= i64::MAX as int - 32768,
+                forall |j: int| 0 <= j < k ==>
+                    crate::specs::part1_decoded_unsigned_value(samples@[j], 16, level_shift, maximum)
+                        == Ok(#[trigger] chunk@[j]),
+            decreases 64 - k,
+        ))]
+        while k < 64 {
+            let rounded = (samples[k] + 32_768) >> 16;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let s = samples[k as int] + 32_768;
+                assert(-140737488355328i64 <= (s >> 16i64) <= 140737488355327i64) by (bit_vector);
+                assert(0 < level_shift <= 137438953472i64) by (bit_vector)
+                    requires 0 < precision@ <= 38, level_shift == 1i64 << ((precision@ - 1) as u8);
+            }
+            let shifted = rounded + level_shift;
+            let clamped = if shifted < 0 {
+                0_u64
+            } else {
+                (shifted as u64).min(maximum)
+            };
+            chunk[k] = clamped;
+            k += 1;
+        }
+    } else {
+        let bias = 1_i64 << u32::from(fraction_bits - 1);
+        let shift = u32::from(fraction_bits);
+        let mut k = 0_usize;
+        #[cfg_attr(verus_keep_ghost, verus_spec(
+            invariant k <= 64, samples.len() == 64, 0 < fraction_bits <= 62,
+                0 < precision@ <= 38,
+                bias == 1i64 << ((fraction_bits - 1) as u32),
+                shift == fraction_bits as u32,
+                level_shift == 1i64 << ((precision@ - 1) as u8),
+                maximum == (1u64 << precision@) - 1,
+                forall |j: int| 0 <= j < 64 ==> #[trigger] samples@[j] <= i64::MAX as int - bias as int,
+                forall |j: int| 0 <= j < k ==>
+                    crate::specs::part1_decoded_unsigned_value(samples@[j], fraction_bits, level_shift, maximum)
+                        == Ok(#[trigger] chunk@[j]),
+            decreases 64 - k,
+        ))]
+        while k < 64 {
+            let rounded = (samples[k] + bias) >> shift;
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let s = samples[k as int] + bias;
+                assert(-4611686018427387904i64 <= (s >> shift) <= 4611686018427387903i64) by (bit_vector)
+                    requires 1u32 <= shift <= 62u32;
+                assert(0 < level_shift <= 137438953472i64) by (bit_vector)
+                    requires 0 < precision@ <= 38, level_shift == 1i64 << ((precision@ - 1) as u8);
+            }
+            let shifted = rounded + level_shift;
+            let clamped = if shifted < 0 {
+                0_u64
+            } else {
+                (shifted as u64).min(maximum)
+            };
+            chunk[k] = clamped;
+            k += 1;
+        }
+    }
+    output.extend_from_slice(&chunk);
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires samples.len() == 64,
+    ensures result == forall |k: int| 0 <= k < 64 ==> #[trigger] samples@[k] <= max_allowed,
+))]
+#[inline(always)]
+fn chunk_le_max(samples: &[i64], max_allowed: i64) -> bool {
+    let mut k = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant k <= 64, samples.len() == 64,
+            forall |j: int| 0 <= j < k ==> #[trigger] samples@[j] <= max_allowed,
+        decreases 64 - k,
+    ))]
+    while k < 64 {
+        if samples[k] > max_allowed {
+            return false;
+        }
+        k += 1;
+    }
+    true
+}
+
 impl DecodedComponent {
     #[cfg_attr(verus_keep_ghost, verus_spec(result => ensures result == decoded_component_view(*self).0,))]
     pub const fn width(&self) -> u32 {
@@ -352,6 +497,13 @@ impl DecodedComponent {
                     self.samples@, self.fraction_bits, self.info.precision,
                 );
             }
+            let fast_max = if self.fraction_bits == 0 {
+                Some(i64::MAX - level_shift)
+            } else if self.fraction_bits <= 62 {
+                Some(i64::MAX - (1_i64 << u32::from(self.fraction_bits - 1)))
+            } else {
+                None
+            };
             #[cfg_attr(
                 verus_keep_ghost,
                 verus_spec(
@@ -362,6 +514,13 @@ impl DecodedComponent {
                     !self.info.signed,
                     level_shift == 1i64 << ((self.info.precision - 1) as u8),
                     unsigned_max == (1u64 << self.info.precision) - 1,
+                    fast_max == if self.fraction_bits == 0 {
+                        Some(i64::MAX - level_shift)
+                    } else if self.fraction_bits <= 62 {
+                        Some(i64::MAX - (1i64 << ((self.fraction_bits - 1) as u32)))
+                    } else {
+                        None
+                    },
                     crate::specs::part1_image_byte_budget(
                         self.samples.len() as nat, 8, crate::limits::resource_decoded_bytes_limit(limits),
                     ) == Ok(()),
@@ -374,6 +533,56 @@ impl DecodedComponent {
             while index < self.samples.len() {
                 #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
                 crate::deadline::checkpoint_periodic(index)?;
+                let fast_slice = if self.samples.len() - index >= 64 {
+                    fast_max
+                } else {
+                    None
+                };
+                if let Some(max_allowed) = fast_slice {
+                    let slice = &self.samples[index..index + 64];
+                    if chunk_le_max(slice, max_allowed) {
+                        #[cfg(verus_keep_ghost)]
+                        proof_decl! { let ghost before_len = output.len(); let ghost before_out = output@; }
+                        append_typed_unsigned_chunk(
+                            slice,
+                            &mut output,
+                            self.fraction_bits,
+                            level_shift,
+                            unsigned_max,
+                            #[cfg(verus_keep_ghost)]
+                            Ghost(self.info.precision),
+                        );
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            let mut k: nat = 0;
+                            while k < 64
+                                invariant
+                                    k <= 64,
+                                    index + 64 <= self.samples.len(),
+                                    before_len == before_out.len(),
+                                    output.len() == before_len + 64,
+                                    output@.subrange(0, before_len as int) == before_out,
+                                    crate::specs::part1_decoded_unsigned_prefix(
+                                        self.samples@, self.fraction_bits, self.info.precision, index as nat + k,
+                                    ) == Ok(output@.subrange(0, (before_len + k) as int)),
+                                    forall |j: int| 0 <= j < 64 ==>
+                                        crate::specs::part1_decoded_unsigned_value(self.samples@[index as int + j], self.fraction_bits, level_shift, unsigned_max)
+                                            == Ok(#[trigger] output@[before_len as int + j]),
+                                decreases 64 - k,
+                            {
+                                crate::proofs::production_impl::production_decoded_unsigned_step(
+                                    self.samples@, self.fraction_bits, self.info.precision, index as nat + k,
+                                );
+                                assert(output@.subrange(0, (before_len + k) as int).push(output@[before_len as int + k as int])
+                                    =~= output@.subrange(0, (before_len + k + 1) as int));
+                                k = k + 1;
+                            }
+                            assert(output@.subrange(0, output.len() as int) =~= output@);
+                        }
+                        index += 64;
+                        continue;
+                    }
+                }
                 #[cfg(verus_keep_ghost)]
                 proof! {
                     crate::proofs::production_impl::production_decoded_unsigned_step(

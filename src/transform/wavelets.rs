@@ -6,6 +6,327 @@ use crate::DecodeError;
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+const HORIZONTAL_BOUND: i64 = 1_073_741_824;
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == forall |i: int| 0 <= i < samples.len() ==> -HORIZONTAL_BOUND <= #[trigger] samples@[i] <= HORIZONTAL_BOUND,
+))]
+#[inline]
+fn row_within_bound(samples: &[i64]) -> bool {
+    let mut i = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant i <= samples.len(),
+            forall |k: int| 0 <= k < i ==> -HORIZONTAL_BOUND <= #[trigger] samples@[k] <= HORIZONTAL_BOUND,
+        decreases samples.len() - i,
+    ))]
+    while i < samples.len() {
+        let v = samples[i];
+        #[allow(
+            clippy::manual_range_contains,
+            reason = "Direct comparisons keep Verus loop invariants simple."
+        )]
+        if v < -HORIZONTAL_BOUND || v > HORIZONTAL_BOUND {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires old(samples).len() > 1,
+        forall |i: int| 0 <= i < old(samples).len() ==>
+            -(if predict { 2147483648int } else { 1073741824int }) <= #[trigger] old(samples)@[i]
+                <= if predict { 2147483648int } else { 1073741824int },
+    ensures
+        crate::specs::part1_lifting_prefix(
+            old(samples)@, target_even,
+            if predict { 2u8 } else { 1u8 }, 0, old(samples).len() as nat,
+        ) == (Ok::<(), DecodeError>(()), final(samples)@),
+        forall |i: int| 0 <= i < final(samples).len() ==>
+            -(if predict { 4294967296int } else { 2147483648int }) <= #[trigger] final(samples)@[i]
+                <= if predict { 4294967296int } else { 2147483648int },
+))]
+#[inline]
+fn inverse_lift_reversible_bounded(samples: &mut [i64], target_even: bool, predict: bool) {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost original = samples@;
+        let ghost kind: u8 = if predict { 2u8 } else { 1u8 };
+    }
+    let len = samples.len();
+    let mut index = if target_even { 0_usize } else { 1_usize };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if !target_even {
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+            assert(samples@ =~= original.update(0, original[0]));
+            assert(crate::specs::part1_lifting_prefix(original, target_even, kind, 0, 1) == (Ok(()), samples@));
+        }
+    }
+    if index == 0 {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, 0, target_even, kind, 0);
+            crate::specs::rowwise_neighbors_bounded(samples[0], samples[1], samples[1], predict);
+        }
+        samples[0] = inverse_reversible_bounded(samples[0], samples[1], samples[1], predict);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+            assert(crate::specs::part1_lifting_prefix(original, target_even, kind, 0, 1) == (Ok(()), samples@));
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, 1, target_even, kind, 0);
+            assert(samples@ =~= samples@.update(1, original[1]));
+            assert(crate::specs::part1_lifting_prefix(original, target_even, kind, 0, 2) == (Ok(()), samples@));
+        }
+        index = 2;
+    }
+    let last = len - 1;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant 1 <= index <= len + 1,
+            len == samples.len(), len > 1, last == len - 1,
+            original == old(samples)@, samples.len() == original.len(),
+            kind == if predict { 2u8 } else { 1u8 },
+            (index % 2 == 0) == target_even,
+            forall |i: int| 0 <= i < original.len() ==>
+                -(if predict { 2147483648int } else { 1073741824int }) <= #[trigger] original[i]
+                    <= if predict { 2147483648int } else { 1073741824int },
+            forall |i: int| 0 <= i < samples.len() && (i >= index || (i % 2 == 0) != target_even) ==>
+                samples[i] == original[i],
+            forall |i: int| 0 <= i < samples.len() ==>
+                -(if predict { 4294967296int } else { 2147483648int }) <= #[trigger] samples[i]
+                    <= if predict { 4294967296int } else { 2147483648int },
+            crate::specs::part1_lifting_prefix(
+                original, target_even, kind, 0,
+                if index <= len { index as nat } else { len as nat },
+            ) == (Ok(()), samples@),
+        decreases len + 1 - index,
+    ))]
+    while index < last {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, index as nat, target_even, kind, 0);
+            crate::specs::rowwise_neighbors_bounded(samples[index as int], samples[index as int - 1], samples[index as int + 1], predict);
+        }
+        let left = samples[index - 1];
+        let right = samples[index + 1];
+        let cur = samples[index];
+        samples[index] = inverse_reversible_bounded(cur, left, right, predict);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_lifting_prefix(original, target_even, kind, 0, index as nat + 1) == (Ok(()), samples@));
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, (index + 1) as nat, target_even, kind, 0);
+            assert(crate::specs::part1_lifting_prefix(original, target_even, kind, 0, index as nat + 2) == (Ok(()), samples@));
+        }
+        index += 2;
+    }
+    if index == last {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, last as nat, target_even, kind, 0);
+            crate::specs::rowwise_neighbors_bounded(samples[last as int], samples[last as int - 1], samples[last as int - 1], predict);
+        }
+        samples[last] = inverse_reversible_bounded(
+            samples[last],
+            samples[last - 1],
+            samples[last - 1],
+            predict,
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_lifting_prefix(original, target_even, kind, 0, len as nat) == (Ok(()), samples@));
+        }
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires 0 < bound <= 4_398_046_511_104i64,
+        -bound <= value <= bound,
+        -131_071 <= factor <= 131_071,
+    ensures crate::specs::part1_fixed_product(value, factor) == Ok(result),
+        -2 * bound <= result <= 2 * bound,
+))]
+#[inline(always)]
+fn fixed_mul_row_bounded(
+    value: i64,
+    factor: i64,
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] bound: i64,
+) -> i64 {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(FIXED_ONE == 65536) by(compute);
+        crate::specs::rowwise_fixed_product_bound(value, factor, bound);
+        assert(-(bound as int) * 131071 <= (value as int) * (factor as int) <= (bound as int) * 131071)
+            by(nonlinear_arith)
+            requires 0 < bound, -bound <= value <= bound, -131071 <= factor <= 131071;
+        assert(i64::MIN <= (value as int) * (factor as int) <= i64::MAX
+            && i64::MIN <= (value as int) * (factor as int) + 32768 <= i64::MAX)
+            by(nonlinear_arith)
+            requires 0 < bound <= 4_398_046_511_104i64,
+                -(bound as int) * 131071 <= (value as int) * (factor as int) <= (bound as int) * 131071;
+    }
+    let biased = value * factor + 32_768;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(crate::specs::arithmetic_shift_right(biased, 16) == (biased >> 16i64)) by(bit_vector);
+    }
+    biased >> 16
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires -131_071 <= factor <= 131_071,
+        0 < bound <= 4_398_046_511_104i64,
+        forall |i: int| 0 <= i < old(samples).len() ==> -bound <= #[trigger] old(samples)@[i] <= bound,
+    ensures
+        crate::specs::part1_scaling_prefix(old(samples)@, low_parity, factor, old(samples).len() as nat)
+            == (Ok::<(), DecodeError>(()), final(samples)@),
+        forall |i: int| 0 <= i < final(samples).len() ==>
+            -(if (i % 2 == 0) == low_parity { 2 * bound } else { bound }) <= #[trigger] final(samples)@[i]
+                <= if (i % 2 == 0) == low_parity { 2 * bound } else { bound },
+))]
+#[inline]
+fn scale_parity_bounded(samples: &mut [i64], low_parity: bool, factor: i64, bound: i64) {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! { let ghost original = samples@; }
+    let len = samples.len();
+    let mut index = if low_parity { 0_usize } else { 1_usize };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if !low_parity && len > 0 {
+            reveal_with_fuel(crate::specs::part1_scaling_prefix, 2);
+            assert(crate::specs::part1_scaling_prefix(original, low_parity, factor, 1) == (Ok(()), samples@));
+        }
+    }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant index <= len + 1,
+            len == samples.len(), original == old(samples)@, samples.len() == original.len(),
+            -131_071 <= factor <= 131_071, 0 < bound <= 4_398_046_511_104i64,
+            (index % 2 == 0) == low_parity,
+            forall |i: int| 0 <= i < original.len() ==> -bound <= #[trigger] original[i] <= bound,
+            forall |i: int| index <= i < samples.len() ==> samples[i] == original[i],
+            forall |i: int| 0 <= i < samples.len() ==>
+                -(if i < index && (i % 2 == 0) == low_parity { 2 * bound } else { bound }) <= #[trigger] samples[i]
+                    <= if i < index && (i % 2 == 0) == low_parity { 2 * bound } else { bound },
+            crate::specs::part1_scaling_prefix(
+                original, low_parity, factor,
+                if index <= len { index as nat } else { len as nat },
+            ) == (Ok(()), samples@),
+        decreases len + 1 - index,
+    ))]
+    while index < len {
+        samples[index] = fixed_mul_row_bounded(samples[index], factor, bound);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_scaling_prefix(original, low_parity, factor, index as nat + 1) == (Ok(()), samples@));
+            if index + 1 < len {
+                assert(((index + 1) % 2 == 0) != low_parity);
+                assert(crate::specs::part1_scaling_prefix(original, low_parity, factor, index as nat + 2) == (Ok(()), samples@));
+            }
+        }
+        index += 2;
+    }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires old(samples).len() > 1, stage < 4,
+        forall |i: int| 0 <= i < old(samples).len() ==>
+            -crate::specs::rowwise_fixed_bound(stage as nat) <= #[trigger] old(samples)@[i]
+                <= crate::specs::rowwise_fixed_bound(stage as nat),
+    ensures
+        crate::specs::part1_lifting_prefix(
+            old(samples)@, target_even, 0u8, crate::specs::part1_nine_seven_lift(stage), old(samples).len() as nat,
+        ) == (Ok::<(), DecodeError>(()), final(samples)@),
+        forall |i: int| 0 <= i < final(samples).len() ==>
+            -crate::specs::rowwise_fixed_bound(stage as nat + 1) <= #[trigger] final(samples)@[i]
+                <= crate::specs::rowwise_fixed_bound(stage as nat + 1),
+))]
+#[inline]
+fn inverse_lift_fixed_bounded(samples: &mut [i64], target_even: bool, stage: u8) {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost original = samples@;
+        let ghost bound = crate::specs::rowwise_fixed_bound(stage as nat);
+    }
+    let factor = crate::refinement::nine_seven_lift(stage);
+    let len = samples.len();
+    let mut index = if target_even { 0_usize } else { 1_usize };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        if !target_even {
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+            assert(samples@ =~= original.update(0, original[0]));
+            assert(crate::specs::part1_lifting_prefix(original, target_even, 0u8, factor, 1) == (Ok(()), samples@));
+        }
+    }
+    if index == 0 {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, 0, target_even, 0u8, factor);
+            crate::specs::rowwise_fixed_neighbors_bound(samples[0], samples[1], samples[1], stage);
+        }
+        let sum = samples[1] + samples[1];
+        samples[0] -= fixed_mul_row_bounded(sum, factor, 2_199_023_255_552);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
+            assert(crate::specs::part1_lifting_prefix(original, target_even, 0u8, factor, 1) == (Ok(()), samples@));
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, 1, target_even, 0u8, factor);
+            assert(samples@ =~= samples@.update(1, original[1]));
+            assert(crate::specs::part1_lifting_prefix(original, target_even, 0u8, factor, 2) == (Ok(()), samples@));
+        }
+        index = 2;
+    }
+    let last = len - 1;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant 1 <= index <= len + 1,
+            len == samples.len(), len > 1, last == len - 1, stage < 4,
+            factor == crate::specs::part1_nine_seven_lift(stage),
+            original == old(samples)@, samples.len() == original.len(),
+            bound == crate::specs::rowwise_fixed_bound(stage as nat),
+            (index % 2 == 0) == target_even,
+            forall |i: int| 0 <= i < original.len() ==> -bound <= #[trigger] original[i] <= bound,
+            forall |i: int| 0 <= i < samples.len() && (i >= index || (i % 2 == 0) != target_even) ==>
+                samples[i] == original[i],
+            forall |i: int| 0 <= i < samples.len() ==>
+                -crate::specs::rowwise_fixed_bound(stage as nat + 1) <= #[trigger] samples[i]
+                    <= crate::specs::rowwise_fixed_bound(stage as nat + 1),
+            crate::specs::part1_lifting_prefix(
+                original, target_even, 0u8, factor,
+                if index <= len { index as nat } else { len as nat },
+            ) == (Ok(()), samples@),
+        decreases len + 1 - index,
+    ))]
+    while index < last {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, index as nat, target_even, 0u8, factor);
+            crate::specs::rowwise_fixed_neighbors_bound(samples[index as int], samples[index as int - 1], samples[index as int + 1], stage);
+        }
+        let sum = samples[index - 1] + samples[index + 1];
+        samples[index] -= fixed_mul_row_bounded(sum, factor, 2_199_023_255_552);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_lifting_prefix(original, target_even, 0u8, factor, index as nat + 1) == (Ok(()), samples@));
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, (index + 1) as nat, target_even, 0u8, factor);
+            assert(crate::specs::part1_lifting_prefix(original, target_even, 0u8, factor, index as nat + 2) == (Ok(()), samples@));
+        }
+        index += 2;
+    }
+    if index == last {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, last as nat, target_even, 0u8, factor);
+            crate::specs::rowwise_fixed_neighbors_bound(samples[last as int], samples[last as int - 1], samples[last as int - 1], stage);
+        }
+        let sum = samples[last - 1] + samples[last - 1];
+        samples[last] -= fixed_mul_row_bounded(sum, factor, 2_199_023_255_552);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(crate::specs::part1_lifting_prefix(original, target_even, 0u8, factor, len as nat) == (Ok(()), samples@));
+        }
+    }
+}
+
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     ensures crate::specs::part2_wavelet_sequence_result(low@,high@,low_pass_first,false,None,sequence_outcome(result)),
         sequence_outcome(result)!=Err(DecodeError::AllocationFailed) ==> sequence_outcome(result) == crate::specs::part1_inverse_five_three(low@, high@, low_pass_first),
@@ -25,6 +346,11 @@ pub fn inverse_5_3(
     let mut output = interleaved?;
     if output.len() == 1 && !low_pass_first {
         output[0] >>= 1;
+        return Ok(output);
+    }
+    if output.len() > 1 && row_within_bound(&output) {
+        inverse_lift_reversible_bounded(&mut output, low_pass_first, false);
+        inverse_lift_reversible_bounded(&mut output, !low_pass_first, true);
         return Ok(output);
     }
     inverse_lift(
@@ -62,6 +388,34 @@ pub fn inverse_9_7(
         return Ok(output);
     }
     if output.len() <= 1 {
+        return Ok(output);
+    }
+    if row_within_bound(&output) {
+        scale_parity_bounded(
+            &mut output,
+            low_pass_first,
+            crate::refinement::nine_seven_scale(true),
+            HORIZONTAL_BOUND,
+        );
+        scale_parity_bounded(
+            &mut output,
+            !low_pass_first,
+            crate::refinement::nine_seven_scale(false),
+            HORIZONTAL_BOUND * 2,
+        );
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert forall |i: int| 0 <= i < output.len() implies
+                -crate::specs::rowwise_fixed_bound(0) <= #[trigger] output[i] <= crate::specs::rowwise_fixed_bound(0) by {};
+        }
+        inverse_lift_fixed_bounded(&mut output, low_pass_first, 0);
+        inverse_lift_fixed_bounded(&mut output, !low_pass_first, 1);
+        inverse_lift_fixed_bounded(&mut output, low_pass_first, 2);
+        inverse_lift_fixed_bounded(&mut output, !low_pass_first, 3);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal_with_fuel(crate::specs::part1_nine_seven_lifting_prefix, 5);
+        }
         return Ok(output);
     }
     scale_parity(
@@ -175,12 +529,31 @@ pub(super) fn interleave(
             #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
             crate::deadline::checkpoint_periodic(index)?;
             let pair = index / 2;
-            output.push(low[pair]);
-            if index + 1 < length {
-                output.push(high[pair]);
-                index += 2;
+            if length - index >= 64 {
+                let mut chunk = [0_i64; 64];
+                let mut k = 0_usize;
+                #[cfg_attr(verus_keep_ghost, verus_spec(
+                    invariant k <= 32, pair == index / 2, index % 2 == 0, index + 64 <= length,
+                        pair + 32 <= low.len(), pair + 32 <= high.len(),
+                        forall |j: int| 0 <= j < 2 * k ==>
+                            chunk@[j] == if j % 2 == 0 { low@[pair as int + j / 2] } else { high@[pair as int + j / 2] },
+                    decreases 32 - k,
+                ))]
+                while k < 32 {
+                    chunk[2 * k] = low[pair + k];
+                    chunk[2 * k + 1] = high[pair + k];
+                    k += 1;
+                }
+                output.extend_from_slice(&chunk);
+                index += 64;
             } else {
-                index += 1;
+                output.push(low[pair]);
+                if index + 1 < length {
+                    output.push(high[pair]);
+                    index += 2;
+                } else {
+                    index += 1;
+                }
             }
         }
     } else {
@@ -204,12 +577,31 @@ pub(super) fn interleave(
             #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
             crate::deadline::checkpoint_periodic(index)?;
             let pair = index / 2;
-            output.push(high[pair]);
-            if index + 1 < length {
-                output.push(low[pair]);
-                index += 2;
+            if length - index >= 64 {
+                let mut chunk = [0_i64; 64];
+                let mut k = 0_usize;
+                #[cfg_attr(verus_keep_ghost, verus_spec(
+                    invariant k <= 32, pair == index / 2, index % 2 == 0, index + 64 <= length,
+                        pair + 32 <= low.len(), pair + 32 <= high.len(),
+                        forall |j: int| 0 <= j < 2 * k ==>
+                            chunk@[j] == if j % 2 != 0 { low@[pair as int + j / 2] } else { high@[pair as int + j / 2] },
+                    decreases 32 - k,
+                ))]
+                while k < 32 {
+                    chunk[2 * k] = high[pair + k];
+                    chunk[2 * k + 1] = low[pair + k];
+                    k += 1;
+                }
+                output.extend_from_slice(&chunk);
+                index += 64;
             } else {
-                index += 1;
+                output.push(high[pair]);
+                if index + 1 < length {
+                    output.push(low[pair]);
+                    index += 2;
+                } else {
+                    index += 1;
+                }
             }
         }
     }
