@@ -853,11 +853,15 @@ impl CodeBlockPlane {
         self.coefficients[index] = entry;
         #[cfg(verus_keep_ghost)]
         proof! {
-            let wide = crate::magnitude::magnitude_from_u64(magnitude);
-            crate::magnitude::representation_proofs::magnitude_limbs_shape(wide);
-            crate::proofs::production_impl::production_tier1_value_limbs(crate::magnitude::magnitude_limbs(wide));
-            assert(coefficient_raw_view(entry).limbs =~= crate::magnitude::magnitude_limbs(wide));
-            assert(coefficient_raw_view(entry).limbs == crate::specs::tier1_value_limbs(magnitude as nat));
+            let limbs = coefficient_raw_view(entry).limbs;
+            assert(limbs.len() == 6 && limbs[0] == magnitude
+                && limbs[1] == 0 && limbs[2] == 0 && limbs[3] == 0 && limbs[4] == 0 && limbs[5] == 0);
+            assert(crate::specs::part1_magnitude_value(limbs) == magnitude as nat) by {
+                vstd::arithmetic::power2::lemma2_to64();
+                reveal_with_fuel(crate::specs::part1_magnitude_prefix_value, 7);
+            };
+            crate::proofs::production_impl::production_tier1_value_limbs(limbs);
+            assert(limbs == crate::specs::tier1_value_limbs(magnitude as nat));
             assert(coefficient_raw_views(self.coefficients@) =~=
                 code_block_plane_view(old(self)).coefficients.update(index as int,
                     crate::specs::tier1_new_coefficient(crate::specs::tier1_value_limbs(magnitude as nat), negative, true, false)));

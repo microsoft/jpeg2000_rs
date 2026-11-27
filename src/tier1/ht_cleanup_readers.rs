@@ -1110,20 +1110,6 @@ impl<'a> HtCleanupReaders<'a> {
                 }
             }
         }
-        self.peek_vlc_slow(count)
-    }
-
-    #[cfg_attr(
-        verus_keep_ghost,
-        verus_spec(result =>
-            ensures result == crate::specs::ht_cleanup_peek_vlc(ht_cleanup_readers_view(self), count),
-        )
-    )]
-    #[cold]
-    #[inline(never)]
-    fn peek_vlc_slow(&self, count: u8) -> u16 {
-        #[cfg(verus_keep_ghost)]
-        proof_decl! { let ghost initial = ht_cleanup_readers_view(self); }
         let mut copy = self.vlc;
         let mut value = 0_u16;
         let mut bit = 0_u8;
@@ -1268,21 +1254,6 @@ impl<'a> HtCleanupReaders<'a> {
                 }
             }
         }
-        self.advance_vlc_slow(count)
-    }
-
-    #[cfg_attr(
-        verus_keep_ghost,
-        verus_spec(result =>
-            ensures (result, ht_cleanup_readers_view(final(self)))
-                == crate::specs::ht_cleanup_advance_vlc(ht_cleanup_readers_view(old(self)), count as nat),
-        )
-    )]
-    #[cold]
-    #[inline(never)]
-    fn advance_vlc_slow(&mut self, count: u8) -> Result<(), DecodeError> {
-        #[cfg(verus_keep_ghost)]
-        proof_decl! { let ghost initial = ht_cleanup_readers_view(self); }
         let mut consumed = 0_u8;
         #[cfg_attr(
             verus_keep_ghost,
