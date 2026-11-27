@@ -883,6 +883,103 @@ impl CompactPlane {
     }
 
     #[cfg_attr(verus_keep_ghost, verus_spec(
+        requires old(self).shape(), x < old(self).width, y < old(self).height, d < 8,
+            target < old(self).entries.len(),
+            crate::specs::compact_neighbor_index(old(self).width, old(self).height, x as int, y as int, d) == Some(target as int),
+            crate::specs::compact_pending_cache(old(self).width, old(self).height, old(self).entries@, x as int, y as int, d),
+            crate::specs::compact_coefficient(old(self).entries@[(y * old(self).width + x) as int]).significant,
+            crate::specs::compact_coefficient(old(self).entries@[(y * old(self).width + x) as int]).negative == negative,
+            forall|i:int| 0 <= i < old(self).entries.len() ==> crate::specs::compact_precision_word(old(self).entries@[i]),
+        ensures final(self).shape(), final(self).width == old(self).width, final(self).height == old(self).height,
+            final(self).view() == old(self).view(),
+            crate::specs::compact_pending_cache(final(self).width, final(self).height, final(self).entries@, x as int, y as int, (d + 1) as u32),
+            crate::specs::compact_coefficient(final(self).entries@[(y * old(self).width + x) as int]).significant,
+            crate::specs::compact_coefficient(final(self).entries@[(y * old(self).width + x) as int]).negative == negative,
+            forall|i:int| 0 <= i < final(self).entries.len() ==> crate::specs::compact_precision_word(final(self).entries@[i]),
+            forall|i:int| 0 <= i < final(self).entries.len() ==>
+                final(self).entries@[i] & 0x1ff_ffff_ffffu64 == old(self).entries@[i] & 0x1ff_ffff_ffffu64,
+    ))]
+    #[inline(always)]
+    fn update_neighbor(
+        &mut self,
+        #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] x: usize,
+        #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] y: usize,
+        target: usize,
+        d: u32,
+        negative: bool,
+    ) {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::compact_index(self.width, self.height, self.entries@, x, y);
+            crate::specs::compact_cache_mark_step(self.width, self.height, self.entries@, x, y, d, negative);
+        }
+        self.entries[target] = cache_word(self.entries[target], 7 - d, negative);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(self.view().coefficients =~= old(self).view().coefficients);
+        }
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        requires old(self).shape(),
+            0 < x, x + 1 < old(self).width,
+            0 < y, y + 1 < old(self).height,
+            index == y * old(self).width + x,
+            crate::specs::compact_pending_cache(old(self).width, old(self).height, old(self).entries@, x as int, y as int, 0),
+            crate::specs::compact_coefficient(old(self).entries@[index as int]).significant,
+            crate::specs::compact_coefficient(old(self).entries@[index as int]).negative == negative,
+            forall|i:int| 0 <= i < old(self).entries.len() ==> crate::specs::compact_precision_word(old(self).entries@[i]),
+        ensures final(self).shape(), final(self).width == old(self).width, final(self).height == old(self).height,
+            final(self).view() == old(self).view(),
+            crate::specs::compact_pending_cache(final(self).width, final(self).height, final(self).entries@, x as int, y as int, 8),
+            crate::specs::compact_coefficient(final(self).entries@[index as int]).significant,
+            crate::specs::compact_coefficient(final(self).entries@[index as int]).negative == negative,
+            forall|i:int| 0 <= i < final(self).entries.len() ==> crate::specs::compact_precision_word(final(self).entries@[i]),
+            forall|i:int| 0 <= i < final(self).entries.len() ==>
+                final(self).entries@[i] & 0x1ff_ffff_ffffu64 == old(self).entries@[i] & 0x1ff_ffff_ffffu64,
+    ))]
+    #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+    #[inline(always)]
+    fn mark_interior(&mut self, x: usize, y: usize, index: usize, negative: bool) {
+        let width = self.width;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            crate::specs::compact_index(width, self.height, self.entries@, (x - 1) as usize, (y - 1) as usize);
+            crate::specs::compact_index(width, self.height, self.entries@, x, (y - 1) as usize);
+            crate::specs::compact_index(width, self.height, self.entries@, (x + 1) as usize, (y - 1) as usize);
+            crate::specs::compact_index(width, self.height, self.entries@, (x - 1) as usize, y);
+            crate::specs::compact_index(width, self.height, self.entries@, (x + 1) as usize, y);
+            crate::specs::compact_index(width, self.height, self.entries@, (x - 1) as usize, (y + 1) as usize);
+            crate::specs::compact_index(width, self.height, self.entries@, x, (y + 1) as usize);
+            crate::specs::compact_index(width, self.height, self.entries@, (x + 1) as usize, (y + 1) as usize);
+            assert(index >= width) by (nonlinear_arith)
+                requires index == y * width + x, y > 0, width > 0;
+            assert(index - width == (y - 1) * width + x) by (nonlinear_arith)
+                requires index == y * width + x, y > 0, width > 0;
+            assert(index - width - 1 == (y - 1) * width + (x - 1)) by (nonlinear_arith)
+                requires index == y * width + x, x > 0, y > 0, width > 0;
+            assert(index - width + 1 == (y - 1) * width + (x + 1)) by (nonlinear_arith)
+                requires index == y * width + x, y > 0, width > 0;
+            assert(index + width - 1 == (y + 1) * width + (x - 1)) by (nonlinear_arith)
+                requires index == y * width + x, x > 0, width > 0;
+            assert(index + width == (y + 1) * width + x) by (nonlinear_arith)
+                requires index == y * width + x, width > 0;
+            assert(index + width + 1 == (y + 1) * width + (x + 1)) by (nonlinear_arith)
+                requires index == y * width + x, width > 0;
+        }
+        let prev = index - width;
+        let next = index + width;
+        self.update_neighbor(x, y, prev - 1, 0, negative);
+        self.update_neighbor(x, y, prev, 1, negative);
+        self.update_neighbor(x, y, prev + 1, 2, negative);
+        self.update_neighbor(x, y, index - 1, 3, negative);
+        self.update_neighbor(x, y, index + 1, 4, negative);
+        self.update_neighbor(x, y, next - 1, 5, negative);
+        self.update_neighbor(x, y, next, 6, negative);
+        self.update_neighbor(x, y, next + 1, 7, negative);
+    }
+
+    #[cfg_attr(verus_keep_ghost, verus_spec(
         requires old(self).shape(),x<old(self).width,y<old(self).height,bp<31,
             crate::specs::compact_cache(old(self).width,old(self).height,old(self).entries@),
             forall|i:int|0<=i<old(self).entries.len() ==> crate::specs::compact_precision_word(old(self).entries@[i]),
@@ -915,81 +1012,7 @@ impl CompactPlane {
         #[cfg(verus_keep_ghost)]
         proof_decl! {let ghost marked=self.view();}
         if x > 0 && x + 1 < width && y > 0 && y + 1 < self.height {
-            let prev = index - width;
-            let next = index + width;
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(width >= 3);
-                crate::specs::compact_index(width,self.height,self.entries@,(x-1) as usize,(y-1) as usize);
-                crate::specs::compact_index(width,self.height,self.entries@,x,(y-1) as usize);
-                crate::specs::compact_index(width,self.height,self.entries@,(x+1) as usize,(y-1) as usize);
-                crate::specs::compact_index(width,self.height,self.entries@,(x-1) as usize,y);
-                crate::specs::compact_index(width,self.height,self.entries@,(x+1) as usize,y);
-                crate::specs::compact_index(width,self.height,self.entries@,(x-1) as usize,(y+1) as usize);
-                crate::specs::compact_index(width,self.height,self.entries@,x,(y+1) as usize);
-                crate::specs::compact_index(width,self.height,self.entries@,(x+1) as usize,(y+1) as usize);
-                assert(prev - 1 == (y - 1) * width + (x - 1)) by (nonlinear_arith)
-                    requires prev == index - width, index == y * width + x, x > 0, y > 0, width > 0;
-                assert(prev == (y - 1) * width + x) by (nonlinear_arith)
-                    requires prev == index - width, index == y * width + x, y > 0, width > 0;
-                assert(prev + 1 == (y - 1) * width + (x + 1)) by (nonlinear_arith)
-                    requires prev == index - width, index == y * width + x, y > 0, width > 0;
-                assert(next - 1 == (y + 1) * width + (x - 1)) by (nonlinear_arith)
-                    requires next == index + width, index == y * width + x, x > 0, width > 0;
-                assert(next == (y + 1) * width + x) by (nonlinear_arith)
-                    requires next == index + width, index == y * width + x, width > 0;
-                assert(next + 1 == (y + 1) * width + (x + 1)) by (nonlinear_arith)
-                    requires next == index + width, index == y * width + x, width > 0;
-                assert(crate::specs::compact_neighbor_index(width,self.height,x as int,y as int,0) == Some((prev - 1) as int));
-                crate::specs::compact_cache_mark_step(width,self.height,self.entries@,x,y,0,negative);
-            }
-            self.entries[prev - 1] = cache_word(self.entries[prev - 1], 7, negative);
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(crate::specs::compact_neighbor_index(width,self.height,x as int,y as int,1) == Some(prev as int));
-                crate::specs::compact_cache_mark_step(width,self.height,self.entries@,x,y,1,negative);
-            }
-            self.entries[prev] = cache_word(self.entries[prev], 6, negative);
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(crate::specs::compact_neighbor_index(width,self.height,x as int,y as int,2) == Some((prev + 1) as int));
-                crate::specs::compact_cache_mark_step(width,self.height,self.entries@,x,y,2,negative);
-            }
-            self.entries[prev + 1] = cache_word(self.entries[prev + 1], 5, negative);
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(crate::specs::compact_neighbor_index(width,self.height,x as int,y as int,3) == Some((index - 1) as int));
-                crate::specs::compact_cache_mark_step(width,self.height,self.entries@,x,y,3,negative);
-            }
-            self.entries[index - 1] = cache_word(self.entries[index - 1], 4, negative);
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(crate::specs::compact_neighbor_index(width,self.height,x as int,y as int,4) == Some((index + 1) as int));
-                crate::specs::compact_cache_mark_step(width,self.height,self.entries@,x,y,4,negative);
-            }
-            self.entries[index + 1] = cache_word(self.entries[index + 1], 3, negative);
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(crate::specs::compact_neighbor_index(width,self.height,x as int,y as int,5) == Some((next - 1) as int));
-                crate::specs::compact_cache_mark_step(width,self.height,self.entries@,x,y,5,negative);
-            }
-            self.entries[next - 1] = cache_word(self.entries[next - 1], 2, negative);
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(crate::specs::compact_neighbor_index(width,self.height,x as int,y as int,6) == Some(next as int));
-                crate::specs::compact_cache_mark_step(width,self.height,self.entries@,x,y,6,negative);
-            }
-            self.entries[next] = cache_word(self.entries[next], 1, negative);
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(crate::specs::compact_neighbor_index(width,self.height,x as int,y as int,7) == Some((next + 1) as int));
-                crate::specs::compact_cache_mark_step(width,self.height,self.entries@,x,y,7,negative);
-            }
-            self.entries[next + 1] = cache_word(self.entries[next + 1], 0, negative);
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(self.view().coefficients =~= marked.coefficients);
-            }
+            self.mark_interior(x, y, index, negative);
         } else {
             let mut direction = 0;
             #[cfg_attr(verus_keep_ghost, verus_spec(
