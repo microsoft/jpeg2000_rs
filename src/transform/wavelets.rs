@@ -176,8 +176,8 @@ fn fixed_mul_row_bounded(
         crate::specs::part1_scaling_prefix(old(samples)@, low_parity, factor, old(samples).len() as nat)
             == (Ok::<(), DecodeError>(()), final(samples)@),
         forall |i: int| 0 <= i < final(samples).len() ==>
-            -(if (i % 2 == 0) == low_parity { 2 * bound } else { bound }) <= #[trigger] final(samples)@[i]
-                <= if (i % 2 == 0) == low_parity { 2 * bound } else { bound },
+            -(if (i % 2 == 0) == low_parity { 2 * bound } else { bound as int }) <= #[trigger] final(samples)@[i]
+                <= if (i % 2 == 0) == low_parity { 2 * bound } else { bound as int },
 ))]
 #[inline]
 fn scale_parity_bounded(samples: &mut [i64], low_parity: bool, factor: i64, bound: i64) {
@@ -200,8 +200,8 @@ fn scale_parity_bounded(samples: &mut [i64], low_parity: bool, factor: i64, boun
             forall |i: int| 0 <= i < original.len() ==> -bound <= #[trigger] original[i] <= bound,
             forall |i: int| index <= i < samples.len() ==> samples[i] == original[i],
             forall |i: int| 0 <= i < samples.len() ==>
-                -(if i < index && (i % 2 == 0) == low_parity { 2 * bound } else { bound }) <= #[trigger] samples[i]
-                    <= if i < index && (i % 2 == 0) == low_parity { 2 * bound } else { bound },
+                -(if i < index && (i % 2 == 0) == low_parity { 2 * bound } else { bound as int }) <= #[trigger] samples[i]
+                    <= if i < index && (i % 2 == 0) == low_parity { 2 * bound } else { bound as int },
             crate::specs::part1_scaling_prefix(
                 original, low_parity, factor,
                 if index <= len { index as nat } else { len as nat },

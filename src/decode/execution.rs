@@ -1165,32 +1165,30 @@ pub(super) fn apply_prepared_component_transform(
                                 let prefix = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat);
                                 prefix.0 == Ok::<(), DecodeError>(())
                                     && prefix.1.len() == before.len()
-                                    && prefix.1[0].samples == first.samples@
-                                    && prefix.1[1].samples == second.samples@
-                                    && prefix.1[2].samples == third.samples@
+                                    && prefix.1[0].6 == first.samples@
+                                    && prefix.1[1].6 == second.samples@
+                                    && prefix.1[2].6 == third.samples@
+                                    && (forall |c: int| 3 <= c < before.len() ==> prefix.1[c] == before[c])
+                                    && prefix.1[0] == (before[0].0, before[0].1, before[0].2, before[0].3, before[0].4, before[0].5, first.samples@)
+                                    && prefix.1[1] == (before[1].0, before[1].1, before[1].2, before[1].3, before[1].4, before[1].5, second.samples@)
+                                    && prefix.1[2] == (before[2].0, before[2].1, before[2].2, before[2].3, before[2].4, before[2].5, third.samples@)
                                     && (forall |j: int| index <= j < length ==>
-                                        first.samples@[j] == before[0].samples[j]
-                                        && second.samples@[j] == before[1].samples[j]
-                                        && third.samples@[j] == before[2].samples[j])
+                                        first.samples@[j] == before[0].6[j]
+                                        && second.samples@[j] == before[1].6[j]
+                                        && third.samples@[j] == before[2].6[j])
                             }),
                             decreases length - index,
                         )
                     )]
                     while length - index >= 64 {
-                        let r_chunk = &mut first.samples[index..index + 64];
-                        let g_chunk = &mut second.samples[index..index + 64];
-                        let b_chunk = &mut third.samples[index..index + 64];
+                        let r_chunk = &mut first.samples.as_mut_slice()[index..index + 64];
+                        let g_chunk = &mut second.samples.as_mut_slice()[index..index + 64];
+                        let b_chunk = &mut third.samples.as_mut_slice()[index..index + 64];
                         if !chunk_within_bound(r_chunk, bound)
                             || !chunk_within_bound(g_chunk, bound)
                             || !chunk_within_bound(b_chunk, bound)
                         {
                             break;
-                        }
-                        #[cfg(verus_keep_ghost)]
-                        proof_decl! {
-                            let ghost before_r = first.samples@;
-                            let ghost before_g = second.samples@;
-                            let ghost before_b = third.samples@;
                         }
                         if transform.1 {
                             apply_ict_chunk(r_chunk, g_chunk, b_chunk);
@@ -1210,9 +1208,9 @@ pub(super) fn apply_prepared_component_transform(
                                     third.samples.len() == length,
                                     forall |j: int| 0 <= j < 64 ==>
                                         crate::specs::part1_component_values(
-                                            before[0].samples[index as int + j],
-                                            before[1].samples[index as int + j],
-                                            before[2].samples[index as int + j],
+                                            before[0].6[index as int + j],
+                                            before[1].6[index as int + j],
+                                            before[2].6[index as int + j],
                                             transform.1
                                         ) == Ok((
                                             first.samples@[index as int + j],
@@ -1223,21 +1221,38 @@ pub(super) fn apply_prepared_component_transform(
                                         let p = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat + k);
                                         p.0 == Ok::<(), DecodeError>(())
                                             && p.1.len() == before.len()
-                                            && p.1[0].samples =~= Seq::new(length as nat, |j: int| if j < index as int + k { first.samples@[j] } else { before[0].samples[j] })
-                                            && p.1[1].samples =~= Seq::new(length as nat, |j: int| if j < index as int + k { second.samples@[j] } else { before[1].samples[j] })
-                                            && p.1[2].samples =~= Seq::new(length as nat, |j: int| if j < index as int + k { third.samples@[j] } else { before[2].samples[j] })
+                                            && (forall |c: int| 3 <= c < before.len() ==> p.1[c] == before[c])
+                                            && p.1[0] == (before[0].0, before[0].1, before[0].2, before[0].3, before[0].4, before[0].5,
+                                                Seq::new(length as nat, |j: int| if j < index as int + k { first.samples@[j] } else { before[0].6[j] }))
+                                            && p.1[1] == (before[1].0, before[1].1, before[1].2, before[1].3, before[1].4, before[1].5,
+                                                Seq::new(length as nat, |j: int| if j < index as int + k { second.samples@[j] } else { before[1].6[j] }))
+                                            && p.1[2] == (before[2].0, before[2].1, before[2].2, before[2].3, before[2].4, before[2].5,
+                                                Seq::new(length as nat, |j: int| if j < index as int + k { third.samples@[j] } else { before[2].6[j] }))
                                     }),
                                 decreases 64 - k,
                             {
                                 crate::proofs::production_impl::production_prepared_standard_step(before, transform.1, index as nat + k);
+                                let p_next = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat + k + 1);
+                                assert(p_next.1[0].6 =~= Seq::new(length as nat, |j: int| if j < index as int + k + 1 { first.samples@[j] } else { before[0].6[j] }));
+                                assert(p_next.1[1].6 =~= Seq::new(length as nat, |j: int| if j < index as int + k + 1 { second.samples@[j] } else { before[1].6[j] }));
+                                assert(p_next.1[2].6 =~= Seq::new(length as nat, |j: int| if j < index as int + k + 1 { third.samples@[j] } else { before[2].6[j] }));
                                 k = k + 1;
                             }
+                            let p_done = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat + 64);
+                            assert(p_done.1[0].6 =~= first.samples@);
+                            assert(p_done.1[1].6 =~= second.samples@);
+                            assert(p_done.1[2].6 =~= third.samples@);
                         }
                         index += 64;
                     }
                 }
             }
         }
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let p_mid = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat);
+        assert(p_mid.1 =~= prepared_components_view(prepared@));
     }
     #[cfg_attr(
         verus_keep_ghost,

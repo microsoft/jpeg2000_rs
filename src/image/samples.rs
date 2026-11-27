@@ -248,10 +248,10 @@ fn append_typed_unsigned_chunk(
             decreases 64 - k,
         ))]
         while k < 64 {
-            let rounded = (samples[k] + 32_768) >> 16;
+            let s = samples[k] + 32_768;
+            let rounded = s >> 16;
             #[cfg(verus_keep_ghost)]
             proof! {
-                let s = samples[k as int] + 32_768;
                 assert(-140737488355328i64 <= (s >> 16i64) <= 140737488355327i64) by (bit_vector);
             }
             let shifted = rounded + level_shift;
@@ -279,10 +279,10 @@ fn append_typed_unsigned_chunk(
             decreases 64 - k,
         ))]
         while k < 64 {
-            let rounded = (samples[k] + bias) >> shift;
+            let s = samples[k] + bias;
+            let rounded = s >> shift;
             #[cfg(verus_keep_ghost)]
             proof! {
-                let s = samples[k as int] + bias;
                 assert(-4611686018427387904i64 <= (s >> shift) <= 4611686018427387903i64) by (bit_vector)
                     requires 1u32 <= shift <= 62u32;
             }
@@ -503,9 +503,9 @@ impl DecodedComponent {
                     level_shift == 1i64 << ((self.info.precision - 1) as u8),
                     unsigned_max == (1u64 << self.info.precision) - 1,
                     fast_max == if self.fraction_bits == 0 {
-                        Some(i64::MAX - level_shift)
+                        Some((i64::MAX - level_shift) as i64)
                     } else if self.fraction_bits <= 62 {
-                        Some(i64::MAX - (1i64 << ((self.fraction_bits - 1) as u32)))
+                        Some((i64::MAX - (1i64 << ((self.fraction_bits - 1) as u32))) as i64)
                     } else {
                         None
                     },
