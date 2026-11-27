@@ -39,9 +39,10 @@ fn row_within_bound(samples: &[i64]) -> bool {
             -(if predict { 2147483648int } else { 1073741824int }) <= #[trigger] old(samples)@[i]
                 <= if predict { 2147483648int } else { 1073741824int },
     ensures
+        final(samples).len() == old(samples).len(),
         crate::specs::part1_lifting_prefix(
             old(samples)@, target_even,
-            if predict { 2u8 } else { 1u8 }, 0, old(samples).len() as nat,
+            if predict { 1u8 } else { 0u8 }, 0, old(samples).len() as nat,
         ) == (Ok::<(), DecodeError>(()), final(samples)@),
         forall |i: int| 0 <= i < final(samples).len() ==>
             -(if predict { 4294967296int } else { 2147483648int }) <= #[trigger] final(samples)@[i]
@@ -52,7 +53,7 @@ fn inverse_lift_reversible_bounded(samples: &mut [i64], target_even: bool, predi
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost original = samples@;
-        let ghost kind: u8 = if predict { 2u8 } else { 1u8 };
+        let ghost kind: u8 = if predict { 1u8 } else { 0u8 };
     }
     let len = samples.len();
     let mut index = if target_even { 0_usize } else { 1_usize };
@@ -86,7 +87,7 @@ fn inverse_lift_reversible_bounded(samples: &mut [i64], target_even: bool, predi
         invariant 1 <= index <= len + 1,
             len == samples.len(), len > 1, last == len - 1,
             original == old(samples)@, samples.len() == original.len(),
-            kind == if predict { 2u8 } else { 1u8 },
+            kind == if predict { 1u8 } else { 0u8 },
             (index % 2 == 0) == target_even,
             forall |i: int| 0 <= i < original.len() ==>
                 -(if predict { 2147483648int } else { 1073741824int }) <= #[trigger] original[i]
@@ -169,10 +170,38 @@ fn fixed_mul_row_bounded(
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires stage < 4,
+        -crate::specs::rowwise_fixed_bound(stage as nat) <= current <= crate::specs::rowwise_fixed_bound(stage as nat),
+        -crate::specs::rowwise_fixed_bound(stage as nat) <= left <= crate::specs::rowwise_fixed_bound(stage as nat),
+        -crate::specs::rowwise_fixed_bound(stage as nat) <= right <= crate::specs::rowwise_fixed_bound(stage as nat),
+        factor == crate::specs::part1_nine_seven_lift(stage),
+    ensures crate::specs::rowwise_fixed_neighbors(current, left, right, stage) == Ok(result),
+        -crate::specs::rowwise_fixed_bound(stage as nat + 1) <= result <= crate::specs::rowwise_fixed_bound(stage as nat + 1),
+))]
+#[inline(always)]
+fn fixed_lift_row_bounded(
+    current: i64,
+    left: i64,
+    right: i64,
+    factor: i64,
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] stage: u8,
+) -> i64 {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(FIXED_ONE == 65536) by(compute);
+        crate::specs::rowwise_fixed_neighbors_bound(current, left, right, stage);
+    }
+    let sum = left + right;
+    let adjustment = fixed_mul_row_bounded(sum, factor, 4_398_046_511_104);
+    current - adjustment
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires -131_071 <= factor <= 131_071,
         0 < bound <= 4_398_046_511_104i64,
         forall |i: int| 0 <= i < old(samples).len() ==> -bound <= #[trigger] old(samples)@[i] <= bound,
     ensures
+        final(samples).len() == old(samples).len(),
         crate::specs::part1_scaling_prefix(old(samples)@, low_parity, factor, old(samples).len() as nat)
             == (Ok::<(), DecodeError>(()), final(samples)@),
         forall |i: int| 0 <= i < final(samples).len() ==>
@@ -193,32 +222,36 @@ fn scale_parity_bounded(samples: &mut [i64], low_parity: bool, factor: i64, boun
         }
     }
     #[cfg_attr(verus_keep_ghost, verus_spec(
-        invariant index <= len + 1,
+        invariant index <= len,
             len == samples.len(), original == old(samples)@, samples.len() == original.len(),
             -131_071 <= factor <= 131_071, 0 < bound <= 4_398_046_511_104i64,
-            (index % 2 == 0) == low_parity,
+            index == len || (index % 2 == 0) == low_parity,
             forall |i: int| 0 <= i < original.len() ==> -bound <= #[trigger] original[i] <= bound,
             forall |i: int| index <= i < samples.len() ==> samples[i] == original[i],
             forall |i: int| 0 <= i < samples.len() ==>
                 -(if i < index && (i % 2 == 0) == low_parity { 2 * bound } else { bound as int }) <= #[trigger] samples[i]
                     <= if i < index && (i % 2 == 0) == low_parity { 2 * bound } else { bound as int },
             crate::specs::part1_scaling_prefix(
-                original, low_parity, factor,
-                if index <= len { index as nat } else { len as nat },
+                original, low_parity, factor, index as nat,
             ) == (Ok(()), samples@),
-        decreases len + 1 - index,
+        decreases len - index,
     ))]
     while index < len {
         samples[index] = fixed_mul_row_bounded(samples[index], factor, bound);
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(crate::specs::part1_scaling_prefix(original, low_parity, factor, index as nat + 1) == (Ok(()), samples@));
-            if index + 1 < len {
+        }
+        if index + 1 < len {
+            #[cfg(verus_keep_ghost)]
+            proof! {
                 assert(((index + 1) % 2 == 0) != low_parity);
                 assert(crate::specs::part1_scaling_prefix(original, low_parity, factor, index as nat + 2) == (Ok(()), samples@));
             }
+            index += 2;
+        } else {
+            index += 1;
         }
-        index += 2;
     }
 }
 
@@ -228,8 +261,9 @@ fn scale_parity_bounded(samples: &mut [i64], low_parity: bool, factor: i64, boun
             -crate::specs::rowwise_fixed_bound(stage as nat) <= #[trigger] old(samples)@[i]
                 <= crate::specs::rowwise_fixed_bound(stage as nat),
     ensures
+        final(samples).len() == old(samples).len(),
         crate::specs::part1_lifting_prefix(
-            old(samples)@, target_even, 0u8, crate::specs::part1_nine_seven_lift(stage), old(samples).len() as nat,
+            old(samples)@, target_even, 2u8, crate::specs::part1_nine_seven_lift(stage), old(samples).len() as nat,
         ) == (Ok::<(), DecodeError>(()), final(samples)@),
         forall |i: int| 0 <= i < final(samples).len() ==>
             -crate::specs::rowwise_fixed_bound(stage as nat + 1) <= #[trigger] final(samples)@[i]
@@ -250,24 +284,22 @@ fn inverse_lift_fixed_bounded(samples: &mut [i64], target_even: bool, stage: u8)
         if !target_even {
             reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
             assert(samples@ =~= original.update(0, original[0]));
-            assert(crate::specs::part1_lifting_prefix(original, target_even, 0u8, factor, 1) == (Ok(()), samples@));
+            assert(crate::specs::part1_lifting_prefix(original, target_even, 2u8, factor, 1) == (Ok(()), samples@));
         }
     }
     if index == 0 {
         #[cfg(verus_keep_ghost)]
         proof! {
-            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, 0, target_even, 0u8, factor);
-            crate::specs::rowwise_fixed_neighbors_bound(samples[0], samples[1], samples[1], stage);
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, 0, target_even, 2u8, factor);
         }
-        let sum = samples[1] + samples[1];
-        samples[0] -= fixed_mul_row_bounded(sum, factor, 2_199_023_255_552);
+        samples[0] = fixed_lift_row_bounded(samples[0], samples[1], samples[1], factor, stage);
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal_with_fuel(crate::specs::part1_lifting_prefix, 2);
-            assert(crate::specs::part1_lifting_prefix(original, target_even, 0u8, factor, 1) == (Ok(()), samples@));
-            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, 1, target_even, 0u8, factor);
+            assert(crate::specs::part1_lifting_prefix(original, target_even, 2u8, factor, 1) == (Ok(()), samples@));
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, 1, target_even, 2u8, factor);
             assert(samples@ =~= samples@.update(1, original[1]));
-            assert(crate::specs::part1_lifting_prefix(original, target_even, 0u8, factor, 2) == (Ok(()), samples@));
+            assert(crate::specs::part1_lifting_prefix(original, target_even, 2u8, factor, 2) == (Ok(()), samples@));
         }
         index = 2;
     }
@@ -286,7 +318,7 @@ fn inverse_lift_fixed_bounded(samples: &mut [i64], target_even: bool, stage: u8)
                 -crate::specs::rowwise_fixed_bound(stage as nat + 1) <= #[trigger] samples[i]
                     <= crate::specs::rowwise_fixed_bound(stage as nat + 1),
             crate::specs::part1_lifting_prefix(
-                original, target_even, 0u8, factor,
+                original, target_even, 2u8, factor,
                 if index <= len { index as nat } else { len as nat },
             ) == (Ok(()), samples@),
         decreases len + 1 - index,
@@ -294,30 +326,38 @@ fn inverse_lift_fixed_bounded(samples: &mut [i64], target_even: bool, stage: u8)
     while index < last {
         #[cfg(verus_keep_ghost)]
         proof! {
-            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, index as nat, target_even, 0u8, factor);
-            crate::specs::rowwise_fixed_neighbors_bound(samples[index as int], samples[index as int - 1], samples[index as int + 1], stage);
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, index as nat, target_even, 2u8, factor);
         }
-        let sum = samples[index - 1] + samples[index + 1];
-        samples[index] -= fixed_mul_row_bounded(sum, factor, 2_199_023_255_552);
+        samples[index] = fixed_lift_row_bounded(
+            samples[index],
+            samples[index - 1],
+            samples[index + 1],
+            factor,
+            stage,
+        );
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert(crate::specs::part1_lifting_prefix(original, target_even, 0u8, factor, index as nat + 1) == (Ok(()), samples@));
-            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, (index + 1) as nat, target_even, 0u8, factor);
-            assert(crate::specs::part1_lifting_prefix(original, target_even, 0u8, factor, index as nat + 2) == (Ok(()), samples@));
+            assert(crate::specs::part1_lifting_prefix(original, target_even, 2u8, factor, index as nat + 1) == (Ok(()), samples@));
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, (index + 1) as nat, target_even, 2u8, factor);
+            assert(crate::specs::part1_lifting_prefix(original, target_even, 2u8, factor, index as nat + 2) == (Ok(()), samples@));
         }
         index += 2;
     }
     if index == last {
         #[cfg(verus_keep_ghost)]
         proof! {
-            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, last as nat, target_even, 0u8, factor);
-            crate::specs::rowwise_fixed_neighbors_bound(samples[last as int], samples[last as int - 1], samples[last as int - 1], stage);
+            crate::proofs::production_impl::production_lifting_sample_frame(original, samples@, last as nat, target_even, 2u8, factor);
         }
-        let sum = samples[last - 1] + samples[last - 1];
-        samples[last] -= fixed_mul_row_bounded(sum, factor, 2_199_023_255_552);
+        samples[last] = fixed_lift_row_bounded(
+            samples[last],
+            samples[last - 1],
+            samples[last - 1],
+            factor,
+            stage,
+        );
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert(crate::specs::part1_lifting_prefix(original, target_even, 0u8, factor, len as nat) == (Ok(()), samples@));
+            assert(crate::specs::part1_lifting_prefix(original, target_even, 2u8, factor, len as nat) == (Ok(()), samples@));
         }
     }
 }

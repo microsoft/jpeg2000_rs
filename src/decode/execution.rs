@@ -1002,7 +1002,7 @@ verus! {
                     before[2].6[index as int + j],
                     irreversible,
                 ) == Ok((
-                    r_samples[index as int + j],
+                    #[trigger] r_samples[index as int + j],
                     g_samples[index as int + j],
                     b_samples[index as int + j],
                 )),
