@@ -854,18 +854,11 @@ impl CodeBlockPlane {
         #[cfg(verus_keep_ghost)]
         proof! {
             let limbs = coefficient_raw_view(entry).limbs;
-            assert(limbs.len() == 6 && limbs[0] == magnitude
-                && limbs[1] == 0 && limbs[2] == 0 && limbs[3] == 0 && limbs[4] == 0 && limbs[5] == 0);
-            assert(crate::specs::part1_magnitude_value(limbs) == magnitude as nat) by {
-                vstd::arithmetic::power2::lemma2_to64();
-                assert(crate::specs::part1_magnitude_prefix_value(limbs, 0) == 0);
-                assert(crate::specs::part1_magnitude_prefix_value(limbs, 1) == magnitude as nat);
-                assert(crate::specs::part1_magnitude_prefix_value(limbs, 2) == magnitude as nat);
-                assert(crate::specs::part1_magnitude_prefix_value(limbs, 3) == magnitude as nat);
-                assert(crate::specs::part1_magnitude_prefix_value(limbs, 4) == magnitude as nat);
-                assert(crate::specs::part1_magnitude_prefix_value(limbs, 5) == magnitude as nat);
-                assert(crate::specs::part1_magnitude_prefix_value(limbs, 6) == magnitude as nat);
-            };
+            assert(limbs =~= Seq::new(6, |i: int| if i == 0 { magnitude } else { 0u64 }));
+            crate::proofs::production_impl::production_magnitude_sparse_prefix(limbs, 0, magnitude, 6);
+            vstd::arithmetic::power2::lemma2_to64();
+            vstd::arithmetic::mul::lemma_mul_basics(magnitude as int);
+            assert(crate::specs::part1_magnitude_value(limbs) == magnitude as nat);
             crate::proofs::production_impl::production_tier1_value_limbs(limbs);
             assert(limbs == crate::specs::tier1_value_limbs(magnitude as nat));
             assert(coefficient_raw_views(self.coefficients@) =~=

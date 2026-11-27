@@ -1404,6 +1404,9 @@ impl<'a> HtCleanupReaders<'a> {
             proof! {
                 let word = crate::specs::ht_cleanup_peek_vlc(ht_cleanup_readers_view(self), 7);
                 assert(word & 0x7fu16 <= 127) by (bit_vector);
+                assert(ht_vlc_table_view(initial).len() == 1024);
+                assert((0u16 & 7u16) == 0u16) by (bit_vector);
+                assert(crate::specs::ht_vlc_word_valid(0, 0));
             }
             let _ = self.mel_event()?;
             #[cfg(verus_keep_ghost)]

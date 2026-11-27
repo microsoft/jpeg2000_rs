@@ -663,6 +663,87 @@ pub(super) fn reconstruct_ht_magnitude(
 impl HtCleanupPlaneReconstruction<'_> {
     #[allow(
         clippy::too_many_arguments,
+        reason = "The u64 fast path mirrors the sample transition arguments."
+    )]
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        requires completed_u > 0, completed_u <= MAX_HT_MAGSGN_BITS,
+            decoded_bitplanes > 0, decoded_bitplanes <= MAX_TIER1_BITPLANES,
+            completed_u - (if embedded_bit { 1u8 } else { 0u8 }) <= 64,
+        ensures match result {
+            Err(error) => (Err::<(nat, bool, u8), DecodeError>(error), ht_magsgn_view(final(reader)))
+                == crate::specs::ht_reconstruct_numeric_magnitude(ht_magsgn_view(old(reader)),
+                    completed_u, embedded_bit, embedded_value, decoded_bitplanes)
+                && code_block_plane_view(final(output)) == code_block_plane_view(old(output)),
+            Ok(exponent) => ({
+                let reconstructed = crate::specs::ht_reconstruct_numeric_magnitude(
+                    ht_magsgn_view(old(reader)), completed_u, embedded_bit, embedded_value, decoded_bitplanes);
+                match reconstructed.0 {
+                    Ok((mag, neg, exp)) =>
+                        reconstructed.1 == ht_magsgn_view(final(reader))
+                        && exp == exponent
+                        && (Ok::<(), DecodeError>(()), code_block_plane_view(final(output)))
+                            == crate::specs::tier1_mark_coefficient(
+                                code_block_plane_view(old(output)), x, y,
+                                crate::specs::tier1_value_limbs(mag), mag, neg),
+                    Err(_) => false,
+                }
+            }),
+        } || match result {
+            Err(error) => ({
+                let reconstructed = crate::specs::ht_reconstruct_numeric_magnitude(
+                    ht_magsgn_view(old(reader)), completed_u, embedded_bit, embedded_value, decoded_bitplanes);
+                match reconstructed.0 {
+                    Ok((mag, neg, _)) =>
+                        reconstructed.1 == ht_magsgn_view(final(reader))
+                        && (Err::<(), DecodeError>(error), code_block_plane_view(final(output)))
+                            == crate::specs::tier1_mark_coefficient(
+                                code_block_plane_view(old(output)), x, y,
+                                crate::specs::tier1_value_limbs(mag), mag, neg),
+                    Err(_) => false,
+                }
+            }),
+            Ok(_) => false,
+        },
+    ))]
+    #[inline(always)]
+    fn reconstruct_and_mark_u64_sample(
+        reader: &mut HtForwardMagSgnReader<'_>,
+        output: &mut CodeBlockPlane,
+        x: u16,
+        y: u16,
+        completed_u: u8,
+        embedded_bit: bool,
+        embedded_value: bool,
+        decoded_bitplanes: u16,
+    ) -> Result<u8, DecodeError> {
+        let magnitude_bits = completed_u - if embedded_bit { 1_u8 } else { 0_u8 };
+        let (word, negative, raw_exponent) = read_ht_payload_word(reader, magnitude_bits)?;
+        if let Some((value, sign, exp)) = try_center_ht_u64(
+            word,
+            negative,
+            raw_exponent,
+            magnitude_bits,
+            embedded_value,
+            decoded_bitplanes,
+        ) {
+            output.mark_significant_u64(x, y, value, sign)?;
+            Ok(exp)
+        } else {
+            let (magnitude, sign, exp) = center_ht_numeric_magnitude(
+                crate::magnitude::magnitude_from_u64(word),
+                negative,
+                raw_exponent,
+                magnitude_bits,
+                embedded_value,
+                decoded_bitplanes,
+            )?;
+            output.mark_significant_magnitude(x, y, magnitude, sign)?;
+            Ok(exp)
+        }
+    }
+
+    #[allow(
+        clippy::too_many_arguments,
         reason = "The actual sample transition consumes these independent metadata and geometry fields."
     )]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -708,32 +789,16 @@ impl HtCleanupPlaneReconstruction<'_> {
                     && decoded_bitplanes <= MAX_TIER1_BITPLANES
                     && completed_u - embedded_sub <= 64
                 {
-                    let magnitude_bits = completed_u - embedded_sub;
-                    let (word, negative, raw_exponent) =
-                        read_ht_payload_word(&mut self.reader, magnitude_bits)?;
-                    if let Some((value, sign, exp)) = try_center_ht_u64(
-                        word,
-                        negative,
-                        raw_exponent,
-                        magnitude_bits,
+                    Self::reconstruct_and_mark_u64_sample(
+                        &mut self.reader,
+                        &mut self.output,
+                        x,
+                        y,
+                        completed_u,
+                        embedded_bit,
                         embedded_value,
                         decoded_bitplanes,
-                    ) {
-                        self.output.mark_significant_u64(x, y, value, sign)?;
-                        exp
-                    } else {
-                        let (magnitude, sign, exp) = center_ht_numeric_magnitude(
-                            crate::magnitude::magnitude_from_u64(word),
-                            negative,
-                            raw_exponent,
-                            magnitude_bits,
-                            embedded_value,
-                            decoded_bitplanes,
-                        )?;
-                        self.output
-                            .mark_significant_magnitude(x, y, magnitude, sign)?;
-                        exp
-                    }
+                    )?
                 } else {
                     let (magnitude, negative, exp) = reconstruct_ht_magnitude(
                         &mut self.reader,
@@ -863,10 +928,19 @@ impl HtCleanupPlaneReconstruction<'_> {
             self.statistics.scanned(4)?;
             #[cfg(verus_keep_ghost)]
             proof! {
-                assert((0u8 & (1u8 << 0u8)) == 0 && (0u8 & (1u8 << 1u8)) == 0
+                assert((0u8 >> 1u8) == 0u8 && (0u8 & 1u8) == 0u8
+                    && (1u8 >> 1u8) == 0u8 && (1u8 & 1u8) == 1u8
+                    && (2u8 >> 1u8) == 1u8 && (2u8 & 1u8) == 0u8
+                    && (3u8 >> 1u8) == 1u8 && (3u8 & 1u8) == 1u8
+                    && (0u8 & (1u8 << 0u8)) == 0 && (0u8 & (1u8 << 1u8)) == 0
                     && (0u8 & (1u8 << 2u8)) == 0 && (0u8 & (1u8 << 3u8)) == 0) by (bit_vector);
-                assert((Ok::<(), DecodeError>(()), ht_plane_view(self)) == crate::specs::ht_plane_samples(
-                    samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, 4));
+                reveal_with_fuel(crate::specs::ht_plane_samples, 5);
+                let s1 = crate::specs::ht_plane_samples(samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, 1);
+                let s2 = crate::specs::ht_plane_samples(samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, 2);
+                let s3 = crate::specs::ht_plane_samples(samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, 3);
+                let s4 = crate::specs::ht_plane_samples(samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, 4);
+                assert(s1.0.is_ok() && s2.0.is_ok() && s3.0.is_ok() && s4.0.is_ok());
+                assert(s4.1 == ht_plane_view(self));
             }
         } else {
             let mut sample = 0_u8;
