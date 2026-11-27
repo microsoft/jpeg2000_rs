@@ -238,7 +238,7 @@ fn read_ht_payload_word(
                 let loaded2 = crate::specs::ht_magsgn_load(after1).1;
                 resident_payload_equivalence(old_reader, w1, rem as nat,
                     bit as nat, word as nat, negative, exponent);
-                let word1: u64 = word + ((f1 as u64) << bit);
+                let word1 = word as nat + ((f1 as u64) << bit) as nat;
                 let neg1 = negative || (bit == 0 && (f1 & 1) != 0);
                 let exp1: u8 = if f1 != 0 { (bit + field_bits(f1)) as u8 } else { exponent };
                 if bit + w1 < 64 { lemma_pow2_strictly_increases((bit + w1) as nat, 64); }
@@ -246,11 +246,11 @@ fn read_ht_payload_word(
                 assert((f1 as u64) << bit == (f1 as u64) << (bit as u64)) by (bit_vector);
                 vstd::std_specs::bits::axiom_u8_leading_zeros(f1);
                 crate::proofs::production_impl::production_ht_numeric_payload_unfold(
-                    after1, _w2 as nat, (bit + w1) as nat, word1 as nat, neg1, exp1);
+                    after1, _w2 as nat, (bit + w1) as nat, word1, neg1, exp1);
                 crate::proofs::production_impl::production_ht_numeric_payload_unfold(
-                    loaded2, _w2 as nat, (bit + w1) as nat, word1 as nat, neg1, exp1);
+                    loaded2, _w2 as nat, (bit + w1) as nat, word1, neg1, exp1);
                 resident_payload_equivalence(loaded2, _w2, _w2 as nat,
-                    (bit + w1) as nat, word1 as nat, neg1, exp1);
+                    (bit + w1) as nat, word1, neg1, exp1);
                 if bit + w1 + _w2 < 64 { lemma_pow2_strictly_increases((bit + w1 + _w2) as nat, 64); }
                 vstd::bits::lemma_u64_shl_is_mul(f2 as u64, (bit + w1) as u64);
                 assert((f2 as u64) << (bit + w1) == (f2 as u64) << ((bit + w1) as u64)) by (bit_vector);
@@ -726,7 +726,6 @@ impl HtCleanupPlaneReconstruction<'_> {
         clippy::too_many_arguments,
         reason = "The shared quad stage preserves the real caller's metadata and traversal inputs."
     )]
-    #[cfg_attr(not(test), allow(dead_code))]
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires 0 < quads_per_row <= 32768,
             old(self).current_exponents.len() == quads_per_row + 1,
@@ -738,6 +737,7 @@ impl HtCleanupPlaneReconstruction<'_> {
             final(self).previous_exponents.len() == quads_per_row + 1,
             result == Ok(()) || result.is_err(),
     ))]
+    #[inline]
     pub(super) fn quad(
         &mut self,
         quad: HtQuadMetadata,
@@ -748,48 +748,15 @@ impl HtCleanupPlaneReconstruction<'_> {
         quads_per_row: usize,
         quad_index: usize,
     ) -> Result<(), DecodeError> {
-        let column = quad_index
-            .checked_rem(quads_per_row)
-            .ok_or_else(arithmetic_overflow)?;
-        self.quad_at_column(
-            quad,
-            width,
-            height,
-            maximum_u,
-            decoded_bitplanes,
-            quads_per_row,
-            column,
-        )
-    }
-
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "The shared quad stage preserves the real caller's metadata and traversal inputs."
-    )]
-    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        requires 0 < quads_per_row <= 32768, column < quads_per_row,
-            old(self).current_exponents.len() == quads_per_row + 1,
-            old(self).previous_exponents.len() == quads_per_row + 1,
-        ensures (result, ht_plane_view(final(self))) == crate::specs::ht_plane_quad(
-            ht_plane_view(old(self)), quad, width, height, maximum_u, decoded_bitplanes,
-            quads_per_row as nat, column as nat),
-            final(self).current_exponents.len() == quads_per_row + 1,
-            final(self).previous_exponents.len() == quads_per_row + 1,
-            result == Ok(()) || result.is_err(),
-    ))]
-    #[inline]
-    fn quad_at_column(
-        &mut self,
-        quad: HtQuadMetadata,
-        width: u16,
-        height: u16,
-        maximum_u: u8,
-        decoded_bitplanes: u16,
-        quads_per_row: usize,
-        column: usize,
-    ) -> Result<(), DecodeError> {
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost start = ht_plane_view(self); }
+        let column = if quad_index < quads_per_row {
+            quad_index
+        } else {
+            quad_index
+                .checked_rem(quads_per_row)
+                .ok_or_else(arithmetic_overflow)?
+        };
         if column == 0 {
             let mut exponent_index = 0_usize;
             #[cfg_attr(
@@ -864,7 +831,7 @@ impl HtCleanupPlaneReconstruction<'_> {
                         self.current_exponents.len() == quads_per_row + 1,
                         self.previous_exponents.len() == quads_per_row + 1,
                         crate::specs::ht_plane_quad(ht_plane_view(old(self)), quad, width, height,
-                            maximum_u, decoded_bitplanes, quads_per_row as nat, column as nat)
+                            maximum_u, decoded_bitplanes, quads_per_row as nat, quad_index as nat)
                             == crate::specs::ht_plane_quad_finish(crate::specs::ht_plane_samples(
                                 samples_start, quad, width, height, column as nat, completed_u, decoded_bitplanes, 4),
                                 quads_per_row as nat, column as nat),
@@ -1025,7 +992,7 @@ pub(super) fn reconstruct_ht_cleanup_plane(
             .quads
             .get(quad_index)
             .ok_or_else(invalid_code_block)?;
-        let result = state.quad_at_column(
+        let result = state.quad(
             quad,
             metadata.width,
             metadata.height,
