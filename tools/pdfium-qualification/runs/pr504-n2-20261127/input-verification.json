@@ -1,0 +1,8 @@
+{
+  "images_verified": 310,
+  "pdfs_verified": 41,
+  "total_inputs_verified": 351,
+  "materialized_manifest_sha256": "828b74ece4013b40f9984a32f76a60cd8aa70d2900419b8e18c7dd20dfd98afa",
+  "consumer_sha256": "2b5178b4f15f8d4abc8caa51f9bdfb200895d023bb109f51031ca70290aee0ca",
+  "harness_commit": "90dd9f013c35739a7d67de869180b62a08bcea23"
+}

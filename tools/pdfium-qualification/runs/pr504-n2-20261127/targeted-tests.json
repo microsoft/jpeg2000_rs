@@ -1,0 +1,21 @@
+{
+  "total": 46,
+  "consumers": {
+    "BaseShim": {
+      "tests": 17,
+      "failures": 0
+    },
+    "BaseFfi": {
+      "tests": 6,
+      "failures": 0
+    },
+    "PR504Shim": {
+      "tests": 17,
+      "failures": 0
+    },
+    "PR504Ffi": {
+      "tests": 6,
+      "failures": 0
+    }
+  }
+}
