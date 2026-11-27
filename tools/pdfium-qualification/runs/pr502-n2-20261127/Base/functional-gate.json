@@ -1,0 +1,9 @@
+{
+  "result": "PASS",
+  "configurations": 2521,
+  "represented_outcomes": 7563,
+  "actual_processes": 7563,
+  "common_cpp_capture": "fresh",
+  "source": "fe0d4eb3fd8780040acd51e74f27910638fa836e",
+  "differences": []
+}
