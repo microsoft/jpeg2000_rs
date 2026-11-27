@@ -165,12 +165,7 @@ fn fixed_mul_row_bounded(
             requires 0 < bound <= 4_398_046_511_104i64,
                 -(bound as int) * 131071 <= (value as int) * (factor as int) <= (bound as int) * 131071;
     }
-    let biased = value * factor + 32_768;
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        assert(crate::specs::arithmetic_shift_right(biased, 16) == (biased >> 16i64)) by(bit_vector);
-    }
-    biased >> 16
+    crate::refinement::fixed_round_q16(value * factor + FIXED_ONE / 2)
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>

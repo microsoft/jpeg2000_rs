@@ -188,9 +188,8 @@ impl DecodedImage {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    requires 0 < precision <= 38, fraction_bits <= 62,
-        level_shift == 1i64 << ((precision - 1) as u8),
-        maximum == (1u64 << precision) - 1,
+    requires fraction_bits <= 62,
+        0 < level_shift <= 137_438_953_472i64,
         samples.len() == 64,
         old(output).len() + 64 <= usize::MAX,
         ({
@@ -214,16 +213,13 @@ fn append_typed_unsigned_chunk(
     fraction_bits: u8,
     level_shift: i64,
     maximum: u64,
-    #[cfg(verus_keep_ghost)] precision: Ghost<u8>,
 ) {
     let mut chunk = [0_u64; 64];
     if fraction_bits == 0 {
         let mut k = 0_usize;
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant k <= 64, samples.len() == 64, fraction_bits == 0,
-                0 < precision@ <= 38,
-                level_shift == 1i64 << ((precision@ - 1) as u8),
-                maximum == (1u64 << precision@) - 1,
+                0 < level_shift <= 137_438_953_472i64,
                 forall |j: int| 0 <= j < 64 ==> #[trigger] samples@[j] <= i64::MAX as int - level_shift as int,
                 forall |j: int| 0 <= j < k ==>
                     crate::specs::part1_decoded_unsigned_value(samples@[j], 0, level_shift, maximum)
@@ -244,9 +240,7 @@ fn append_typed_unsigned_chunk(
         let mut k = 0_usize;
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant k <= 64, samples.len() == 64, fraction_bits == 16,
-                0 < precision@ <= 38,
-                level_shift == 1i64 << ((precision@ - 1) as u8),
-                maximum == (1u64 << precision@) - 1,
+                0 < level_shift <= 137_438_953_472i64,
                 forall |j: int| 0 <= j < 64 ==> #[trigger] samples@[j] <= i64::MAX as int - 32768,
                 forall |j: int| 0 <= j < k ==>
                     crate::specs::part1_decoded_unsigned_value(samples@[j], 16, level_shift, maximum)
@@ -259,8 +253,6 @@ fn append_typed_unsigned_chunk(
             proof! {
                 let s = samples[k as int] + 32_768;
                 assert(-140737488355328i64 <= (s >> 16i64) <= 140737488355327i64) by (bit_vector);
-                assert(0 < level_shift <= 137438953472i64) by (bit_vector)
-                    requires 0 < precision@ <= 38, level_shift == 1i64 << ((precision@ - 1) as u8);
             }
             let shifted = rounded + level_shift;
             let clamped = if shifted < 0 {
@@ -277,11 +269,9 @@ fn append_typed_unsigned_chunk(
         let mut k = 0_usize;
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant k <= 64, samples.len() == 64, 0 < fraction_bits <= 62,
-                0 < precision@ <= 38,
+                0 < level_shift <= 137_438_953_472i64,
                 bias == 1i64 << ((fraction_bits - 1) as u32),
                 shift == fraction_bits as u32,
-                level_shift == 1i64 << ((precision@ - 1) as u8),
-                maximum == (1u64 << precision@) - 1,
                 forall |j: int| 0 <= j < 64 ==> #[trigger] samples@[j] <= i64::MAX as int - bias as int,
                 forall |j: int| 0 <= j < k ==>
                     crate::specs::part1_decoded_unsigned_value(samples@[j], fraction_bits, level_shift, maximum)
@@ -295,8 +285,6 @@ fn append_typed_unsigned_chunk(
                 let s = samples[k as int] + bias;
                 assert(-4611686018427387904i64 <= (s >> shift) <= 4611686018427387903i64) by (bit_vector)
                     requires 1u32 <= shift <= 62u32;
-                assert(0 < level_shift <= 137438953472i64) by (bit_vector)
-                    requires 0 < precision@ <= 38, level_shift == 1i64 << ((precision@ - 1) as u8);
             }
             let shifted = rounded + level_shift;
             let clamped = if shifted < 0 {
@@ -543,14 +531,18 @@ impl DecodedComponent {
                     if chunk_le_max(slice, max_allowed) {
                         #[cfg(verus_keep_ghost)]
                         proof_decl! { let ghost before_len = output.len(); let ghost before_out = output@; }
+                        #[cfg(verus_keep_ghost)]
+                        proof! {
+                            assert(0 < level_shift <= 137_438_953_472i64) by (bit_vector)
+                                requires 0 < self.info.precision <= 38,
+                                    level_shift == 1i64 << ((self.info.precision - 1) as u8);
+                        }
                         append_typed_unsigned_chunk(
                             slice,
                             &mut output,
                             self.fraction_bits,
                             level_shift,
                             unsigned_max,
-                            #[cfg(verus_keep_ghost)]
-                            Ghost(self.info.precision),
                         );
                         #[cfg(verus_keep_ghost)]
                         proof! {
