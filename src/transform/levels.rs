@@ -821,6 +821,31 @@ mod zero_level {
             }
         }
 
+        proof fn zero_store_column_prefix(
+            output_len: nat,
+            width: u32,
+            height: u32,
+            x: u32,
+            r: nat,
+        )
+            requires
+                x < width,
+                r <= height,
+                output_len == (width as nat) * (height as nat),
+            ensures
+                crate::specs::part1_store_column_prefix(zeros(output_len), width, x, zeros(height as nat), r)
+                    == (Ok::<(), DecodeError>(()), zeros(output_len)),
+            decreases r,
+        {
+            if r > 0 {
+                let prev = (r - 1) as nat;
+                zero_store_column_prefix(output_len, width, height, x, prev);
+                assert(prev * (width as nat) + (x as nat) < output_len) by(nonlinear_arith)
+                    requires prev < height, x < width, output_len == (width as nat) * (height as nat);
+                assert(zeros(output_len).update((prev * (width as nat) + (x as nat)) as int, 0i64) =~= zeros(output_len));
+            }
+        }
+
         proof fn zero_vertical_prefix(
             low: crate::specs::Part1WaveletBand,
             high: crate::specs::Part1WaveletBand,
@@ -862,8 +887,7 @@ mod zero_level {
                         requires 0 <= r < high.1, prev < high.0, high.2.len() == (high.0 as int) * (high.1 as int);
                 }
                 zero_1d_wavelet(lc, hc, first, irreversible);
-                let stored = crate::specs::part1_store_column(zeros(output_len as nat), low.0, output_height, prev as u32, zeros(output_height as nat)).get_Ok_0();
-                assert(stored =~= zeros(output_len as nat));
+                zero_store_column_prefix(output_len as nat, low.0, output_height, prev as u32, output_height as nat);
             }
         }
 
@@ -1051,7 +1075,7 @@ mod zero_level {
         requires
             crate::specs::part1_validate_level(wavelet_level_view(level)) == Ok(()),
             level.output_width as nat * level.output_height as nat == output_len as nat,
-            crate::specs::part1_validate_output_size(output_len, maximum) == Ok(()),
+            crate::specs::part1_quantization_budget(output_len as nat, maximum) == Ok(()),
             level.output_width >= 4 && level.output_height >= 4,
             forall |i: int| 0 <= i < level.ll.samples.len() ==> #[trigger] level.ll.samples@[i] == 0i64,
             forall |i: int| 0 <= i < level.hl.samples.len() ==> #[trigger] level.hl.samples@[i] == 0i64,
@@ -1098,7 +1122,7 @@ mod zero_level {
         requires
             crate::specs::part1_validate_level(wavelet_level_view(level)) == Ok(()),
             level.output_width as nat * level.output_height as nat == output_len as nat,
-            crate::specs::part1_validate_output_size(output_len, maximum) == Ok(()),
+            crate::specs::part1_quantization_budget(output_len as nat, maximum) == Ok(()),
             level.output_width >= 4 && level.output_height >= 4,
             level.low_pass_first_x && level.low_pass_first_y,
             forall |i: int| 0 <= i < level.hl.samples.len() ==> #[trigger] level.hl.samples@[i] == 0i64,
