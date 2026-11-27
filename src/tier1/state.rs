@@ -858,7 +858,13 @@ impl CodeBlockPlane {
                 && limbs[1] == 0 && limbs[2] == 0 && limbs[3] == 0 && limbs[4] == 0 && limbs[5] == 0);
             assert(crate::specs::part1_magnitude_value(limbs) == magnitude as nat) by {
                 vstd::arithmetic::power2::lemma2_to64();
-                reveal_with_fuel(crate::specs::part1_magnitude_prefix_value, 7);
+                assert(crate::specs::part1_magnitude_prefix_value(limbs, 0) == 0);
+                assert(crate::specs::part1_magnitude_prefix_value(limbs, 1) == magnitude as nat);
+                assert(crate::specs::part1_magnitude_prefix_value(limbs, 2) == magnitude as nat);
+                assert(crate::specs::part1_magnitude_prefix_value(limbs, 3) == magnitude as nat);
+                assert(crate::specs::part1_magnitude_prefix_value(limbs, 4) == magnitude as nat);
+                assert(crate::specs::part1_magnitude_prefix_value(limbs, 5) == magnitude as nat);
+                assert(crate::specs::part1_magnitude_prefix_value(limbs, 6) == magnitude as nat);
             };
             crate::proofs::production_impl::production_tier1_value_limbs(limbs);
             assert(limbs == crate::specs::tier1_value_limbs(magnitude as nat));

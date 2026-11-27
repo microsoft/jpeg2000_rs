@@ -1094,11 +1094,12 @@ impl<'a> HtCleanupReaders<'a> {
                                 let mid = vlc_after_resident(initial.vlc, avail);
                                 assert(mid.has_byte && mid.current_byte == prev_idx && mid.value == prev_val
                                     && mid.next_bit == 0 && mid.last_bit == prev_bits - 1);
-                                assert(vlc_resident_field(mid, rem) == high) by (bit_vector)
+                                let mid_field = vlc_resident_field(mid, rem);
+                                assert(mid_field == high) by (bit_vector)
                                     requires
                                         1 <= rem <= 8,
                                         high == ((prev_val as u16) & (0xffu16 >> sub(8u8, rem))),
-                                        vlc_resident_field(mid, rem) == (((prev_val >> 0u8) as u16) & (0xffu16 >> sub(8u8, rem)));
+                                        mid_field == (((prev_val >> 0u8) as u16) & (0xffu16 >> sub(8u8, rem)));
                                 vlc_peek_resident_equivalence(initial, mid, rem as nat, avail, low, rem);
                                 crate::proofs::production_impl::production_ht_cleanup_peek_unfold(
                                     initial, vlc_after_resident(mid, rem), 0, count as nat, value,

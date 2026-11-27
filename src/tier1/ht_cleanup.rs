@@ -141,6 +141,71 @@ verus! {
                     field as nat == 2 * tail as nat + if bit { 1nat } else { 0 };
         }
     }
+
+    #[verifier::spinoff_prover]
+    proof fn resident_payload_two_equivalence(
+        start: crate::specs::HtMagSgnState, w1: u8, f1: u8, w2: u8, f2: u8,
+        bit: u8, word: u64, negative: bool, exponent: u8,
+    )
+        requires
+            1 <= w1 <= 8, 1 <= w2 <= 8, (bit as nat) + (w1 as nat) + (w2 as nat) <= 64,
+            (word as nat) < vstd::arithmetic::power2::pow2(bit as nat),
+            crate::specs::part1_magnitude_capacity() > u64::MAX,
+            magsgn_resident(start, w1), f1 == magsgn_field(start, w1),
+            ({
+                let after1 = magsgn_consumed(start, w1);
+                let loaded2 = crate::specs::ht_magsgn_load(after1);
+                (!after1.has_byte || after1.next_bit > after1.last_bit)
+                    && loaded2.0.is_ok()
+                    && magsgn_resident(loaded2.1, w2)
+                    && f2 == magsgn_field(loaded2.1, w2)
+            }),
+        ensures ({
+            let after1 = magsgn_consumed(start, w1);
+            let loaded2 = crate::specs::ht_magsgn_load(after1).1;
+            let after2 = magsgn_consumed(loaded2, w2);
+            let bit1 = (bit + w1) as u8;
+            let shift1 = (f1 as u64) << bit;
+            let word1 = (word as nat) + (shift1 as nat);
+            let shift2 = (f2 as u64) << bit1;
+            let word2 = word1 + (shift2 as nat);
+            let neg = negative || (bit == 0 && (f1 & 1) != 0);
+            let exp1 = if f1 != 0 { (bit as nat + field_bits(f1)) as u8 } else { exponent };
+            let exp2 = if f2 != 0 { (bit1 as nat + field_bits(f2)) as u8 } else { exp1 };
+            &&& word1 <= u64::MAX
+            &&& word2 <= u64::MAX
+            &&& field_bits(f1) <= w1
+            &&& field_bits(f2) <= w2
+            &&& crate::specs::ht_numeric_payload(start, (w1 + w2) as nat, bit as nat, word as nat, negative, exponent)
+                == (Ok((word2, neg, exp2)), after2)
+        }),
+    {
+        use vstd::arithmetic::power2::{lemma2_to64, lemma_pow2_strictly_increases};
+        lemma2_to64();
+        let after1 = magsgn_consumed(start, w1);
+        let loaded2 = crate::specs::ht_magsgn_load(after1).1;
+        let after2 = magsgn_consumed(loaded2, w2);
+        let bit1 = (bit + w1) as u8;
+        resident_payload_equivalence(start, w1, (w1 + w2) as nat, bit as nat, word as nat, negative, exponent);
+        if bit + w1 < 64 { lemma_pow2_strictly_increases((bit + w1) as nat, 64); }
+        vstd::bits::lemma_u64_shl_is_mul(f1 as u64, bit as u64);
+        assert((f1 as u64) << bit == (f1 as u64) << (bit as u64)) by (bit_vector);
+        let word1 = (word as nat) + ((f1 as u64) << bit) as nat;
+        let neg1 = negative || (bit == 0 && (f1 & 1) != 0);
+        let exp1 = if f1 != 0 { (bit as nat + field_bits(f1)) as u8 } else { exponent };
+        crate::proofs::production_impl::production_ht_numeric_payload_unfold(
+            after1, w2 as nat, bit1 as nat, word1, neg1, exp1);
+        crate::proofs::production_impl::production_ht_numeric_payload_unfold(
+            loaded2, w2 as nat, bit1 as nat, word1, neg1, exp1);
+        resident_payload_equivalence(loaded2, w2, w2 as nat, bit1 as nat, word1, neg1, exp1);
+        if bit1 + w2 < 64 { lemma_pow2_strictly_increases((bit1 + w2) as nat, 64); }
+        vstd::bits::lemma_u64_shl_is_mul(f2 as u64, bit1 as u64);
+        assert((f2 as u64) << bit1 == (f2 as u64) << (bit1 as u64)) by (bit_vector);
+        let word2 = word1 + ((f2 as u64) << bit1) as nat;
+        let exp2 = if f2 != 0 { (bit1 as nat + field_bits(f2)) as u8 } else { exp1 };
+        crate::proofs::production_impl::production_ht_numeric_payload_unfold(
+            after2, 0, (bit1 + w2) as nat, word2, neg1, exp2);
+    }
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -230,32 +295,14 @@ fn read_ht_payload_word(
         } else {
             None
         };
-        if let Some((w1, f1, _w2, f2)) = two_bytes {
+        if let Some((w1, f1, w2, f2)) = two_bytes {
             #[cfg(verus_keep_ghost)]
             proof! {
-                use vstd::arithmetic::power2::{pow2, lemma_pow2_strictly_increases};
-                let after1 = magsgn_consumed(old_reader, w1);
-                let loaded2 = crate::specs::ht_magsgn_load(after1).1;
-                resident_payload_equivalence(old_reader, w1, rem as nat,
-                    bit as nat, word as nat, negative, exponent);
-                let word1 = word as nat + ((f1 as u64) << bit) as nat;
-                let neg1 = negative || (bit == 0 && (f1 & 1) != 0);
-                let exp1: u8 = if f1 != 0 { (bit + field_bits(f1)) as u8 } else { exponent };
-                if bit + w1 < 64 { lemma_pow2_strictly_increases((bit + w1) as nat, 64); }
-                vstd::bits::lemma_u64_shl_is_mul(f1 as u64, bit as u64);
-                assert((f1 as u64) << bit == (f1 as u64) << (bit as u64)) by (bit_vector);
+                resident_payload_two_equivalence(old_reader, w1, f1, w2, f2, bit, word, negative, exponent);
                 vstd::std_specs::bits::axiom_u8_leading_zeros(f1);
-                crate::proofs::production_impl::production_ht_numeric_payload_unfold(
-                    after1, _w2 as nat, (bit + w1) as nat, word1, neg1, exp1);
-                crate::proofs::production_impl::production_ht_numeric_payload_unfold(
-                    loaded2, _w2 as nat, (bit + w1) as nat, word1, neg1, exp1);
-                resident_payload_equivalence(loaded2, _w2, _w2 as nat,
-                    (bit + w1) as nat, word1, neg1, exp1);
-                if bit + w1 + _w2 < 64 { lemma_pow2_strictly_increases((bit + w1 + _w2) as nat, 64); }
-                vstd::bits::lemma_u64_shl_is_mul(f2 as u64, (bit + w1) as u64);
-                assert((f2 as u64) << (bit + w1) == (f2 as u64) << ((bit + w1) as u64)) by (bit_vector);
                 vstd::std_specs::bits::axiom_u8_leading_zeros(f2);
             }
+            let _ = w2;
             word += u64::from(f1) << bit;
             negative |= bit == 0 && f1 & 1 != 0;
             if f1 != 0 {
@@ -265,11 +312,6 @@ fn read_ht_payload_word(
             word += u64::from(f2) << bit1;
             if f2 != 0 {
                 exponent = bit1 + (8 - f2.leading_zeros()) as u8;
-            }
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                crate::proofs::production_impl::production_ht_numeric_payload_unfold(
-                    ht_magsgn_view(reader), 0, magnitude_bits as nat, word as nat, negative, exponent);
             }
             return Ok((word, negative, exponent));
         }
@@ -659,13 +701,14 @@ impl HtCleanupPlaneReconstruction<'_> {
             if quad.significance & (1_u8 << sample) != 0 {
                 let embedded_bit = quad.embedded_bit_mask & (1_u8 << sample) != 0;
                 let embedded_value = quad.embedded_magnitude & (1_u8 << sample) != 0;
+                let embedded_sub = if embedded_bit { 1_u8 } else { 0_u8 };
                 let exponent = if completed_u > 0
                     && completed_u <= MAX_HT_MAGSGN_BITS
                     && decoded_bitplanes > 0
                     && decoded_bitplanes <= MAX_TIER1_BITPLANES
-                    && completed_u - u8::from(embedded_bit) <= 64
+                    && completed_u - embedded_sub <= 64
                 {
-                    let magnitude_bits = completed_u - u8::from(embedded_bit);
+                    let magnitude_bits = completed_u - embedded_sub;
                     let (word, negative, raw_exponent) =
                         read_ht_payload_word(&mut self.reader, magnitude_bits)?;
                     if let Some((value, sign, exp)) = try_center_ht_u64(
@@ -751,6 +794,10 @@ impl HtCleanupPlaneReconstruction<'_> {
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost start = ht_plane_view(self); }
         let column = if quad_index < quads_per_row {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                vstd::arithmetic::div_mod::lemma_small_mod(quad_index as nat, quads_per_row as nat);
+            }
             quad_index
         } else {
             quad_index
@@ -1003,7 +1050,7 @@ pub(super) fn reconstruct_ht_cleanup_plane(
         );
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert((column as nat) % (quads_per_row as nat) == column as nat);
+            vstd::arithmetic::div_mod::lemma_small_mod(column as nat, quads_per_row as nat);
             reveal(crate::specs::ht_plane_quads);
             assert((result, ht_plane_view(&state)) == crate::specs::ht_plane_quads(
                 start, metadata.quads@, metadata.width, metadata.height, maximum_u,
@@ -1019,15 +1066,28 @@ pub(super) fn reconstruct_ht_cleanup_plane(
         }
         result?;
         quad_index = quad_index.checked_add(1).ok_or_else(arithmetic_overflow)?;
+        #[cfg(verus_keep_ghost)]
+        proof_decl! { let ghost prev_column = column; }
         column += 1;
         if column == quads_per_row {
             column = 0;
         }
         #[cfg(verus_keep_ghost)]
         proof! {
-            vstd::arithmetic::div_mod::lemma_add_mod_noop(
-                (quad_index - 1) as int, 1, quads_per_row as int,
-            );
+            let q = quads_per_row as int;
+            let idx = (quad_index - 1) as int;
+            vstd::arithmetic::div_mod::lemma_add_mod_noop(idx, 1, q);
+            if quads_per_row == 1 {
+                vstd::arithmetic::div_mod::lemma_mod_self_zero(1);
+                assert(column == 0 && (quad_index as nat) % 1nat == 0);
+            } else {
+                vstd::arithmetic::div_mod::lemma_small_mod(1nat, quads_per_row as nat);
+                if prev_column + 1 < quads_per_row {
+                    vstd::arithmetic::div_mod::lemma_small_mod((prev_column + 1) as nat, quads_per_row as nat);
+                } else {
+                    vstd::arithmetic::div_mod::lemma_mod_self_zero(q);
+                }
+            }
         }
     }
     state.finish()?;
