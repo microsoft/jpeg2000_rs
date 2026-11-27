@@ -726,8 +726,8 @@ verus! {
         requires
             k <= count,
             x_start as nat + count <= u32::MAX,
-            dst_start + count <= original.2.len(),
             dst_start + count <= original.3.len(),
+            dst_start + count <= original.4.len(),
             src_start + count <= tile.6.len(),
             match crop {
                 Some(origin) =>
@@ -741,23 +741,24 @@ verus! {
                     && crate::specs::part1_transform_offset((tile.2 + y) as u32, original.0, (tile.1 + x_start) as u32) == Ok(dst_start)
                     && crate::specs::part1_transform_offset(y, tile.3, x_start) == Ok(src_start),
             },
-            forall |j: int| 0 <= j < count ==> !#[trigger] original.3[dst_start as int + j],
+            forall |j: int| 0 <= j < count ==> !#[trigger] original.4[dst_start as int + j],
         ensures ({
             let res = crate::specs::part1_assembly_row_prefix(original, tile, x_start, y, crop, k);
             res.0 == Ok::<(), DecodeError>(())
                 && res.1.0 == original.0
                 && res.1.1 == original.1
-                && res.1.2 =~= Seq::new(original.2.len(), |i: int|
-                    if dst_start <= i < dst_start + k { tile.6[src_start as int + (i - dst_start as int)] } else { original.2[i] })
+                && res.1.2 == original.2
                 && res.1.3 =~= Seq::new(original.3.len(), |i: int|
-                    if dst_start <= i < dst_start + k { true } else { original.3[i] })
+                    if dst_start <= i < dst_start + k { tile.6[src_start as int + (i - dst_start as int)] } else { original.3[i] })
+                && res.1.4 =~= Seq::new(original.4.len(), |i: int|
+                    if dst_start <= i < dst_start + k { true } else { original.4[i] })
         }),
         decreases k,
     {
         if k == 0 {
             let res = crate::specs::part1_assembly_row_prefix(original, tile, x_start, y, crop, 0);
-            assert(res.1.2 =~= original.2);
             assert(res.1.3 =~= original.3);
+            assert(res.1.4 =~= original.4);
         } else {
             let prev_k = (k - 1) as nat;
             assembly_row_bulk_equivalence(original, tile, x_start, y, crop, dst_start, src_start, count, prev_k);
@@ -777,13 +778,13 @@ verus! {
                         == Ok((src_start + prev_k) as usize));
                 }
             }
-            assert(!prev.1.3[dst_start as int + prev_k as int]);
+            assert(!prev.1.4[dst_start as int + prev_k as int]);
             let res = crate::specs::part1_assembly_row_prefix(original, tile, x_start, y, crop, k);
             assert(res.0 == Ok::<(), DecodeError>(()));
-            assert(res.1.2 =~= Seq::new(original.2.len(), |i: int|
-                if dst_start <= i < dst_start + k { tile.6[src_start as int + (i - dst_start as int)] } else { original.2[i] }));
             assert(res.1.3 =~= Seq::new(original.3.len(), |i: int|
-                if dst_start <= i < dst_start + k { true } else { original.3[i] }));
+                if dst_start <= i < dst_start + k { tile.6[src_start as int + (i - dst_start as int)] } else { original.3[i] }));
+            assert(res.1.4 =~= Seq::new(original.4.len(), |i: int|
+                if dst_start <= i < dst_start + k { true } else { original.4[i] }));
         }
     }
 }
@@ -911,8 +912,8 @@ fn assembly_row(
                     let expected = crate::specs::part1_assembly_row_prefix(
                         original, assembly_tile_view(tile), row[0], row[2], crop, count as nat,
                     );
-                    assert(plane.samples@ =~= expected.1.2);
-                    assert(plane.visited@ =~= expected.1.3);
+                    assert(plane.samples@ =~= expected.1.3);
+                    assert(plane.visited@ =~= expected.1.4);
                 }
                 return Ok(());
             }
