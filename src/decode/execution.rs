@@ -1292,11 +1292,11 @@ pub(super) fn apply_prepared_component_transform(
             assert forall |c: int| 0 <= c < before.len() implies
                 p_after.1[c] == prepared_components_view(prepared@)[c] by {
                 if c == 0 {
-                    assert(prepared_component_view(prepared@[0]) == (before[0].0, before[0].1, before[0].2, before[0].3, before[0].4, before[0].5, prepared@[0].samples@));
+                    assert(crate::decode::prepared_component_view(prepared@[0]) == (before[0].0, before[0].1, before[0].2, before[0].3, before[0].4, before[0].5, prepared@[0].samples@));
                 } else if c == 1 {
-                    assert(prepared_component_view(prepared@[1]) == (before[1].0, before[1].1, before[1].2, before[1].3, before[1].4, before[1].5, prepared@[1].samples@));
+                    assert(crate::decode::prepared_component_view(prepared@[1]) == (before[1].0, before[1].1, before[1].2, before[1].3, before[1].4, before[1].5, prepared@[1].samples@));
                 } else if c == 2 {
-                    assert(prepared_component_view(prepared@[2]) == (before[2].0, before[2].1, before[2].2, before[2].3, before[2].4, before[2].5, prepared@[2].samples@));
+                    assert(crate::decode::prepared_component_view(prepared@[2]) == (before[2].0, before[2].1, before[2].2, before[2].3, before[2].4, before[2].5, prepared@[2].samples@));
                 } else {
                     assert(prepared@[c] == old(prepared)@[c]);
                 }
