@@ -1168,6 +1168,183 @@ mod zero_level {
         }
 
         #[verifier::spinoff_prover]
+        proof fn rowwise_update_zero_neighbors(v: i64)
+            requires
+                -1_073_741_824i64 <= v <= 1_073_741_824i64,
+            ensures
+                crate::specs::rowwise_neighbors(v, 0i64, 0i64, false) == Ok::<i64, DecodeError>(v),
+        {
+            assert((2i64 >> 2i64) == 0i64) by(bit_vector);
+        }
+
+        #[verifier::spinoff_prover]
+        proof fn rowwise_predict_zero_center(a: i64, b: i64)
+            requires
+                -1_073_741_824i64 <= a <= 1_073_741_824i64,
+                -1_073_741_824i64 <= b <= 1_073_741_824i64,
+            ensures
+                crate::specs::rowwise_neighbors(0i64, a, b, true)
+                    == Ok::<i64, DecodeError>((((a as int) + (b as int)) as i64) >> 1),
+        {
+            let sum = ((a as int) + (b as int)) as i64;
+            let avg = sum >> 1;
+            assert(-1_073_741_824i64 <= avg && avg <= 1_073_741_824i64) by {
+                avg_bounded(a, b);
+            }
+        }
+
+        #[verifier::spinoff_prover]
+        proof fn prove_5_3_zero_detail_upd_identity(
+            lh_u32: u32,
+            hh_u32: u32,
+            w_u32: u32,
+            h_u32: u32,
+            low_rows: Seq<i64>,
+            high_rows: Seq<i64>,
+        )
+            requires
+                w_u32 >= 4 && h_u32 >= 4,
+                lh_u32 as nat == h_u32 as nat / 2 + h_u32 as nat % 2,
+                lh_u32 as nat + hh_u32 as nat == h_u32 as nat,
+                low_rows.len() == (w_u32 as nat) * (lh_u32 as nat),
+                high_rows == zeros((hh_u32 as nat) * (w_u32 as nat)),
+                crate::specs::rowwise_bounded(low_rows),
+            ensures
+                crate::specs::rowwise_stage(
+                    crate::specs::rowwise_interleaved((w_u32, lh_u32, low_rows), (w_u32, hh_u32, high_rows), h_u32, true),
+                    w_u32 as nat,
+                    h_u32 as nat,
+                    true,
+                    false,
+                ) == crate::specs::rowwise_interleaved((w_u32, lh_u32, low_rows), (w_u32, hh_u32, high_rows), h_u32, true),
+        {
+            let w = w_u32 as int;
+            let h = h_u32 as int;
+            let lh = lh_u32 as int;
+            let hh = hh_u32 as int;
+            assert((hh_u32 as int) * (w_u32 as int) == w * hh) by(nonlinear_arith)
+                requires w == w_u32 as int, hh == hh_u32 as int;
+            let inter = crate::specs::rowwise_interleaved((w_u32, lh_u32, low_rows), (w_u32, hh_u32, high_rows), h_u32, true);
+            let upd = crate::specs::rowwise_stage(inter, w_u32 as nat, h_u32 as nat, true, false);
+            assert(upd =~= inter) by {
+                assert forall |i: int| 0 <= i < inter.len() implies upd[i] == inter[i] by {
+                    crate::specs::rowwise_coordinates(i, w, h);
+                    let r = i / w;
+                    let c = i % w;
+                    if r % 2 == 0 {
+                        let left_r = if r == 0 { 1int } else { r - 1 };
+                        let right_r = if r + 1 < h { r + 1 } else { r - 1 };
+                        crate::specs::rowwise_cell(left_r, c, w, h);
+                        crate::specs::rowwise_cell(right_r, c, w, h);
+                        crate::specs::rowwise_index(left_r, c, w);
+                        crate::specs::rowwise_index(right_r, c, w);
+                        crate::specs::rowwise_cell(left_r / 2, c, w, hh);
+                        crate::specs::rowwise_cell(right_r / 2, c, w, hh);
+                        crate::specs::rowwise_cell(r / 2, c, w, lh);
+                        assert(inter[left_r * w + c] == 0i64 && inter[right_r * w + c] == 0i64);
+                        assert(inter[i] == low_rows[(r / 2) * w + c]);
+                        rowwise_update_zero_neighbors(inter[i]);
+                    }
+                }
+            }
+        }
+
+        #[verifier::spinoff_prover]
+        proof fn prove_5_3_zero_detail_predict_match(
+            ll_samples: Seq<i64>,
+            lw_u32: u32,
+            lh_u32: u32,
+            hh_u32: u32,
+            w_u32: u32,
+            h_u32: u32,
+            low_rows: Seq<i64>,
+            high_rows: Seq<i64>,
+            output: Seq<i64>,
+            output_len: usize,
+        )
+            requires
+                w_u32 >= 4 && h_u32 >= 4,
+                lw_u32 as nat == w_u32 as nat / 2 + w_u32 as nat % 2,
+                lh_u32 as nat == h_u32 as nat / 2 + h_u32 as nat % 2,
+                lh_u32 as nat + hh_u32 as nat == h_u32 as nat,
+                (w_u32 as nat) * (h_u32 as nat) == output_len as nat,
+                ll_samples.len() == (lw_u32 as nat) * (lh_u32 as nat),
+                output.len() == output_len as nat,
+                low_rows == Seq::new((lh_u32 as nat) * (w_u32 as nat), |idx: int| {
+                    let r = idx / (w_u32 as int);
+                    let c = idx % (w_u32 as int);
+                    let lr = ll_samples.subrange(r * (lw_u32 as int), (r + 1) * (lw_u32 as int));
+                    upsample_1d(lr, w_u32 as nat)[c]
+                }),
+                high_rows == zeros((hh_u32 as nat) * (w_u32 as nat)),
+                crate::specs::rowwise_bounded(low_rows),
+                forall |r: int, c: int| 0 <= r < lh_u32 && 0 <= c < w_u32 ==>
+                    #[trigger] output[(2 * r) * (w_u32 as int) + c]
+                        == upsample_1d(ll_samples.subrange(r * (lw_u32 as int), (r + 1) * (lw_u32 as int)), w_u32 as nat)[c],
+                forall |r: int, c: int| 0 <= r < (h_u32 as int) / 2 && 0 <= c < w_u32 ==> {
+                    let a = output[(2 * r) * (w_u32 as int) + c];
+                    let b = if 2 * r + 2 < h_u32 { output[(2 * r + 2) * (w_u32 as int) + c] } else { a };
+                    #[trigger] output[(2 * r + 1) * (w_u32 as int) + c] == (((a as int) + (b as int)) as i64) >> 1
+                },
+            ensures
+                output == crate::specs::rowwise_stage(
+                    crate::specs::rowwise_interleaved((w_u32, lh_u32, low_rows), (w_u32, hh_u32, high_rows), h_u32, true),
+                    w_u32 as nat,
+                    h_u32 as nat,
+                    false,
+                    true,
+                ),
+        {
+            let w = w_u32 as int;
+            let h = h_u32 as int;
+            let lh = lh_u32 as int;
+            let hh = hh_u32 as int;
+            assert((lh_u32 as int) * (w_u32 as int) == w * lh
+                && (hh_u32 as int) * (w_u32 as int) == w * hh) by(nonlinear_arith)
+                requires w == w_u32 as int, lh == lh_u32 as int, hh == hh_u32 as int;
+            let inter = crate::specs::rowwise_interleaved((w_u32, lh_u32, low_rows), (w_u32, hh_u32, high_rows), h_u32, true);
+            let pred = crate::specs::rowwise_stage(inter, w_u32 as nat, h_u32 as nat, false, true);
+            assert(output =~= pred) by {
+                assert forall |i: int| 0 <= i < output_len as int implies output[i] == pred[i] by {
+                    crate::specs::rowwise_coordinates(i, w, h);
+                    let r = i / w;
+                    let c = i % w;
+                    if r % 2 == 0 {
+                        let hr = r / 2;
+                        assert(2 * hr == r);
+                        crate::specs::rowwise_cell(hr, c, w, lh);
+                        crate::specs::rowwise_index(hr, c, w);
+                        assert(inter[i] == low_rows[hr * w + c]);
+                        assert(output[i] == output[(2 * hr) * w + c]);
+                    } else {
+                        let hr = r / 2;
+                        assert(2 * hr + 1 == r);
+                        let left_r = r - 1;
+                        let right_r = if r + 1 < h { r + 1 } else { r - 1 };
+                        crate::specs::rowwise_cell(left_r, c, w, h);
+                        crate::specs::rowwise_cell(right_r, c, w, h);
+                        crate::specs::rowwise_index(left_r, c, w);
+                        crate::specs::rowwise_index(right_r, c, w);
+                        crate::specs::rowwise_cell(hr, c, w, hh);
+                        assert(inter[i] == 0i64);
+                        crate::specs::rowwise_cell(left_r / 2, c, w, lh);
+                        crate::specs::rowwise_index(left_r / 2, c, w);
+                        assert(inter[left_r * w + c] == low_rows[(left_r / 2) * w + c]);
+                        assert(inter[left_r * w + c] == output[(2 * (left_r / 2)) * w + c]);
+                        crate::specs::rowwise_cell(right_r / 2, c, w, lh);
+                        crate::specs::rowwise_index(right_r / 2, c, w);
+                        assert(inter[right_r * w + c] == low_rows[(right_r / 2) * w + c]);
+                        assert(inter[right_r * w + c] == output[(2 * (right_r / 2)) * w + c]);
+                        rowwise_predict_zero_center(inter[left_r * w + c], inter[right_r * w + c]);
+                        assert(output[i] == output[(2 * hr + 1) * w + c]);
+                        assert(left_r == 2 * hr);
+                        assert(right_r == if 2 * hr + 2 < h { 2 * hr + 2 } else { 2 * hr });
+                    }
+                }
+            }
+        }
+
+        #[verifier::spinoff_prover]
         proof fn prove_5_3_zero_detail_match_output(
             ll_samples: Seq<i64>,
             lw_u32: u32,
@@ -1208,82 +1385,11 @@ mod zero_level {
             ensures
                 output == crate::specs::rowwise_output((w_u32, lh_u32, low_rows), (w_u32, hh_u32, high_rows), h_u32, true),
         {
-            let w = w_u32 as int;
-            let h = h_u32 as int;
-            let lh = lh_u32 as int;
-            let hh = hh_u32 as int;
-            let low_band = (w_u32, lh_u32, low_rows);
-            let high_band = (w_u32, hh_u32, high_rows);
-            assert((lh_u32 as int) * (w_u32 as int) == w * lh
-                && (hh_u32 as int) * (w_u32 as int) == w * hh) by(nonlinear_arith)
-                requires w == w_u32 as int, lh == lh_u32 as int, hh == hh_u32 as int;
-            let inter = crate::specs::rowwise_interleaved(low_band, high_band, h_u32, true);
-            let upd = crate::specs::rowwise_stage(inter, w_u32 as nat, h_u32 as nat, true, false);
-            assert(upd =~= inter) by {
-                assert forall |i: int| 0 <= i < inter.len() implies upd[i] == inter[i] by {
-                    crate::specs::rowwise_coordinates(i, w, h);
-                    let r = i / w;
-                    let c = i % w;
-                    if r % 2 == 0 {
-                        let left_r = if r == 0 { 1int } else { r - 1 };
-                        let right_r = if r + 1 < h { r + 1 } else { r - 1 };
-                        crate::specs::rowwise_cell(left_r, c, w, h);
-                        crate::specs::rowwise_cell(right_r, c, w, h);
-                        crate::specs::rowwise_index(left_r, c, w);
-                        crate::specs::rowwise_index(right_r, c, w);
-                        crate::specs::rowwise_cell(left_r / 2, c, w, hh);
-                        crate::specs::rowwise_cell(right_r / 2, c, w, hh);
-                        assert(inter[left_r * w + c] == high_rows[(left_r / 2) * w + c]);
-                        assert(inter[right_r * w + c] == high_rows[(right_r / 2) * w + c]);
-                        assert(inter[left_r * w + c] == 0i64 && inter[right_r * w + c] == 0i64);
-                        assert(inter[i] == low_rows[(r / 2) * w + c]) by {
-                            crate::specs::rowwise_cell(r / 2, c, w, lh);
-                        }
-                        assert((2i64 >> 2i64) == 0i64) by(bit_vector);
-                    }
-                }
-            }
-            let final_spec = crate::specs::rowwise_output(low_band, high_band, h_u32, true);
-            assert(output =~= final_spec) by {
-                assert forall |i: int| 0 <= i < output_len as int implies output[i] == final_spec[i] by {
-                    crate::specs::rowwise_coordinates(i, w, h);
-                    let r = i / w;
-                    let c = i % w;
-                    if r % 2 == 0 {
-                        let hr = r / 2;
-                        assert(2 * hr == r);
-                        crate::specs::rowwise_cell(hr, c, w, lh);
-                        crate::specs::rowwise_index(hr, c, w);
-                        assert(inter[i] == low_rows[hr * w + c]);
-                        assert(output[i] == output[(2 * hr) * w + c]);
-                    } else {
-                        let hr = r / 2;
-                        assert(2 * hr + 1 == r);
-                        let left_r = r - 1;
-                        let right_r = if r + 1 < h { r + 1 } else { r - 1 };
-                        crate::specs::rowwise_cell(left_r, c, w, h);
-                        crate::specs::rowwise_cell(right_r, c, w, h);
-                        crate::specs::rowwise_index(left_r, c, w);
-                        crate::specs::rowwise_index(right_r, c, w);
-                        crate::specs::rowwise_cell(hr, c, w, hh);
-                        assert(inter[i] == high_rows[hr * w + c]);
-                        assert(inter[i] == 0i64);
-                        assert(inter[left_r * w + c] == output[left_r * w + c]) by {
-                            crate::specs::rowwise_cell(left_r / 2, c, w, lh);
-                            crate::specs::rowwise_index(left_r / 2, c, w);
-                            assert(2 * (left_r / 2) == left_r);
-                        }
-                        assert(inter[right_r * w + c] == output[right_r * w + c]) by {
-                            crate::specs::rowwise_cell(right_r / 2, c, w, lh);
-                            crate::specs::rowwise_index(right_r / 2, c, w);
-                            assert(2 * (right_r / 2) == right_r);
-                        }
-                        assert(output[i] == output[(2 * hr + 1) * w + c]);
-                        assert(left_r == 2 * hr);
-                        assert(right_r == if 2 * hr + 2 < h { 2 * hr + 2 } else { 2 * hr });
-                    }
-                }
-            }
+            assert((lh_u32 as nat) * (w_u32 as nat) == (w_u32 as nat) * (lh_u32 as nat)) by(nonlinear_arith);
+            prove_5_3_zero_detail_upd_identity(lh_u32, hh_u32, w_u32, h_u32, low_rows, high_rows);
+            prove_5_3_zero_detail_predict_match(
+                ll_samples, lw_u32, lh_u32, hh_u32, w_u32, h_u32, low_rows, high_rows, output, output_len,
+            );
         }
 
         #[verifier::spinoff_prover]

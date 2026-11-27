@@ -245,43 +245,36 @@ pub(crate) fn filled_values<T: Copy>(value: T, count: usize) -> Result<Vec<T>, D
         #[cfg(any(not(feature = "cooperative-deadlines"), verus_keep_ghost))]
         {
             values.resize(count, value);
-            let chunk = [value; 64];
-            values.as_mut_slice()[0..64].copy_from_slice(&chunk);
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(values@.subrange(0, 64) =~= chunk@);
-                assert forall|i: int| 0 <= i < 64 implies values@[i] == value by {
-                    assert(values@[i] == values@.subrange(0, 64)[i]);
-                }
-            }
-            let mut filled = 64_usize;
+            let chunk = [value; 128];
+            let mut filled = 0_usize;
             #[cfg_attr(verus_keep_ghost, verus_spec(
-                invariant 64 <= filled <= count,
+                invariant filled <= count,
                     values@.len() == count as int,
+                    chunk@.len() == 128,
+                    forall|k: int| 0 <= k < 128 ==> chunk@[k] == value,
                     forall|i: int| 0 <= i < filled as int ==> values@[i] == value,
                 decreases count - filled,
             ))]
             while filled < count {
                 let remaining = count - filled;
-                let step = if remaining < filled {
-                    remaining
-                } else {
-                    filled
-                };
+                let piece = if remaining >= 128 { 128 } else { remaining };
+                let piece_end = filled + piece;
                 #[cfg(verus_keep_ghost)]
                 proof_decl! { let ghost before = values@; }
-                values.as_mut_slice().copy_within(0..step, filled);
+                values.as_mut_slice()[filled..piece_end].copy_from_slice(&chunk[0..piece]);
                 #[cfg(verus_keep_ghost)]
                 proof! {
-                    assert forall|i: int| 0 <= i < (filled + step) as int implies values@[i] == value by {
+                    assert(values@.subrange(0, filled as int) =~= before.subrange(0, filled as int));
+                    assert(values@.subrange(filled as int, piece_end as int) =~= chunk@.subrange(0, piece as int));
+                    assert forall|i: int| 0 <= i < piece_end as int implies values@[i] == value by {
                         if i < filled as int {
-                            assert(values@[i] == before[i]);
+                            assert(values@[i] == values@.subrange(0, filled as int)[i]);
                         } else {
-                            assert(values@[i] == before[i - filled as int]);
+                            assert(values@[i] == values@.subrange(filled as int, piece_end as int)[i - filled as int]);
                         }
                     }
                 }
-                filled += step;
+                filled = piece_end;
             }
         }
         #[cfg(verus_keep_ghost)]
