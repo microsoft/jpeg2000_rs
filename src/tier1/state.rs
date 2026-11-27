@@ -818,6 +818,56 @@ impl CodeBlockPlane {
         Ok(())
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
+        ensures (result, code_block_plane_view(final(self))) == crate::specs::tier1_mark_coefficient(
+            code_block_plane_view(old(self)), x, y,
+            crate::specs::tier1_value_limbs(magnitude as nat),
+            magnitude as nat, negative),
+    ))]
+    #[inline(always)]
+    pub(super) fn mark_significant_u64(
+        &mut self,
+        x: u16,
+        y: u16,
+        magnitude: u64,
+        negative: bool,
+    ) -> Result<(), DecodeError> {
+        if magnitude == 0 {
+            return Err(invalid_code_block());
+        }
+        let index = self.index(x, y)?;
+        if index >= self.coefficients.len() {
+            return Err(invalid_code_block());
+        }
+        if self.coefficients[index].significant {
+            return Err(invalid_code_block());
+        }
+        let entry = CoefficientState {
+            magnitude,
+            magnitude_high: [0; 5],
+            legacy_bitplane: None,
+            negative,
+            significant: true,
+            refined: false,
+        };
+        self.coefficients[index] = entry;
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let limbs = coefficient_raw_view(entry).limbs;
+            assert(limbs =~= Seq::new(6, |i: int| if i == 0 { magnitude } else { 0u64 }));
+            crate::proofs::production_impl::production_magnitude_sparse_prefix(limbs, 0, magnitude, 6);
+            vstd::arithmetic::power2::lemma2_to64();
+            vstd::arithmetic::mul::lemma_mul_basics(magnitude as int);
+            assert(crate::specs::part1_magnitude_value(limbs) == magnitude as nat);
+            crate::proofs::production_impl::production_tier1_value_limbs(limbs);
+            assert(limbs == crate::specs::tier1_value_limbs(magnitude as nat));
+            assert(coefficient_raw_views(self.coefficients@) =~=
+                code_block_plane_view(old(self)).coefficients.update(index as int,
+                    crate::specs::tier1_new_coefficient(crate::specs::tier1_value_limbs(magnitude as nat), negative, true, false)));
+        }
+        Ok(())
+    }
+
     pub fn refine(&mut self, x: u16, y: u16, bitplane_mask: u64) -> Result<(), DecodeError> {
         self.apply_refinement_decision(x, y, bitplane_mask, true)
     }
