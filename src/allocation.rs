@@ -297,6 +297,9 @@ pub(crate) fn filled_values<T: Copy>(value: T, count: usize) -> Result<Vec<T>, D
                 proof! {
                     assert(values@.len() == next as int);
                     assert(values@.subrange(0, filled as int) == before_outer);
+                    assert forall|i: int| 0 <= i < filled as int implies values@[i] == value by {
+                        assert(values@[i] == values@.subrange(0, filled as int)[i]);
+                    }
                 }
                 let mut pos = filled;
                 #[cfg_attr(verus_keep_ghost, verus_spec(

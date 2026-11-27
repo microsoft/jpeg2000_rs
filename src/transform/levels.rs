@@ -1146,6 +1146,9 @@ mod zero_level {
                 Ok::<(u32, u32, u8, Seq<i64>), DecodeError>((lv.4, lv.5, if irreversible { 16u8 } else { 0u8 }, output))
                     == crate::specs::part1_inverse_level(lv, irreversible, maximum),
         {
+            assert(lv.0.0 as nat + lv.1.0 as nat == lv.4 as nat);
+            assert(lv.2.0 as nat + lv.3.0 as nat == lv.4 as nat);
+            assert(lv.0.1 as nat + lv.2.1 as nat == lv.5 as nat);
             assert((lv.4 as nat) * (lv.0.1 as nat) <= output_len as nat
                 && (lv.4 as nat) * (lv.2.1 as nat) <= output_len as nat) by(nonlinear_arith)
                 requires lv.0.1 <= lv.5, lv.2.1 <= lv.5, (lv.4 as nat) * (lv.5 as nat) == output_len as nat;
@@ -1153,11 +1156,147 @@ mod zero_level {
             assert(crate::specs::part1_transform_area(lv.4, lv.2.1).is_ok());
             zero_horizontal_prefix(lv.0, lv.1, lv.6, irreversible, lv.0.1 as nat);
             zero_horizontal_prefix(lv.2, lv.3, lv.6, irreversible, lv.2.1 as nat);
-            let low_band = (lv.4, lv.0.1, zeros((lv.0.1 as nat) * (lv.4 as nat)));
-            let high_band = (lv.4, lv.2.1, zeros((lv.2.1 as nat) * (lv.4 as nat)));
+            let low_rows = crate::specs::part1_horizontal_prefix(lv.0, lv.1, lv.6, irreversible, lv.0.1 as nat).get_Ok_0();
+            let high_rows = crate::specs::part1_horizontal_prefix(lv.2, lv.3, lv.6, irreversible, lv.2.1 as nat).get_Ok_0();
+            assert(low_rows == zeros((lv.0.1 as nat) * (lv.4 as nat)));
+            assert(high_rows == zeros((lv.2.1 as nat) * (lv.4 as nat)));
             assert((lv.0.1 as nat) * (lv.4 as nat) == (lv.4 as nat) * (lv.0.1 as nat)) by(nonlinear_arith);
             assert((lv.2.1 as nat) * (lv.4 as nat) == (lv.4 as nat) * (lv.2.1 as nat)) by(nonlinear_arith);
-            zero_vertical_prefix(low_band, high_band, lv.5, lv.7, irreversible, output_len, lv.4 as nat);
+            zero_vertical_prefix((lv.4, lv.0.1, low_rows), (lv.4, lv.2.1, high_rows), lv.5, lv.7, irreversible, output_len, lv.4 as nat);
+            assert(crate::specs::part1_level_rows_and_columns(lv, irreversible, output_len)
+                == Ok::<(u32, u32, u8, Seq<i64>), DecodeError>((lv.4, lv.5, if irreversible { 16u8 } else { 0u8 }, output)));
+        }
+
+        #[verifier::spinoff_prover]
+        proof fn prove_5_3_zero_detail_rowwise(
+            ll_samples: Seq<i64>,
+            lw_u32: u32,
+            lh_u32: u32,
+            hh_u32: u32,
+            w_u32: u32,
+            h_u32: u32,
+            low_rows: Seq<i64>,
+            high_rows: Seq<i64>,
+            output: Seq<i64>,
+            output_len: usize,
+        )
+            requires
+                w_u32 >= 4 && h_u32 >= 4,
+                w_u32 <= usize::MAX && h_u32 <= usize::MAX,
+                lw_u32 as nat == w_u32 as nat / 2 + w_u32 as nat % 2,
+                lh_u32 as nat == h_u32 as nat / 2 + h_u32 as nat % 2,
+                lh_u32 as nat + hh_u32 as nat == h_u32 as nat,
+                (w_u32 as nat) * (h_u32 as nat) == output_len as nat,
+                ll_samples.len() == (lw_u32 as nat) * (lh_u32 as nat),
+                output.len() == output_len as nat,
+                low_rows == Seq::new((lh_u32 as nat) * (w_u32 as nat), |idx: int| {
+                    let r = idx / (w_u32 as int);
+                    let c = idx % (w_u32 as int);
+                    let lr = ll_samples.subrange(r * (lw_u32 as int), (r + 1) * (lw_u32 as int));
+                    upsample_1d(lr, w_u32 as nat)[c]
+                }),
+                high_rows == zeros((hh_u32 as nat) * (w_u32 as nat)),
+                forall |i: int| 0 <= i < ll_samples.len() ==> -1_073_741_824i64 <= #[trigger] ll_samples[i] <= 1_073_741_824i64,
+                forall |r: int, c: int| 0 <= r < lh_u32 && 0 <= c < w_u32 ==>
+                    #[trigger] output[(2 * r) * (w_u32 as int) + c]
+                        == upsample_1d(ll_samples.subrange(r * (lw_u32 as int), (r + 1) * (lw_u32 as int)), w_u32 as nat)[c],
+                forall |r: int, c: int| 0 <= r < (h_u32 as int) / 2 && 0 <= c < w_u32 ==> {
+                    let a = output[(2 * r) * (w_u32 as int) + c];
+                    let b = if 2 * r + 2 < h_u32 { output[(2 * r + 2) * (w_u32 as int) + c] } else { a };
+                    #[trigger] output[(2 * r + 1) * (w_u32 as int) + c] == (((a as int) + (b as int)) as i64) >> 1
+                },
+            ensures
+                crate::specs::part1_vertical_prefix(
+                    (w_u32, lh_u32, low_rows),
+                    (w_u32, hh_u32, high_rows),
+                    h_u32,
+                    true,
+                    false,
+                    output_len,
+                    w_u32 as nat,
+                ) == Ok::<Seq<i64>, DecodeError>(output),
+        {
+            let w = w_u32 as int;
+            let h = h_u32 as int;
+            let lw = lw_u32 as int;
+            let lh = lh_u32 as int;
+            let low_band = (w_u32, lh_u32, low_rows);
+            let high_band = (w_u32, hh_u32, high_rows);
+            assert((lh_u32 as int) * (w_u32 as int) == w * lh
+                && (hh_u32 as int) * (w_u32 as int) == (w_u32 as int) * (hh_u32 as int)) by(nonlinear_arith)
+                requires w == w_u32 as int, lh == lh_u32 as int;
+            assert(crate::specs::rowwise_bounded(low_rows)) by {
+                assert forall |i: int| 0 <= i < low_rows.len() implies -1_073_741_824 <= #[trigger] low_rows[i] <= 1_073_741_824 by {
+                    crate::specs::rowwise_coordinates(i, w, lh);
+                    let r = i / w;
+                    let c = i % w;
+                    let xa = c / 2;
+                    assert(0 <= xa && xa < lw) by(nonlinear_arith)
+                        requires 0 <= c < w, lw == w / 2 + w % 2;
+                    assert(0 <= r * lw + xa && r * lw + xa < ll_samples.len()
+                        && (xa + 1 < lw ==> 0 <= r * lw + xa + 1 && r * lw + xa + 1 < ll_samples.len())) by(nonlinear_arith)
+                        requires 0 <= r < lh, 0 <= xa < lw, ll_samples.len() == lw * lh;
+                    let row_s = ll_samples.subrange(r * lw, (r + 1) * lw);
+                    let la = row_s[xa];
+                    assert(la == ll_samples[r * lw + xa]);
+                    let ra = if xa + 1 < lw { row_s[xa + 1] } else { la };
+                    if xa + 1 < lw {
+                        assert(ra == ll_samples[r * lw + xa + 1]);
+                    }
+                    avg_bounded(la, ra);
+                }
+            }
+            assert(crate::specs::rowwise_bounded(high_rows));
+            assert(crate::specs::rowwise_eligible(low_band, high_band, h_u32, true, output_len)) by {
+                assert((w_u32 as int) * (lh_u32 as int) + (w_u32 as int) * (hh_u32 as int) == output_len as int) by(nonlinear_arith)
+                    requires (w_u32 as int) * (h_u32 as int) == output_len as int,
+                        (lh_u32 as int) + (hh_u32 as int) == h_u32 as int;
+            }
+            crate::specs::rowwise_equivalent(low_band, high_band, h_u32, true, output_len);
+            let inter = crate::specs::rowwise_interleaved(low_band, high_band, h_u32, true);
+            let upd = crate::specs::rowwise_stage(inter, w_u32 as nat, h_u32 as nat, true, false);
+            assert(upd =~= inter) by {
+                assert forall |i: int| 0 <= i < inter.len() implies upd[i] == inter[i] by {
+                    crate::specs::rowwise_coordinates(i, w, h);
+                    let r = i / w;
+                    let c = i % w;
+                    if r % 2 == 0 {
+                        let left_r = if r == 0 { 1int } else { r - 1 };
+                        let right_r = if r + 1 < h { r + 1 } else { r - 1 };
+                        crate::specs::rowwise_index(left_r, c, w);
+                        crate::specs::rowwise_index(right_r, c, w);
+                        assert(inter[left_r * w + c] == 0i64 && inter[right_r * w + c] == 0i64);
+                        assert((2i64 >> 2i64) == 0i64) by(bit_vector);
+                    }
+                }
+            }
+            let final_spec = crate::specs::rowwise_output(low_band, high_band, h_u32, true);
+            assert(output =~= final_spec) by {
+                assert forall |i: int| 0 <= i < output_len as int implies output[i] == final_spec[i] by {
+                    crate::specs::rowwise_coordinates(i, w, h);
+                    let r = i / w;
+                    let c = i % w;
+                    if r % 2 == 0 {
+                        let hr = r / 2;
+                        assert(2 * hr == r);
+                        crate::specs::rowwise_index(hr, c, w);
+                    } else {
+                        let hr = r / 2;
+                        assert(2 * hr + 1 == r);
+                        let left_r = r - 1;
+                        let right_r = if r + 1 < h { r + 1 } else { r - 1 };
+                        crate::specs::rowwise_index(left_r, c, w);
+                        crate::specs::rowwise_index(right_r, c, w);
+                        assert(inter[i] == 0i64);
+                        assert(inter[left_r * w + c] == output[left_r * w + c]) by {
+                            crate::specs::rowwise_index(left_r / 2, c, w);
+                        }
+                        assert(inter[right_r * w + c] == output[right_r * w + c]) by {
+                            crate::specs::rowwise_index(right_r / 2, c, w);
+                        }
+                    }
+                }
+            }
         }
 
         #[verifier::spinoff_prover]
@@ -1191,10 +1330,9 @@ mod zero_level {
                 Ok::<(u32, u32, u8, Seq<i64>), DecodeError>((lv.4, lv.5, 0u8, output))
                     == crate::specs::part1_inverse_level(lv, false, maximum),
         {
-            let w = lv.4 as int;
-            let h = lv.5 as int;
-            let lw = lv.0.0 as int;
-            let lh = lv.0.1 as int;
+            assert(lv.0.0 as nat + lv.1.0 as nat == lv.4 as nat);
+            assert(lv.2.0 as nat + lv.3.0 as nat == lv.4 as nat);
+            assert(lv.0.1 as nat + lv.2.1 as nat == lv.5 as nat);
             assert((lv.4 as nat) * (lv.0.1 as nat) <= output_len as nat
                 && (lv.4 as nat) * (lv.2.1 as nat) <= output_len as nat) by(nonlinear_arith)
                 requires lv.0.1 <= lv.5, lv.2.1 <= lv.5, (lv.4 as nat) * (lv.5 as nat) == output_len as nat;
@@ -1203,81 +1341,13 @@ mod zero_level {
             zero_high_5_3_horizontal_prefix(lv.0, lv.1, lv.4, lv.0.1 as nat);
             zero_horizontal_prefix(lv.2, lv.3, true, false, lv.2.1 as nat);
             let low_rows = crate::specs::part1_horizontal_prefix(lv.0, lv.1, true, false, lv.0.1 as nat).get_Ok_0();
-            let high_rows = zeros((lv.2.1 as nat) * (lv.4 as nat));
-            assert((lv.0.1 as int) * (lv.4 as int) == w * lh) by(nonlinear_arith);
-            assert((lv.2.1 as nat) * (lv.4 as nat) == (lv.4 as nat) * (lv.2.1 as nat)) by(nonlinear_arith);
-            let low_band = (lv.4, lv.0.1, low_rows);
-            let high_band = (lv.4, lv.2.1, high_rows);
-            assert(crate::specs::rowwise_bounded(low_rows)) by {
-                assert forall |i: int| 0 <= i < low_rows.len() implies -1_073_741_824 <= #[trigger] low_rows[i] <= 1_073_741_824 by {
-                    crate::specs::rowwise_coordinates(i, w, lh);
-                    let r = i / w;
-                    let c = i % w;
-                    let xa = c / 2;
-                    assert(0 <= r * lw + xa && r * lw + xa < lv.0.2.len()
-                        && (xa + 1 < lw ==> 0 <= r * lw + xa + 1 && r * lw + xa + 1 < lv.0.2.len())) by(nonlinear_arith)
-                        requires 0 <= r < lh, 0 <= xa < lw, lv.0.2.len() == lw * lh;
-                    let row_s = lv.0.2.subrange(r * lw, (r + 1) * lw);
-                    let la = row_s[xa];
-                    assert(la == lv.0.2[r * lw + xa]);
-                    let ra = if xa + 1 < lw { row_s[xa + 1] } else { la };
-                    if xa + 1 < lw {
-                        assert(ra == lv.0.2[r * lw + xa + 1]);
-                    }
-                    avg_bounded(la, ra);
-                }
-            }
-            assert(crate::specs::rowwise_bounded(high_rows));
-            assert(crate::specs::rowwise_eligible(low_band, high_band, lv.5, true, output_len)) by {
-                assert((lv.4 as int) * (lv.0.1 as int) + (lv.4 as int) * (lv.2.1 as int) == output_len as int) by(nonlinear_arith)
-                    requires (lv.4 as int) * (lv.5 as int) == output_len as int,
-                        (lv.0.1 as int) + (lv.2.1 as int) == lv.5 as int;
-            }
-            crate::specs::rowwise_equivalent(low_band, high_band, lv.5, true, output_len);
-            let inter = crate::specs::rowwise_interleaved(low_band, high_band, lv.5, true);
-            let upd = crate::specs::rowwise_stage(inter, lv.4 as nat, lv.5 as nat, true, false);
-            assert(upd =~= inter) by {
-                assert forall |i: int| 0 <= i < inter.len() implies upd[i] == inter[i] by {
-                    crate::specs::rowwise_coordinates(i, w, h);
-                    let r = i / w;
-                    let c = i % w;
-                    if r % 2 == 0 {
-                        let left_r = if r == 0 { 1int } else { r - 1 };
-                        let right_r = if r + 1 < h { r + 1 } else { r - 1 };
-                        crate::specs::rowwise_index(left_r, c, w);
-                        crate::specs::rowwise_index(right_r, c, w);
-                        assert(inter[left_r * w + c] == 0i64 && inter[right_r * w + c] == 0i64);
-                        assert((2i64 >> 2i64) == 0i64) by(bit_vector);
-                    }
-                }
-            }
-            let final_spec = crate::specs::rowwise_output(low_band, high_band, lv.5, true);
-            assert(output =~= final_spec) by {
-                assert forall |i: int| 0 <= i < output_len as int implies output[i] == final_spec[i] by {
-                    crate::specs::rowwise_coordinates(i, w, h);
-                    let r = i / w;
-                    let c = i % w;
-                    if r % 2 == 0 {
-                        let hr = r / 2;
-                        assert(2 * hr == r);
-                        crate::specs::rowwise_index(hr, c, w);
-                    } else {
-                        let hr = r / 2;
-                        assert(2 * hr + 1 == r);
-                        let left_r = r - 1;
-                        let right_r = if r + 1 < h { r + 1 } else { r - 1 };
-                        crate::specs::rowwise_index(left_r, c, w);
-                        crate::specs::rowwise_index(right_r, c, w);
-                        assert(inter[i] == 0i64);
-                        assert(inter[left_r * w + c] == output[left_r * w + c]) by {
-                            crate::specs::rowwise_index(left_r / 2, c, w);
-                        }
-                        assert(inter[right_r * w + c] == output[right_r * w + c]) by {
-                            crate::specs::rowwise_index(right_r / 2, c, w);
-                        }
-                    }
-                }
-            }
+            let high_rows = crate::specs::part1_horizontal_prefix(lv.2, lv.3, true, false, lv.2.1 as nat).get_Ok_0();
+            assert(high_rows == zeros((lv.2.1 as nat) * (lv.4 as nat)));
+            prove_5_3_zero_detail_rowwise(
+                lv.0.2, lv.0.0, lv.0.1, lv.2.1, lv.4, lv.5, low_rows, high_rows, output, output_len,
+            );
+            assert(crate::specs::part1_level_rows_and_columns(lv, false, output_len)
+                == Ok::<(u32, u32, u8, Seq<i64>), DecodeError>((lv.4, lv.5, 0u8, output)));
         }
     }
 
@@ -1389,26 +1459,31 @@ mod zero_level {
                 proof! {
                     assert(2 * (x as int) + 1 < w as int) by(nonlinear_arith)
                         requires (x as int) + 1 < lw as int, lw == w / 2 + w % 2;
-                    assert forall |r: int, c: int| 0 <= r < y && 0 <= c < w implies (2 * r) * (w as int) + c < dst_start as int by {
-                        assert((2 * r) * (w as int) + c < (2 * (y as int)) * (w as int)) by(nonlinear_arith)
-                            requires 0 <= r < y, 0 <= c < w;
-                    }
                 }
+                #[cfg(verus_keep_ghost)]
+                proof_decl! { let ghost before_step = output@; }
                 let a = ll[src_start + x];
                 let b = ll[src_start + x + 1];
                 output[dst_start + 2 * x] = a;
                 output[dst_start + 2 * x + 1] = (a + b) >> 1;
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert forall |r: int, c: int| 0 <= r < y && 0 <= c < w implies #[trigger] output@[(2 * r) * (w as int) + c]
+                        == upsample_1d(ll@.subrange(r * (lw as int), (r + 1) * (lw as int)), w as nat)[c] by {
+                        assert((2 * r) * (w as int) + c < dst_start as int) by(nonlinear_arith)
+                            requires 0 <= r < y, 0 <= c < w, dst_start == (2 * y) * w;
+                        assert(output@[(2 * r) * (w as int) + c] == before_step[(2 * r) * (w as int) + c]);
+                    }
+                }
                 x += 1;
             }
             #[cfg(verus_keep_ghost)]
             proof! {
                 assert(2 * ((lw - 1) as int) < w as int) by(nonlinear_arith)
                     requires lw >= 2, lw == w / 2 + w % 2;
-                assert forall |r: int, c: int| 0 <= r < y && 0 <= c < w implies (2 * r) * (w as int) + c < dst_start as int by {
-                    assert((2 * r) * (w as int) + c < (2 * (y as int)) * (w as int)) by(nonlinear_arith)
-                        requires 0 <= r < y, 0 <= c < w;
-                }
             }
+            #[cfg(verus_keep_ghost)]
+            proof_decl! { let ghost before_tail = output@; }
             let last = ll[src_start + lw - 1];
             output[dst_start + 2 * (lw - 1)] = last;
             if 2 * (lw - 1) + 1 < w {
@@ -1422,9 +1497,16 @@ mod zero_level {
             proof! {
                 assert((y as int) * (lw as int) + (lw as int) == (y as int + 1) * (lw as int)) by(nonlinear_arith);
                 assert(2 * ((lw - 1) as int) + 2 >= w as int);
-                assert forall |c: int| 0 <= c < w as int implies output@[dst_start as int + c]
+                assert forall |r: int, c: int| 0 <= r < y && 0 <= c < w implies #[trigger] output@[(2 * r) * (w as int) + c]
+                    == upsample_1d(ll@.subrange(r * (lw as int), (r + 1) * (lw as int)), w as nat)[c] by {
+                    assert((2 * r) * (w as int) + c < dst_start as int) by(nonlinear_arith)
+                        requires 0 <= r < y, 0 <= c < w, dst_start == (2 * y) * w;
+                    assert(output@[(2 * r) * (w as int) + c] == before_tail[(2 * r) * (w as int) + c]);
+                }
+                assert forall |c: int| 0 <= c < w as int implies #[trigger] output@[dst_start as int + c]
                     == upsample_1d(ll@.subrange((y as int) * (lw as int), (y as int + 1) * (lw as int)), w as nat)[c] by {
                     if c < 2 * ((lw - 1) as int) {
+                        assert(output@[dst_start as int + c] == before_tail[dst_start as int + c]);
                     } else if c == 2 * ((lw - 1) as int) {
                     } else {
                         assert(c == 2 * ((lw - 1) as int) + 1);
@@ -1564,22 +1646,45 @@ mod zero_level {
                             avg_bounded(lb, rb);
                         }
                     }
+                }
+                #[cfg(verus_keep_ghost)]
+                proof_decl! { let ghost before_odd = output@; }
+                output[odd_start + x] = (a + b) >> 1;
+                #[cfg(verus_keep_ghost)]
+                proof! {
                     let target_idx = odd_start as int + x as int;
                     crate::specs::rowwise_index(2 * (y as int) + 1, x as int, w as int);
-                    assert forall |r: int, c: int| 0 <= r < lh && 0 <= c < w implies (2 * r) * (w as int) + c != target_idx by {
+                    assert forall |r: int, c: int| 0 <= r < lh && 0 <= c < w implies #[trigger] output@[(2 * r) * (w as int) + c]
+                        == upsample_1d(ll@.subrange(r * (lw as int), (r + 1) * (lw as int)), w as nat)[c] by {
                         crate::specs::rowwise_index(2 * r, c, w as int);
+                        assert((2 * r) * (w as int) + c != target_idx);
+                        assert(output@[(2 * r) * (w as int) + c] == before_odd[(2 * r) * (w as int) + c]);
                     }
-                    assert forall |r: int, c: int| 0 <= r < y && 0 <= c < w implies (2 * r + 1) * (w as int) + c != target_idx by {
+                    assert forall |r: int, c: int| 0 <= r < y && 0 <= c < w implies {
+                        let ea = output@[(2 * r) * (w as int) + c];
+                        let eb = if 2 * r + 2 < h { output@[(2 * r + 2) * (w as int) + c] } else { ea };
+                        #[trigger] output@[(2 * r + 1) * (w as int) + c] == (((ea as int) + (eb as int)) as i64) >> 1
+                    } by {
+                        crate::specs::rowwise_index(2 * r, c, w as int);
                         crate::specs::rowwise_index(2 * r + 1, c, w as int);
+                        if 2 * r + 2 < h {
+                            crate::specs::rowwise_index(2 * r + 2, c, w as int);
+                        }
+                        assert((2 * r + 1) * (w as int) + c != target_idx);
+                        assert(output@[(2 * r + 1) * (w as int) + c] == before_odd[(2 * r + 1) * (w as int) + c]);
                     }
-                    assert forall |c: int| 0 <= c < x implies above_start as int + c != target_idx && below_start as int + c != target_idx && odd_start as int + c != target_idx by {
+                    assert forall |c: int| 0 <= c < x as int implies {
+                        let ea = output@[above_start as int + c];
+                        let eb = output@[below_start as int + c];
+                        #[trigger] output@[odd_start as int + c] == (((ea as int) + (eb as int)) as i64) >> 1
+                    } by {
                         crate::specs::rowwise_index(2 * (y as int), c, w as int);
                         if 2 * y + 2 < h {
                             crate::specs::rowwise_index(2 * (y as int) + 2, c, w as int);
                         }
+                        assert(output@[odd_start as int + c] == before_odd[odd_start as int + c]);
                     }
                 }
-                output[odd_start + x] = (a + b) >> 1;
                 x += 1;
             }
             y += 1;
