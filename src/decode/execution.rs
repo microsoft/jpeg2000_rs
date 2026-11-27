@@ -1044,7 +1044,7 @@ verus! {
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    requires slice.len() == 64,
+    requires slice.len() == 64, bound >= 0,
     ensures result == forall |i: int| 0 <= i < 64 ==> -bound <= #[trigger] slice@[i] <= bound,
 ))]
 #[inline(always)]
@@ -1209,79 +1209,83 @@ pub(super) fn apply_prepared_component_transform(
     } else {
         1_152_921_504_606_846_976_i64
     };
-    if let Some((first, rest)) = prepared.split_first_mut() {
-        #[allow(
-            clippy::collapsible_if,
-            reason = "MSRV 1.88 and Verus require separate if-let bindings."
+    if prepared.len() >= 3
+        && prepared[0].samples.len() == length
+        && prepared[1].samples.len() == length
+        && prepared[2].samples.len() == length
+    {
+        let mut r = Vec::new();
+        let mut g = Vec::new();
+        let mut b = Vec::new();
+        core::mem::swap(&mut r, &mut prepared[0].samples);
+        core::mem::swap(&mut g, &mut prepared[1].samples);
+        core::mem::swap(&mut b, &mut prepared[2].samples);
+        #[cfg_attr(
+            verus_keep_ghost,
+            verus_spec(
+                invariant index <= length, transform.0,
+                before == prepared_components_view(old(prepared)@),
+                before.len() >= 3,
+                prepared.len() == before.len(),
+                before[0].6.len() == length,
+                before[1].6.len() == length,
+                before[2].6.len() == length,
+                r.len() == length,
+                g.len() == length,
+                b.len() == length,
+                bound == if transform.1 { 17_592_186_044_416_i64 } else { 1_152_921_504_606_846_976_i64 },
+                crate::specs::part1_prepared_standard_admission(before, transform.1) == Ok(length),
+                ({
+                    let prefix = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat);
+                    prefix.0 == Ok::<(), DecodeError>(())
+                        && prefix.1.len() == before.len()
+                        && prefix.1[0].6 == r@
+                        && prefix.1[1].6 == g@
+                        && prefix.1[2].6 == b@
+                        && (forall |c: int| 3 <= c < before.len() ==> prefix.1[c] == before[c])
+                        && prefix.1[0] == (before[0].0, before[0].1, before[0].2, before[0].3, before[0].4, before[0].5, r@)
+                        && prefix.1[1] == (before[1].0, before[1].1, before[1].2, before[1].3, before[1].4, before[1].5, g@)
+                        && prefix.1[2] == (before[2].0, before[2].1, before[2].2, before[2].3, before[2].4, before[2].5, b@)
+                        && (forall |j: int| index <= j < length ==>
+                            r@[j] == before[0].6[j]
+                            && g@[j] == before[1].6[j]
+                            && b@[j] == before[2].6[j])
+                }),
+                decreases length - index,
+            )
         )]
-        if let Some((second, rest2)) = rest.split_first_mut() {
-            if let Some((third, _)) = rest2.split_first_mut() {
-                if first.samples.len() == length
-                    && second.samples.len() == length
-                    && third.samples.len() == length
-                {
-                    #[cfg_attr(
-                        verus_keep_ghost,
-                        verus_spec(
-                            invariant index <= length, transform.0,
-                            before == prepared_components_view(old(prepared)@),
-                            before.len() >= 3,
-                            first.samples.len() == length,
-                            second.samples.len() == length,
-                            third.samples.len() == length,
-                            bound == if transform.1 { 17_592_186_044_416_i64 } else { 1_152_921_504_606_846_976_i64 },
-                            crate::specs::part1_prepared_standard_admission(before, transform.1) == Ok(length),
-                            ({
-                                let prefix = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat);
-                                prefix.0 == Ok::<(), DecodeError>(())
-                                    && prefix.1.len() == before.len()
-                                    && prefix.1[0].6 == first.samples@
-                                    && prefix.1[1].6 == second.samples@
-                                    && prefix.1[2].6 == third.samples@
-                                    && (forall |c: int| 3 <= c < before.len() ==> prefix.1[c] == before[c])
-                                    && prefix.1[0] == (before[0].0, before[0].1, before[0].2, before[0].3, before[0].4, before[0].5, first.samples@)
-                                    && prefix.1[1] == (before[1].0, before[1].1, before[1].2, before[1].3, before[1].4, before[1].5, second.samples@)
-                                    && prefix.1[2] == (before[2].0, before[2].1, before[2].2, before[2].3, before[2].4, before[2].5, third.samples@)
-                                    && (forall |j: int| index <= j < length ==>
-                                        first.samples@[j] == before[0].6[j]
-                                        && second.samples@[j] == before[1].6[j]
-                                        && third.samples@[j] == before[2].6[j])
-                            }),
-                            decreases length - index,
-                        )
-                    )]
-                    while length - index >= 64 {
-                        let r_chunk = &mut first.samples.as_mut_slice()[index..index + 64];
-                        let g_chunk = &mut second.samples.as_mut_slice()[index..index + 64];
-                        let b_chunk = &mut third.samples.as_mut_slice()[index..index + 64];
-                        if !chunk_within_bound(r_chunk, bound)
-                            || !chunk_within_bound(g_chunk, bound)
-                            || !chunk_within_bound(b_chunk, bound)
-                        {
-                            break;
-                        }
-                        if transform.1 {
-                            apply_ict_chunk(r_chunk, g_chunk, b_chunk);
-                        } else {
-                            apply_rct_chunk(r_chunk, g_chunk, b_chunk);
-                        }
-                        #[cfg(verus_keep_ghost)]
-                        proof! {
-                            let p0 = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat);
-                            assert(p0.1[0].6 =~= Seq::new(length as nat, |j: int| if j < index as int { first.samples@[j] } else { before[0].6[j] }));
-                            assert(p0.1[1].6 =~= Seq::new(length as nat, |j: int| if j < index as int { second.samples@[j] } else { before[1].6[j] }));
-                            assert(p0.1[2].6 =~= Seq::new(length as nat, |j: int| if j < index as int { third.samples@[j] } else { before[2].6[j] }));
-                            advance_standard_chunk(before, transform.1, index, length, first.samples@, second.samples@, third.samples@, 64);
-                            let p_done = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat + 64);
-                            assert(p_done.1[0].6 =~= first.samples@);
-                            assert(p_done.1[1].6 =~= second.samples@);
-                            assert(p_done.1[2].6 =~= third.samples@);
-                        }
-                        index += 64;
-                    }
-                }
+        while length - index >= 64 {
+            let r_chunk = &mut r.as_mut_slice()[index..index + 64];
+            let g_chunk = &mut g.as_mut_slice()[index..index + 64];
+            let b_chunk = &mut b.as_mut_slice()[index..index + 64];
+            if !chunk_within_bound(r_chunk, bound)
+                || !chunk_within_bound(g_chunk, bound)
+                || !chunk_within_bound(b_chunk, bound)
+            {
+                break;
             }
+            if transform.1 {
+                apply_ict_chunk(r_chunk, g_chunk, b_chunk);
+            } else {
+                apply_rct_chunk(r_chunk, g_chunk, b_chunk);
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                let p0 = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat);
+                assert(p0.1[0].6 =~= Seq::new(length as nat, |j: int| if j < index as int { r@[j] } else { before[0].6[j] }));
+                assert(p0.1[1].6 =~= Seq::new(length as nat, |j: int| if j < index as int { g@[j] } else { before[1].6[j] }));
+                assert(p0.1[2].6 =~= Seq::new(length as nat, |j: int| if j < index as int { b@[j] } else { before[2].6[j] }));
+                advance_standard_chunk(before, transform.1, index, length, r@, g@, b@, 64);
+                let p_done = crate::specs::part1_prepared_standard_prefix(before, transform.1, index as nat + 64);
+                assert(p_done.1[0].6 =~= r@);
+                assert(p_done.1[1].6 =~= g@);
+                assert(p_done.1[2].6 =~= b@);
+            }
+            index += 64;
         }
+        core::mem::swap(&mut r, &mut prepared[0].samples);
+        core::mem::swap(&mut g, &mut prepared[1].samples);
+        core::mem::swap(&mut b, &mut prepared[2].samples);
     }
     #[cfg(verus_keep_ghost)]
     proof! {

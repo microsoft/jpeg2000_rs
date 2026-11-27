@@ -33,6 +33,7 @@ fn row_within_bound(samples: &[i64]) -> bool {
     true
 }
 
+#[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires old(samples).len() > 1,
         forall |i: int| 0 <= i < old(samples).len() ==>
@@ -213,6 +214,9 @@ fn scale_parity_bounded(samples: &mut [i64], low_parity: bool, factor: i64, boun
     #[cfg(verus_keep_ghost)]
     proof_decl! { let ghost original = samples@; }
     let len = samples.len();
+    if len == 0 {
+        return;
+    }
     let mut index = if low_parity { 0_usize } else { 1_usize };
     #[cfg(verus_keep_ghost)]
     proof! {

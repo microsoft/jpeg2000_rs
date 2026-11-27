@@ -766,20 +766,23 @@ verus! {
             let x_cur = (x_start as nat + prev_k) as u32;
             match crop {
                 Some(origin) => {
-                    assert(((y - origin.1) as int) * (original.0 as int) + ((x_cur - origin.0) as int)
-                        == (dst_start as int) + (prev_k as int));
-                    assert(((y - tile.2) as int) * (tile.3 as int) + ((x_cur - tile.1) as int)
-                        == (src_start as int) + (prev_k as int));
+                    assert(crate::specs::part1_transform_offset((y - origin.1) as u32, original.0, (x_start - origin.0) as u32) == Ok(dst_start));
+                    assert(crate::specs::part1_transform_offset((y - tile.2) as u32, tile.3, (x_start - tile.1) as u32) == Ok(src_start));
+                    assert((dst_start as int) == ((y - origin.1) as int) * (original.0 as int) + ((x_start - origin.0) as int));
+                    assert((src_start as int) == ((y - tile.2) as int) * (tile.3 as int) + ((x_start - tile.1) as int));
+                    assert((x_cur - origin.0) as int == (x_start - origin.0) as int + (prev_k as int));
+                    assert((x_cur - tile.1) as int == (x_start - tile.1) as int + (prev_k as int));
                     assert(crate::specs::part1_transform_offset((y - origin.1) as u32, original.0, (x_cur - origin.0) as u32)
                         == Ok((dst_start + prev_k) as usize));
                     assert(crate::specs::part1_transform_offset((y - tile.2) as u32, tile.3, (x_cur - tile.1) as u32)
                         == Ok((src_start + prev_k) as usize));
                 }
                 None => {
-                    assert(((tile.2 + y) as int) * (original.0 as int) + ((tile.1 + x_cur) as int)
-                        == (dst_start as int) + (prev_k as int));
-                    assert((y as int) * (tile.3 as int) + (x_cur as int)
-                        == (src_start as int) + (prev_k as int));
+                    assert(crate::specs::part1_transform_offset((tile.2 + y) as u32, original.0, (tile.1 + x_start) as u32) == Ok(dst_start));
+                    assert(crate::specs::part1_transform_offset(y, tile.3, x_start) == Ok(src_start));
+                    assert((dst_start as int) == ((tile.2 + y) as int) * (original.0 as int) + ((tile.1 + x_start) as int));
+                    assert((src_start as int) == (y as int) * (tile.3 as int) + (x_start as int));
+                    assert((tile.1 + x_cur) as int == (tile.1 + x_start) as int + (prev_k as int));
                     assert(crate::specs::part1_transform_offset((tile.2 + y) as u32, original.0, (tile.1 + x_cur) as u32)
                         == Ok((dst_start + prev_k) as usize));
                     assert(crate::specs::part1_transform_offset(y, tile.3, x_cur)

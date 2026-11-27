@@ -542,8 +542,21 @@ impl DecodedComponent {
                 );
             }
             let fast_max = if self.fraction_bits == 0 {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    let prec: u8 = self.info.precision;
+                    assert(0 < level_shift <= 137_438_953_472i64) by (bit_vector)
+                        requires 0 < prec <= 38,
+                            level_shift == 1i64 << ((prec - 1) as u8);
+                }
                 Some(i64::MAX - level_shift)
             } else if self.fraction_bits <= 62 {
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    let fb: u8 = self.fraction_bits;
+                    assert(1i64 <= (1i64 << ((fb - 1) as u32))) by (bit_vector)
+                        requires 0 < fb <= 62;
+                }
                 Some(i64::MAX - (1_i64 << u32::from(self.fraction_bits - 1)))
             } else {
                 None
@@ -552,6 +565,7 @@ impl DecodedComponent {
                 verus_keep_ghost,
                 verus_spec(
                     invariant index <= self.samples.len(),
+                    output.len() == index,
                     source==decoded_component_view(*self),
                     crate::specs::part2_typed_samples_result(source,crate::limits::resource_decoded_bytes_limit(limits),crate::specs::part1_decoded_component_typed_samples(source,crate::limits::resource_decoded_bytes_limit(limits))),
                     0 < self.info.precision <= 38,
