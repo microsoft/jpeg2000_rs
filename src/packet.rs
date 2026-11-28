@@ -193,7 +193,7 @@ pub struct PacketSubbandExecution {
     pub decoders: Vec<Tier1CodeBlockDecoder>,
 }
 
-struct PacketSubbandState {
+pub(crate) struct PacketSubbandState {
     orientation: SubbandOrientation,
     first_decoder: usize,
     decoder_count: usize,

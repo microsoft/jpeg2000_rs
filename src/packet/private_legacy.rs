@@ -369,7 +369,7 @@ pub(crate) struct PrivateLegacyPrecinct {
     pub(crate) precinct: u32,
     pub(crate) states: Vec<CodeBlockPacketState>,
     pub(crate) contexts: Vec<CodeBlockPacketContext>,
-    pub(super) subbands: Vec<PacketSubbandState>,
+    pub(crate) subbands: Vec<PacketSubbandState>,
     pub(crate) block_base: usize,
     #[cfg_attr(not(verus_keep_ghost), allow(dead_code))]
     pub(crate) block_count: usize,
