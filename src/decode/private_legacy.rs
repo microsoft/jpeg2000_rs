@@ -105,7 +105,7 @@ struct PrivateLegacyTilePlan<'data> {
 #[cfg(verus_keep_ghost)]
 verus! {
 
-open spec fn private_legacy_plan_placement_bijection(
+spec fn private_legacy_plan_placement_bijection(
     components: Seq<PlannedTileComponent>,
     starts: Seq<usize>,
     precincts: Seq<PrivateLegacyPrecinct>,
