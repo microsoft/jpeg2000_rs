@@ -556,7 +556,7 @@ fn plan_private_legacy_precinct_subband<'data>(
     #[cfg(verus_keep_ghost)]
     proof! {
         let b_now = private_legacy_blocks_view(blocks@);
-        let new_decoders = private_legacy_slot_decoders(b_now, block_base + first_offset, band_count as nat, limits);
+        let new_decoders = private_legacy_slot_decoders(b_now, (block_base + first_offset) as usize, band_count as nat, limits);
         let pushed_exec = crate::specs::Part2PacketSubbandExecution {
             orientation: geometry.orientation,
             across,
