@@ -2033,6 +2033,7 @@ impl Tier1CodeBlockDecoder {
             crate::specs::compact_block_phase(old(self).bitplane,0,old(packed).width,old(packed).height,old(packed).entries@,old(self).bitplane,None),
         ensures final(packed).shape(),final(packed).width==old(packed).width,final(packed).height==old(packed).height,
             super::code_block_plane_view(&final(self).plane)==super::code_block_plane_view(&old(self).plane),
+            crate::specs::compact_physical_frame(super::tier1_decoder_state(old(self)),super::tier1_decoder_state(final(self))),
             crate::specs::part2_legacy_inner_body_result(crate::specs::Part1LegacySegmentRun {
                 decoder:old(self).compact_view(old(packed)),
                 symbols:crate::specs::Part1LegacySymbols::Mq(crate::mq::mq_decoder_view(old(decoder))),
@@ -2509,6 +2510,34 @@ pub(crate) fn decode_compact_legacy_scratch(
                 crate::limits::resource_work_limit(limits),
             ) == Ok::<crate::specs::Part1MqState, DecodeError>(mq_raw));
             assert(crate::specs::part1_legacy_segment_setup(initial_view, mq_raw) == (initial_view, mq_init));
+            assert(initial_view == crate::specs::Tier1DecoderState {
+                plane: crate::specs::private_legacy_empty_plane(width, height),
+                private_plan: false,
+                orientation,
+                style,
+                maximum_passes: (3 * (effective_bitplanes as nat) - 2) as u32,
+                next_pass: 0,
+                bitplane: (effective_bitplanes - 1) as u16,
+                zero_bitplanes: Some(zero_bitplanes),
+                bitplane_state: None,
+                mq_context_state: None,
+                reset_contexts_before_mq: false,
+                decoded_segments: 0,
+                decoded_bytes: 0,
+                legacy_segment: None,
+                legacy_decode_work: 0,
+                ht_cleanup_plane: None,
+                ht_refinement_data: Seq::empty(),
+                ht_refinement_passes: 0,
+                ht_decoded_bitplanes: 0,
+                ht_current_set_has_cleanup: false,
+                ht_sets_seen: 0,
+                allow_multiple_ht_sets,
+                ht_magnitude_bound,
+            });
+            assert(decoder.compact_view(&packed).decoded_segments == 0);
+            assert(decoder.compact_view(&packed).decoded_bytes == 0);
+            assert(decoder.compact_view(&packed).style == style);
             assert(packed.view().coefficients =~= crate::specs::private_legacy_compact_plane(width, height, packed.entries@).coefficients);
             assert(packed.view() == crate::specs::private_legacy_compact_plane(width, height, packed.entries@));
         }

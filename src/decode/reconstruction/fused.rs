@@ -438,6 +438,61 @@ pub(in crate::decode) fn place_private(
     }
 }
 
+const COMPACT_MAG: u64 = 0xffff_ffff;
+const COMPACT_BP_SHIFT: u32 = 32;
+const COMPACT_BP_MASK: u64 = 63 << COMPACT_BP_SHIFT;
+const COMPACT_SIG: u64 = 1 << 38;
+const COMPACT_NEG: u64 = 1 << 39;
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures Some(result) == crate::specs::part2_narrow_magnitude(crate::specs::compact_coefficient(value)),
+))]
+#[inline]
+fn compact_words_magnitude(value: u64) -> u64 {
+    if value & COMPACT_SIG == 0 {
+        return 0;
+    }
+    let bp = (value & COMPACT_BP_MASK) >> COMPACT_BP_SHIFT;
+    let magnitude = value & COMPACT_MAG;
+    let midpoint = if bp == 63 {
+        0
+    } else {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(bp == ((value >> 32) & 63) && bp < 63) by(bit_vector)
+                requires bp == (value & (63u64 << 32)) >> 32, bp != 63;
+        }
+        crate::refinement::tier1_midpoint_delta(bp as u16)
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(bp == ((value >> 32) & 63) && bp <= 63) by(bit_vector)
+            requires bp == (value & (63u64 << 32)) >> 32;
+        assert(magnitude <= 0xffff_ffffu64) by(bit_vector)
+            requires magnitude == value & 0xffff_ffffu64;
+        if bp == 63 || bp == 0 {
+            assert(midpoint == 0u64);
+        } else {
+            let shift: u64 = (bp - 1) as u64;
+            assert(midpoint == (1u64 << shift));
+            assert((1u64 << shift) <= 0x2000_0000_0000_0000u64) by(bit_vector)
+                requires shift < 62u64;
+        }
+        assert(midpoint <= 0x2000_0000_0000_0000u64);
+        assert(magnitude as int + midpoint as int <= u64::MAX as int);
+    }
+    magnitude + midpoint
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == (crate::specs::compact_coefficient(value).significant
+        && crate::specs::compact_coefficient(value).negative),
+))]
+#[inline]
+fn compact_words_negative(value: u64) -> bool {
+    (value & COMPACT_SIG != 0) && (value & COMPACT_NEG != 0)
+}
+
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -561,20 +616,16 @@ pub(in crate::decode) fn place_compact_words(
                 requires row < h, count == (w as int) * (h as int);
         }
         let start = (y as usize + row) * destination.width as usize + x as usize;
-        let source: readable::PackedRow<'_> = &words[row * w..(row + 1) * w];
+        let source = &words[row * w..(row + 1) * w];
         let visited = &destination.visited[start..start + w];
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            assert(source@.map_values(|word: u64| crate::specs::compact_coefficient(word))
-                =~= raw_plane.coefficients.subrange((row * w) as int, ((row + 1) * w) as int));
-        }
         let mut column = 0_usize;
         #[cfg_attr(verus_keep_ghost, verus_spec(
             invariant column <= w, row < h, w == raw_plane.width, h == raw_plane.height,
                 (row + 1) * w == row * w + w,
                 (row + 1) * w <= raw_plane.coefficients.len(),
-                source.valid(), source.raw_row().len() == w,
-                source.raw_row() == raw_plane.coefficients.subrange((row * w) as int, ((row + 1) * w) as int),
+                source.len() == w,
+                source@ == words@.subrange((row * w) as int, ((row + 1) * w) as int),
+                raw_plane == crate::specs::private_legacy_compact_plane(width, height, words@),
                 visited@ == original.4.subrange(start as int, (start + w) as int),
                 start == (y as int + row as int) * (destination.width as int) + x as int,
                 start + w <= original.4.len(),
@@ -588,13 +639,12 @@ pub(in crate::decode) fn place_compact_words(
             #[cfg(verus_keep_ghost)]
             proof! {
                 assert(row * w + column < raw_plane.coefficients.len());
+                assert(raw_plane.coefficients[row * w + column] == crate::specs::compact_coefficient(source@[column as int]));
             }
             if visited[column] {
                 return false;
             }
-            let Ok(Some(value)) = source.narrow(column) else {
-                return false;
-            };
+            let value = compact_words_magnitude(source[column]);
             let restored = crate::refinement::maxshift_restore(value, geometry.roi_shift);
             if restored > maximum {
                 return false;
@@ -638,14 +688,9 @@ pub(in crate::decode) fn place_compact_words(
             crate::specs::part2_fused_span(original.0 as int, original.1 as int, w as int, h as int, x as int, y as int, row as int);
         }
         let start = (y as usize + row) * destination.width as usize + x as usize;
-        let source: readable::PackedRow<'_> = &words[row * w..(row + 1) * w];
+        let source = &words[row * w..(row + 1) * w];
         #[cfg(verus_keep_ghost)]
         proof_decl! { let ghost before = working_subband_view(*destination); }
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            assert(source@.map_values(|word: u64| crate::specs::compact_coefficient(word))
-                =~= raw_plane.coefficients.subrange((row * w) as int, ((row + 1) * w) as int));
-        }
         {
             let samples = &mut destination.samples.as_mut_slice()[start..start + w];
             let visited = &mut destination.visited.as_mut_slice()[start..start + w];
@@ -653,6 +698,7 @@ pub(in crate::decode) fn place_compact_words(
             #[cfg_attr(verus_keep_ghost, verus_spec(
                 invariant column <= w, row < h, w == raw_plane.width, h == raw_plane.height,
                     original == working_subband_view(*old(destination)),
+                    raw_plane == crate::specs::private_legacy_compact_plane(width, height, words@),
                     values == crate::specs::part2_fused_values(raw_plane, geometry.roi_shift, step, reversible),
                     crate::specs::part2_fused_write_admit(original, raw_plane, x, y, geometry.roi_shift, step, reversible),
                     before == crate::specs::part2_fused_rows(original, values, w as u32, x, y, row as nat),
@@ -661,8 +707,8 @@ pub(in crate::decode) fn place_compact_words(
                     0 <= start, start + w <= before.3.len(), before.4.len() == before.3.len(),
                     (row + 1) * w <= raw_plane.coefficients.len(),
                     (row + 1) * w == row * w + w,
-                    source.valid(), source.raw_row().len() == w,
-                    source.raw_row() == raw_plane.coefficients.subrange((row * w) as int, ((row + 1) * w) as int),
+                    source.len() == w,
+                    source@ == words@.subrange((row * w) as int, ((row + 1) * w) as int),
                     forall|c: int| 0 <= c < w ==> #[trigger] samples[c] == if c < column { values[row * w + c] } else { before.3[start + c] },
                     forall|c: int| 0 <= c < w ==> #[trigger] visited[c] == if c < column { true } else { before.4[start + c] },
                 decreases w - column,
@@ -671,11 +717,12 @@ pub(in crate::decode) fn place_compact_words(
                 #[cfg(verus_keep_ghost)]
                 proof! {
                     assert(row * w + column < raw_plane.coefficients.len());
+                    assert(raw_plane.coefficients[row * w + column] == crate::specs::compact_coefficient(source@[column as int]));
                     assert(crate::specs::part2_fused_cell_valid(original, raw_plane, x, y, geometry.roi_shift, step, reversible, row as int, column as int));
                 }
-                let Ok((value, negative)) = source.bounded(column) else {
-                    return false;
-                };
+                let word = source[column];
+                let value = compact_words_magnitude(word);
+                let negative = compact_words_negative(word);
                 let magnitude = crate::refinement::maxshift_restore(value, geometry.roi_shift);
                 #[cfg(verus_keep_ghost)]
                 proof! { crate::specs::part2_fused_limit_bounds(magnitude, step, reversible); }
@@ -789,7 +836,8 @@ pub(in crate::decode) fn place_empty_block(
     proof! {
         assert(crate::specs::tier1_empty_coefficient().limbs.len() == 6) by(compute);
         assert(crate::specs::part2_narrow_magnitude(crate::specs::tier1_empty_coefficient()) == Some(0u64)) by(compute);
-        assert(geometry.roi_shift < 64u8 ==> (1u64 << geometry.roi_shift) > 0u64) by(bit_vector);
+        let roi_shift = geometry.roi_shift;
+        assert(roi_shift < 64u8 ==> (1u64 << roi_shift) > 0u64) by(bit_vector);
         assert(crate::specs::part1_maxshift_restore(0u64, geometry.roi_shift) == 0u64);
         assert(!crate::specs::tier1_empty_coefficient().significant);
         assert(crate::specs::part2_fused_shape(original, raw_plane, geometry, x, y, reversible, crate::limits::resource_decoded_bytes_limit(limits)));

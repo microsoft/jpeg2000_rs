@@ -49,11 +49,17 @@ proof fn private_legacy_decode_pass_work_indep(
                 && a.2 == b.2
         }),
 {
+    hide(part1_legacy_cleanup_pass);
+    hide(part1_legacy_pass);
+    hide(part1_legacy_ensure_bitplane);
     reveal(part1_legacy_decode_pass);
     let s2 = Tier1DecoderState { legacy_decode_work: work, ..s };
     let r1 = part1_legacy_ensure_bitplane(s);
     let r2 = part1_legacy_ensure_bitplane(s2);
-    assert(r1.0 == r2.0 && r2.1 == (Tier1DecoderState { legacy_decode_work: work, ..r1.1 }));
+    assert(r1.0 == r2.0 && r2.1 == (Tier1DecoderState { legacy_decode_work: work, ..r1.1 })) by {
+        reveal(part1_legacy_ensure_bitplane);
+        hide(part1_legacy_initial_bitplane);
+    };
 }
 
 #[verifier::spinoff_prover]
@@ -76,6 +82,9 @@ proof fn private_legacy_segment_step_work_indep(
                 })
         }),
 {
+    hide(part1_legacy_initialized);
+    hide(tier1_statistics_merge);
+    hide(part1_legacy_plan);
     reveal(part1_legacy_segment_step);
     let plan = part1_legacy_plan(s.decoder.style, s.decoder.next_pass);
     private_legacy_decode_pass_work_indep(s.decoder, work, s.symbols, plan.kind);
@@ -113,6 +122,25 @@ proof fn private_legacy_segment_run_work_indep(
 }
 
 #[verifier::spinoff_prover]
+proof fn private_legacy_segment_account_work_indep(
+    s: Tier1DecoderState,
+    work: u64,
+    bytes: nat,
+    count: u32,
+    statistics: crate::tier1::Tier1PassStatistics,
+)
+    ensures
+        ({
+            let s2 = Tier1DecoderState { legacy_decode_work: work, ..s };
+            let a = part1_legacy_segment_account(s, bytes, count, statistics);
+            let b = part1_legacy_segment_account(s2, bytes, count, statistics);
+            a.0 == b.0 && b.1 == (Tier1DecoderState { legacy_decode_work: work, ..a.1 })
+        }),
+{
+    reveal(part1_legacy_segment_account);
+}
+
+#[verifier::spinoff_prover]
 proof fn private_legacy_segment_mq_finish_work_indep(
     run1: Part1LegacySegmentEffect,
     work: u64,
@@ -133,7 +161,18 @@ proof fn private_legacy_segment_mq_finish_work_indep(
             a.0 == b.0 && b.1 == (Tier1DecoderState { legacy_decode_work: work, ..a.1 })
         }),
 {
-    reveal(part1_legacy_segment_account);
+    hide(part1_mq_termination);
+    if run1.0.is_ok() {
+        if let Part1LegacySymbols::Mq(mq) = run1.1.symbols {
+            private_legacy_segment_account_work_indep(
+                Tier1DecoderState { mq_context_state: Some(mq.contexts), ..run1.1.decoder },
+                work,
+                bytes,
+                count,
+                run1.1.statistics,
+            );
+        }
+    }
 }
 
 #[verifier::spinoff_prover]
@@ -157,7 +196,18 @@ proof fn private_legacy_segment_raw_finish_work_indep(
             a.0 == b.0 && b.1 == (Tier1DecoderState { legacy_decode_work: work, ..a.1 })
         }),
 {
-    reveal(part1_legacy_segment_account);
+    hide(part1_raw_reader_termination);
+    if run1.0.is_ok() {
+        if let Part1LegacySymbols::Raw(_) = run1.1.symbols {
+            private_legacy_segment_account_work_indep(
+                run1.1.decoder,
+                work,
+                bytes,
+                count,
+                run1.1.statistics,
+            );
+        }
+    }
 }
 
 #[verifier::spinoff_prover]
@@ -247,7 +297,7 @@ pub(crate) open spec fn private_legacy_block_initial(b: PrivateLegacyBlockSpec) 
         private_plan: false,
         orientation: b.orientation,
         style: b.style,
-        maximum_passes: (3 * (b.significant_bitplanes as nat) - 2) as u32,
+        maximum_passes: (b.significant_bitplanes as int * 3 - 2) as u32,
         next_pass: 0,
         bitplane: (b.significant_bitplanes - 1) as u16,
         zero_bitplanes: None,
@@ -294,6 +344,8 @@ pub(crate) open spec fn private_legacy_block_valid(
         && (b.width as nat) * (b.height as nat) <= 4096
         && b.significant_bitplanes > 0
         && b.significant_bitplanes <= 31
+        && b.ht_magnitude_bound > 0
+        && b.ht_magnitude_bound <= crate::tier1::tier1_max_ht_magnitude_bits()
         && private_legacy_style_ok(b.style)
         && match b.contribution {
             None => true,
@@ -381,10 +433,18 @@ pub(crate) proof fn private_legacy_block_initial_matches_configured(b: PrivateLe
         ) == Ok::<Tier1DecoderState, crate::DecodeError>(private_legacy_block_initial(b)),
 {
     assert(!ht_block_coding_enabled(b.style.block_coding));
-    assert(tier1_empty_plane(b.width, b.height).is_ok());
-    assert(tier1_empty_plane(b.width, b.height).get_Ok_0().coefficients
-        =~= private_legacy_empty_plane(b.width, b.height).coefficients);
-    assert(((b.significant_bitplanes - 1) as nat) * 3 + 1 == 3 * (b.significant_bitplanes as nat) - 2);
+    assert(tier1_empty_plane(b.width, b.height) == Ok::<Tier1RawPlane, crate::DecodeError>(private_legacy_empty_plane(b.width, b.height))) by {
+        assert(tier1_empty_plane(b.width, b.height).get_Ok_0().coefficients
+            =~= private_legacy_empty_plane(b.width, b.height).coefficients);
+    };
+    let init = part2_tier1_initial_decoder(b.width, b.height, b.significant_bitplanes, b.orientation, b.style);
+    assert(init.is_ok());
+    let cfg = part2_tier1_configured_decoder(
+        b.width, b.height, b.significant_bitplanes, b.orientation, b.style,
+        b.allow_multiple_ht_sets, b.ht_magnitude_bound,
+    );
+    assert(cfg.is_ok());
+    assert(part2_with_ht_checkpoint(cfg, true).get_Ok_0() == private_legacy_block_initial(b));
 }
 
 #[verifier::spinoff_prover]

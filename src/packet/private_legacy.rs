@@ -15,8 +15,8 @@ use super::tile::{
 use super::{
     CodeBlockContribution, CodeBlockPacketContext, CodeBlockPacketState, PacketBodyDecode,
     PacketBodyPreflight, PacketGrid, PacketSubbandState, PrecinctHeaderParameters,
-    PrecinctHeaderProgress, PrecinctPayloadParameters, ProgressionTileParameters, ResourceLimits,
-    SubbandOrientation, Tier1CodingStyle, TilePartPayload,
+    PrecinctHeaderProgress, PrecinctPayloadParameters, ProgressionTileParameters,
+    ProgressionTileProgress, ResourceLimits, SubbandOrientation, Tier1CodingStyle, TilePartPayload,
 };
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
@@ -209,6 +209,8 @@ pub(crate) open spec fn private_legacy_precincts_layout_ok(
                 && v.contribution.is_none()
                 && width > 0 && height > 0 && (width as nat) * (height as nat) <= 4096
                 && significant_bitplanes > 0 && significant_bitplanes <= 31
+                && ht_magnitude_bound > 0
+                && ht_magnitude_bound <= crate::tier1::tier1_max_ht_magnitude_bits()
                 && crate::specs::private_legacy_style_ok(style)
                 && crate::specs::part2_configured_checkpoint(
                     width, height, significant_bitplanes, orientation, style,
@@ -231,8 +233,7 @@ pub(crate) fn new_private_legacy_block<'data>(
         || count > 4096
         || significant_bitplanes == 0
         || significant_bitplanes > 31
-        || ht_magnitude_bound == 0
-        || ht_magnitude_bound > 74
+        || !crate::tier1::ht_magnitude_bound_valid(ht_magnitude_bound)
         || !matches!(style.block_coding, crate::tier1::Tier1BlockCoding::Legacy)
         || style.force_high_throughput
         || style.selective_arithmetic_coding_bypass
@@ -472,6 +473,16 @@ pub(crate) fn new_private_legacy_precinct(
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(crate::specs::part2_precinct_initialization_run);
+        assert(states@.map_values(|s: CodeBlockPacketState| super::code_block_packet_state_view(&s))
+            =~= Seq::<crate::specs::Part1CodeBlockPacketState>::empty());
+        assert(subbands@.map_values(|s: PacketSubbandState| super::packet_subband_view(&s))
+            =~= Seq::<crate::specs::Part1PacketSubbandState>::empty());
+        assert(private_legacy_slot_decoders(ghost_blocks@, block_base, 0, limits)
+            =~= Seq::<crate::specs::Tier1DecoderState>::empty());
+        if specs.len() > 0 {
+            let _ = specs@[0];
+            assert(specs@[0].first_offset == 0);
+        }
     }
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant index <= specs.len(),
@@ -482,6 +493,10 @@ pub(crate) fn new_private_legacy_precinct(
             total == decoded_total as u64,
             decoded_total <= total_blocks,
             block_base + total_blocks <= ghost_blocks@.len(),
+            private_legacy_specs_match_executions(specs@, ghost_executions@, ghost_blocks@, block_base, limits),
+            forall|i: int| 0 <= i < specs.len() ==> (#[trigger] specs@[i]).first_offset == if i == 0 { 0usize } else { (specs@[i - 1].first_offset + specs@[i - 1].count) as usize },
+            (specs.len() == 0 && total_blocks == 0)
+                || (specs.len() > 0 && specs@[specs.len() - 1].first_offset + specs@[specs.len() - 1].count == total_blocks),
             (decoded_total == 0) == (index == 0),
             index < specs.len() ==> specs@[index as int].first_offset == decoded_total,
             index == specs.len() ==> decoded_total == total_blocks,
@@ -492,15 +507,7 @@ pub(crate) fn new_private_legacy_precinct(
                     precinct,
                     states: states@.map_values(|s: CodeBlockPacketState| super::code_block_packet_state_view(&s)),
                     contexts: contexts@,
-                    decoders: Seq::new(decoded_total as nat, |j: int| {
-                        crate::specs::private_legacy_block_logical(
-                            ghost_blocks@[block_base as int + j],
-                            crate::limits::resource_code_block_pass_limit(limits),
-                            crate::limits::resource_code_block_byte_limit(limits),
-                            crate::limits::resource_input_byte_limit(limits),
-                            crate::limits::resource_work_limit(limits),
-                        )
-                    }),
+                    decoders: private_legacy_slot_decoders(ghost_blocks@, block_base, decoded_total as nat, limits),
                     subbands: subbands@.map_values(|s: PacketSubbandState| super::packet_subband_view(&s)),
                 };
                 crate::specs::part2_precinct_from_executions(component, resolution, precinct, style, ghost_executions@, limits)
@@ -545,7 +552,11 @@ pub(crate) fn new_private_legacy_precinct(
             return None;
         };
         let first_decoder = decoded_total;
-        subbands.push(PacketSubbandState {
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost prev_subbands_view = subbands@.map_values(|b: PacketSubbandState| super::packet_subband_view(&b));
+        }
+        let new_subband = PacketSubbandState {
             orientation: s.orientation,
             code_blocks_across: s.across,
             code_blocks_down: s.down,
@@ -553,7 +564,12 @@ pub(crate) fn new_private_legacy_precinct(
             decoder_count: count_usize,
             inclusion_tree,
             zero_bitplane_tree,
-        });
+        };
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost new_subband_view = super::packet_subband_view(&new_subband);
+        }
+        subbands.push(new_subband);
         states = next_states;
         contexts = next_contexts;
         total = next_total;
@@ -561,15 +577,25 @@ pub(crate) fn new_private_legacy_precinct(
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(crate::specs::part2_precinct_initialization_run);
-            let pass_limit = crate::limits::resource_code_block_pass_limit(limits);
-            let byte_limit = crate::limits::resource_code_block_byte_limit(limits);
-            let input_limit = crate::limits::resource_input_byte_limit(limits);
-            let work_limit = crate::limits::resource_work_limit(limits);
-            let d_prev = Seq::new(first_decoder as nat, |j: int|
-                crate::specs::private_legacy_block_logical(ghost_blocks@[block_base as int + j], pass_limit, byte_limit, input_limit, work_limit));
-            let d_next = Seq::new(decoded_total as nat, |j: int|
-                crate::specs::private_legacy_block_logical(ghost_blocks@[block_base as int + j], pass_limit, byte_limit, input_limit, work_limit));
-            assert(d_prev + ghost_executions@[index as int].decoders =~= d_next);
+            assert(subbands@.map_values(|b: PacketSubbandState| super::packet_subband_view(&b))
+                =~= prev_subbands_view.push(new_subband_view));
+            let spec_i = specs@[index as int];
+            let exec_i = ghost_executions@[index as int];
+            assert(exec_i.decoders.len() == spec_i.count);
+            let d_prev = private_legacy_slot_decoders(ghost_blocks@, block_base, first_decoder as nat, limits);
+            let d_next = private_legacy_slot_decoders(ghost_blocks@, block_base, decoded_total as nat, limits);
+            assert(d_prev + exec_i.decoders =~= d_next) by {
+                assert forall|j: int| 0 <= j < d_next.len() implies (d_prev + exec_i.decoders)[j] == d_next[j] by {
+                    if j >= first_decoder as int {
+                        let k = j - first_decoder as int;
+                        assert(exec_i.decoders[k] == d_next[j]);
+                    }
+                }
+            }
+            if index + 1 < specs.len() {
+                let _ = specs@[index as int + 1];
+                assert(specs@[index as int + 1].first_offset == decoded_total);
+            }
         }
         index += 1;
     }
@@ -678,6 +704,13 @@ fn execute_private_legacy_body_contributions<'data>(
             n_slots == contributions.len(),
             blocks.len() == old(blocks).len(),
             block_base + n_slots <= blocks.len(),
+            pass_limit == crate::limits::resource_code_block_pass_limit(limits),
+            byte_limit == crate::limits::resource_code_block_byte_limit(limits),
+            input_limit == crate::limits::resource_input_byte_limit(limits),
+            work_limit == crate::limits::resource_work_limit(limits),
+            b_init == private_legacy_blocks_view(old(blocks)@),
+            c_view == contributions@.map_values(|c: Option<CodeBlockContribution>| super::code_block_contribution_option_view(c)),
+            d_init == private_legacy_slot_decoders(b_init, block_base, n_slots as nat, limits),
             forall|k: int| 0 <= k < blocks.len()
                 && !(block_base as int <= k && k < block_base as int + n_slots as int)
                 ==> blocks@[k] == old(blocks)@[k],
@@ -725,6 +758,14 @@ fn execute_private_legacy_body_contributions<'data>(
         proof! {
             reveal(crate::specs::part1_packet_body_execute_at);
             let b_after = private_legacy_blocks_view(blocks@);
+            assert(private_legacy_blocks_valid(b_after, limits)) by {
+                assert forall|k: int| 0 <= k < b_after.len() implies
+                    crate::specs::private_legacy_block_valid(#[trigger] b_after[k], pass_limit, byte_limit, input_limit, work_limit) by {
+                    if k != block_base as int + ci as int {
+                        assert(b_after[k] == b_before[k]);
+                    }
+                }
+            }
             assert(private_legacy_blocks_extends(b_before, b_after));
             assert(private_legacy_blocks_extends(b_init, b_after));
             assert forall|end_blocks: Seq<crate::specs::PrivateLegacyBlockSpec>|
@@ -754,8 +795,10 @@ fn execute_private_legacy_body_contributions<'data>(
                         pass_limit, byte_limit, input_limit, work_limit,
                     );
                     assert(d_after =~= d_before.update(ci as int, tx.1));
+                    assert(c_view[ci as int] == Some(super::code_block_contribution_view(&contrib)));
                 } else {
                     assert(d_after =~= d_before);
+                    assert(c_view[ci as int].is_none());
                 }
             }
         }
@@ -767,6 +810,38 @@ fn execute_private_legacy_body_contributions<'data>(
         reveal(crate::specs::part1_packet_body_execute_at);
     }
     Some((offset, segments, passes))
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result ==> {
+        final(buf).len() == count
+            && final(buf)@.map_values(|v: Option<CodeBlockContribution>| super::code_block_contribution_option_view(v))
+                == Seq::new(count as nat, |_: int| None::<crate::specs::Part1CodeBlockContribution>)
+    },
+))]
+fn reset_none_vec(buf: &mut Vec<Option<CodeBlockContribution>>, count: usize) -> bool {
+    buf.clear();
+    if crate::allocation::reserve_additional(buf, count).is_err() {
+        return false;
+    }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant buf.len() <= count,
+            buf@ == Seq::new(buf.len() as nat, |_: int| None::<CodeBlockContribution>),
+        decreases count - buf.len(),
+    ))]
+    while buf.len() < count {
+        buf.push(None);
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(buf@ =~= Seq::new(buf.len() as nat, |_: int| None::<CodeBlockContribution>));
+        }
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(buf@.map_values(|v: Option<CodeBlockContribution>| super::code_block_contribution_option_view(v))
+            =~= Seq::new(count as nat, |_: int| None::<crate::specs::Part1CodeBlockContribution>));
+    }
+    true
 }
 
 #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
@@ -863,21 +938,8 @@ fn decode_private_legacy_precinct_packet<'data>(
     let packet_data = prefix.packet_data;
     let packet_present = prefix.present;
     let sop_bytes = prefix.sop_bytes;
-    contributions_buf.clear();
-    if crate::allocation::reserve_additional(contributions_buf, n_slots).is_err() {
+    if !reset_none_vec(contributions_buf, n_slots) {
         return None;
-    }
-    #[cfg_attr(verus_keep_ghost, verus_spec(
-        invariant contributions_buf.len() <= n_slots,
-            contributions_buf@ == Seq::new(contributions_buf.len() as nat, |_: int| None::<CodeBlockContribution>),
-        decreases n_slots - contributions_buf.len(),
-    ))]
-    while contributions_buf.len() < n_slots {
-        contributions_buf.push(None);
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            assert(contributions_buf@ =~= Seq::new(contributions_buf.len() as nat, |_: int| None::<CodeBlockContribution>));
-        }
     }
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -984,6 +1046,319 @@ fn decode_private_legacy_precinct_packet<'data>(
     Some((decoded, tile_offset, packed_bytes_consumed))
 }
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result ==> {
+        forall|k: int| 0 <= k < precincts.len() ==> crate::specs::part1_packet_grid_precinct_index(
+            super::packet_grid_view(grid),
+            precincts@[k].component,
+            precincts@[k].resolution,
+            precincts@[k].precinct,
+        ) == Ok::<usize, DecodeError>(k as usize)
+    },
+))]
+fn verify_private_legacy_precinct_indices(
+    grid: &PacketGrid,
+    precincts: &[PrivateLegacyPrecinct],
+) -> bool {
+    let mut idx = 0_usize;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant idx <= precincts.len(),
+            forall|k: int| 0 <= k < idx ==> crate::specs::part1_packet_grid_precinct_index(
+                super::packet_grid_view(grid),
+                precincts@[k].component,
+                precincts@[k].resolution,
+                precincts@[k].precinct,
+            ) == Ok::<usize, DecodeError>(k as usize),
+        decreases precincts.len() - idx,
+    ))]
+    while idx < precincts.len() {
+        let p = &precincts[idx];
+        match grid.precinct_index(p.component, p.resolution, p.precinct) {
+            Ok(expected) if expected == idx => {}
+            _ => return false,
+        }
+        idx += 1;
+    }
+    true
+}
+
+#[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires
+        private_legacy_precincts_layout_ok(old(precincts)@, old(blocks).len() as nat),
+        private_legacy_blocks_valid(private_legacy_blocks_view(old(blocks)@), params.limits),
+    ensures
+        final(precincts).len() == old(precincts).len(),
+        final(blocks).len() == old(blocks).len(),
+        forall|i: int| 0 <= i < old(precincts).len() ==> {
+            final(precincts)@[i].block_base == old(precincts)@[i].block_base
+                && final(precincts)@[i].block_count == old(precincts)@[i].block_count
+        },
+        result ==> {
+            let b0 = private_legacy_blocks_view(old(blocks)@);
+            let b1 = private_legacy_blocks_view(final(blocks)@);
+            private_legacy_precincts_layout_ok(final(precincts)@, final(blocks).len() as nat)
+                && private_legacy_blocks_extends(b0, b1)
+                && private_legacy_blocks_valid(b1, params.limits)
+                && forall|end_blocks: Seq<crate::specs::PrivateLegacyBlockSpec>|
+                    private_legacy_blocks_extends(b1, end_blocks)
+                        && private_legacy_blocks_all_segments_ok(end_blocks, params.limits) ==> {
+                    let exec0 = crate::specs::Part1TilePacketExecution {
+                        progress: super::progression_tile_progress_view(old(p)),
+                        precincts: private_legacy_precincts_logical(old(precincts)@, b0, params.limits),
+                    };
+                    let exec1 = crate::specs::Part1TilePacketExecution {
+                        progress: super::progression_tile_progress_view(final(p)),
+                        precincts: private_legacy_precincts_logical(final(precincts)@, b1, params.limits),
+                    };
+                    crate::specs::part1_tile_packet(
+                        super::progression_tile_parameters_view(params),
+                        exec0,
+                        coordinate,
+                    ) == (Ok::<(), DecodeError>(()), exec1)
+                }
+        },
+))]
+fn execute_private_legacy_packet<'a, 'data>(
+    params: &ProgressionTileParameters<'a, 'data>,
+    precincts: &mut [PrivateLegacyPrecinct],
+    blocks: &mut [PrivateLegacyBlock<'data>],
+    contributions_buf: &mut Vec<Option<CodeBlockContribution>>,
+    p: &mut ProgressionTileProgress<'a>,
+    coordinate: crate::packet::PacketCoordinate,
+) -> bool {
+    let Some(part) = params.tile_parts.get(p.current_tile_part) else {
+        return false;
+    };
+    let slot = progression_packet_slot(params.grid, coordinate);
+    if let Ok((_, seen_index)) = slot {
+        #[allow(
+            clippy::collapsible_if,
+            reason = "Avoid let-chains for MSRV 1.88 and Verus compatibility."
+        )]
+        if let Some(seen) = p.seen.get(seen_index) {
+            if !crate::refinement::progression_emit_allowed(*seen) {
+                return true;
+            }
+        }
+    }
+    if p.length_tile_part != p.current_tile_part {
+        p.length_iterator = part.packet_lengths.iter();
+        p.length_tile_part = p.current_tile_part;
+    }
+    let expected = if part.packet_lengths.is_present() {
+        match p.length_iterator.next_length() {
+            Ok(Some(len)) => Some(len),
+            _ => return false,
+        }
+    } else {
+        None
+    };
+    let Ok((precinct_index, seen_index)) = slot else {
+        return false;
+    };
+    let Some(seen) = p.seen.get(seen_index) else {
+        return false;
+    };
+    if !crate::refinement::progression_emit_allowed(*seen) {
+        return true;
+    }
+    if precinct_index >= precincts.len() {
+        return false;
+    }
+    let Some(packed) = params.input.packed.get(p.current_tile_part) else {
+        return false;
+    };
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost b_before = private_legacy_blocks_view(blocks@);
+        let ghost prec_before = private_legacy_precincts_logical(precincts@, b_before, params.limits);
+    }
+    let sequence = (p.packets & u64::from(u16::MAX)) as u16;
+    let offset = p.offset;
+    let packed_offset = p.packed_offset;
+    let packet_res = {
+        let precinct = &mut precincts[precinct_index];
+        if set_progression_context_layer(&mut precinct.contexts, coordinate.layer).is_err() {
+            return false;
+        }
+        decode_private_legacy_precinct_packet(
+            precinct,
+            blocks,
+            contributions_buf,
+            part,
+            offset,
+            packed,
+            packed_offset,
+            expected,
+            sequence,
+            params.limits,
+        )
+    };
+    let Some((decoded, tile_bytes, packed_bytes)) = packet_res else {
+        return false;
+    };
+    if account_progression_packet(p, decoded, tile_bytes, packed_bytes, expected, seen_index)
+        .is_err()
+    {
+        return false;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let b_after = private_legacy_blocks_view(blocks@);
+        let prec_after = private_legacy_precincts_logical(precincts@, b_after, params.limits);
+        assert forall|i: int| 0 <= i < precincts.len() && i != precinct_index as int implies
+            prec_after[i] == prec_before[i] by {
+            let q = precincts@[i];
+            assert forall|j: int| 0 <= j < q.block_count implies
+                #[trigger] prec_after[i].decoders[j] == prec_before[i].decoders[j] by {
+                assert(b_after[q.block_base as int + j] == b_before[q.block_base as int + j]);
+            }
+            assert(prec_after[i].decoders =~= prec_before[i].decoders);
+        }
+        assert(prec_after =~= prec_before.update(precinct_index as int, prec_after[precinct_index as int]));
+    }
+    true
+}
+
+#[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires
+        private_legacy_precincts_layout_ok(old(precincts)@, old(blocks).len() as nat),
+        private_legacy_blocks_valid(private_legacy_blocks_view(old(blocks)@), params.limits),
+    ensures
+        final(precincts).len() == old(precincts).len(),
+        final(blocks).len() == old(blocks).len(),
+        forall|i: int| 0 <= i < old(precincts).len() ==> {
+            final(precincts)@[i].block_base == old(precincts)@[i].block_base
+                && final(precincts)@[i].block_count == old(precincts)@[i].block_count
+        },
+        result ==> {
+            let b0 = private_legacy_blocks_view(old(blocks)@);
+            let b1 = private_legacy_blocks_view(final(blocks)@);
+            private_legacy_precincts_layout_ok(final(precincts)@, final(blocks).len() as nat)
+                && private_legacy_blocks_extends(b0, b1)
+                && private_legacy_blocks_valid(b1, params.limits)
+                && forall|end_blocks: Seq<crate::specs::PrivateLegacyBlockSpec>|
+                    private_legacy_blocks_extends(b1, end_blocks)
+                        && private_legacy_blocks_all_segments_ok(end_blocks, params.limits) ==> {
+                    let exec0 = crate::specs::Part1TilePacketExecution {
+                        progress: super::progression_tile_progress_view(old(p)),
+                        precincts: private_legacy_precincts_logical(old(precincts)@, b0, params.limits),
+                    };
+                    let exec1 = crate::specs::Part1TilePacketExecution {
+                        progress: super::progression_tile_progress_view(final(p)),
+                        precincts: private_legacy_precincts_logical(final(precincts)@, b1, params.limits),
+                    };
+                    crate::specs::part1_tile_run(
+                        super::progression_tile_parameters_view(params),
+                        exec0,
+                    ) == (Ok::<(), DecodeError>(()), exec1)
+                }
+        },
+))]
+fn run_private_legacy_tile_packets<'a, 'data>(
+    params: &ProgressionTileParameters<'a, 'data>,
+    precincts: &mut [PrivateLegacyPrecinct],
+    blocks: &mut [PrivateLegacyBlock<'data>],
+    p: &mut ProgressionTileProgress<'a>,
+) -> bool {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost p_view_init = super::progression_tile_progress_view(p);
+        let ghost params_view = super::progression_tile_parameters_view(params);
+        let ghost b_init = private_legacy_blocks_view(blocks@);
+        let ghost prec_init = private_legacy_precincts_logical(precincts@, b_init, params.limits);
+    }
+    let mut contributions_buf: Vec<Option<CodeBlockContribution>> = Vec::new();
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part1_tile_run);
+    }
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant
+            precincts.len() == old(precincts).len(),
+            blocks.len() == old(blocks).len(),
+            p_view_init == super::progression_tile_progress_view(old(p)),
+            params_view == super::progression_tile_parameters_view(params),
+            b_init == private_legacy_blocks_view(old(blocks)@),
+            prec_init == private_legacy_precincts_logical(old(precincts)@, b_init, params.limits),
+            forall|i: int| 0 <= i < precincts.len() ==> {
+                precincts@[i].block_base == old(precincts)@[i].block_base
+                    && precincts@[i].block_count == old(precincts)@[i].block_count
+            },
+            private_legacy_precincts_layout_ok(precincts@, blocks.len() as nat),
+            private_legacy_blocks_extends(b_init, private_legacy_blocks_view(blocks@)),
+            private_legacy_blocks_valid(private_legacy_blocks_view(blocks@), params.limits),
+            forall|end_blocks: Seq<crate::specs::PrivateLegacyBlockSpec>|
+                private_legacy_blocks_extends(private_legacy_blocks_view(blocks@), end_blocks)
+                    && private_legacy_blocks_all_segments_ok(end_blocks, params.limits) ==> {
+                let exec_init = crate::specs::Part1TilePacketExecution { progress: p_view_init, precincts: prec_init };
+                let exec_cur = crate::specs::Part1TilePacketExecution {
+                    progress: super::progression_tile_progress_view(p),
+                    precincts: private_legacy_precincts_logical(precincts@, private_legacy_blocks_view(blocks@), params.limits),
+                };
+                crate::specs::part1_tile_run(params_view, exec_init)
+                    == crate::specs::part1_tile_run(params_view, exec_cur)
+            },
+        decreases p.remaining_packets,
+    ))]
+    loop {
+        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
+        if crate::deadline::checkpoint().is_err() {
+            return false;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost b_before = private_legacy_blocks_view(blocks@);
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part1_tile_run);
+        }
+        if advance_progression_tile_part(params, p).is_err() {
+            return false;
+        }
+        if p.current_tile_part == params.tile_parts.len()
+            && p.packets == params.grid.packet_count
+            && all_progression_packets_seen(&p.seen)
+        {
+            return true;
+        }
+        let Ok(next_coord) = p.iterator.next_packet() else {
+            return false;
+        };
+        let Some(coordinate) = next_coord else {
+            return true;
+        };
+        if p.remaining_packets == 0 {
+            return false;
+        }
+        p.remaining_packets -= 1;
+        if p.current_tile_part == params.tile_parts.len() {
+            if omit_progression_packet(params, p, coordinate, precincts.len()).is_err() {
+                return false;
+            }
+            continue;
+        }
+        if !execute_private_legacy_packet(
+            params,
+            precincts,
+            blocks,
+            &mut contributions_buf,
+            p,
+            coordinate,
+        ) {
+            return false;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let b_after = private_legacy_blocks_view(blocks@);
+            assert(private_legacy_blocks_extends(b_init, b_after));
+        }
+    }
+}
+
 #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires
@@ -1034,24 +1409,8 @@ pub(crate) fn collect_private_legacy_packets<'data>(
     if precincts.len() != total_precincts {
         return false;
     }
-    let mut idx = 0_usize;
-    #[cfg_attr(verus_keep_ghost, verus_spec(
-        invariant idx <= precincts.len(),
-            forall|k: int| 0 <= k < idx ==> crate::specs::part1_packet_grid_precinct_index(
-                super::packet_grid_view(grid),
-                precincts@[k].component,
-                precincts@[k].resolution,
-                precincts@[k].precinct,
-            ) == Ok::<usize, DecodeError>(k as usize),
-        decreases precincts.len() - idx,
-    ))]
-    while idx < precincts.len() {
-        let p = &precincts[idx];
-        match grid.precinct_index(p.component, p.resolution, p.precinct) {
-            Ok(expected) if expected == idx => {}
-            _ => return false,
-        }
-        idx += 1;
+    if !verify_private_legacy_precinct_indices(grid, precincts) {
+        return false;
     }
     let Some(first) = tile_parts.first() else {
         return false;
@@ -1069,176 +1428,8 @@ pub(crate) fn collect_private_legacy_packets<'data>(
     let Ok(mut p) = progression_tile_progress_new(&params) else {
         return false;
     };
-    #[cfg(verus_keep_ghost)]
-    proof_decl! {
-        let ghost p_view_init = super::progression_tile_progress_view(&p);
-        let ghost params_view = super::progression_tile_parameters_view(&params);
-        let ghost b_init = private_legacy_blocks_view(blocks@);
-        let ghost prec_init = private_legacy_precincts_logical(precincts@, b_init, limits);
-    }
-    let mut contributions_buf: Vec<Option<CodeBlockContribution>> = Vec::new();
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        reveal(crate::specs::part1_tile_run);
-    }
-    #[cfg_attr(verus_keep_ghost, verus_spec(
-        invariant
-            precincts.len() == old(precincts).len(),
-            blocks.len() == old(blocks).len(),
-            forall|i: int| 0 <= i < precincts.len() ==> {
-                precincts@[i].block_base == old(precincts)@[i].block_base
-                    && precincts@[i].block_count == old(precincts)@[i].block_count
-            },
-            private_legacy_precincts_layout_ok(precincts@, blocks.len() as nat),
-            private_legacy_blocks_extends(b_init, private_legacy_blocks_view(blocks@)),
-            private_legacy_blocks_valid(private_legacy_blocks_view(blocks@), limits),
-            forall|end_blocks: Seq<crate::specs::PrivateLegacyBlockSpec>|
-                private_legacy_blocks_extends(private_legacy_blocks_view(blocks@), end_blocks)
-                    && private_legacy_blocks_all_segments_ok(end_blocks, limits) ==> {
-                let exec_init = crate::specs::Part1TilePacketExecution { progress: p_view_init, precincts: prec_init };
-                let exec_cur = crate::specs::Part1TilePacketExecution {
-                    progress: super::progression_tile_progress_view(&p),
-                    precincts: private_legacy_precincts_logical(precincts@, private_legacy_blocks_view(blocks@), limits),
-                };
-                crate::specs::part1_tile_run(params_view, exec_init)
-                    == crate::specs::part1_tile_run(params_view, exec_cur)
-            },
-        decreases p.remaining_packets,
-    ))]
-    loop {
-        #[cfg(all(feature = "cooperative-deadlines", not(verus_keep_ghost)))]
-        if crate::deadline::checkpoint().is_err() {
-            return false;
-        }
-        #[cfg(verus_keep_ghost)]
-        proof_decl! {
-            let ghost b_before = private_legacy_blocks_view(blocks@);
-            let ghost prec_before = private_legacy_precincts_logical(precincts@, b_before, limits);
-            let ghost prog_before = super::progression_tile_progress_view(&p);
-        }
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            reveal(crate::specs::part1_tile_run);
-        }
-        if advance_progression_tile_part(&params, &mut p).is_err() {
-            return false;
-        }
-        if p.current_tile_part == params.tile_parts.len()
-            && p.packets == params.grid.packet_count
-            && all_progression_packets_seen(&p.seen)
-        {
-            break;
-        }
-        let Ok(next_coord) = p.iterator.next_packet() else {
-            return false;
-        };
-        let Some(coordinate) = next_coord else {
-            break;
-        };
-        if p.remaining_packets == 0 {
-            return false;
-        }
-        p.remaining_packets -= 1;
-        if p.current_tile_part == params.tile_parts.len() {
-            if omit_progression_packet(&params, &mut p, coordinate, precincts.len()).is_err() {
-                return false;
-            }
-            continue;
-        }
-        let Some(part) = params.tile_parts.get(p.current_tile_part) else {
-            return false;
-        };
-        let slot = progression_packet_slot(params.grid, coordinate);
-        if let Ok((_, seen_index)) = slot {
-            #[allow(
-                clippy::collapsible_if,
-                reason = "Avoid let-chains for MSRV 1.88 and Verus compatibility."
-            )]
-            if let Some(seen) = p.seen.get(seen_index) {
-                if !crate::refinement::progression_emit_allowed(*seen) {
-                    continue;
-                }
-            }
-        }
-        if p.length_tile_part != p.current_tile_part {
-            p.length_iterator = part.packet_lengths.iter();
-            p.length_tile_part = p.current_tile_part;
-        }
-        let expected = if part.packet_lengths.is_present() {
-            match p.length_iterator.next_length() {
-                Ok(Some(len)) => Some(len),
-                _ => return false,
-            }
-        } else {
-            None
-        };
-        let Ok((precinct_index, seen_index)) = slot else {
-            return false;
-        };
-        let Some(seen) = p.seen.get(seen_index) else {
-            return false;
-        };
-        if !crate::refinement::progression_emit_allowed(*seen) {
-            continue;
-        }
-        if precinct_index >= precincts.len() {
-            return false;
-        }
-        let Some(packed) = params.input.packed.get(p.current_tile_part) else {
-            return false;
-        };
-        let sequence = (p.packets & u64::from(u16::MAX)) as u16;
-        let offset = p.offset;
-        let packed_offset = p.packed_offset;
-        let packet_res = {
-            let precinct = &mut precincts[precinct_index];
-            if set_progression_context_layer(&mut precinct.contexts, coordinate.layer).is_err() {
-                return false;
-            }
-            decode_private_legacy_precinct_packet(
-                precinct,
-                blocks,
-                &mut contributions_buf,
-                part,
-                offset,
-                packed,
-                packed_offset,
-                expected,
-                sequence,
-                limits,
-            )
-        };
-        let Some((decoded, tile_bytes, packed_bytes)) = packet_res else {
-            return false;
-        };
-        if account_progression_packet(
-            &mut p,
-            decoded,
-            tile_bytes,
-            packed_bytes,
-            expected,
-            seen_index,
-        )
-        .is_err()
-        {
-            return false;
-        }
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            let b_after = private_legacy_blocks_view(blocks@);
-            let prec_after = private_legacy_precincts_logical(precincts@, b_after, limits);
-            assert(private_legacy_blocks_extends(b_init, b_after));
-            assert forall|i: int| 0 <= i < precincts.len() && i != precinct_index as int implies
-                prec_after[i] == prec_before[i] by {
-                let q = precincts@[i];
-                assert forall|j: int| 0 <= j < q.block_count implies
-                    #[trigger] prec_after[i].decoders[j] == prec_before[i].decoders[j] by {
-                    assert(b_after[q.block_base as int + j] == b_before[q.block_base as int + j]);
-                }
-                assert(prec_after[i].decoders =~= prec_before[i].decoders);
-            }
-            assert(prec_after =~= prec_before.update(precinct_index as int, prec_after[precinct_index as int]));
-        }
+    if !run_private_legacy_tile_packets(&params, precincts, blocks, &mut p) {
+        return false;
     }
     if finish_progression_tile_packets(&params, &mut p).is_err() {
         return false;

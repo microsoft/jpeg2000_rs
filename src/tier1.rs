@@ -28,6 +28,14 @@ const MAX_HT_REFINEMENT_BYTES: usize = 2_046;
 const MAX_HT_MAGNITUDE_BITS: u8 = 74;
 const MAX_HT_MAGSGN_BITS: u8 = MAX_HT_MAGNITUDE_BITS + 1;
 
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result == (bound > 0 && bound <= tier1_max_ht_magnitude_bits()),
+))]
+#[inline]
+pub(crate) fn ht_magnitude_bound_valid(bound: u8) -> bool {
+    bound > 0 && bound <= MAX_HT_MAGNITUDE_BITS
+}
+
 #[derive(Clone, Copy)]
 #[cfg_attr(not(verus_keep_ghost), derive(Debug, Eq, PartialEq))]
 pub struct RawBitReader<'a> {
