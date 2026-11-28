@@ -395,6 +395,152 @@ fn plan_private_legacy_subband_blocks<'data>(
 #[cfg(verus_keep_ghost)]
 verus! {
 
+#[verifier::spinoff_prover]
+proof fn planned_precinct_rows_step(
+    band: [u32; 4],
+    block_size: [u32; 2],
+    subbands: Seq<SubbandGeometry>,
+    range: (usize, usize),
+    style: Tier1CodingStyle,
+    policy: (bool, u8, bool),
+    location: (u16, u8, u32, usize),
+    selected: bool,
+    limits: &ResourceLimits,
+    local: nat,
+    builder: crate::specs::Part2PrecinctPlanBuilder,
+    next: crate::specs::Part2PrecinctPlanBuilder,
+)
+    requires
+        local < range.1,
+        crate::specs::part2_planned_precinct_subband(
+            band, block_size, subbands, range.0, local as usize,
+            style, policy, location.3, selected, limits, builder,
+        ) == Ok::<crate::specs::Part2PrecinctPlanBuilder, crate::DecodeError>(next),
+    ensures
+        crate::specs::part2_planned_precinct_rows(
+            band, block_size, subbands, range, style, policy, location, selected, limits, local, builder,
+        ) == crate::specs::part2_planned_precinct_rows(
+            band, block_size, subbands, range, style, policy, location, selected, limits, local + 1, next,
+        ),
+{
+    hide(crate::specs::part2_planned_precinct_subband);
+    hide(crate::specs::part2_precinct_from_executions);
+    reveal_with_fuel(crate::specs::part2_planned_precinct_rows, 1);
+}
+
+#[verifier::spinoff_prover]
+proof fn planned_precinct_rows_done(
+    band: [u32; 4],
+    block_size: [u32; 2],
+    subbands: Seq<SubbandGeometry>,
+    range: (usize, usize),
+    style: Tier1CodingStyle,
+    policy: (bool, u8, bool),
+    location: (u16, u8, u32, usize),
+    selected: bool,
+    limits: &ResourceLimits,
+    builder: crate::specs::Part2PrecinctPlanBuilder,
+    precinct: crate::specs::Part1PacketPrecinctState,
+)
+    requires
+        crate::specs::part2_precinct_from_executions(
+            location.0, location.1, location.2, style, builder.executions, limits,
+        ) == Ok::<crate::specs::Part1PacketPrecinctState, crate::DecodeError>(precinct),
+    ensures
+        crate::specs::part2_planned_precinct_rows(
+            band, block_size, subbands, range, style, policy, location, selected, limits, range.1 as nat, builder,
+        ) == Ok::<crate::specs::Part2PlannedPrecinct, crate::DecodeError>(
+            crate::specs::Part2PlannedPrecinct {
+                precinct,
+                placements: builder.placements,
+                planned_code_blocks: builder.planned_code_blocks,
+            },
+        ),
+{
+    hide(crate::specs::part2_planned_precinct_subband);
+    hide(crate::specs::part2_precinct_from_executions);
+    reveal_with_fuel(crate::specs::part2_planned_precinct_rows, 1);
+}
+
+#[verifier::spinoff_prover]
+proof fn planned_precinct_subband_none(
+    band: [u32; 4],
+    block_size: [u32; 2],
+    subbands: Seq<SubbandGeometry>,
+    first_subband: usize,
+    offset: usize,
+    style: Tier1CodingStyle,
+    policy: (bool, u8, bool),
+    precinct_index: usize,
+    limits: &ResourceLimits,
+    builder: crate::specs::Part2PrecinctPlanBuilder,
+)
+    requires
+        first_subband + offset <= usize::MAX,
+        first_subband + offset < subbands.len(),
+        crate::specs::part2_planned_subband_lattice(
+            band, block_size, subbands[(first_subband + offset) as int],
+        ) == Ok::<Option<crate::specs::Part2PlannedSubbandLattice>, crate::DecodeError>(None),
+    ensures
+        crate::specs::part2_planned_precinct_subband(
+            band, block_size, subbands, first_subband, offset,
+            style, policy, precinct_index, true, limits, builder,
+        ) == Ok::<crate::specs::Part2PrecinctPlanBuilder, crate::DecodeError>(builder),
+{
+    hide(crate::specs::part2_planned_subband_lattice);
+    hide(crate::specs::part2_planned_codeblocks);
+}
+
+#[verifier::spinoff_prover]
+proof fn planned_precinct_subband_some(
+    band: [u32; 4],
+    block_size: [u32; 2],
+    subbands: Seq<SubbandGeometry>,
+    first_subband: usize,
+    offset: usize,
+    style: Tier1CodingStyle,
+    policy: (bool, u8, bool),
+    precinct_index: usize,
+    limits: &ResourceLimits,
+    builder: crate::specs::Part2PrecinctPlanBuilder,
+    lattice: crate::specs::Part2PlannedSubbandLattice,
+    planned: crate::specs::Part2PlannedCodeBlocks,
+)
+    requires
+        first_subband + offset <= usize::MAX,
+        first_subband + offset < subbands.len(),
+        crate::specs::part2_planned_subband_lattice(
+            band, block_size, subbands[(first_subband + offset) as int],
+        ) == Ok::<Option<crate::specs::Part2PlannedSubbandLattice>, crate::DecodeError>(Some(lattice)),
+        crate::specs::part2_planned_codeblocks(
+            lattice.grid, lattice.clip, lattice.blocks,
+            subbands[(first_subband + offset) as int],
+            style, policy, (precinct_index, (first_subband + offset) as usize, builder.decoder_index),
+            builder.placements, builder.planned_code_blocks, true, limits,
+        ) == Ok::<crate::specs::Part2PlannedCodeBlocks, crate::DecodeError>(planned),
+    ensures
+        crate::specs::part2_planned_precinct_subband(
+            band, block_size, subbands, first_subband, offset,
+            style, policy, precinct_index, true, limits, builder,
+        ) == Ok::<crate::specs::Part2PrecinctPlanBuilder, crate::DecodeError>(
+            crate::specs::Part2PrecinctPlanBuilder {
+                executions: builder.executions.push(crate::specs::Part2PacketSubbandExecution {
+                    orientation: subbands[(first_subband + offset) as int].orientation,
+                    across: lattice.blocks[0],
+                    down: lattice.blocks[1],
+                    maximum_zero: subbands[(first_subband + offset) as int].significant_bitplanes,
+                    decoders: planned.decoders,
+                }),
+                placements: planned.placements,
+                decoder_index: planned.decoder_index,
+                planned_code_blocks: planned.planned_code_blocks,
+            },
+        ),
+{
+    hide(crate::specs::part2_planned_subband_lattice);
+    hide(crate::specs::part2_planned_codeblocks);
+}
+
 spec fn private_legacy_executions_of(
     specs: Seq<PrivateLegacySubbandSpec>,
     blocks: Seq<crate::specs::PrivateLegacyBlockSpec>,
@@ -505,30 +651,41 @@ fn plan_private_legacy_precinct_subband<'data>(
     placements: &mut Vec<ProgressionCodeBlockPlacement>,
     limits: &ResourceLimits,
 ) -> Option<(usize, u64)> {
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        hide(crate::specs::part2_planned_codeblocks);
-    }
     let subband_index = first_subband.checked_add(offset)?;
     let &geometry = subbands.get(subband_index)?;
     let Ok(lattice_opt) = derive_planned_subband_lattice(band, block_size, geometry) else {
         return None;
     };
     #[cfg(verus_keep_ghost)]
-    proof! {
-        reveal(crate::specs::part2_planned_precinct_rows);
+    proof_decl! {
+        let ghost policy = (allow_multiple_ht_sets, ht_magnitude_bound, true);
+        let ghost b_prev = private_legacy_blocks_view(blocks@);
+        let ghost prev_execs = private_legacy_executions_of(specs@, b_prev, block_base, limits);
+        let ghost prev_builder = crate::specs::Part2PrecinctPlanBuilder {
+            executions: prev_execs,
+            placements: placements@,
+            decoder_index: cur_decoder,
+            planned_code_blocks: cur_total,
+        };
     }
     let Some(lattice) = lattice_opt else {
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            planned_precinct_subband_none(
+                band, block_size, subbands@, first_subband, offset,
+                style, policy, precinct_index, limits, prev_builder,
+            );
+            planned_precinct_rows_step(
+                band, block_size, subbands@, (first_subband, subband_count), style, policy,
+                (component, resolution, precinct, precinct_index), true, limits, offset as nat,
+                prev_builder, prev_builder,
+            );
+        }
         return Some((cur_decoder, cur_total));
     };
     let across = lattice.blocks[0];
     let down = lattice.blocks[1];
     let first_offset = cur_decoder;
-    #[cfg(verus_keep_ghost)]
-    proof_decl! {
-        let ghost b_prev = private_legacy_blocks_view(blocks@);
-        let ghost prev_execs = private_legacy_executions_of(specs@, b_prev, block_base, limits);
-    }
     let (next_decoder, next_total, band_count) = plan_private_legacy_subband_blocks(
         lattice.grid,
         lattice.clip,
@@ -581,6 +738,29 @@ fn plan_private_legacy_precinct_subband<'data>(
                 }
             }
         }
+        reveal(super::planned_subband_lattice_view);
+        let lattice_view = super::planned_subband_lattice_view(lattice);
+        let planned_cb = crate::specs::Part2PlannedCodeBlocks {
+            decoders: new_decoders,
+            placements: placements@,
+            decoder_index: next_decoder,
+            planned_code_blocks: next_total,
+        };
+        let next_builder = crate::specs::Part2PrecinctPlanBuilder {
+            executions: cur_execs,
+            placements: placements@,
+            decoder_index: next_decoder,
+            planned_code_blocks: next_total,
+        };
+        planned_precinct_subband_some(
+            band, block_size, subbands@, first_subband, offset,
+            style, policy, precinct_index, limits, prev_builder, lattice_view, planned_cb,
+        );
+        planned_precinct_rows_step(
+            band, block_size, subbands@, (first_subband, subband_count), style, policy,
+            (component, resolution, precinct, precinct_index), true, limits, offset as nat,
+            prev_builder, next_builder,
+        );
     }
     Some((next_decoder, next_total))
 }
@@ -648,11 +828,6 @@ fn plan_private_legacy_precinct<'data>(
     placements: &mut Vec<ProgressionCodeBlockPlacement>,
     limits: &ResourceLimits,
 ) -> Option<(PrivateLegacyPrecinct, u64)> {
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        hide(crate::specs::part2_planned_codeblocks);
-        hide(crate::specs::part2_precinct_from_executions);
-    }
     let block_base = blocks.len();
     let placements_start = placements.len();
     let mut specs: Vec<PrivateLegacySubbandSpec> = Vec::new();
@@ -758,10 +933,6 @@ fn plan_private_legacy_precinct<'data>(
         let ghost final_blocks_view = private_legacy_blocks_view(blocks@);
         let ghost final_executions = private_legacy_executions_of(specs@, final_blocks_view, block_base, limits);
     }
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        reveal(crate::specs::part2_planned_precinct_rows);
-    }
     let precinct_state = new_private_legacy_precinct(
         component,
         resolution,
@@ -776,6 +947,20 @@ fn plan_private_legacy_precinct<'data>(
         #[cfg(verus_keep_ghost)]
         verus_exec_expr!(Ghost(final_blocks_view)),
     )?;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        planned_precinct_rows_done(
+            band, block_size, subbands@, (first_subband, subband_count), style, policy,
+            (component, resolution, precinct, precinct_index), true, limits,
+            crate::specs::Part2PrecinctPlanBuilder {
+                executions: final_executions,
+                placements: placements@,
+                decoder_index: cur_decoder,
+                planned_code_blocks: cur_total,
+            },
+            private_legacy_precinct_logical(&precinct_state, final_blocks_view, limits),
+        );
+    }
     Some((precinct_state, cur_total))
 }
 
