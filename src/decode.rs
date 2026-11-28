@@ -369,6 +369,7 @@ use output::{
 mod planning;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod private_ht;
+mod private_legacy;
 #[cfg(not(feature = "cooperative-deadlines"))]
 pub(crate) const PRIVATE_HT_PRIMARY_ENABLED: bool = true;
 #[cfg(feature = "cooperative-deadlines")]

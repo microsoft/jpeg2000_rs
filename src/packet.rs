@@ -193,7 +193,7 @@ pub struct PacketSubbandExecution {
     pub decoders: Vec<Tier1CodeBlockDecoder>,
 }
 
-struct PacketSubbandState {
+pub(crate) struct PacketSubbandState {
     orientation: SubbandOrientation,
     first_decoder: usize,
     decoder_count: usize,
@@ -501,6 +501,7 @@ pub use multi_packet::{decode_multi_code_block_packet, decode_single_code_block_
 mod precinct;
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod private_ht;
+mod private_legacy;
 #[cfg(any(test, verus_keep_ghost))]
 pub(crate) use precinct::prepare_precinct_contexts;
 pub(crate) use precinct::{decode_jpip_precinct_packet, packet_precinct_from_subbands};
@@ -518,6 +519,18 @@ pub(crate) use private_ht::{
 pub(crate) use private_ht::{
     private_executions_view, private_precinct_outcome, private_precincts_view,
     private_resolution_owners_known_fields,
+};
+pub(crate) use private_legacy::{
+    PrivateLegacyBlock, PrivateLegacyPrecinct, PrivateLegacySubbandSpec,
+    collect_private_legacy_packets, new_private_legacy_block, new_private_legacy_precinct,
+};
+#[cfg(verus_keep_ghost)]
+pub(crate) use private_legacy::{
+    private_legacy_block_view, private_legacy_blocks_all_segments_ok,
+    private_legacy_blocks_extends, private_legacy_blocks_valid, private_legacy_blocks_view,
+    private_legacy_precinct_logical, private_legacy_precinct_subband_empty,
+    private_legacy_precincts_layout_ok, private_legacy_precincts_logical,
+    private_legacy_slot_decoders, private_legacy_specs_match_executions,
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod progression;

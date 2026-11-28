@@ -61,6 +61,8 @@ mod compact_legacy_frames;
 pub(crate) use compact_legacy_frames::*;
 mod cold_compact_legacy;
 pub(crate) use cold_compact_legacy::*;
+mod private_legacy;
+pub(crate) use private_legacy::*;
 mod packet;
 pub use packet::*;
 mod packet_orchestration;
