@@ -995,7 +995,6 @@ fn plan_private_legacy_tile<'data>(
                 && precincts@[p.precinct_index as int].block_base as int + p.decoder_index as int
                     == comp_block_start + pi
         },
-        !matches!(first.component_coding_styles.style(plan.component), Ok(cs) if matches!(cs.transform, WaveletTransform::Arbitrary(_))),
     ensures
         match result.0 {
             None => true,
@@ -1265,8 +1264,19 @@ pub(super) fn try_decode<'data>(
         invariant bi <= plan.components.len(),
             ({
                 let comps = Seq::new(plan.components.len() as nat, |i: int| super::prepare_plan_view(&plan.components@[i]));
-                crate::specs::part2_account_plan_blocks(comps, false, limits.maximum_code_blocks(), 0, initial.2)
-                    == crate::specs::part2_account_plan_blocks(comps, false, limits.maximum_code_blocks(), bi as nat, total_blocks)
+                crate::specs::part2_account_plan_blocks(
+                    comps,
+                    false,
+                    crate::limits::resource_code_block_limit(limits),
+                    0,
+                    initial.2,
+                ) == crate::specs::part2_account_plan_blocks(
+                    comps,
+                    false,
+                    crate::limits::resource_code_block_limit(limits),
+                    bi as nat,
+                    total_blocks,
+                )
             }),
         decreases plan.components.len() - bi,
     ))]
