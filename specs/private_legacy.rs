@@ -58,7 +58,7 @@ proof fn private_legacy_decode_pass_work_indep(
     let r2 = part1_legacy_ensure_bitplane(s2);
     assert(r1.0 == r2.0 && r2.1 == (Tier1DecoderState { legacy_decode_work: work, ..r1.1 })) by {
         reveal(part1_legacy_ensure_bitplane);
-        hide(part1_legacy_initial_bitplane);
+        hide(part1_legacy_bitplane_initial);
     };
 }
 
