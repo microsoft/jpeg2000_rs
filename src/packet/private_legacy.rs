@@ -21,6 +21,17 @@ use super::{
 #[cfg(verus_keep_ghost)]
 use vstd::prelude::*;
 
+#[derive(Clone, Copy)]
+pub(crate) struct PrivateLegacyContribution<'data> {
+    pub(crate) zero_bitplanes: u16,
+    pub(crate) new_passes: u8,
+    #[cfg_attr(not(verus_keep_ghost), allow(dead_code))]
+    pub(crate) data_length: u32,
+    pub(crate) body: &'data [u8],
+    #[cfg(verus_keep_ghost)]
+    pub(crate) ghost_contribution: Ghost<crate::specs::Part1CodeBlockContribution>,
+}
+
 pub(crate) struct PrivateLegacyBlock<'data> {
     pub(crate) width: u16,
     pub(crate) height: u16,
@@ -29,7 +40,7 @@ pub(crate) struct PrivateLegacyBlock<'data> {
     pub(crate) style: Tier1CodingStyle,
     pub(crate) allow_multiple_ht_sets: bool,
     pub(crate) ht_magnitude_bound: u8,
-    pub(crate) contribution: Option<(CodeBlockContribution, &'data [u8])>,
+    pub(crate) contribution: Option<PrivateLegacyContribution<'data>>,
 }
 
 #[cfg(verus_keep_ghost)]
@@ -46,7 +57,19 @@ pub(crate) open spec fn private_legacy_block_view(block: &PrivateLegacyBlock<'_>
         ht_magnitude_bound: block.ht_magnitude_bound,
         contribution: match block.contribution {
             None => None,
-            Some((c, body)) => Some((super::code_block_contribution_view(&c), body@)),
+            Some(c) => Some((
+                crate::specs::Part1CodeBlockContribution {
+                    first_inclusion: c.ghost_contribution@.first_inclusion,
+                    zero_bitplanes: c.zero_bitplanes,
+                    new_passes: c.new_passes,
+                    data_length: c.data_length,
+                    high_throughput: c.ghost_contribution@.high_throughput,
+                    segment_count: c.ghost_contribution@.segment_count,
+                    segment_passes: c.ghost_contribution@.segment_passes,
+                    segment_lengths: c.ghost_contribution@.segment_lengths,
+                },
+                c.body@,
+            )),
         },
     }
 }
@@ -299,7 +322,16 @@ impl<'data> PrivateLegacyBlock<'data> {
         if total_work > limits.maximum_work_units() {
             return false;
         }
-        self.contribution = Some((contribution, body));
+        self.contribution = Some(PrivateLegacyContribution {
+            zero_bitplanes: contribution.zero_bitplanes,
+            new_passes: contribution.new_passes,
+            data_length: contribution.data_length,
+            body,
+            #[cfg(verus_keep_ghost)]
+            ghost_contribution: verus_exec_expr!(Ghost(super::code_block_contribution_view(
+                &contribution
+            ))),
+        });
         true
     }
 }

@@ -1106,7 +1106,7 @@ fn reconstruct_private_legacy_component(
                         return (None, scratch);
                     }
                 }
-                Some((contrib, body)) => {
+                Some(contrib) => {
                     let eff_bp = block.significant_bitplanes - contrib.zero_bitplanes;
                     let (ok, next_scratch) = decode_compact_legacy_scratch(
                         block.width,
@@ -1117,7 +1117,7 @@ fn reconstruct_private_legacy_component(
                         block.ht_magnitude_bound,
                         block.orientation,
                         block.style,
-                        body,
+                        contrib.body,
                         u32::from(contrib.new_passes),
                         scratch,
                         limits,
@@ -1151,7 +1151,7 @@ fn reconstruct_private_legacy_component(
                     }
                 }
             }
-        } else if let Some((contrib, body)) = block.contribution {
+        } else if let Some(contrib) = block.contribution {
             let eff_bp = block.significant_bitplanes - contrib.zero_bitplanes;
             let (ok, next_scratch) = decode_compact_legacy_scratch(
                 block.width,
@@ -1162,7 +1162,7 @@ fn reconstruct_private_legacy_component(
                 block.ht_magnitude_bound,
                 block.orientation,
                 block.style,
-                body,
+                contrib.body,
                 u32::from(contrib.new_passes),
                 scratch,
                 limits,
