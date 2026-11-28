@@ -444,11 +444,7 @@ pub(in crate::decode) fn place_private(
     ensures result ==> (Ok(()), working_subband_view(*final(destination)))
         == crate::specs::part2_fused_band_value(
             working_subband_view(*old(destination)),
-            crate::specs::Tier1RawPlane {
-                width,
-                height,
-                coefficients: words@.map_values(|word: u64| crate::specs::compact_coefficient(word)),
-            },
+            crate::specs::private_legacy_compact_plane(width, height, words@),
             geometry,
             x,
             y,
@@ -472,11 +468,7 @@ pub(in crate::decode) fn place_compact_words(
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost original = working_subband_view(*destination);
-        let ghost raw_plane = crate::specs::Tier1RawPlane {
-            width,
-            height,
-            coefficients: words@.map_values(|word: u64| crate::specs::compact_coefficient(word)),
-        };
+        let ghost raw_plane = crate::specs::private_legacy_compact_plane(width, height, words@);
     }
     let w_u32 = u32::from(width);
     let h_u32 = u32::from(height);
@@ -550,7 +542,8 @@ pub(in crate::decode) fn place_compact_words(
     let mut row = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant row <= h, w == raw_plane.width, h == raw_plane.height,
-            w > 0, h > 0, count == (w as int) * (h as int),
+            w > 0, h > 0, count == (w as int) * (h as int), count == words.len(),
+            raw_plane == crate::specs::private_legacy_compact_plane(width, height, words@),
             area == (destination.width as int) * (destination.height as int),
             original == working_subband_view(*destination),
             crate::specs::part2_fused_shape(original, raw_plane, geometry, x, y, reversible, crate::limits::resource_decoded_bytes_limit(limits)),
@@ -564,7 +557,7 @@ pub(in crate::decode) fn place_compact_words(
         #[cfg(verus_keep_ghost)]
         proof! {
             crate::specs::part2_fused_span(original.0 as int, original.1 as int, w as int, h as int, x as int, y as int, row as int);
-            assert((row as int) * (w as int) + (w as int) <= count as int) by(nonlinear_arith)
+            assert((row + 1) * w == row * w + w && (row + 1) * w <= count) by(nonlinear_arith)
                 requires row < h, count == (w as int) * (h as int);
         }
         let start = (y as usize + row) * destination.width as usize + x as usize;
@@ -577,17 +570,25 @@ pub(in crate::decode) fn place_compact_words(
         }
         let mut column = 0_usize;
         #[cfg_attr(verus_keep_ghost, verus_spec(
-            invariant column <= w, row < h,
+            invariant column <= w, row < h, w == raw_plane.width, h == raw_plane.height,
+                (row + 1) * w == row * w + w,
+                (row + 1) * w <= raw_plane.coefficients.len(),
                 source.valid(), source.raw_row().len() == w,
                 source.raw_row() == raw_plane.coefficients.subrange((row * w) as int, ((row + 1) * w) as int),
                 visited@ == original.4.subrange(start as int, (start + w) as int),
                 start == (y as int + row as int) * (destination.width as int) + x as int,
                 start + w <= original.4.len(),
+                original == working_subband_view(*destination),
+                maximum == crate::specs::part2_fused_maximum(step, reversible),
                 forall|c: int| 0 <= c < column ==>
                     #[trigger] crate::specs::part2_fused_cell_valid(original, raw_plane, x, y, geometry.roi_shift, step, reversible, row as int, c),
             decreases w - column,
         ))]
         while column < w {
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(row * w + column < raw_plane.coefficients.len());
+            }
             if visited[column] {
                 return false;
             }
@@ -597,6 +598,10 @@ pub(in crate::decode) fn place_compact_words(
             let restored = crate::refinement::maxshift_restore(value, geometry.roi_shift);
             if restored > maximum {
                 return false;
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(crate::specs::part2_fused_cell_valid(original, raw_plane, x, y, geometry.roi_shift, step, reversible, row as int, column as int));
             }
             column += 1;
         }
@@ -615,6 +620,8 @@ pub(in crate::decode) fn place_compact_words(
     let mut row = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant row <= h, w == raw_plane.width, h == raw_plane.height,
+            count == (w as int) * (h as int), count == words.len(),
+            raw_plane == crate::specs::private_legacy_compact_plane(width, height, words@),
             original == working_subband_view(*old(destination)),
             values == crate::specs::part2_fused_values(raw_plane, geometry.roi_shift, step, reversible),
             crate::specs::part2_fused_write_admit(original, raw_plane, x, y, geometry.roi_shift, step, reversible),
@@ -625,8 +632,8 @@ pub(in crate::decode) fn place_compact_words(
         #[cfg(verus_keep_ghost)]
         proof! {
             crate::specs::part2_fused_geometry(original, raw_plane, x, y, geometry.roi_shift, step, reversible);
-            assert((row as int) * (w as int) + (w as int) <= values.len()) by(nonlinear_arith)
-                requires row < h, values.len() == (w as int) * (h as int);
+            assert((row + 1) * w == row * w + w && (row + 1) * w <= count && (row + 1) * w <= values.len()) by(nonlinear_arith)
+                requires row < h, count == (w as int) * (h as int), values.len() == (w as int) * (h as int);
             crate::specs::part2_fused_rows_frame(original, values, w as u32, x, y, row as nat);
             crate::specs::part2_fused_span(original.0 as int, original.1 as int, w as int, h as int, x as int, y as int, row as int);
         }
@@ -644,8 +651,16 @@ pub(in crate::decode) fn place_compact_words(
             let visited = &mut destination.visited.as_mut_slice()[start..start + w];
             let mut column = 0_usize;
             #[cfg_attr(verus_keep_ghost, verus_spec(
-                invariant column <= w, row < h,
+                invariant column <= w, row < h, w == raw_plane.width, h == raw_plane.height,
+                    original == working_subband_view(*old(destination)),
+                    values == crate::specs::part2_fused_values(raw_plane, geometry.roi_shift, step, reversible),
+                    crate::specs::part2_fused_write_admit(original, raw_plane, x, y, geometry.roi_shift, step, reversible),
+                    before == crate::specs::part2_fused_rows(original, values, w as u32, x, y, row as nat),
+                    start == (y as int + row as int) * (before.0 as int) + x as int,
                     samples.len() == w, visited.len() == w,
+                    0 <= start, start + w <= before.3.len(), before.4.len() == before.3.len(),
+                    (row + 1) * w <= raw_plane.coefficients.len(),
+                    (row + 1) * w == row * w + w,
                     source.valid(), source.raw_row().len() == w,
                     source.raw_row() == raw_plane.coefficients.subrange((row * w) as int, ((row + 1) * w) as int),
                     forall|c: int| 0 <= c < w ==> #[trigger] samples[c] == if c < column { values[row * w + c] } else { before.3[start + c] },
@@ -697,11 +712,7 @@ pub(in crate::decode) fn place_compact_words(
     ensures result ==> (Ok(()), working_subband_view(*final(destination)))
         == crate::specs::part2_fused_band_value(
             working_subband_view(*old(destination)),
-            crate::specs::Tier1RawPlane {
-                width,
-                height,
-                coefficients: Seq::new((width as nat) * (height as nat), |_: int| crate::specs::tier1_empty_coefficient()),
-            },
+            crate::specs::private_legacy_empty_plane(width, height),
             geometry,
             x,
             y,
@@ -724,11 +735,7 @@ pub(in crate::decode) fn place_empty_block(
     #[cfg(verus_keep_ghost)]
     proof_decl! {
         let ghost original = working_subband_view(*destination);
-        let ghost raw_plane = crate::specs::Tier1RawPlane {
-            width,
-            height,
-            coefficients: Seq::new((width as nat) * (height as nat), |_: int| crate::specs::tier1_empty_coefficient()),
-        };
+        let ghost raw_plane = crate::specs::private_legacy_empty_plane(width, height);
     }
     let w_u32 = u32::from(width);
     let h_u32 = u32::from(height);
@@ -782,6 +789,8 @@ pub(in crate::decode) fn place_empty_block(
     proof! {
         assert(crate::specs::tier1_empty_coefficient().limbs.len() == 6) by(compute);
         assert(crate::specs::part2_narrow_magnitude(crate::specs::tier1_empty_coefficient()) == Some(0u64)) by(compute);
+        assert(geometry.roi_shift < 64u8 ==> (1u64 << geometry.roi_shift) > 0u64) by(bit_vector);
+        assert(crate::specs::part1_maxshift_restore(0u64, geometry.roi_shift) == 0u64);
         assert(!crate::specs::tier1_empty_coefficient().significant);
         assert(crate::specs::part2_fused_shape(original, raw_plane, geometry, x, y, reversible, crate::limits::resource_decoded_bytes_limit(limits)));
         assert(w > 0 && h > 0) by(nonlinear_arith) requires count > 0, count == (w as int) * (h as int);
@@ -790,6 +799,9 @@ pub(in crate::decode) fn place_empty_block(
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant row <= h, w == raw_plane.width, h == raw_plane.height,
             w > 0, h > 0, count == (w as int) * (h as int),
+            raw_plane == crate::specs::private_legacy_empty_plane(width, height),
+            crate::specs::part1_maxshift_restore(0u64, geometry.roi_shift) == 0u64,
+            crate::specs::part2_narrow_magnitude(crate::specs::tier1_empty_coefficient()) == Some(0u64),
             area == (destination.width as int) * (destination.height as int),
             original == working_subband_view(*destination),
             crate::specs::part2_fused_shape(original, raw_plane, geometry, x, y, reversible, crate::limits::resource_decoded_bytes_limit(limits)),
@@ -802,15 +814,23 @@ pub(in crate::decode) fn place_empty_block(
         #[cfg(verus_keep_ghost)]
         proof! {
             crate::specs::part2_fused_span(original.0 as int, original.1 as int, w as int, h as int, x as int, y as int, row as int);
+            assert((row + 1) * w == row * w + w && (row + 1) * w <= count) by(nonlinear_arith)
+                requires row < h, count == (w as int) * (h as int);
         }
         let start = (y as usize + row) * destination.width as usize + x as usize;
         let visited = &destination.visited[start..start + w];
         let mut column = 0_usize;
         #[cfg_attr(verus_keep_ghost, verus_spec(
-            invariant column <= w, row < h,
+            invariant column <= w, row < h, w == raw_plane.width, h == raw_plane.height,
+                (row + 1) * w == row * w + w,
+                (row + 1) * w <= raw_plane.coefficients.len(),
+                raw_plane == crate::specs::private_legacy_empty_plane(width, height),
+                crate::specs::part1_maxshift_restore(0u64, geometry.roi_shift) == 0u64,
+                crate::specs::part2_narrow_magnitude(crate::specs::tier1_empty_coefficient()) == Some(0u64),
                 visited@ == original.4.subrange(start as int, (start + w) as int),
                 start == (y as int + row as int) * (destination.width as int) + x as int,
                 start + w <= original.4.len(),
+                original == working_subband_view(*destination),
                 forall|c: int| 0 <= c < column ==>
                     #[trigger] crate::specs::part2_fused_cell_valid(original, raw_plane, x, y, geometry.roi_shift, step, reversible, row as int, c),
             decreases w - column,
@@ -818,6 +838,12 @@ pub(in crate::decode) fn place_empty_block(
         while column < w {
             if visited[column] {
                 return false;
+            }
+            #[cfg(verus_keep_ghost)]
+            proof! {
+                assert(row * w + column < raw_plane.coefficients.len());
+                assert(raw_plane.coefficients[row * w + column] == crate::specs::tier1_empty_coefficient());
+                assert(crate::specs::part2_fused_cell_valid(original, raw_plane, x, y, geometry.roi_shift, step, reversible, row as int, column as int));
             }
             column += 1;
         }
@@ -837,6 +863,11 @@ pub(in crate::decode) fn place_empty_block(
     }
     #[cfg(verus_keep_ghost)]
     proof! {
+        assert forall|i: int| 0 <= i < count implies values[i] == zero_sample by {
+            assert(raw_plane.coefficients[i] == crate::specs::tier1_empty_coefficient());
+            assert(crate::specs::part2_narrow_magnitude(raw_plane.coefficients[i]) == Some(0u64));
+            assert(crate::specs::part1_maxshift_restore(0u64, geometry.roi_shift) == 0u64);
+        }
         assert(values =~= Seq::new(count as nat, |_: int| zero_sample));
     }
     let mut row = 0_usize;
@@ -853,7 +884,7 @@ pub(in crate::decode) fn place_empty_block(
         #[cfg(verus_keep_ghost)]
         proof! {
             crate::specs::part2_fused_geometry(original, raw_plane, x, y, geometry.roi_shift, step, reversible);
-            assert((row as int) * (w as int) + (w as int) <= values.len()) by(nonlinear_arith)
+            assert((row + 1) * w == row * w + w && (row + 1) * w <= values.len()) by(nonlinear_arith)
                 requires row < h, values.len() == (w as int) * (h as int);
             crate::specs::part2_fused_rows_frame(original, values, w as u32, x, y, row as nat);
             crate::specs::part2_fused_span(original.0 as int, original.1 as int, w as int, h as int, x as int, y as int, row as int);
@@ -868,6 +899,7 @@ pub(in crate::decode) fn place_empty_block(
             #[cfg_attr(verus_keep_ghost, verus_spec(
                 invariant column <= w, row < h,
                     samples.len() == w, visited.len() == w,
+                    0 <= start, start + w <= before.3.len(), before.4.len() == before.3.len(),
                     forall|c: int| 0 <= c < w ==> #[trigger] samples[c] == if c < column { zero_sample } else { before.3[start + c] },
                     forall|c: int| 0 <= c < w ==> #[trigger] visited[c] == if c < column { true } else { before.4[start + c] },
                 decreases w - column,

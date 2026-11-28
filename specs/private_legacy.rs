@@ -33,6 +33,30 @@ pub(crate) proof fn private_legacy_segment_passes_all(
 }
 
 #[verifier::spinoff_prover]
+proof fn private_legacy_decode_pass_work_indep(
+    s: Tier1DecoderState,
+    work: u64,
+    symbols: Part1LegacySymbols,
+    kind: crate::tier1::Tier1PassKind,
+)
+    ensures
+        ({
+            let a = part1_legacy_decode_pass(s, symbols, kind);
+            let s2 = Tier1DecoderState { legacy_decode_work: work, ..s };
+            let b = part1_legacy_decode_pass(s2, symbols, kind);
+            a.0 == b.0
+                && b.1 == (Tier1DecoderState { legacy_decode_work: work, ..a.1 })
+                && a.2 == b.2
+        }),
+{
+    reveal(part1_legacy_decode_pass);
+    let s2 = Tier1DecoderState { legacy_decode_work: work, ..s };
+    let r1 = part1_legacy_ensure_bitplane(s);
+    let r2 = part1_legacy_ensure_bitplane(s2);
+    assert(r1.0 == r2.0 && r2.1 == (Tier1DecoderState { legacy_decode_work: work, ..r1.1 }));
+}
+
+#[verifier::spinoff_prover]
 proof fn private_legacy_segment_step_work_indep(
     s: Part1LegacySegmentRun,
     work: u64,
@@ -53,12 +77,8 @@ proof fn private_legacy_segment_step_work_indep(
         }),
 {
     reveal(part1_legacy_segment_step);
-    reveal(part1_legacy_decode_pass);
     let plan = part1_legacy_plan(s.decoder.style, s.decoder.next_pass);
-    let s2 = Tier1DecoderState { legacy_decode_work: work, ..s.decoder };
-    let r1 = part1_legacy_ensure_bitplane(s.decoder);
-    let r2 = part1_legacy_ensure_bitplane(s2);
-    assert(r1.0 == r2.0 && r2.1 == (Tier1DecoderState { legacy_decode_work: work, ..r1.1 }));
+    private_legacy_decode_pass_work_indep(s.decoder, work, s.symbols, plan.kind);
 }
 
 #[verifier::spinoff_prover]
@@ -93,6 +113,54 @@ proof fn private_legacy_segment_run_work_indep(
 }
 
 #[verifier::spinoff_prover]
+proof fn private_legacy_segment_mq_finish_work_indep(
+    run1: Part1LegacySegmentEffect,
+    work: u64,
+    bytes: nat,
+    count: u32,
+)
+    ensures
+        ({
+            let run2 = (
+                run1.0,
+                Part1LegacySegmentRun {
+                    decoder: Tier1DecoderState { legacy_decode_work: work, ..run1.1.decoder },
+                    ..run1.1
+                },
+            );
+            let a = part1_legacy_segment_mq_finish(part1_legacy_segment_finish(run1), bytes, count);
+            let b = part1_legacy_segment_mq_finish(part1_legacy_segment_finish(run2), bytes, count);
+            a.0 == b.0 && b.1 == (Tier1DecoderState { legacy_decode_work: work, ..a.1 })
+        }),
+{
+    reveal(part1_legacy_segment_account);
+}
+
+#[verifier::spinoff_prover]
+proof fn private_legacy_segment_raw_finish_work_indep(
+    run1: Part1LegacySegmentEffect,
+    work: u64,
+    bytes: nat,
+    count: u32,
+)
+    ensures
+        ({
+            let run2 = (
+                run1.0,
+                Part1LegacySegmentRun {
+                    decoder: Tier1DecoderState { legacy_decode_work: work, ..run1.1.decoder },
+                    ..run1.1
+                },
+            );
+            let a = part1_legacy_segment_raw_finish(part1_legacy_segment_finish(run1), bytes, count);
+            let b = part1_legacy_segment_raw_finish(part1_legacy_segment_finish(run2), bytes, count);
+            a.0 == b.0 && b.1 == (Tier1DecoderState { legacy_decode_work: work, ..a.1 })
+        }),
+{
+    reveal(part1_legacy_segment_account);
+}
+
+#[verifier::spinoff_prover]
 pub(crate) proof fn private_legacy_segment_work_indep(
     s: Tier1DecoderState,
     work: u64,
@@ -113,7 +181,6 @@ pub(crate) proof fn private_legacy_segment_work_indep(
 {
     reveal(part1_legacy_segment);
     reveal(part1_legacy_segment_admission);
-    reveal(part1_legacy_segment_account);
     let s2 = Tier1DecoderState { legacy_decode_work: work, ..s };
     if part1_legacy_segment_admission(s, input, count, pass_limit, byte_limit).is_ok() {
         if part1_legacy_plan(s.style, s.next_pass).coding_mode is Mq {
@@ -121,26 +188,24 @@ pub(crate) proof fn private_legacy_segment_work_indep(
                 let r1 = part1_legacy_segment_setup(s, mq);
                 let r2 = part1_legacy_segment_setup(s2, mq);
                 assert(r2.0 == (Tier1DecoderState { legacy_decode_work: work, ..r1.0 }) && r2.1 == r1.1);
-                private_legacy_segment_run_work_indep(
-                    Part1LegacySegmentRun {
-                        decoder: r1.0,
-                        symbols: Part1LegacySymbols::Mq(r1.1),
-                        statistics: tier1_statistics_zero(),
-                    },
-                    work,
-                    count as nat,
-                );
+                let init_run = Part1LegacySegmentRun {
+                    decoder: r1.0,
+                    symbols: Part1LegacySymbols::Mq(r1.1),
+                    statistics: tier1_statistics_zero(),
+                };
+                private_legacy_segment_run_work_indep(init_run, work, count as nat);
+                let run1 = part1_legacy_segment_run(init_run, count as nat);
+                private_legacy_segment_mq_finish_work_indep(run1, work, input.len(), count);
             }
         } else if let Ok(raw) = part1_raw_reader_initial(input, input_limit, work_limit) {
-            private_legacy_segment_run_work_indep(
-                Part1LegacySegmentRun {
-                    decoder: s,
-                    symbols: Part1LegacySymbols::Raw(raw),
-                    statistics: tier1_statistics_zero(),
-                },
-                work,
-                count as nat,
-            );
+            let init_run = Part1LegacySegmentRun {
+                decoder: s,
+                symbols: Part1LegacySymbols::Raw(raw),
+                statistics: tier1_statistics_zero(),
+            };
+            private_legacy_segment_run_work_indep(init_run, work, count as nat);
+            let run1 = part1_legacy_segment_run(init_run, count as nat);
+            private_legacy_segment_raw_finish_work_indep(run1, work, input.len(), count);
         }
     }
 }
@@ -161,6 +226,18 @@ pub(crate) open spec fn private_legacy_empty_plane(width: u16, height: u16) -> T
         width,
         height,
         coefficients: Seq::new((width as nat) * (height as nat), |_: int| tier1_empty_coefficient()),
+    }
+}
+
+pub(crate) open spec fn private_legacy_compact_plane(
+    width: u16,
+    height: u16,
+    words: Seq<u64>,
+) -> Tier1RawPlane {
+    Tier1RawPlane {
+        width,
+        height,
+        coefficients: words.map_values(|word: u64| compact_coefficient(word)),
     }
 }
 
@@ -304,6 +381,9 @@ pub(crate) proof fn private_legacy_block_initial_matches_configured(b: PrivateLe
         ) == Ok::<Tier1DecoderState, crate::DecodeError>(private_legacy_block_initial(b)),
 {
     assert(!ht_block_coding_enabled(b.style.block_coding));
+    assert(tier1_empty_plane(b.width, b.height).is_ok());
+    assert(tier1_empty_plane(b.width, b.height).get_Ok_0().coefficients
+        =~= private_legacy_empty_plane(b.width, b.height).coefficients);
     assert(((b.significant_bitplanes - 1) as nat) * 3 + 1 == 3 * (b.significant_bitplanes as nat) - 2);
 }
 
@@ -391,10 +471,23 @@ pub(crate) proof fn private_legacy_block_single_contribution(
         assert(part1_legacy_replay(s1, body, p, pass_limit, byte_limit, input_limit, work_limit).1.plane == seg1.1.plane);
     }
     let run0 = Part1LegacyPacketProgress { decoder: init_z, segment_index: 0, offset: 0, decoded_passes: 0 };
+    reveal(part1_legacy_code_block_segment);
     reveal_with_fuel(part1_legacy_code_block_run, 2);
     let step = part1_legacy_code_block_segment(run0, c, body, pass_limit, byte_limit, input_limit, work_limit);
     assert(step.0 == Ok::<(), crate::DecodeError>(()));
     assert(step.1.offset == body.len() && step.1.decoded_passes == p);
+}
+
+#[verifier::spinoff_prover]
+proof fn private_legacy_decode_pass_preserves_next_pass(
+    s: Tier1DecoderState,
+    symbols: Part1LegacySymbols,
+    kind: crate::tier1::Tier1PassKind,
+)
+    ensures
+        part1_legacy_decode_pass(s, symbols, kind).1.next_pass == s.next_pass,
+{
+    reveal(part1_legacy_decode_pass);
 }
 
 #[verifier::spinoff_prover]
@@ -411,6 +504,8 @@ proof fn private_legacy_segment_run_next_pass(
 {
     if remaining > 0 {
         reveal(part1_legacy_segment_step);
+        let plan = part1_legacy_plan(s.decoder.style, s.decoder.next_pass);
+        private_legacy_decode_pass_preserves_next_pass(s.decoder, s.symbols, plan.kind);
         let step = part1_legacy_segment_step(s);
         assert(step.0.is_ok());
         assert(step.1.decoder.next_pass as nat == s.decoder.next_pass as nat + 1);

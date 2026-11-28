@@ -2342,11 +2342,7 @@ impl Tier1CodeBlockDecoder {
         result.0 ==> {
             let words = result.1@;
             let count = (width as nat) * (height as nat);
-            let initial_plane = crate::specs::Tier1RawPlane {
-                width,
-                height,
-                coefficients: Seq::new(count, |_: int| crate::specs::tier1_empty_coefficient()),
-            };
+            let initial_plane = crate::specs::private_legacy_empty_plane(width, height);
             let initial_state = crate::specs::Tier1DecoderState {
                 plane: initial_plane,
                 private_plan: false,
@@ -2383,11 +2379,7 @@ impl Tier1CodeBlockDecoder {
             );
             words.len() == count
                 && seg.0.is_ok()
-                && seg.1.plane == crate::specs::Tier1RawPlane {
-                    width,
-                    height,
-                    coefficients: words.map_values(|word: u64| crate::specs::compact_coefficient(word)),
-                }
+                && seg.1.plane == crate::specs::private_legacy_compact_plane(width, height, words)
         },
 ))]
 #[allow(clippy::too_many_arguments)]
@@ -2424,6 +2416,8 @@ pub(crate) fn decode_compact_legacy_scratch(
     scratch.resize(count, EMPTY);
     #[cfg(verus_keep_ghost)]
     proof! {
+        assert(w <= 4096 && h <= 4096) by(nonlinear_arith)
+            requires w > 0, h > 0, w * h <= 4096;
         assert forall|i: int| 0 <= i < count implies scratch@[i] == EMPTY by {
             assert(vstd::pervasive::cloned::<u64>(EMPTY, scratch@[i]));
         }
@@ -2489,18 +2483,13 @@ pub(crate) fn decode_compact_legacy_scratch(
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(super::tier1_decoder_state);
-        reveal(super::legacy_bitplane_option_view);
         crate::specs::compact_empty_word();
         assert forall|i: int| 0 <= i < packed.entries.len() implies !crate::specs::compact_coefficient(packed.entries@[i]).significant by {
             assert(packed.entries@[i] == EMPTY);
         }
-        assert(packed.view() == crate::specs::Tier1RawPlane {
-            width,
-            height,
-            coefficients: Seq::new(count as nat, |_: int| crate::specs::tier1_empty_coefficient()),
-        }) by {
+        assert(packed.view() == crate::specs::private_legacy_empty_plane(width, height)) by {
             assert(packed.entries@.map_values(|word: u64| crate::specs::compact_coefficient(word))
-                =~= Seq::new(count as nat, |_: int| crate::specs::tier1_empty_coefficient()));
+                =~= crate::specs::private_legacy_empty_plane(width, height).coefficients);
         }
         crate::specs::compact_phase_initial(decoder.bitplane, packed.width, packed.height, packed.entries@);
     }
@@ -2520,11 +2509,8 @@ pub(crate) fn decode_compact_legacy_scratch(
                 crate::limits::resource_work_limit(limits),
             ) == Ok::<crate::specs::Part1MqState, DecodeError>(mq_raw));
             assert(crate::specs::part1_legacy_segment_setup(initial_view, mq_raw) == (initial_view, mq_init));
-            assert(packed.view() == crate::specs::Tier1RawPlane {
-                width,
-                height,
-                coefficients: packed.entries@.map_values(|word: u64| crate::specs::compact_coefficient(word)),
-            });
+            assert(packed.view().coefficients =~= crate::specs::private_legacy_compact_plane(width, height, packed.entries@).coefficients);
+            assert(packed.view() == crate::specs::private_legacy_compact_plane(width, height, packed.entries@));
         }
     }
     (ok, packed.entries)
