@@ -505,6 +505,10 @@ fn plan_private_legacy_precinct_subband<'data>(
     placements: &mut Vec<ProgressionCodeBlockPlacement>,
     limits: &ResourceLimits,
 ) -> Option<(usize, u64)> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        hide(crate::specs::part2_planned_codeblocks);
+    }
     let subband_index = first_subband.checked_add(offset)?;
     let &geometry = subbands.get(subband_index)?;
     let Ok(lattice_opt) = derive_planned_subband_lattice(band, block_size, geometry) else {
@@ -644,6 +648,11 @@ fn plan_private_legacy_precinct<'data>(
     placements: &mut Vec<ProgressionCodeBlockPlacement>,
     limits: &ResourceLimits,
 ) -> Option<(PrivateLegacyPrecinct, u64)> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        hide(crate::specs::part2_planned_codeblocks);
+        hide(crate::specs::part2_precinct_from_executions);
+    }
     let block_base = blocks.len();
     let placements_start = placements.len();
     let mut specs: Vec<PrivateLegacySubbandSpec> = Vec::new();
@@ -655,7 +664,6 @@ fn plan_private_legacy_precinct<'data>(
     }
     #[cfg(verus_keep_ghost)]
     proof! {
-        reveal(crate::specs::part2_planned_precinct_rows);
         assert(private_legacy_executions_of(specs@, private_legacy_blocks_view(blocks@), block_base, limits)
             =~= Seq::<crate::specs::Part2PacketSubbandExecution>::empty());
     }
@@ -859,6 +867,8 @@ fn plan_private_legacy_resolution_precincts<'data>(
     }
     #[cfg(verus_keep_ghost)]
     proof! {
+        reveal(super::component_plan_metadata_view);
+        reveal(super::resolution_plan_metadata_view);
         reveal(crate::specs::part2_component_plan_precincts);
     }
     let mut precinct = 0_u32;
@@ -943,7 +953,9 @@ fn plan_private_legacy_resolution_precincts<'data>(
         cur_total = next_total;
         #[cfg(verus_keep_ghost)]
         proof! {
-            reveal(crate::specs::part2_component_plan_precincts);
+            reveal(super::component_plan_metadata_view);
+            reveal(super::resolution_plan_metadata_view);
+            reveal_with_fuel(crate::specs::part2_component_plan_precincts, 1);
             let b_now = private_legacy_blocks_view(blocks@);
             let prec_now = private_legacy_precincts_logical(precincts@, b_now, limits);
             assert forall|i: int| 0 <= i < precinct_index as int implies prec_now[i] == prec_prev[i] by {
@@ -966,8 +978,7 @@ fn plan_private_legacy_resolution_precincts<'data>(
                 if pi < prev_placements.len() {
                     let p = prev_placements[pi];
                     assert(placements@[pi] == p);
-                    assert(precincts@[p.precinct_index as int] == old(precincts)@[p.precinct_index as int]
-                        || p.precinct_index < precinct_index);
+                    assert(p.precinct_index < precinct_index);
                 } else {
                     let j = pi - prev_placements.len();
                     let p = placements@[prev_placements.len() + j];
@@ -1291,10 +1302,11 @@ fn plan_private_legacy_tile<'data>(
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost prev_comps = super::planning_components_view(components@);
-        }
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            reveal(crate::specs::part2_tile_plan_components);
+            let ghost prev_bufs = crate::specs::Part2TilePlanBuffers {
+                precincts: private_legacy_precincts_logical(precincts@, private_legacy_blocks_view(blocks@), limits),
+                components: prev_comps,
+                planned_code_blocks,
+            };
         }
         let (planned_comp, next_total) = plan_private_legacy_component(
             size,
@@ -1318,6 +1330,38 @@ fn plan_private_legacy_tile<'data>(
         #[cfg(verus_keep_ghost)]
         proof! {
             assert(super::planning_components_view(components@) =~= prev_comps.push(planned_view));
+            let next_bufs = crate::specs::Part2TilePlanBuffers {
+                precincts: private_legacy_precincts_logical(precincts@, private_legacy_blocks_view(blocks@), limits),
+                components: super::planning_components_view(components@),
+                planned_code_blocks,
+            };
+            assert(crate::specs::part2_tile_plan_components(
+                size,
+                first.coding_style,
+                &first.component_coding_styles,
+                codestream::quantization_owner_view(&first.component_quantizations),
+                &first.roi_shifts,
+                (tile, 0),
+                policy,
+                limits,
+                crate::packet::packet_grid_view(&grid),
+                component,
+                prev_bufs,
+            ) == crate::specs::part2_tile_plan_components(
+                size,
+                first.coding_style,
+                &first.component_coding_styles,
+                codestream::quantization_owner_view(&first.component_quantizations),
+                &first.roi_shifts,
+                (tile, 0),
+                policy,
+                limits,
+                crate::packet::packet_grid_view(&grid),
+                (component + 1) as u16,
+                next_bufs,
+            )) by {
+                reveal_with_fuel(crate::specs::part2_tile_plan_components, 1);
+            }
         }
         component += 1;
     }
@@ -1445,6 +1489,10 @@ fn place_private_legacy_block(
                     );
                 }
                 let count = usize::from(block.width) * usize::from(block.height);
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(scratch@.subrange(0, count as int) =~= scratch@);
+                }
                 if !fused::place_compact_words(
                     block.width,
                     block.height,
@@ -1462,6 +1510,13 @@ fn place_private_legacy_block(
         }
         #[cfg(verus_keep_ghost)]
         proof! {
+            let planes = crate::specs::part2_precinct_decoder_planes(
+                private_legacy_precincts_logical(precincts@, b_view, limits),
+            );
+            assert(planes[placement.precinct_index as int][placement.decoder_index as int]
+                == crate::specs::private_legacy_block_logical(
+                    b_view[block_idx as int], pass_limit, byte_limit, input_limit, work_limit,
+                ).plane);
             assert(super::working_bands_view(working.bands@) =~= super::working_bands_view(before_bands).update(
                 placement.subband_index as int,
                 super::working_subband_view(working.bands@[placement.subband_index as int]),

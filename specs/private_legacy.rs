@@ -52,6 +52,19 @@ proof fn private_legacy_ensure_bitplane_work_indep(
 }
 
 #[verifier::spinoff_prover]
+proof fn with_work_plane_bp(
+    s: Tier1DecoderState,
+    work: u64,
+    plane: Tier1RawPlane,
+    bp: Part1LegacyBitplaneState,
+)
+    ensures
+        (Tier1DecoderState { plane, bitplane_state: Some(bp), ..private_legacy_with_work(s, work) })
+            == private_legacy_with_work(Tier1DecoderState { plane, bitplane_state: Some(bp), ..s }, work),
+{
+}
+
+#[verifier::spinoff_prover]
 proof fn private_legacy_decode_pass_work_indep(
     s: Tier1DecoderState,
     work: u64,
@@ -71,14 +84,23 @@ proof fn private_legacy_decode_pass_work_indep(
     reveal(part1_legacy_decode_pass);
     private_legacy_ensure_bitplane_work_indep(s, work);
     let r1 = part1_legacy_ensure_bitplane(s);
-    let r2 = part1_legacy_ensure_bitplane(private_legacy_with_work(s, work));
     if r1.0.is_ok() {
         if let Some(st) = r1.1.bitplane_state {
             if !((symbols is Raw) && (kind is Cleanup)) {
-                assert(r2.1.plane == r1.1.plane);
-                assert(r2.1.bitplane_state == Some(st));
-                assert(r2.1.orientation == r1.1.orientation);
-                assert(r2.1.style == r1.1.style);
+                let pass = if kind is Cleanup {
+                    part1_legacy_cleanup_pass(
+                        r1.1.plane, st, symbols, r1.1.orientation,
+                        r1.1.style.vertical_causal_context, r1.1.style.segmentation_symbols,
+                    )
+                } else {
+                    part1_legacy_pass(
+                        r1.1.plane, st, symbols,
+                        if kind is MagnitudeRefinement { crate::tier1::SubbandOrientation::Ll } else { r1.1.orientation },
+                        r1.1.style.vertical_causal_context,
+                        if kind is MagnitudeRefinement { 1u8 } else { 0u8 },
+                    )
+                };
+                with_work_plane_bp(r1.1, work, pass.1, pass.2);
             }
         }
     }
