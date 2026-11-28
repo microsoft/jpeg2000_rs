@@ -137,6 +137,10 @@ pub(crate) open spec fn private_legacy_precincts_logical(
     Seq::new(precincts.len(), |i: int| private_legacy_precinct_logical(&precincts[i], blocks, limits))
 }
 
+pub(crate) open spec fn private_legacy_precinct_subband_empty(p: &PrivateLegacyPrecinct) -> bool {
+    p.subbands.len() == 0
+}
+
 pub(crate) open spec fn private_legacy_precincts_layout_ok(
     precincts: Seq<PrivateLegacyPrecinct>,
     block_len: nat,
@@ -389,7 +393,7 @@ pub(crate) struct PrivateLegacyPrecinct {
                 && precinct_state.block_count == total_blocks
                 && precinct_state.states.len() == precinct_state.block_count
                 && precinct_state.contexts.len() == precinct_state.block_count
-                && (precinct_state.block_count == 0) == (precinct_state.subbands.len() == 0)
+                && (precinct_state.block_count == 0) == private_legacy_precinct_subband_empty(&precinct_state)
                 && crate::specs::part2_precinct_from_executions(
                     component, resolution, precinct, style, ghost_executions@, limits,
                 ) == Ok::<crate::specs::Part1PacketPrecinctState, DecodeError>(
@@ -571,9 +575,9 @@ pub(crate) fn new_private_legacy_precinct(
                         let byte_limit = crate::limits::resource_code_block_byte_limit(limits);
                         let input_limit = crate::limits::resource_input_byte_limit(limits);
                         let work_limit = crate::limits::resource_work_limit(limits);
-                        let d0 = Seq::new(contributions.len(), |j: int|
+                        let d0 = Seq::new(contributions.len() as nat, |j: int|
                             crate::specs::private_legacy_block_logical(b0[block_base as int + j], pass_limit, byte_limit, input_limit, work_limit));
-                        let d1 = Seq::new(contributions.len(), |j: int|
+                        let d1 = Seq::new(contributions.len() as nat, |j: int|
                             crate::specs::private_legacy_block_logical(b1[block_base as int + j], pass_limit, byte_limit, input_limit, work_limit));
                         let c_view = contributions@.map_values(|c: Option<CodeBlockContribution>| match c {
                             None => None,
@@ -629,7 +633,7 @@ fn execute_private_legacy_body_contributions<'data>(
             None => None,
             Some(v) => Some(super::code_block_contribution_view(&v)),
         });
-        let ghost d_init = Seq::new(contributions.len(), |j: int|
+        let ghost d_init = Seq::new(contributions.len() as nat, |j: int|
             crate::specs::private_legacy_block_logical(b_init[block_base as int + j], pass_limit, byte_limit, input_limit, work_limit));
     }
     let n_slots = contributions.len();
@@ -939,7 +943,7 @@ fn decode_private_legacy_precinct_packet<'data>(
 #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires
-        private_legacy_precincts_layout_ok(old(precincts)@, old(blocks).len()),
+        private_legacy_precincts_layout_ok(old(precincts)@, old(blocks).len() as nat),
         private_legacy_blocks_valid(private_legacy_blocks_view(old(blocks)@), limits),
     ensures
         final(precincts).len() == old(precincts).len(),
@@ -1040,7 +1044,7 @@ pub(crate) fn collect_private_legacy_packets<'data>(
                 precincts@[i].block_base == old(precincts)@[i].block_base
                     && precincts@[i].block_count == old(precincts)@[i].block_count
             },
-            private_legacy_precincts_layout_ok(precincts@, blocks.len()),
+            private_legacy_precincts_layout_ok(precincts@, blocks.len() as nat),
             private_legacy_blocks_extends(b_init, private_legacy_blocks_view(blocks@)),
             private_legacy_blocks_valid(private_legacy_blocks_view(blocks@), limits),
             forall|end_blocks: Seq<crate::specs::PrivateLegacyBlockSpec>|

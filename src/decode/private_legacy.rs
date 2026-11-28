@@ -20,8 +20,9 @@ use crate::packet::{
 #[cfg(verus_keep_ghost)]
 use crate::packet::{
     private_legacy_blocks_all_segments_ok, private_legacy_blocks_valid, private_legacy_blocks_view,
-    private_legacy_precinct_logical, private_legacy_precincts_layout_ok,
-    private_legacy_precincts_logical, private_legacy_specs_match_executions,
+    private_legacy_precinct_logical, private_legacy_precinct_subband_empty,
+    private_legacy_precincts_layout_ok, private_legacy_precincts_logical,
+    private_legacy_specs_match_executions,
 };
 use crate::tier1::{Tier1BlockCoding, Tier1CodingStyle, decode_compact_legacy_scratch};
 #[cfg(verus_keep_ghost)]
@@ -389,7 +390,7 @@ fn plan_private_legacy_subband_blocks<'data>(
                     && precinct_state.block_count == added
                     && precinct_state.states.len() == precinct_state.block_count
                     && precinct_state.contexts.len() == precinct_state.block_count
-                    && (precinct_state.block_count == 0) == (precinct_state.subbands.len() == 0)
+                    && (precinct_state.block_count == 0) == private_legacy_precinct_subband_empty(&precinct_state)
                     && final(placements).len() == old(placements).len() + added
                     && forall|j: int| 0 <= j < added ==> {
                         let p = #[trigger] final(placements)@[old(placements).len() + j];
@@ -564,7 +565,7 @@ fn plan_private_legacy_precinct<'data>(
 #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires
-        private_legacy_precincts_layout_ok(old(precincts)@, old(blocks).len()),
+        private_legacy_precincts_layout_ok(old(precincts)@, old(blocks).len() as nat),
         private_legacy_blocks_valid(private_legacy_blocks_view(old(blocks)@), limits),
         forall|i: int| 0 <= i < old(precincts).len() ==>
             old(precincts)@[i].block_base + old(precincts)@[i].block_count <= old(blocks).len(),
@@ -579,7 +580,7 @@ fn plan_private_legacy_precinct<'data>(
                 let b_after = private_legacy_blocks_view(final(blocks)@);
                 let added = final(blocks).len() - old(blocks).len();
                 private_legacy_blocks_valid(b_after, limits)
-                    && private_legacy_precincts_layout_ok(final(precincts)@, final(blocks).len())
+                    && private_legacy_precincts_layout_ok(final(precincts)@, final(blocks).len() as nat)
                     && planned_comp.placements.len() == added
                     && forall|pi: int| 0 <= pi < planned_comp.placements.len() ==> {
                         let p = #[trigger] planned_comp.placements@[pi];
@@ -659,7 +660,7 @@ fn plan_private_legacy_component<'data>(
             forall|k: int| 0 <= k < precincts_start ==> precincts@[k] == old(precincts)@[k],
             placements.len() == blocks.len() - blocks_start,
             private_legacy_blocks_valid(private_legacy_blocks_view(blocks@), limits),
-            private_legacy_precincts_layout_ok(precincts@, blocks.len()),
+            private_legacy_precincts_layout_ok(precincts@, blocks.len() as nat),
             forall|pi: int| 0 <= pi < placements.len() ==> {
                 let p = #[trigger] placements@[pi];
                 p.precinct_index < precincts.len()
@@ -714,7 +715,7 @@ fn plan_private_legacy_component<'data>(
                 forall|k: int| 0 <= k < precincts_start ==> precincts@[k] == old(precincts)@[k],
                 placements.len() == blocks.len() - blocks_start,
                 private_legacy_blocks_valid(private_legacy_blocks_view(blocks@), limits),
-                private_legacy_precincts_layout_ok(precincts@, blocks.len()),
+                private_legacy_precincts_layout_ok(precincts@, blocks.len() as nat),
                 forall|pi: int| 0 <= pi < placements.len() ==> {
                     let p = #[trigger] placements@[pi];
                     p.precinct_index < precincts.len()
@@ -841,9 +842,9 @@ fn plan_private_legacy_component<'data>(
         Some(plan) => {
             let b_view = private_legacy_blocks_view(plan.blocks@);
             private_legacy_blocks_valid(b_view, limits)
-                && private_legacy_precincts_layout_ok(plan.precincts@, plan.blocks.len())
+                && private_legacy_precincts_layout_ok(plan.precincts@, plan.blocks.len() as nat)
                 && private_legacy_plan_placement_bijection(
-                    plan.components@, plan.component_block_starts@, plan.precincts@, plan.blocks.len(),
+                    plan.components@, plan.component_block_starts@, plan.precincts@, plan.blocks.len() as nat,
                 )
                 && crate::specs::part2_progression_tile_plan_owned(
                     size,
@@ -856,11 +857,12 @@ fn plan_private_legacy_component<'data>(
                     limits,
                 ) == Ok::<crate::specs::Part2ProgressionTilePlan, crate::DecodeError>(
                     crate::specs::Part2ProgressionTilePlan {
+                        tile,
                         coding_style: first.coding_style,
+                        coding_styles: first.component_coding_styles,
                         grid: crate::packet::packet_grid_view(&plan.grid),
                         precincts: private_legacy_precincts_logical(plan.precincts@, b_view, limits),
-                        components: Seq::new(plan.components.len(), |i: int| super::prepare_plan_view(&plan.components@[i])),
-                        planned_code_blocks: plan.planned_code_blocks,
+                        components: Seq::new(plan.components.len() as nat, |i: int| super::prepare_plan_view(&plan.components@[i])),
                     },
                 )
         },
@@ -913,8 +915,8 @@ fn plan_private_legacy_tile<'data>(
             components.len() == component,
             component_block_starts.len() == component,
             private_legacy_blocks_valid(private_legacy_blocks_view(blocks@), limits),
-            private_legacy_precincts_layout_ok(precincts@, blocks.len()),
-            private_legacy_plan_placement_bijection(components@, component_block_starts@, precincts@, blocks.len()),
+            private_legacy_precincts_layout_ok(precincts@, blocks.len() as nat),
+            private_legacy_plan_placement_bijection(components@, component_block_starts@, precincts@, blocks.len() as nat),
             crate::specs::part2_progression_tile_plan_owned(
                 size,
                 first.coding_style,
@@ -934,10 +936,10 @@ fn plan_private_legacy_tile<'data>(
                 policy,
                 limits,
                 crate::packet::packet_grid_view(&grid),
-                component as nat,
+                component,
                 crate::specs::Part2TilePlanBuffers {
                     precincts: private_legacy_precincts_logical(precincts@, private_legacy_blocks_view(blocks@), limits),
-                    components: Seq::new(components.len(), |i: int| super::prepare_plan_view(&components@[i])),
+                    components: Seq::new(components.len() as nat, |i: int| super::prepare_plan_view(&components@[i])),
                     planned_code_blocks,
                 },
             ),
@@ -984,7 +986,7 @@ fn plan_private_legacy_tile<'data>(
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires
         private_legacy_blocks_valid(private_legacy_blocks_view(blocks@), limits),
-        private_legacy_precincts_layout_ok(precincts@, blocks.len()),
+        private_legacy_precincts_layout_ok(precincts@, blocks.len() as nat),
         comp_block_start + plan.placements.len() <= blocks.len(),
         forall|pi: int| 0 <= pi < plan.placements.len() ==> {
             let p = #[trigger] plan.placements@[pi];
@@ -1262,7 +1264,7 @@ pub(super) fn try_decode<'data>(
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant bi <= plan.components.len(),
             ({
-                let comps = Seq::new(plan.components.len(), |i: int| super::prepare_plan_view(&plan.components@[i]));
+                let comps = Seq::new(plan.components.len() as nat, |i: int| super::prepare_plan_view(&plan.components@[i]));
                 crate::specs::part2_account_plan_blocks(comps, false, limits.maximum_code_blocks(), 0, initial.2)
                     == crate::specs::part2_account_plan_blocks(comps, false, limits.maximum_code_blocks(), bi as nat, total_blocks)
             }),
@@ -1306,7 +1308,7 @@ pub(super) fn try_decode<'data>(
         let ghost planes = crate::specs::part2_precinct_decoder_planes(
             private_legacy_precincts_logical(plan.precincts@, b_view, limits),
         );
-        let ghost comp_plans = Seq::new(plan.components.len(), |i: int| super::prepare_plan_view(&plan.components@[i]));
+        let ghost comp_plans = Seq::new(plan.components.len() as nat, |i: int| super::prepare_plan_view(&plan.components@[i]));
     }
     let mut scratch: Vec<u64> = Vec::new();
     let mut comp_idx = 0_usize;

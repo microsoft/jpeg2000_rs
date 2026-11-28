@@ -528,8 +528,9 @@ pub(crate) use private_legacy::{
 pub(crate) use private_legacy::{
     private_legacy_block_view, private_legacy_blocks_all_segments_ok,
     private_legacy_blocks_extends, private_legacy_blocks_valid, private_legacy_blocks_view,
-    private_legacy_precinct_logical, private_legacy_precincts_layout_ok,
-    private_legacy_precincts_logical, private_legacy_specs_match_executions,
+    private_legacy_precinct_logical, private_legacy_precinct_subband_empty,
+    private_legacy_precincts_layout_ok, private_legacy_precincts_logical,
+    private_legacy_specs_match_executions,
 };
 #[cfg_attr(verus_keep_ghost, verifier::verify)]
 mod progression;
