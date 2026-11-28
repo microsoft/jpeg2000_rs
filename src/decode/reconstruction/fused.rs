@@ -10,7 +10,7 @@ use vstd::prelude::*;
 
 #[path = "fused_readable.rs"]
 mod readable;
-use readable::{ReadablePlane, ReadableRow};
+use readable::{FusedReadablePlane, ReadablePlane, ReadableRow};
 
 #[derive(Clone, Copy)]
 struct Quantizer {
@@ -31,7 +31,7 @@ struct Quantizer {
         Err(_)=>false,
     },
 ))]
-fn preflight<P: ReadablePlane>(
+fn preflight<P: FusedReadablePlane>(
     plane: P,
     destination: &WorkingSubband,
     geometry: SubbandGeometry,
@@ -183,7 +183,7 @@ fn preflight<P: ReadablePlane>(
         working_subband_view(*old(destination)),crate::specs::part2_fused_values(plane.raw_plane(),quantizer.roi_shift,quantizer.step,quantizer.reversible),
         plane.raw_plane().width as u32,x,y,plane.raw_plane().height as nat),
 ))]
-fn write<P: ReadablePlane>(
+fn write<P: FusedReadablePlane>(
     plane: P,
     destination: &mut WorkingSubband,
     x: u32,
@@ -436,6 +436,135 @@ pub(in crate::decode) fn place_private(
             limits,
         ),
     }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires plane.plane_valid(),
+    ensures result ==> (Ok(()), working_subband_view(*final(destination)))
+        == crate::specs::part2_fused_band_value(
+            working_subband_view(*old(destination)),
+            plane.raw_plane(),
+            geometry,
+            x,
+            y,
+            reversible,
+            crate::limits::resource_decoded_bytes_limit(limits),
+        ),
+))]
+fn try_place_fused<P: FusedReadablePlane>(
+    plane: P,
+    destination: &mut WorkingSubband,
+    geometry: SubbandGeometry,
+    x: u32,
+    y: u32,
+    reversible: bool,
+    limits: &ResourceLimits,
+) -> bool {
+    let (width, height) = plane.dimensions();
+    let Some(x_end) = x.checked_add(u32::from(width)) else {
+        return false;
+    };
+    let Some(y_end) = y.checked_add(u32::from(height)) else {
+        return false;
+    };
+    if x_end > geometry.width || y_end > geometry.height {
+        return false;
+    }
+    let Ok(Some(quantizer)) = preflight(plane, destination, geometry, x, y, reversible, limits)
+    else {
+        return false;
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        crate::specs::part2_fused_band_equivalent(
+            working_subband_view(*destination),
+            plane.raw_plane(),
+            geometry,
+            x,
+            y,
+            reversible,
+            crate::limits::resource_decoded_bytes_limit(limits),
+        );
+    }
+    write(plane, destination, x, y, quantizer).is_ok()
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures result ==> (Ok(()), working_subband_view(*final(destination)))
+        == crate::specs::part2_fused_band_value(
+            working_subband_view(*old(destination)),
+            crate::specs::Tier1RawPlane {
+                width,
+                height,
+                coefficients: words@.map_values(|word: u64| crate::specs::compact_coefficient(word)),
+            },
+            geometry,
+            x,
+            y,
+            reversible,
+            crate::limits::resource_decoded_bytes_limit(limits),
+        ),
+))]
+pub(in crate::decode) fn place_compact_words(
+    width: u16,
+    height: u16,
+    words: &[u64],
+    destination: &mut WorkingSubband,
+    geometry: SubbandGeometry,
+    x: u32,
+    y: u32,
+    reversible: bool,
+    limits: &ResourceLimits,
+) -> bool {
+    try_place_fused(
+        readable::from_compact_words(width, height, words),
+        destination,
+        geometry,
+        x,
+        y,
+        reversible,
+        limits,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires (width as nat) * (height as nat) <= usize::MAX,
+    ensures result ==> (Ok(()), working_subband_view(*final(destination)))
+        == crate::specs::part2_fused_band_value(
+            working_subband_view(*old(destination)),
+            crate::specs::Tier1RawPlane {
+                width,
+                height,
+                coefficients: Seq::new((width as nat) * (height as nat), |_: int| crate::specs::tier1_empty_coefficient()),
+            },
+            geometry,
+            x,
+            y,
+            reversible,
+            crate::limits::resource_decoded_bytes_limit(limits),
+        ),
+))]
+pub(in crate::decode) fn place_empty_block(
+    width: u16,
+    height: u16,
+    destination: &mut WorkingSubband,
+    geometry: SubbandGeometry,
+    x: u32,
+    y: u32,
+    reversible: bool,
+    limits: &ResourceLimits,
+) -> bool {
+    try_place_fused(
+        readable::from_empty_block(width, height),
+        destination,
+        geometry,
+        x,
+        y,
+        reversible,
+        limits,
+    )
 }
 
 #[cfg(test)]
