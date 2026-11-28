@@ -51,15 +51,12 @@ proof fn private_legacy_decode_pass_work_indep(
 {
     hide(part1_legacy_cleanup_pass);
     hide(part1_legacy_pass);
-    hide(part1_legacy_ensure_bitplane);
+    hide(part1_legacy_bitplane_initial);
     reveal(part1_legacy_decode_pass);
     let s2 = Tier1DecoderState { legacy_decode_work: work, ..s };
     let r1 = part1_legacy_ensure_bitplane(s);
     let r2 = part1_legacy_ensure_bitplane(s2);
-    assert(r1.0 == r2.0 && r2.1 == (Tier1DecoderState { legacy_decode_work: work, ..r1.1 })) by {
-        reveal(part1_legacy_ensure_bitplane);
-        hide(part1_legacy_bitplane_initial);
-    };
+    assert(r1.0 == r2.0 && r2.1 == (Tier1DecoderState { legacy_decode_work: work, ..r1.1 }));
 }
 
 #[verifier::spinoff_prover]
