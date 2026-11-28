@@ -56,7 +56,7 @@ proof fn with_work_plane_bp(
     s: Tier1DecoderState,
     work: u64,
     plane: Tier1RawPlane,
-    bp: Part1LegacyBitplaneState,
+    bp: Part1LegacyBitplane,
 )
     ensures
         (Tier1DecoderState { plane, bitplane_state: Some(bp), ..private_legacy_with_work(s, work) })
