@@ -2535,6 +2535,7 @@ pub(crate) fn decode_compact_legacy_scratch(
                 allow_multiple_ht_sets,
                 ht_magnitude_bound,
             });
+            reveal(crate::specs::compact_physical_frame);
             assert(decoder.compact_view(&packed).decoded_segments == 0);
             assert(decoder.compact_view(&packed).decoded_bytes == 0);
             assert(decoder.compact_view(&packed).style == style);

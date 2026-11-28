@@ -208,7 +208,9 @@ pub(crate) open spec fn private_legacy_precincts_layout_ok(
                 && v.ht_magnitude_bound == ht_magnitude_bound
                 && v.contribution.is_none()
                 && width > 0 && height > 0 && (width as nat) * (height as nat) <= 4096
-                && significant_bitplanes > 0 && significant_bitplanes <= 31
+                && significant_bitplanes > 0
+                && significant_bitplanes <= 31
+                && significant_bitplanes <= crate::tier1::MAX_TIER1_BITPLANES
                 && ht_magnitude_bound > 0
                 && ht_magnitude_bound <= crate::tier1::tier1_max_ht_magnitude_bits()
                 && crate::specs::private_legacy_style_ok(style)
@@ -233,6 +235,7 @@ pub(crate) fn new_private_legacy_block<'data>(
         || count > 4096
         || significant_bitplanes == 0
         || significant_bitplanes > 31
+        || significant_bitplanes > crate::tier1::MAX_TIER1_BITPLANES
         || !crate::tier1::ht_magnitude_bound_valid(ht_magnitude_bound)
         || !matches!(style.block_coding, crate::tier1::Tier1BlockCoding::Legacy)
         || style.force_high_throughput
@@ -420,6 +423,143 @@ pub(crate) struct PrivateLegacyPrecinct {
 #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
     requires
+        states.len() == decoded_total,
+        contexts.len() == decoded_total,
+        total == decoded_total as u64,
+        block_base + decoded_total + s.count <= ghost_blocks@.len(),
+        s.first_offset == decoded_total,
+        ghost_exec@.orientation == s.orientation,
+        ghost_exec@.across == s.across,
+        ghost_exec@.down == s.down,
+        ghost_exec@.maximum_zero == s.significant_bitplanes,
+        ghost_exec@.decoders == private_legacy_slot_decoders(
+            ghost_blocks@, (block_base + s.first_offset) as usize, s.count as nat, limits,
+        ),
+    ensures match result {
+        None => true,
+        Some((next_states, next_contexts, next_subband, next_total, next_decoded)) => {
+            next_decoded == decoded_total + s.count
+                && next_total == next_decoded as u64
+                && next_states.len() == next_decoded
+                && next_contexts.len() == next_decoded
+                && s.count > 0
+                && ({
+                    let cur_state = crate::specs::Part1PacketPrecinctState {
+                        component,
+                        resolution,
+                        precinct,
+                        states: states@.map_values(|x: CodeBlockPacketState| super::code_block_packet_state_view(&x)),
+                        contexts: contexts@,
+                        decoders: private_legacy_slot_decoders(ghost_blocks@, block_base, decoded_total as nat, limits),
+                        subbands: prev_subbands@,
+                    };
+                    let next_state = crate::specs::Part1PacketPrecinctState {
+                        component,
+                        resolution,
+                        precinct,
+                        states: next_states@.map_values(|x: CodeBlockPacketState| super::code_block_packet_state_view(&x)),
+                        contexts: next_contexts@,
+                        decoders: private_legacy_slot_decoders(ghost_blocks@, block_base, next_decoded as nat, limits),
+                        subbands: prev_subbands@.push(super::packet_subband_view(&next_subband)),
+                    };
+                    crate::specs::part2_precinct_execution(
+                        cur_state, total, ghost_exec@, style, limits,
+                    ) == Ok::<(crate::specs::Part1PacketPrecinctState, u64), DecodeError>((next_state, next_total))
+                })
+        },
+    },
+))]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn push_private_legacy_subband(
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] component: u16,
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] resolution: u8,
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] precinct: u32,
+    style: Tier1CodingStyle,
+    s: &PrivateLegacySubbandSpec,
+    states: Vec<CodeBlockPacketState>,
+    contexts: Vec<CodeBlockPacketContext>,
+    total: u64,
+    decoded_total: usize,
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] block_base: usize,
+    limits: &ResourceLimits,
+    #[cfg(verus_keep_ghost)] ghost_exec: Ghost<crate::specs::Part2PacketSubbandExecution>,
+    #[cfg(verus_keep_ghost)] ghost_blocks: Ghost<Seq<crate::specs::PrivateLegacyBlockSpec>>,
+    #[cfg(verus_keep_ghost)] prev_subbands: Ghost<Seq<crate::specs::Part1PacketSubbandState>>,
+) -> Option<(
+    Vec<CodeBlockPacketState>,
+    Vec<CodeBlockPacketContext>,
+    PacketSubbandState,
+    u64,
+    usize,
+)> {
+    if s.across == 0
+        || s.down == 0
+        || s.count == 0
+        || s.significant_bitplanes == 0
+        || s.significant_bitplanes > crate::tier1::MAX_TIER1_BITPLANES
+    {
+        return None;
+    }
+    let count_u64 = u64::from(s.across).checked_mul(u64::from(s.down))?;
+    let next_total = total.checked_add(count_u64)?;
+    if next_total > limits.maximum_code_blocks() || next_total > limits.maximum_work_units() {
+        return None;
+    }
+    let count_usize = usize::try_from(count_u64).ok()?;
+    if count_usize != s.count {
+        return None;
+    }
+    let next_decoded = decoded_total.checked_add(count_usize)?;
+    let Ok((next_states, next_contexts)) = prepare_precinct_contexts(
+        states,
+        contexts,
+        count_usize,
+        s.across,
+        s.significant_bitplanes,
+        style,
+    ) else {
+        return None;
+    };
+    let Ok(inclusion_tree) = tag_tree_new(s.across, s.down, limits) else {
+        return None;
+    };
+    let Ok(zero_bitplane_tree) = tag_tree_new(s.across, s.down, limits) else {
+        return None;
+    };
+    let new_subband = PacketSubbandState {
+        orientation: s.orientation,
+        code_blocks_across: s.across,
+        code_blocks_down: s.down,
+        first_decoder: decoded_total,
+        decoder_count: count_usize,
+        inclusion_tree,
+        zero_bitplane_tree,
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let d_prev = private_legacy_slot_decoders(ghost_blocks@, block_base, decoded_total as nat, limits);
+        let d_next = private_legacy_slot_decoders(ghost_blocks@, block_base, next_decoded as nat, limits);
+        assert(d_prev + ghost_exec@.decoders =~= d_next) by {
+            assert forall|j: int| 0 <= j < d_next.len() implies (d_prev + ghost_exec@.decoders)[j] == d_next[j] by {
+                if j >= decoded_total as int {
+                    let k = j - decoded_total as int;
+                    assert(ghost_exec@.decoders[k] == d_next[j]);
+                }
+            }
+        }
+    }
+    Some((
+        next_states,
+        next_contexts,
+        new_subband,
+        next_total,
+        next_decoded,
+    ))
+}
+
+#[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires
         block_base + total_blocks <= ghost_blocks@.len(),
         private_legacy_specs_match_executions(specs@, ghost_executions@, ghost_blocks@, block_base, limits),
         forall|i: int| 0 <= i < specs.len() ==> (#[trigger] specs@[i]).first_offset == if i == 0 { 0usize } else { (specs@[i - 1].first_offset + specs@[i - 1].count) as usize },
@@ -517,54 +657,35 @@ pub(crate) fn new_private_legacy_precinct(
     ))]
     while index < specs.len() {
         let s = &specs[index];
-        if s.across == 0
-            || s.down == 0
-            || s.count == 0
-            || s.significant_bitplanes == 0
-            || s.significant_bitplanes > crate::tier1::MAX_TIER1_BITPLANES
-        {
-            return None;
-        }
-        let count_u64 = u64::from(s.across).checked_mul(u64::from(s.down))?;
-        let next_total = total.checked_add(count_u64)?;
-        if next_total > limits.maximum_code_blocks() || next_total > limits.maximum_work_units() {
-            return None;
-        }
-        let count_usize = usize::try_from(count_u64).ok()?;
-        if count_usize != s.count {
-            return None;
-        }
-        let next_decoded = decoded_total.checked_add(count_usize)?;
-        let Ok((next_states, next_contexts)) = prepare_precinct_contexts(
-            states,
-            contexts,
-            count_usize,
-            s.across,
-            s.significant_bitplanes,
-            style,
-        ) else {
-            return None;
-        };
-        let Ok(inclusion_tree) = tag_tree_new(s.across, s.down, limits) else {
-            return None;
-        };
-        let Ok(zero_bitplane_tree) = tag_tree_new(s.across, s.down, limits) else {
-            return None;
-        };
-        let first_decoder = decoded_total;
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost prev_subbands_view = subbands@.map_values(|b: PacketSubbandState| super::packet_subband_view(&b));
         }
-        let new_subband = PacketSubbandState {
-            orientation: s.orientation,
-            code_blocks_across: s.across,
-            code_blocks_down: s.down,
-            first_decoder,
-            decoder_count: count_usize,
-            inclusion_tree,
-            zero_bitplane_tree,
-        };
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            let _ = specs@[index as int];
+            let _ = ghost_executions@[index as int];
+        }
+        let (next_states, next_contexts, new_subband, next_total, next_decoded) =
+            push_private_legacy_subband(
+                component,
+                resolution,
+                precinct,
+                style,
+                s,
+                states,
+                contexts,
+                total,
+                decoded_total,
+                block_base,
+                limits,
+                #[cfg(verus_keep_ghost)]
+                verus_exec_expr!(Ghost(ghost_executions@[index as int])),
+                #[cfg(verus_keep_ghost)]
+                ghost_blocks,
+                #[cfg(verus_keep_ghost)]
+                verus_exec_expr!(Ghost(prev_subbands_view)),
+            )?;
         #[cfg(verus_keep_ghost)]
         proof_decl! {
             let ghost new_subband_view = super::packet_subband_view(&new_subband);
@@ -579,19 +700,6 @@ pub(crate) fn new_private_legacy_precinct(
             reveal(crate::specs::part2_precinct_initialization_run);
             assert(subbands@.map_values(|b: PacketSubbandState| super::packet_subband_view(&b))
                 =~= prev_subbands_view.push(new_subband_view));
-            let spec_i = specs@[index as int];
-            let exec_i = ghost_executions@[index as int];
-            assert(exec_i.decoders.len() == spec_i.count);
-            let d_prev = private_legacy_slot_decoders(ghost_blocks@, block_base, first_decoder as nat, limits);
-            let d_next = private_legacy_slot_decoders(ghost_blocks@, block_base, decoded_total as nat, limits);
-            assert(d_prev + exec_i.decoders =~= d_next) by {
-                assert forall|j: int| 0 <= j < d_next.len() implies (d_prev + exec_i.decoders)[j] == d_next[j] by {
-                    if j >= first_decoder as int {
-                        let k = j - first_decoder as int;
-                        assert(exec_i.decoders[k] == d_next[j]);
-                    }
-                }
-            }
             if index + 1 < specs.len() {
                 let _ = specs@[index as int + 1];
                 assert(specs@[index as int + 1].first_offset == decoded_total);
@@ -784,18 +892,27 @@ fn execute_private_legacy_body_contributions<'data>(
                 let d_before = private_legacy_slot_decoders(b_before, block_base, n_slots as nat, limits);
                 let d_after = private_legacy_slot_decoders(b_after, block_base, n_slots as nat, limits);
                 if let Some(contrib) = contributions@[ci as int] {
+                    reveal(crate::specs::part1_legacy_code_block_staged);
                     let b_idx = block_base as int + ci as int;
                     assert(end_blocks[b_idx] == b_after[b_idx]);
                     assert(crate::specs::private_legacy_block_segment_ok(b_after[b_idx], pass_limit, byte_limit, input_limit, work_limit));
                     crate::specs::private_legacy_block_single_contribution(b_after[b_idx], pass_limit, byte_limit, input_limit, work_limit);
+                    let c_spec = super::code_block_contribution_view(&contrib);
+                    let body_slice = data@.subrange(offset_before as int, offset as int);
                     let tx = crate::specs::part1_legacy_code_block_transaction(
                         crate::specs::private_legacy_block_initial(b_after[b_idx]),
-                        super::code_block_contribution_view(&contrib),
-                        data@.subrange(offset_before as int, offset as int),
+                        c_spec,
+                        body_slice,
                         pass_limit, byte_limit, input_limit, work_limit,
                     );
+                    assert(crate::specs::part1_code_block_body_transaction(
+                        d_before[ci as int],
+                        c_spec,
+                        body_slice,
+                        pass_limit, byte_limit, input_limit, work_limit,
+                    ) == tx);
                     assert(d_after =~= d_before.update(ci as int, tx.1));
-                    assert(c_view[ci as int] == Some(super::code_block_contribution_view(&contrib)));
+                    assert(c_view[ci as int] == Some(c_spec));
                 } else {
                     assert(d_after =~= d_before);
                     assert(c_view[ci as int].is_none());
@@ -1039,11 +1156,40 @@ fn decode_private_legacy_precinct_packet<'data>(
     };
     #[cfg(verus_keep_ghost)]
     proof! {
+        crate::codestream::coding_style_known_packet_markers(&part.coding_style);
+        reveal(crate::codestream::tile_part_owned_view);
         reveal(crate::specs::part1_precinct_payload_headers);
         reveal(crate::specs::part1_precinct_payload_after_headers);
         reveal(crate::specs::part1_precinct_payload_body);
     }
     Some((decoded, tile_offset, packed_bytes_consumed))
+}
+
+#[cfg(verus_keep_ghost)]
+verus! {
+proof fn prove_precinct_indices_ok(
+    grid: crate::specs::Part1PacketGrid,
+    precincts: Seq<crate::specs::Part1PacketPrecinctState>,
+    index: usize,
+)
+    requires
+        index <= precincts.len(),
+        precincts.len() <= usize::MAX,
+        forall|k: int| index as int <= k < precincts.len() ==> crate::specs::part1_packet_grid_precinct_index(
+            grid,
+            precincts[k].component,
+            precincts[k].resolution,
+            precincts[k].precinct,
+        ) == Ok::<usize, DecodeError>(k as usize),
+    ensures
+        crate::specs::part1_progression_precinct_indices(grid, precincts, index) == Ok::<(), DecodeError>(()),
+    decreases precincts.len() - index as nat,
+{
+    reveal(crate::specs::part1_progression_precinct_indices);
+    if index < precincts.len() {
+        prove_precinct_indices_ok(grid, precincts, (index + 1) as usize);
+    }
+}
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
@@ -1090,6 +1236,7 @@ fn verify_private_legacy_precinct_indices(
     ensures
         final(precincts).len() == old(precincts).len(),
         final(blocks).len() == old(blocks).len(),
+        final(p).remaining_packets == old(p).remaining_packets,
         forall|i: int| 0 <= i < old(precincts).len() ==> {
             final(precincts)@[i].block_base == old(precincts)@[i].block_base
                 && final(precincts)@[i].block_count == old(precincts)@[i].block_count
@@ -1127,6 +1274,12 @@ fn execute_private_legacy_packet<'a, 'data>(
     p: &mut ProgressionTileProgress<'a>,
     coordinate: crate::packet::PacketCoordinate,
 ) -> bool {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(super::progression_tile_parameters_view);
+        reveal(super::progression_tile_progress_view);
+        reveal(crate::codestream::tile_part_owned_view);
+    }
     let Some(part) = params.tile_parts.get(p.current_tile_part) else {
         return false;
     };
@@ -1174,7 +1327,12 @@ fn execute_private_legacy_packet<'a, 'data>(
         let ghost b_before = private_legacy_blocks_view(blocks@);
         let ghost prec_before = private_legacy_precincts_logical(precincts@, b_before, params.limits);
     }
-    let sequence = (p.packets & u64::from(u16::MAX)) as u16;
+    let packets_so_far = p.packets;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert((packets_so_far & 0xffffu64) <= u16::MAX as u64) by(bit_vector);
+    }
+    let sequence = (packets_so_far & u64::from(u16::MAX)) as u16;
     let offset = p.offset;
     let packed_offset = p.packed_offset;
     let packet_res = {
@@ -1418,6 +1576,9 @@ pub(crate) fn collect_private_legacy_packets<'data>(
     let Ok(input) = prepare_progression_payloads(tile_parts, first.tile_index, limits) else {
         return false;
     };
+    if input.all_lengths && input.declared_packets > grid.packet_count() {
+        return false;
+    }
     let params = ProgressionTileParameters {
         tile_parts,
         grid,
@@ -1436,6 +1597,12 @@ pub(crate) fn collect_private_legacy_packets<'data>(
     }
     #[cfg(verus_keep_ghost)]
     proof! {
+        reveal(super::progression_tile_parameters_view);
+        reveal(super::progression_tile_progress_view);
+        reveal(crate::codestream::tile_part_owned_view);
+        let b0 = private_legacy_blocks_view(old(blocks)@);
+        let prec0 = private_legacy_precincts_logical(old(precincts)@, b0, limits);
+        prove_precinct_indices_ok(super::packet_grid_view(grid), prec0, 0);
         let b_final = private_legacy_blocks_view(blocks@);
         assert(private_legacy_blocks_extends(b_final, b_final));
     }

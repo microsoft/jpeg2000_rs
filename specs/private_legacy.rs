@@ -32,6 +32,25 @@ pub(crate) proof fn private_legacy_segment_passes_all(
     }
 }
 
+pub(crate) open spec fn private_legacy_with_work(s: Tier1DecoderState, work: u64) -> Tier1DecoderState {
+    Tier1DecoderState { legacy_decode_work: work, ..s }
+}
+
+#[verifier::spinoff_prover]
+proof fn private_legacy_ensure_bitplane_work_indep(
+    s: Tier1DecoderState,
+    work: u64,
+)
+    ensures
+        ({
+            let a = part1_legacy_ensure_bitplane(s);
+            let b = part1_legacy_ensure_bitplane(private_legacy_with_work(s, work));
+            a.0 == b.0 && b.1 == private_legacy_with_work(a.1, work)
+        }),
+{
+    hide(part1_legacy_bitplane_initial);
+}
+
 #[verifier::spinoff_prover]
 proof fn private_legacy_decode_pass_work_indep(
     s: Tier1DecoderState,
@@ -42,21 +61,42 @@ proof fn private_legacy_decode_pass_work_indep(
     ensures
         ({
             let a = part1_legacy_decode_pass(s, symbols, kind);
-            let s2 = Tier1DecoderState { legacy_decode_work: work, ..s };
-            let b = part1_legacy_decode_pass(s2, symbols, kind);
-            a.0 == b.0
-                && b.1 == (Tier1DecoderState { legacy_decode_work: work, ..a.1 })
-                && a.2 == b.2
+            let b = part1_legacy_decode_pass(private_legacy_with_work(s, work), symbols, kind);
+            a.0 == b.0 && b.1 == private_legacy_with_work(a.1, work) && a.2 == b.2
         }),
 {
     hide(part1_legacy_cleanup_pass);
     hide(part1_legacy_pass);
-    hide(part1_legacy_bitplane_initial);
+    hide(part1_legacy_ensure_bitplane);
     reveal(part1_legacy_decode_pass);
-    let s2 = Tier1DecoderState { legacy_decode_work: work, ..s };
+    private_legacy_ensure_bitplane_work_indep(s, work);
     let r1 = part1_legacy_ensure_bitplane(s);
-    let r2 = part1_legacy_ensure_bitplane(s2);
-    assert(r1.0 == r2.0 && r2.1 == (Tier1DecoderState { legacy_decode_work: work, ..r1.1 }));
+    let r2 = part1_legacy_ensure_bitplane(private_legacy_with_work(s, work));
+    if r1.0.is_ok() {
+        if let Some(st) = r1.1.bitplane_state {
+            if !((symbols is Raw) && (kind is Cleanup)) {
+                assert(r2.1.plane == r1.1.plane);
+                assert(r2.1.bitplane_state == Some(st));
+                assert(r2.1.orientation == r1.1.orientation);
+                assert(r2.1.style == r1.1.style);
+            }
+        }
+    }
+}
+
+#[verifier::spinoff_prover]
+proof fn private_legacy_advance_work_indep(
+    s: Tier1DecoderState,
+    work: u64,
+    kind: crate::tier1::Tier1PassKind,
+)
+    ensures
+        ({
+            let a = part1_legacy_advance(s, kind);
+            let b = part1_legacy_advance(private_legacy_with_work(s, work), kind);
+            a.0 == b.0 && b.1 == private_legacy_with_work(a.1, work)
+        }),
+{
 }
 
 #[verifier::spinoff_prover]
@@ -68,13 +108,13 @@ proof fn private_legacy_segment_step_work_indep(
         ({
             let a = part1_legacy_segment_step(s);
             let s2 = Part1LegacySegmentRun {
-                decoder: Tier1DecoderState { legacy_decode_work: work, ..s.decoder },
+                decoder: private_legacy_with_work(s.decoder, work),
                 ..s
             };
             let b = part1_legacy_segment_step(s2);
             a.0 == b.0
                 && b.1 == (Part1LegacySegmentRun {
-                    decoder: Tier1DecoderState { legacy_decode_work: work, ..a.1.decoder },
+                    decoder: private_legacy_with_work(a.1.decoder, work),
                     ..a.1
                 })
         }),
@@ -82,9 +122,14 @@ proof fn private_legacy_segment_step_work_indep(
     hide(part1_legacy_initialized);
     hide(tier1_statistics_merge);
     hide(part1_legacy_plan);
+    hide(part1_legacy_advance);
     reveal(part1_legacy_segment_step);
     let plan = part1_legacy_plan(s.decoder.style, s.decoder.next_pass);
     private_legacy_decode_pass_work_indep(s.decoder, work, s.symbols, plan.kind);
+    let dec1 = part1_legacy_decode_pass(s.decoder, s.symbols, plan.kind);
+    if dec1.0.is_ok() {
+        private_legacy_advance_work_indep(dec1.1, work, plan.kind);
+    }
 }
 
 #[verifier::spinoff_prover]
@@ -341,6 +386,7 @@ pub(crate) open spec fn private_legacy_block_valid(
         && (b.width as nat) * (b.height as nat) <= 4096
         && b.significant_bitplanes > 0
         && b.significant_bitplanes <= 31
+        && b.significant_bitplanes <= crate::tier1::MAX_TIER1_BITPLANES
         && b.ht_magnitude_bound > 0
         && b.ht_magnitude_bound <= crate::tier1::tier1_max_ht_magnitude_bits()
         && private_legacy_style_ok(b.style)
@@ -414,7 +460,9 @@ pub(crate) open spec fn private_legacy_block_logical(
 pub(crate) proof fn private_legacy_block_initial_matches_configured(b: PrivateLegacyBlockSpec)
     requires
         b.width > 0 && b.height > 0 && (b.width as nat) * (b.height as nat) <= 4096,
-        b.significant_bitplanes > 0 && b.significant_bitplanes <= 31,
+        b.significant_bitplanes > 0
+            && b.significant_bitplanes <= 31
+            && b.significant_bitplanes <= crate::tier1::MAX_TIER1_BITPLANES,
         b.ht_magnitude_bound > 0 && b.ht_magnitude_bound <= crate::tier1::tier1_max_ht_magnitude_bits(),
         private_legacy_style_ok(b.style),
     ensures

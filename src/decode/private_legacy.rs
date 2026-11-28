@@ -63,7 +63,7 @@ pub(super) fn eligible(
     let tile_h = bounds.y1.saturating_sub(bounds.y0);
     // Keep tiny synthetic tiles (< 256 samples) on the baseline path so low-count
     // allocation-refusal tests observe the exact baseline reservation sequence.
-    if u64::from(tile_w) * u64::from(tile_h) < 256 {
+    if u64::from(tile_w).saturating_mul(u64::from(tile_h)) < 256 {
         return false;
     }
     let first = &parts[0];
@@ -387,8 +387,198 @@ fn plan_private_legacy_subband_blocks<'data>(
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(crate::specs::part2_planned_codeblock_rows);
+        assert((down as nat) * (across as nat) == (across as nat) * (down as nat)) by(nonlinear_arith);
     }
     Some((cur_decoder, next_total, band_count))
+}
+
+#[cfg(verus_keep_ghost)]
+verus! {
+
+spec fn private_legacy_executions_of(
+    specs: Seq<PrivateLegacySubbandSpec>,
+    blocks: Seq<crate::specs::PrivateLegacyBlockSpec>,
+    block_base: usize,
+    limits: &ResourceLimits,
+) -> Seq<crate::specs::Part2PacketSubbandExecution> {
+    Seq::new(specs.len(), |i: int| crate::specs::Part2PacketSubbandExecution {
+        orientation: specs[i].orientation,
+        across: specs[i].across,
+        down: specs[i].down,
+        maximum_zero: specs[i].significant_bitplanes,
+        decoders: private_legacy_slot_decoders(
+            blocks,
+            (block_base + specs[i].first_offset) as usize,
+            specs[i].count as nat,
+            limits,
+        ),
+    })
+}
+
+}
+
+#[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires
+        offset < subband_count,
+        old(blocks).len() == block_base + cur_decoder,
+        old(placements).len() == placements_start + cur_decoder,
+        private_legacy_blocks_valid(private_legacy_blocks_view(old(blocks)@), limits),
+        forall|i: int| 0 <= i < old(specs).len() ==> {
+            let sp = #[trigger] old(specs)@[i];
+            sp.first_offset == if i == 0 { 0usize } else { (old(specs)@[i - 1].first_offset + old(specs)@[i - 1].count) as usize }
+                && sp.first_offset + sp.count <= cur_decoder
+        },
+        (old(specs).len() == 0 && cur_decoder == 0)
+            || (old(specs).len() > 0 && old(specs)@[old(specs).len() - 1].first_offset + old(specs)@[old(specs).len() - 1].count == cur_decoder),
+    ensures
+        final(blocks).len() >= old(blocks).len(),
+        forall|k: int| 0 <= k < old(blocks).len() ==> final(blocks)@[k] == old(blocks)@[k],
+        final(placements).len() >= old(placements).len(),
+        forall|k: int| 0 <= k < old(placements).len() ==> final(placements)@[k] == old(placements)@[k],
+        match result {
+            None => true,
+            Some((next_decoder, next_total)) => {
+                let added = next_decoder - cur_decoder;
+                let b_old = private_legacy_blocks_view(old(blocks)@);
+                let b_new = private_legacy_blocks_view(final(blocks)@);
+                final(blocks).len() == block_base + next_decoder
+                    && final(placements).len() == placements_start + next_decoder
+                    && next_decoder >= cur_decoder
+                    && private_legacy_blocks_valid(b_new, limits)
+                    && (forall|i: int| 0 <= i < final(specs).len() ==> {
+                        let sp = #[trigger] final(specs)@[i];
+                        sp.first_offset == if i == 0 { 0usize } else { (final(specs)@[i - 1].first_offset + final(specs)@[i - 1].count) as usize }
+                            && sp.first_offset + sp.count <= next_decoder
+                    })
+                    && ((final(specs).len() == 0 && next_decoder == 0)
+                        || (final(specs).len() > 0 && final(specs)@[final(specs).len() - 1].first_offset + final(specs)@[final(specs).len() - 1].count == next_decoder))
+                    && (forall|j: int| 0 <= j < added ==> {
+                        let p = #[trigger] final(placements)@[old(placements).len() + j];
+                        p.precinct_index == precinct_index && p.decoder_index == cur_decoder + j
+                    })
+                    && crate::specs::part2_planned_precinct_rows(
+                        band, block_size, subbands@, (first_subband, subband_count), style,
+                        (allow_multiple_ht_sets, ht_magnitude_bound, true),
+                        (component, resolution, precinct, precinct_index), true, limits, offset as nat,
+                        crate::specs::Part2PrecinctPlanBuilder {
+                            executions: private_legacy_executions_of(old(specs)@, b_old, block_base, limits),
+                            placements: old(placements)@,
+                            decoder_index: cur_decoder,
+                            planned_code_blocks: cur_total,
+                        },
+                    ) == crate::specs::part2_planned_precinct_rows(
+                        band, block_size, subbands@, (first_subband, subband_count), style,
+                        (allow_multiple_ht_sets, ht_magnitude_bound, true),
+                        (component, resolution, precinct, precinct_index), true, limits, (offset + 1) as nat,
+                        crate::specs::Part2PrecinctPlanBuilder {
+                            executions: private_legacy_executions_of(final(specs)@, b_new, block_base, limits),
+                            placements: final(placements)@,
+                            decoder_index: next_decoder,
+                            planned_code_blocks: next_total,
+                        },
+                    )
+            },
+        },
+))]
+#[allow(clippy::too_many_arguments)]
+fn plan_private_legacy_precinct_subband<'data>(
+    band: [u32; 4],
+    block_size: [u32; 2],
+    subbands: &[SubbandGeometry],
+    first_subband: usize,
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] subband_count: usize,
+    offset: usize,
+    style: Tier1CodingStyle,
+    allow_multiple_ht_sets: bool,
+    ht_magnitude_bound: u8,
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] component: u16,
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] resolution: u8,
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] precinct: u32,
+    precinct_index: usize,
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] block_base: usize,
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] placements_start: usize,
+    cur_decoder: usize,
+    cur_total: u64,
+    specs: &mut Vec<PrivateLegacySubbandSpec>,
+    blocks: &mut Vec<PrivateLegacyBlock<'data>>,
+    placements: &mut Vec<ProgressionCodeBlockPlacement>,
+    limits: &ResourceLimits,
+) -> Option<(usize, u64)> {
+    let subband_index = first_subband.checked_add(offset)?;
+    let &geometry = subbands.get(subband_index)?;
+    let Ok(lattice_opt) = derive_planned_subband_lattice(band, block_size, geometry) else {
+        return None;
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part2_planned_precinct_rows);
+    }
+    let Some(lattice) = lattice_opt else {
+        return Some((cur_decoder, cur_total));
+    };
+    let across = lattice.blocks[0];
+    let down = lattice.blocks[1];
+    let first_offset = cur_decoder;
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost b_prev = private_legacy_blocks_view(blocks@);
+        let ghost prev_execs = private_legacy_executions_of(specs@, b_prev, block_base, limits);
+    }
+    let (next_decoder, next_total, band_count) = plan_private_legacy_subband_blocks(
+        lattice.grid,
+        lattice.clip,
+        across,
+        down,
+        geometry,
+        style,
+        allow_multiple_ht_sets,
+        ht_magnitude_bound,
+        precinct_index,
+        subband_index,
+        cur_decoder,
+        cur_total,
+        blocks,
+        placements,
+        limits,
+    )?;
+    if crate::allocation::reserve_additional(specs, 1).is_err() {
+        return None;
+    }
+    specs.push(PrivateLegacySubbandSpec {
+        orientation: geometry.orientation,
+        across,
+        down,
+        first_offset,
+        count: band_count,
+        significant_bitplanes: geometry.significant_bitplanes,
+    });
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        let b_now = private_legacy_blocks_view(blocks@);
+        let new_decoders = private_legacy_slot_decoders(b_now, block_base + first_offset, band_count as nat, limits);
+        let pushed_exec = crate::specs::Part2PacketSubbandExecution {
+            orientation: geometry.orientation,
+            across,
+            down,
+            maximum_zero: geometry.significant_bitplanes,
+            decoders: new_decoders,
+        };
+        let cur_execs = private_legacy_executions_of(specs@, b_now, block_base, limits);
+        assert(cur_execs =~= prev_execs.push(pushed_exec)) by {
+            assert forall|i: int| 0 <= i < specs.len() implies cur_execs[i] == prev_execs.push(pushed_exec)[i] by {
+                if i < specs.len() - 1 {
+                    let sp = old(specs)@[i];
+                    assert(cur_execs[i].decoders =~= prev_execs[i].decoders) by {
+                        assert forall|j: int| 0 <= j < sp.count implies cur_execs[i].decoders[j] == prev_execs[i].decoders[j] by {
+                            assert(b_now[block_base + sp.first_offset + j] == b_prev[block_base + sp.first_offset + j]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Some((next_decoder, next_total))
 }
 
 #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
@@ -455,18 +645,19 @@ fn plan_private_legacy_precinct<'data>(
     limits: &ResourceLimits,
 ) -> Option<(PrivateLegacyPrecinct, u64)> {
     let block_base = blocks.len();
+    let placements_start = placements.len();
     let mut specs: Vec<PrivateLegacySubbandSpec> = Vec::new();
     let mut cur_decoder = 0_usize;
     let mut cur_total = planned_code_blocks;
     #[cfg(verus_keep_ghost)]
     proof_decl! {
-        let ghost placements_start = placements.len();
-        let ghost mut ghost_executions = Seq::<crate::specs::Part2PacketSubbandExecution>::empty();
         let ghost policy = (allow_multiple_ht_sets, ht_magnitude_bound, true);
     }
     #[cfg(verus_keep_ghost)]
     proof! {
         reveal(crate::specs::part2_planned_precinct_rows);
+        assert(private_legacy_executions_of(specs@, private_legacy_blocks_view(blocks@), block_base, limits)
+            =~= Seq::<crate::specs::Part2PacketSubbandExecution>::empty());
     }
     let mut offset = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
@@ -479,8 +670,11 @@ fn plan_private_legacy_precinct<'data>(
             forall|k: int| 0 <= k < block_base ==> blocks@[k] == old(blocks)@[k],
             forall|k: int| 0 <= k < placements_start ==> placements@[k] == old(placements)@[k],
             private_legacy_blocks_valid(private_legacy_blocks_view(blocks@), limits),
-            private_legacy_specs_match_executions(specs@, ghost_executions, private_legacy_blocks_view(blocks@), block_base, limits),
-            forall|i: int| 0 <= i < specs.len() ==> (#[trigger] specs@[i]).first_offset == if i == 0 { 0usize } else { (specs@[i - 1].first_offset + specs@[i - 1].count) as usize },
+            forall|i: int| 0 <= i < specs.len() ==> {
+                let sp = #[trigger] specs@[i];
+                sp.first_offset == if i == 0 { 0usize } else { (specs@[i - 1].first_offset + specs@[i - 1].count) as usize }
+                    && sp.first_offset + sp.count <= cur_decoder
+            },
             (specs.len() == 0 && cur_decoder == 0)
                 || (specs.len() > 0 && specs@[specs.len() - 1].first_offset + specs@[specs.len() - 1].count == cur_decoder),
             forall|j: int| 0 <= j < cur_decoder ==> {
@@ -495,7 +689,7 @@ fn plan_private_legacy_precinct<'data>(
                 band, block_size, subbands@, (first_subband, subband_count), style, policy,
                 (component, resolution, precinct, precinct_index), true, limits, offset as nat,
                 crate::specs::Part2PrecinctPlanBuilder {
-                    executions: ghost_executions,
+                    executions: private_legacy_executions_of(specs@, private_legacy_blocks_view(blocks@), block_base, limits),
                     placements: placements@,
                     decoder_index: cur_decoder,
                     planned_code_blocks: cur_total,
@@ -504,68 +698,57 @@ fn plan_private_legacy_precinct<'data>(
         decreases subband_count - offset,
     ))]
     while offset < subband_count {
-        let subband_index = first_subband.checked_add(offset)?;
-        let &geometry = subbands.get(subband_index)?;
-        let Ok(lattice_opt) = derive_planned_subband_lattice(band, block_size, geometry) else {
-            return None;
-        };
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost prev_placements = placements@;
+            let ghost prev_decoder = cur_decoder;
+        }
+        let (next_decoder, next_total) = plan_private_legacy_precinct_subband(
+            band,
+            block_size,
+            subbands,
+            first_subband,
+            subband_count,
+            offset,
+            style,
+            allow_multiple_ht_sets,
+            ht_magnitude_bound,
+            component,
+            resolution,
+            precinct,
+            precinct_index,
+            block_base,
+            placements_start,
+            cur_decoder,
+            cur_total,
+            &mut specs,
+            blocks,
+            placements,
+            limits,
+        )?;
+        cur_decoder = next_decoder;
+        cur_total = next_total;
         #[cfg(verus_keep_ghost)]
         proof! {
-            reveal(crate::specs::part2_planned_precinct_rows);
-        }
-        if let Some(lattice) = lattice_opt {
-            let across = lattice.blocks[0];
-            let down = lattice.blocks[1];
-            let first_offset = cur_decoder;
-            let (next_decoder, next_total, band_count) = plan_private_legacy_subband_blocks(
-                lattice.grid,
-                lattice.clip,
-                across,
-                down,
-                geometry,
-                style,
-                allow_multiple_ht_sets,
-                ht_magnitude_bound,
-                precinct_index,
-                subband_index,
-                cur_decoder,
-                cur_total,
-                blocks,
-                placements,
-                limits,
-            )?;
-            if crate::allocation::reserve_additional(&mut specs, 1).is_err() {
-                return None;
+            assert forall|j: int| 0 <= j < cur_decoder implies {
+                let p = #[trigger] placements@[placements_start + j];
+                p.precinct_index == precinct_index && p.decoder_index == j
+            } by {
+                if j < prev_decoder {
+                    assert(placements@[placements_start + j] == prev_placements[placements_start + j]);
+                } else {
+                    let k = j - prev_decoder;
+                    assert(placements@[prev_placements.len() + k].precinct_index == precinct_index);
+                    assert(placements@[prev_placements.len() + k].decoder_index == prev_decoder + k);
+                }
             }
-            specs.push(PrivateLegacySubbandSpec {
-                orientation: geometry.orientation,
-                across,
-                down,
-                first_offset,
-                count: band_count,
-                significant_bitplanes: geometry.significant_bitplanes,
-            });
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                let b_now = private_legacy_blocks_view(blocks@);
-                let pass_limit = crate::limits::resource_code_block_pass_limit(limits);
-                let byte_limit = crate::limits::resource_code_block_byte_limit(limits);
-                let input_limit = crate::limits::resource_input_byte_limit(limits);
-                let work_limit = crate::limits::resource_work_limit(limits);
-                let new_decoders = Seq::new(band_count as nat, |j: int|
-                    crate::specs::private_legacy_block_logical(b_now[block_base + first_offset + j], pass_limit, byte_limit, input_limit, work_limit));
-                ghost_executions = ghost_executions.push(crate::specs::Part2PacketSubbandExecution {
-                    orientation: geometry.orientation,
-                    across,
-                    down,
-                    maximum_zero: geometry.significant_bitplanes,
-                    decoders: new_decoders,
-                });
-            }
-            cur_decoder = next_decoder;
-            cur_total = next_total;
         }
         offset += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost final_blocks_view = private_legacy_blocks_view(blocks@);
+        let ghost final_executions = private_legacy_executions_of(specs@, final_blocks_view, block_base, limits);
     }
     #[cfg(verus_keep_ghost)]
     proof! {
@@ -581,9 +764,9 @@ fn plan_private_legacy_precinct<'data>(
         cur_decoder,
         limits,
         #[cfg(verus_keep_ghost)]
-        verus_exec_expr!(Ghost(ghost_executions)),
+        verus_exec_expr!(Ghost(final_executions)),
         #[cfg(verus_keep_ghost)]
-        verus_exec_expr!(Ghost(private_legacy_blocks_view(blocks@))),
+        verus_exec_expr!(Ghost(final_blocks_view)),
     )?;
     Some((precinct_state, cur_total))
 }
@@ -728,6 +911,8 @@ fn plan_private_legacy_resolution_precincts<'data>(
         proof_decl! {
             let ghost b_prev = private_legacy_blocks_view(blocks@);
             let ghost prec_prev = private_legacy_precincts_logical(precincts@, b_prev, limits);
+            let ghost prev_placements = placements@;
+            let ghost prev_blocks_len = blocks.len();
         }
         let (precinct_state, next_total) = plan_private_legacy_precinct(
             [origin[0], origin[1], data.band_size[0], data.band_size[1]],
@@ -750,6 +935,10 @@ fn plan_private_legacy_resolution_precincts<'data>(
         if crate::allocation::reserve_additional(precincts, 1).is_err() {
             return None;
         }
+        #[cfg(verus_keep_ghost)]
+        proof_decl! {
+            let ghost new_prec_logical = private_legacy_precinct_logical(&precinct_state, private_legacy_blocks_view(blocks@), limits);
+        }
         precincts.push(precinct_state);
         cur_total = next_total;
         #[cfg(verus_keep_ghost)]
@@ -765,7 +954,28 @@ fn plan_private_legacy_resolution_precincts<'data>(
                 }
                 assert(prec_now[i].decoders =~= prec_prev[i].decoders);
             }
-            assert(prec_now =~= prec_prev.push(prec_now[precinct_index as int]));
+            assert(prec_now[precinct_index as int] == new_prec_logical);
+            assert(prec_now =~= prec_prev.push(new_prec_logical));
+            assert forall|pi: int| 0 <= pi < placements.len() implies {
+                let p = #[trigger] placements@[pi];
+                p.precinct_index < precincts.len()
+                    && p.decoder_index < precincts@[p.precinct_index as int].block_count
+                    && precincts@[p.precinct_index as int].block_base as int + p.decoder_index as int
+                        == comp_blocks_start + pi
+            } by {
+                if pi < prev_placements.len() {
+                    let p = prev_placements[pi];
+                    assert(placements@[pi] == p);
+                    assert(precincts@[p.precinct_index as int] == old(precincts)@[p.precinct_index as int]
+                        || p.precinct_index < precinct_index);
+                } else {
+                    let j = pi - prev_placements.len();
+                    let p = placements@[prev_placements.len() + j];
+                    assert(p.precinct_index == precinct_index);
+                    assert(p.decoder_index == j);
+                    assert(precincts@[precinct_index as int].block_base == prev_blocks_len);
+                }
+            }
         }
         precinct += 1;
     }
@@ -1031,6 +1241,7 @@ fn plan_private_legacy_tile<'data>(
     }
     #[cfg(verus_keep_ghost)]
     proof! {
+        codestream::selection_geometry_known_fields(size);
         reveal(crate::specs::part2_tile_plan_components);
         assert(private_legacy_precincts_logical(precincts@, private_legacy_blocks_view(blocks@), limits)
             =~= Seq::<crate::specs::Part1PacketPrecinctState>::empty());
@@ -1040,6 +1251,7 @@ fn plan_private_legacy_tile<'data>(
     let mut component = 0_u16;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant component <= size.components,
+            codestream::image_size_component_count(size) == size.components,
             components.len() == component,
             component_block_starts.len() == component,
             policy == (allow_multiple_ht_sets, ht_magnitude_bound, false, true),
@@ -1121,6 +1333,167 @@ fn plan_private_legacy_tile<'data>(
         blocks,
         planned_code_blocks,
     })
+}
+
+#[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires
+        old(working).bands.len() <= subbands.len(),
+        placement.precinct_index < precincts.len(),
+        placement.decoder_index < precincts@[placement.precinct_index as int].block_count,
+        precincts@[placement.precinct_index as int].block_base + placement.decoder_index < blocks.len(),
+        private_legacy_blocks_valid(private_legacy_blocks_view(blocks@), limits),
+    ensures
+        final(working).bands.len() == old(working).bands.len(),
+        final(working).bytes == old(working).bytes,
+        result.0 ==> {
+            let b_view = private_legacy_blocks_view(blocks@);
+            let block_idx = precincts@[placement.precinct_index as int].block_base as int + placement.decoder_index as int;
+            let planes = crate::specs::part2_precinct_decoder_planes(
+                private_legacy_precincts_logical(precincts@, b_view, limits),
+            );
+            crate::specs::private_legacy_block_segment_ok(
+                b_view[block_idx],
+                crate::limits::resource_code_block_pass_limit(limits),
+                crate::limits::resource_code_block_byte_limit(limits),
+                crate::limits::resource_input_byte_limit(limits),
+                crate::limits::resource_work_limit(limits),
+            ) && crate::specs::part1_prepare_placement(
+                (super::working_bands_view(old(working).bands@), old(working).bytes),
+                subbands@,
+                planes,
+                placement,
+                reversible,
+                crate::limits::resource_decoded_bytes_limit(limits),
+            ) == (
+                Ok::<(), crate::DecodeError>(()),
+                (super::working_bands_view(final(working).bands@), final(working).bytes),
+            )
+        },
+))]
+#[allow(clippy::too_many_arguments)]
+fn place_private_legacy_block(
+    placement: ProgressionCodeBlockPlacement,
+    subbands: &[SubbandGeometry],
+    precincts: &[PrivateLegacyPrecinct],
+    blocks: &[PrivateLegacyBlock<'_>],
+    working: &mut super::PrepareWorking,
+    reversible: bool,
+    mut scratch: Vec<u64>,
+    limits: &ResourceLimits,
+) -> (bool, Vec<u64>) {
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost before_bands = working.bands@;
+        let ghost b_view = private_legacy_blocks_view(blocks@);
+        let ghost pass_limit = crate::limits::resource_code_block_pass_limit(limits);
+        let ghost byte_limit = crate::limits::resource_code_block_byte_limit(limits);
+        let ghost input_limit = crate::limits::resource_input_byte_limit(limits);
+        let ghost work_limit = crate::limits::resource_work_limit(limits);
+    }
+    let block_idx = precincts[placement.precinct_index].block_base + placement.decoder_index;
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(b_view[block_idx as int] == crate::packet::private_legacy_block_view(&blocks@[block_idx as int]));
+    }
+    let block = &blocks[block_idx];
+    if placement.subband_index < working.bands.len() {
+        let geometry = subbands[placement.subband_index];
+        let destination = &mut working.bands[placement.subband_index];
+        match block.contribution {
+            None => {
+                if !fused::place_empty_block(
+                    block.width,
+                    block.height,
+                    destination,
+                    geometry,
+                    placement.x,
+                    placement.y,
+                    reversible,
+                    limits,
+                ) {
+                    return (false, scratch);
+                }
+            }
+            Some(contrib) => {
+                let eff_bp = block.significant_bitplanes - contrib.zero_bitplanes;
+                let (ok, next_scratch) = decode_compact_legacy_scratch(
+                    block.width,
+                    block.height,
+                    eff_bp,
+                    contrib.zero_bitplanes,
+                    block.allow_multiple_ht_sets,
+                    block.ht_magnitude_bound,
+                    block.orientation,
+                    block.style,
+                    contrib.body,
+                    u32::from(contrib.new_passes),
+                    scratch,
+                    limits,
+                );
+                scratch = next_scratch;
+                if !ok {
+                    return (false, scratch);
+                }
+                #[cfg(verus_keep_ghost)]
+                proof! {
+                    assert(crate::specs::private_legacy_block_segment_ok(
+                        b_view[block_idx as int], pass_limit, byte_limit, input_limit, work_limit,
+                    ));
+                    crate::specs::private_legacy_block_single_contribution(
+                        b_view[block_idx as int], pass_limit, byte_limit, input_limit, work_limit,
+                    );
+                }
+                let count = usize::from(block.width) * usize::from(block.height);
+                if !fused::place_compact_words(
+                    block.width,
+                    block.height,
+                    &scratch[..count],
+                    destination,
+                    geometry,
+                    placement.x,
+                    placement.y,
+                    reversible,
+                    limits,
+                ) {
+                    return (false, scratch);
+                }
+            }
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(super::working_bands_view(working.bands@) =~= super::working_bands_view(before_bands).update(
+                placement.subband_index as int,
+                super::working_subband_view(working.bands@[placement.subband_index as int]),
+            ));
+        }
+    } else if let Some(contrib) = block.contribution {
+        let eff_bp = block.significant_bitplanes - contrib.zero_bitplanes;
+        let (ok, next_scratch) = decode_compact_legacy_scratch(
+            block.width,
+            block.height,
+            eff_bp,
+            contrib.zero_bitplanes,
+            block.allow_multiple_ht_sets,
+            block.ht_magnitude_bound,
+            block.orientation,
+            block.style,
+            contrib.body,
+            u32::from(contrib.new_passes),
+            scratch,
+            limits,
+        );
+        scratch = next_scratch;
+        if !ok {
+            return (false, scratch);
+        }
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(crate::specs::part1_prepare_placement);
+        reveal(crate::specs::part1_prepare_place_plane);
+    }
+    (true, scratch)
 }
 
 #[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
@@ -1250,116 +1623,29 @@ fn reconstruct_private_legacy_component(
     while p_idx < plan.placements.len() {
         let placement = plan.placements[p_idx];
         #[cfg(verus_keep_ghost)]
-        proof_decl! {
-            let ghost before_bands = working.bands@;
-        }
-        #[cfg(verus_keep_ghost)]
         proof! {
             let p_spec = plan.placements@[p_idx as int];
             assert(p_spec.precinct_index < precincts.len());
             let prec_spec = precincts@[p_spec.precinct_index as int];
             assert(prec_spec.block_base as nat + prec_spec.block_count as nat <= blocks.len() as nat);
-            assert(b_view[prec_spec.block_base as int + p_spec.decoder_index as int]
-                == crate::packet::private_legacy_block_view(&blocks@[prec_spec.block_base as int + p_spec.decoder_index as int]));
         }
-        let block_idx = precincts[placement.precinct_index].block_base + placement.decoder_index;
-        let block = &blocks[block_idx];
-        if placement.subband_index < working.bands.len() {
-            let geometry = plan.subbands[placement.subband_index];
-            let destination = &mut working.bands[placement.subband_index];
-            match block.contribution {
-                None => {
-                    if !fused::place_empty_block(
-                        block.width,
-                        block.height,
-                        destination,
-                        geometry,
-                        placement.x,
-                        placement.y,
-                        reversible,
-                        limits,
-                    ) {
-                        return (None, scratch);
-                    }
-                }
-                Some(contrib) => {
-                    let eff_bp = block.significant_bitplanes - contrib.zero_bitplanes;
-                    let (ok, next_scratch) = decode_compact_legacy_scratch(
-                        block.width,
-                        block.height,
-                        eff_bp,
-                        contrib.zero_bitplanes,
-                        block.allow_multiple_ht_sets,
-                        block.ht_magnitude_bound,
-                        block.orientation,
-                        block.style,
-                        contrib.body,
-                        u32::from(contrib.new_passes),
-                        scratch,
-                        limits,
-                    );
-                    scratch = next_scratch;
-                    if !ok {
-                        return (None, scratch);
-                    }
-                    #[cfg(verus_keep_ghost)]
-                    proof! {
-                        assert(crate::specs::private_legacy_block_segment_ok(
-                            b_view[block_idx as int], pass_limit, byte_limit, input_limit, work_limit,
-                        ));
-                        crate::specs::private_legacy_block_single_contribution(
-                            b_view[block_idx as int], pass_limit, byte_limit, input_limit, work_limit,
-                        );
-                    }
-                    let count = usize::from(block.width) * usize::from(block.height);
-                    if !fused::place_compact_words(
-                        block.width,
-                        block.height,
-                        &scratch[..count],
-                        destination,
-                        geometry,
-                        placement.x,
-                        placement.y,
-                        reversible,
-                        limits,
-                    ) {
-                        return (None, scratch);
-                    }
-                }
-            }
-            #[cfg(verus_keep_ghost)]
-            proof! {
-                assert(super::working_bands_view(working.bands@) =~= super::working_bands_view(before_bands).update(
-                    placement.subband_index as int,
-                    super::working_subband_view(working.bands@[placement.subband_index as int]),
-                ));
-            }
-        } else if let Some(contrib) = block.contribution {
-            let eff_bp = block.significant_bitplanes - contrib.zero_bitplanes;
-            let (ok, next_scratch) = decode_compact_legacy_scratch(
-                block.width,
-                block.height,
-                eff_bp,
-                contrib.zero_bitplanes,
-                block.allow_multiple_ht_sets,
-                block.ht_magnitude_bound,
-                block.orientation,
-                block.style,
-                contrib.body,
-                u32::from(contrib.new_passes),
-                scratch,
-                limits,
-            );
-            scratch = next_scratch;
-            if !ok {
-                return (None, scratch);
-            }
+        let (ok, next_scratch) = place_private_legacy_block(
+            placement,
+            &plan.subbands,
+            precincts,
+            blocks,
+            &mut working,
+            reversible,
+            scratch,
+            limits,
+        );
+        scratch = next_scratch;
+        if !ok {
+            return (None, scratch);
         }
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal(crate::specs::part1_prepare_placements);
-            reveal(crate::specs::part1_prepare_placement);
-            reveal(crate::specs::part1_prepare_place_plane);
         }
         p_idx += 1;
     }
@@ -1381,85 +1667,35 @@ fn reconstruct_private_legacy_component(
     (Some(prepared_comp), scratch)
 }
 
-#[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    requires
-        crate::specs::part2_tile_decode_metadata_owned(
-            codestream::tile_parts_owned_view(parts@),
-            codestream::image_size_component_count(size),
-            discard,
-        ) == Ok(super::tile_decode_metadata_view(metadata)),
-        discard.is_none(),
     ensures match result {
-        Ok(decoded) => super::decoded_layout_tile_outcome(Ok(decoded))
-            == crate::specs::part2_decode_tile_parts_at(
-                size, tile, parts@, codestream::codestream_profile_capabilities(profile), discard, limits,
-                super::prepared_components_view(prepared@), initial, mct_work,
-            ),
-        Err(restored) => super::prepared_components_view(restored@) == super::prepared_components_view(prepared@),
+        None => true,
+        Some(total_blocks) => crate::specs::part2_account_plan_blocks(
+            super::planning_components_view(components@),
+            false,
+            crate::limits::resource_code_block_limit(limits),
+            0,
+            initial_blocks,
+        ) == Ok::<u64, crate::DecodeError>(total_blocks),
     },
 ))]
-#[allow(clippy::too_many_arguments)]
-pub(super) fn try_decode<'data>(
-    size: &ImageSize,
-    tile: u16,
-    parts: &[TilePartPayload<'data>],
-    profile: &codestream::CodestreamProfile,
-    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] discard: Option<u8>,
-    metadata: &TileDecodeMetadata<'_, 'data>,
+fn account_private_legacy_plan_blocks(
+    components: &[PlannedTileComponent],
+    initial_blocks: u64,
     limits: &ResourceLimits,
-    mut prepared: Vec<PreparedTileComponent>,
-    initial: (u64, u64, u64),
-    mct_work: u64,
-) -> Result<DecodedLayoutTile, Vec<PreparedTileComponent>> {
-    #[cfg(verus_keep_ghost)]
-    proof_decl! {
-        let ghost old_prepared_view = prepared@;
-    }
-    let first = metadata.first;
-    if first.multiple_component_transform.is_some() || profile.part15_requires_all_ht_blocks() {
-        return Err(prepared);
-    }
-    let allow_multiple_ht_sets = profile.part15_allows_multiple_ht_sets();
-    let ht_magnitude_bound = profile.part15_magnitude_bound();
-    let Some(mut plan) = plan_private_legacy_tile(
-        size,
-        tile,
-        first,
-        allow_multiple_ht_sets,
-        ht_magnitude_bound,
-        limits,
-    ) else {
-        return Err(prepared);
-    };
-    let packets = plan.grid.packet_count();
-    let Some(total_packets) = initial.0.checked_add(packets) else {
-        return Err(prepared);
-    };
-    if total_packets > limits.maximum_packets() {
-        return Err(prepared);
-    }
-    let Ok(precinct_count) = plan.grid.total_precinct_count() else {
-        return Err(prepared);
-    };
-    let Some(total_precincts) = initial.1.checked_add(precinct_count) else {
-        return Err(prepared);
-    };
-    if total_precincts > limits.maximum_precincts() {
-        return Err(prepared);
-    }
-    let mut total_blocks = initial.2;
+) -> Option<u64> {
+    let mut total_blocks = initial_blocks;
     let mut bi = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
-        invariant bi <= plan.components.len(),
+        invariant bi <= components.len(),
             ({
-                let comps = super::planning_components_view(plan.components@);
+                let comps = super::planning_components_view(components@);
                 crate::specs::part2_account_plan_blocks(
                     comps,
                     false,
                     crate::limits::resource_code_block_limit(limits),
                     0,
-                    initial.2,
+                    initial_blocks,
                 ) == crate::specs::part2_account_plan_blocks(
                     comps,
                     false,
@@ -1468,19 +1704,17 @@ pub(super) fn try_decode<'data>(
                     total_blocks,
                 )
             }),
-        decreases plan.components.len() - bi,
+        decreases components.len() - bi,
     ))]
-    while bi < plan.components.len() {
+    while bi < components.len() {
         #[cfg(verus_keep_ghost)]
         proof! {
             reveal_with_fuel(crate::specs::part2_account_plan_blocks, 1);
         }
-        let count = plan.components[bi].placements.len() as u64;
-        let Some(next) = total_blocks.checked_add(count) else {
-            return Err(prepared);
-        };
+        let count = components[bi].placements.len() as u64;
+        let next = total_blocks.checked_add(count)?;
         if next > limits.maximum_code_blocks() {
-            return Err(prepared);
+            return None;
         }
         total_blocks = next;
         bi += 1;
@@ -1489,38 +1723,51 @@ pub(super) fn try_decode<'data>(
     proof! {
         reveal_with_fuel(crate::specs::part2_account_plan_blocks, 1);
     }
-    let counters = (total_packets, total_precincts, total_blocks);
+    Some(total_blocks)
+}
 
-    #[cfg(verus_keep_ghost)]
-    proof_decl! {
-        let ghost pre_precincts = plan.precincts@;
-        let ghost pre_blocks_len = plan.blocks.len() as nat;
-    }
-    if !collect_private_legacy_packets(
-        parts,
-        &plan.grid,
-        &mut plan.precincts,
-        &mut plan.blocks,
-        limits,
-    ) {
-        return Err(prepared);
-    }
-    #[cfg(verus_keep_ghost)]
-    proof! {
-        assert(private_legacy_plan_placement_bijection(
+#[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires
+        private_legacy_blocks_valid(private_legacy_blocks_view(plan.blocks@), limits),
+        private_legacy_precincts_layout_ok(plan.precincts@, plan.blocks.len() as nat),
+        private_legacy_plan_placement_bijection(
             plan.components@,
             plan.component_block_starts@,
             plan.precincts@,
             plan.blocks.len() as nat,
-        )) by {
-            assert(plan.precincts.len() == pre_precincts.len());
-            assert(plan.blocks.len() == pre_blocks_len);
-        }
-    }
-
+        ),
+    ensures
+        !result ==> super::prepared_components_view(final(prepared)@) == super::prepared_components_view(old(prepared)@),
+        result ==> {
+            let b_view = private_legacy_blocks_view(plan.blocks@);
+            let planes = crate::specs::part2_precinct_decoder_planes(
+                private_legacy_precincts_logical(plan.precincts@, b_view, limits),
+            );
+            final(prepared).len() == old(prepared).len() + plan.components.len()
+                && super::prepared_components_view(final(prepared)@).take(old(prepared).len() as int)
+                    == super::prepared_components_view(old(prepared)@)
+                && private_legacy_blocks_all_segments_ok(b_view, limits)
+                && crate::specs::part2_reconstruct_components_prefix(
+                    super::prepared_components_view(old(prepared)@),
+                    super::planning_components_view(plan.components@),
+                    planes,
+                    first.component_coding_styles,
+                    codestream::part2_kernel_registry(&first.part2_extensions),
+                    crate::limits::resource_decoded_bytes_limit(limits),
+                    plan.components.len() as nat,
+                ) == (Ok::<(), crate::DecodeError>(()), super::prepared_components_view(final(prepared)@))
+        },
+))]
+fn reconstruct_private_legacy_tile_components(
+    plan: &PrivateLegacyTilePlan<'_>,
+    first: &TilePartPayload<'_>,
+    prepared: &mut Vec<PreparedTileComponent>,
+    limits: &ResourceLimits,
+) -> bool {
     let start = prepared.len();
-    if crate::allocation::reserve_additional(&mut prepared, plan.components.len()).is_err() {
-        return Err(prepared);
+    if crate::allocation::reserve_additional(prepared, plan.components.len()).is_err() {
+        return false;
     }
     #[cfg(verus_keep_ghost)]
     proof_decl! {
@@ -1547,6 +1794,7 @@ pub(super) fn try_decode<'data>(
     let mut comp_idx = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant comp_idx <= plan.components.len(),
+            start == old(prepared).len(),
             plan.component_block_starts.len() == plan.components.len(),
             b_view == private_legacy_blocks_view(plan.blocks@),
             pass_limit == crate::limits::resource_code_block_pass_limit(limits),
@@ -1557,7 +1805,7 @@ pub(super) fn try_decode<'data>(
             planes == crate::specs::part2_precinct_decoder_planes(
                 private_legacy_precincts_logical(plan.precincts@, b_view, limits),
             ),
-            initial_prepared == super::prepared_components_view(old_prepared_view),
+            initial_prepared == super::prepared_components_view(old(prepared)@),
             private_legacy_blocks_valid(b_view, limits),
             private_legacy_precincts_layout_ok(plan.precincts@, plan.blocks.len() as nat),
             private_legacy_plan_placement_bijection(
@@ -1600,7 +1848,7 @@ pub(super) fn try_decode<'data>(
             proof! {
                 assert(super::prepared_components_view(prepared@) =~= initial_prepared);
             }
-            return Err(prepared);
+            return false;
         };
         #[cfg(verus_keep_ghost)]
         proof_decl! {
@@ -1617,12 +1865,126 @@ pub(super) fn try_decode<'data>(
         comp_idx += 1;
     }
     #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(private_legacy_blocks_all_segments_ok(b_view, limits));
+    }
+    true
+}
+
+#[cfg_attr(verus_keep_ghost, verifier::spinoff_prover)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    requires
+        crate::specs::part2_tile_decode_metadata_owned(
+            codestream::tile_parts_owned_view(parts@),
+            codestream::image_size_component_count(size),
+            discard,
+        ) == Ok(super::tile_decode_metadata_view(metadata)),
+        discard.is_none(),
+    ensures match result {
+        Ok(decoded) => super::decoded_layout_tile_outcome(Ok(decoded))
+            == crate::specs::part2_decode_tile_parts_at(
+                size, tile, parts@, codestream::codestream_profile_capabilities(profile), discard, limits,
+                super::prepared_components_view(prepared@), initial, mct_work,
+            ),
+        Err(restored) => super::prepared_components_view(restored@) == super::prepared_components_view(prepared@),
+    },
+))]
+#[allow(clippy::too_many_arguments)]
+pub(super) fn try_decode<'data>(
+    size: &ImageSize,
+    tile: u16,
+    parts: &[TilePartPayload<'data>],
+    profile: &codestream::CodestreamProfile,
+    #[cfg_attr(not(verus_keep_ghost), allow(unused_variables))] discard: Option<u8>,
+    metadata: &TileDecodeMetadata<'_, 'data>,
+    limits: &ResourceLimits,
+    mut prepared: Vec<PreparedTileComponent>,
+    initial: (u64, u64, u64),
+    mct_work: u64,
+) -> Result<DecodedLayoutTile, Vec<PreparedTileComponent>> {
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        reveal(super::tile_decode_metadata_view);
+        reveal(codestream::tile_part_owned_view);
+        codestream::selection_geometry_known_fields(size);
+    }
+    let first = metadata.first;
+    if first.multiple_component_transform.is_some() || profile.part15_requires_all_ht_blocks() {
+        return Err(prepared);
+    }
+    let allow_multiple_ht_sets = profile.part15_allows_multiple_ht_sets();
+    let ht_magnitude_bound = profile.part15_magnitude_bound();
+    let Some(mut plan) = plan_private_legacy_tile(
+        size,
+        tile,
+        first,
+        allow_multiple_ht_sets,
+        ht_magnitude_bound,
+        limits,
+    ) else {
+        return Err(prepared);
+    };
+    let packets = plan.grid.packet_count();
+    let Some(total_packets) = initial.0.checked_add(packets) else {
+        return Err(prepared);
+    };
+    if total_packets > limits.maximum_packets() {
+        return Err(prepared);
+    }
+    let Ok(precinct_count) = plan.grid.total_precinct_count() else {
+        return Err(prepared);
+    };
+    let Some(total_precincts) = initial.1.checked_add(precinct_count) else {
+        return Err(prepared);
+    };
+    if total_precincts > limits.maximum_precincts() {
+        return Err(prepared);
+    }
+    let Some(total_blocks) =
+        account_private_legacy_plan_blocks(&plan.components, initial.2, limits)
+    else {
+        return Err(prepared);
+    };
+    let counters = (total_packets, total_precincts, total_blocks);
+
+    #[cfg(verus_keep_ghost)]
     proof_decl! {
-        let ghost folded = super::prepared_components_view(prepared@);
+        let ghost pre_precincts = plan.precincts@;
+        let ghost pre_blocks_len = plan.blocks.len() as nat;
+    }
+    if !collect_private_legacy_packets(
+        parts,
+        &plan.grid,
+        &mut plan.precincts,
+        &mut plan.blocks,
+        limits,
+    ) {
+        return Err(prepared);
     }
     #[cfg(verus_keep_ghost)]
     proof! {
-        assert(private_legacy_blocks_all_segments_ok(b_view, limits));
+        assert(private_legacy_plan_placement_bijection(
+            plan.components@,
+            plan.component_block_starts@,
+            plan.precincts@,
+            plan.blocks.len() as nat,
+        )) by {
+            assert(plan.precincts.len() == pre_precincts.len());
+            assert(plan.blocks.len() == pre_blocks_len);
+        }
+    }
+
+    let start = prepared.len();
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost initial_prepared = super::prepared_components_view(prepared@);
+    }
+    if !reconstruct_private_legacy_tile_components(&plan, first, &mut prepared, limits) {
+        return Err(prepared);
+    }
+    #[cfg(verus_keep_ghost)]
+    proof_decl! {
+        let ghost folded = super::prepared_components_view(prepared@);
     }
     let mut work = mct_work;
     let finish_ok = {
@@ -1658,6 +2020,7 @@ pub(super) fn try_decode<'data>(
     }
     #[cfg(verus_keep_ghost)]
     proof! {
+        codestream::owned_extensions_registry_known(&first.part2_extensions);
         reveal(super::decoded_layout_tile_view);
     }
     Ok(DecodedLayoutTile {
