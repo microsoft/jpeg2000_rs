@@ -15,7 +15,7 @@ use super::{
 };
 use crate::packet::{
     PacketGrid, PrivateLegacyBlock, PrivateLegacyPrecinct, PrivateLegacySubbandSpec,
-    collect_private_legacy_packets, new_private_legacy_precinct,
+    collect_private_legacy_packets, new_private_legacy_block, new_private_legacy_precinct,
 };
 #[cfg(verus_keep_ghost)]
 use crate::packet::{
@@ -314,7 +314,7 @@ fn plan_private_legacy_subband_blocks<'data>(
             let Ok((x, y, bw, bh)) = derive_planned_codeblock_geometry(grid, clip, [bx, by]) else {
                 return None;
             };
-            let block = PrivateLegacyBlock::new(
+            let block = new_private_legacy_block(
                 bw,
                 bh,
                 geometry.significant_bitplanes,
@@ -1063,23 +1063,23 @@ fn reconstruct_private_legacy_component(
         let ghost planes = crate::specs::part2_precinct_decoder_planes(
             private_legacy_precincts_logical(precincts@, b_view, limits),
         );
-        let ghost initial_working = super::reconstruction::working_bands_view(working.bands@);
+        let ghost initial_working = (super::working_bands_view(working.bands@), working.bytes);
     }
     let mut p_idx = 0_usize;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant p_idx <= plan.placements.len(),
             working.bands.len() == selected_subbands,
+            working.bytes == initial_working.1,
             forall|k: int| comp_block_start as int <= k && k < comp_block_start as int + p_idx as int ==>
                 crate::specs::private_legacy_block_segment_ok(b_view[k], pass_limit, byte_limit, input_limit, work_limit),
-            crate::specs::part1_prepare_place_prefix(
+            crate::specs::part1_prepare_placements(
                 initial_working,
-                plan.subbands@,
-                plan.placements@,
+                super::prepare_plan_view(plan),
                 planes,
                 reversible,
                 crate::limits::resource_decoded_bytes_limit(limits),
                 p_idx as nat,
-            ) == (Ok::<(), crate::DecodeError>(()), super::reconstruction::working_bands_view(working.bands@)),
+            ) == (Ok::<(), crate::DecodeError>(()), (super::working_bands_view(working.bands@), working.bytes)),
         decreases plan.placements.len() - p_idx,
     ))]
     while p_idx < plan.placements.len() {
@@ -1169,6 +1169,12 @@ fn reconstruct_private_legacy_component(
             if !ok {
                 return (None, scratch);
             }
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            reveal(crate::specs::part1_prepare_placements);
+            reveal(crate::specs::part1_prepare_placement);
+            reveal(crate::specs::part1_prepare_place_plane);
         }
         p_idx += 1;
     }

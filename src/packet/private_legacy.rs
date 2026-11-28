@@ -157,76 +157,76 @@ pub(crate) open spec fn private_legacy_precincts_layout_ok(
 
 }
 
-impl<'data> PrivateLegacyBlock<'data> {
-    #[allow(clippy::too_many_arguments)]
-    #[cfg_attr(verus_keep_ghost, verus_spec(result =>
-        ensures match result {
-            None => true,
-            Some(block) => {
-                let v = private_legacy_block_view(&block);
-                v.width == width
-                    && v.height == height
-                    && v.significant_bitplanes == significant_bitplanes
-                    && v.orientation == orientation
-                    && v.style == style
-                    && v.allow_multiple_ht_sets == allow_multiple_ht_sets
-                    && v.ht_magnitude_bound == ht_magnitude_bound
-                    && v.contribution.is_none()
-                    && width > 0 && height > 0 && (width as nat) * (height as nat) <= 4096
-                    && significant_bitplanes > 0 && significant_bitplanes <= 31
-                    && crate::specs::private_legacy_style_ok(style)
-                    && crate::specs::part2_configured_checkpoint(
-                        width, height, significant_bitplanes, orientation, style,
-                        allow_multiple_ht_sets, ht_magnitude_bound, true,
-                    ) == Ok::<crate::specs::Tier1DecoderState, DecodeError>(crate::specs::private_legacy_block_initial(v))
-            },
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(verus_keep_ghost, verus_spec(result =>
+    ensures match result {
+        None => true,
+        Some(block) => {
+            let v = private_legacy_block_view(&block);
+            v.width == width
+                && v.height == height
+                && v.significant_bitplanes == significant_bitplanes
+                && v.orientation == orientation
+                && v.style == style
+                && v.allow_multiple_ht_sets == allow_multiple_ht_sets
+                && v.ht_magnitude_bound == ht_magnitude_bound
+                && v.contribution.is_none()
+                && width > 0 && height > 0 && (width as nat) * (height as nat) <= 4096
+                && significant_bitplanes > 0 && significant_bitplanes <= 31
+                && crate::specs::private_legacy_style_ok(style)
+                && crate::specs::part2_configured_checkpoint(
+                    width, height, significant_bitplanes, orientation, style,
+                    allow_multiple_ht_sets, ht_magnitude_bound, true,
+                ) == Ok::<crate::specs::Tier1DecoderState, DecodeError>(crate::specs::private_legacy_block_initial(v))
         },
-    ))]
-    pub(crate) fn new(
-        width: u16,
-        height: u16,
-        significant_bitplanes: u16,
-        orientation: SubbandOrientation,
-        style: Tier1CodingStyle,
-        allow_multiple_ht_sets: bool,
-        ht_magnitude_bound: u8,
-    ) -> Option<Self> {
-        let count = usize::from(width).checked_mul(usize::from(height))?;
-        if count == 0
-            || count > 4096
-            || significant_bitplanes == 0
-            || significant_bitplanes > 31
-            || ht_magnitude_bound == 0
-            || ht_magnitude_bound > 74
-            || !matches!(style.block_coding, crate::tier1::Tier1BlockCoding::Legacy)
-            || style.force_high_throughput
-            || style.selective_arithmetic_coding_bypass
-            || style.reset_contexts
-            || style.terminate_all_passes
-            || style.segmentation_symbols
-            || style.predictable_termination
-        {
-            return None;
-        }
-        let block = Self {
-            width,
-            height,
-            significant_bitplanes,
-            orientation,
-            style,
-            allow_multiple_ht_sets,
-            ht_magnitude_bound,
-            contribution: None,
-        };
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            assert(width > 0 && height > 0) by(nonlinear_arith)
-                requires (width as nat) * (height as nat) > 0;
-            crate::specs::private_legacy_block_initial_matches_configured(private_legacy_block_view(&block));
-        }
-        Some(block)
+    },
+))]
+pub(crate) fn new_private_legacy_block<'data>(
+    width: u16,
+    height: u16,
+    significant_bitplanes: u16,
+    orientation: SubbandOrientation,
+    style: Tier1CodingStyle,
+    allow_multiple_ht_sets: bool,
+    ht_magnitude_bound: u8,
+) -> Option<PrivateLegacyBlock<'data>> {
+    let count = usize::from(width).checked_mul(usize::from(height))?;
+    if count == 0
+        || count > 4096
+        || significant_bitplanes == 0
+        || significant_bitplanes > 31
+        || ht_magnitude_bound == 0
+        || ht_magnitude_bound > 74
+        || !matches!(style.block_coding, crate::tier1::Tier1BlockCoding::Legacy)
+        || style.force_high_throughput
+        || style.selective_arithmetic_coding_bypass
+        || style.reset_contexts
+        || style.terminate_all_passes
+        || style.segmentation_symbols
+        || style.predictable_termination
+    {
+        return None;
     }
+    let block = PrivateLegacyBlock {
+        width,
+        height,
+        significant_bitplanes,
+        orientation,
+        style,
+        allow_multiple_ht_sets,
+        ht_magnitude_bound,
+        contribution: None,
+    };
+    #[cfg(verus_keep_ghost)]
+    proof! {
+        assert(width > 0 && height > 0) by(nonlinear_arith)
+            requires (width as nat) * (height as nat) > 0;
+        crate::specs::private_legacy_block_initial_matches_configured(private_legacy_block_view(&block));
+    }
+    Some(block)
+}
 
+impl<'data> PrivateLegacyBlock<'data> {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires crate::specs::private_legacy_block_valid(
             private_legacy_block_view(old(self)),
@@ -1022,8 +1022,8 @@ pub(crate) fn collect_private_legacy_packets<'data>(
     };
     #[cfg(verus_keep_ghost)]
     proof_decl! {
-        let ghost p_view_init = super::tile::progression_tile_progress_view(&p);
-        let ghost params_view = super::tile::progression_tile_parameters_view(&params);
+        let ghost p_view_init = super::progression_tile_progress_view(&p);
+        let ghost params_view = super::progression_tile_parameters_view(&params);
         let ghost b_init = private_legacy_blocks_view(blocks@);
         let ghost prec_init = private_legacy_precincts_logical(precincts@, b_init, limits);
     }
@@ -1048,7 +1048,7 @@ pub(crate) fn collect_private_legacy_packets<'data>(
                     && private_legacy_blocks_all_segments_ok(end_blocks, limits) ==> {
                 let exec_init = crate::specs::Part1TilePacketExecution { progress: p_view_init, precincts: prec_init };
                 let exec_cur = crate::specs::Part1TilePacketExecution {
-                    progress: super::tile::progression_tile_progress_view(&p),
+                    progress: super::progression_tile_progress_view(&p),
                     precincts: private_legacy_precincts_logical(precincts@, private_legacy_blocks_view(blocks@), limits),
                 };
                 crate::specs::part1_tile_run(params_view, exec_init)
@@ -1065,7 +1065,7 @@ pub(crate) fn collect_private_legacy_packets<'data>(
         proof_decl! {
             let ghost b_before = private_legacy_blocks_view(blocks@);
             let ghost prec_before = private_legacy_precincts_logical(precincts@, b_before, limits);
-            let ghost prog_before = super::tile::progression_tile_progress_view(&p);
+            let ghost prog_before = super::progression_tile_progress_view(&p);
         }
         #[cfg(verus_keep_ghost)]
         proof! {

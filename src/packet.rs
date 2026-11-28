@@ -522,7 +522,7 @@ pub(crate) use private_ht::{
 };
 pub(crate) use private_legacy::{
     PrivateLegacyBlock, PrivateLegacyPrecinct, PrivateLegacySubbandSpec,
-    collect_private_legacy_packets, new_private_legacy_precinct,
+    collect_private_legacy_packets, new_private_legacy_block, new_private_legacy_precinct,
 };
 #[cfg(verus_keep_ghost)]
 pub(crate) use private_legacy::{

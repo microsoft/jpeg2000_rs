@@ -103,7 +103,7 @@ pub(super) trait ReadableRow: Copy {
     fn bounded(self, index: usize) -> Result<(u64, bool), DecodeError>;
 }
 
-pub(super) trait FusedReadablePlane: Copy {
+pub(super) trait ReadablePlane: Copy {
     type Row: ReadableRow;
 
     #[cfg(verus_keep_ghost)]
@@ -131,9 +131,7 @@ pub(super) trait FusedReadablePlane: Copy {
             result.raw_row()==self.raw_plane().coefficients.subrange(start as int,end as int),
     ))]
     fn row(self, start: usize, end: usize) -> Self::Row;
-}
 
-pub(super) trait ReadablePlane: FusedReadablePlane {
     #[cfg_attr(verus_keep_ghost, verus_spec(result =>
         requires self.plane_valid(),
         ensures crate::specs::part2_coefficient_collect_result(self.raw_plane(),crate::transform::quantized_coefficients_outcome(result)),
@@ -239,7 +237,7 @@ impl PrivateRow<'_> {
     }
 }
 
-impl<'a> FusedReadablePlane for WidePlane<'a> {
+impl<'a> ReadablePlane for WidePlane<'a> {
     type Row = WideRow<'a>;
 
     #[cfg(verus_keep_ghost)]
@@ -264,16 +262,14 @@ impl<'a> FusedReadablePlane for WidePlane<'a> {
     fn row(self, start: usize, end: usize) -> Self::Row {
         &self.coefficients()[start..end]
     }
-}
 
-impl<'a> ReadablePlane for WidePlane<'a> {
     fn collect(self) -> Result<Vec<crate::transform::SignedMagnitude>, DecodeError> {
         super::collect_prepare_coefficients(self)
     }
 }
 
 #[cfg(test)]
-impl<'a> FusedReadablePlane for PrivatePlane<'a> {
+impl<'a> ReadablePlane for PrivatePlane<'a> {
     type Row = PrivateRow<'a>;
 
     #[cfg(verus_keep_ghost)]
@@ -301,16 +297,13 @@ impl<'a> FusedReadablePlane for PrivatePlane<'a> {
             end,
         }
     }
-}
 
-#[cfg(test)]
-impl<'a> ReadablePlane for PrivatePlane<'a> {
     fn collect(self) -> Result<Vec<crate::transform::SignedMagnitude>, DecodeError> {
         PrivateHtDecoder::collect(self)
     }
 }
 
-impl<'a> FusedReadablePlane for PackedPlane<'a> {
+impl<'a> ReadablePlane for PackedPlane<'a> {
     type Row = PackedRow<'a>;
 
     #[cfg(verus_keep_ghost)]
@@ -352,185 +345,10 @@ impl<'a> FusedReadablePlane for PackedPlane<'a> {
         }
         slice
     }
-}
 
-impl<'a> ReadablePlane for PackedPlane<'a> {
     fn collect(self) -> Result<Vec<crate::transform::SignedMagnitude>, DecodeError> {
         PrivateHtDecoder::collect(self.decoder)
     }
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct CompactWordsPlane<'a> {
-    width: u16,
-    height: u16,
-    words: &'a [u64],
-}
-
-impl<'a> FusedReadablePlane for CompactWordsPlane<'a> {
-    type Row = PackedRow<'a>;
-
-    #[cfg(verus_keep_ghost)]
-    verus! {
-        closed spec fn raw_plane(self) -> crate::specs::Tier1RawPlane {
-            crate::specs::Tier1RawPlane {
-                width: self.width,
-                height: self.height,
-                coefficients: self.words@.map_values(|word: u64| crate::specs::compact_coefficient(word)),
-            }
-        }
-        closed spec fn plane_valid(self) -> bool {
-            true
-        }
-    }
-
-    #[inline]
-    fn dimensions(self) -> (u16, u16) {
-        (self.width, self.height)
-    }
-
-    #[inline]
-    fn coefficient_count(self) -> usize {
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            assert forall|i: int| 0 <= i < self.words@.len() implies #[trigger] self.raw_plane().coefficients[i].limbs.len() == 6 by {
-                assert(self.raw_plane().coefficients[i] == crate::specs::compact_coefficient(self.words@[i]));
-            }
-        }
-        self.words.len()
-    }
-
-    #[inline]
-    fn row(self, start: usize, end: usize) -> Self::Row {
-        let slice = &self.words[start..end];
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            assert(slice@.map_values(|word: u64| crate::specs::compact_coefficient(word))
-                =~= self.words@.map_values(|word: u64| crate::specs::compact_coefficient(word)).subrange(start as int, end as int));
-        }
-        slice
-    }
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct EmptyRow {
-    #[cfg_attr(not(verus_keep_ghost), allow(dead_code))]
-    len: usize,
-}
-
-impl ReadableRow for EmptyRow {
-    #[cfg(verus_keep_ghost)]
-    verus! {
-        closed spec fn raw_row(self) -> Seq<crate::specs::Tier1RawCoefficient> {
-            Seq::new(self.len as nat, |_: int| crate::specs::tier1_empty_coefficient())
-        }
-        closed spec fn valid(self) -> bool {
-            true
-        }
-    }
-
-    #[inline]
-    fn narrow(self, _index: usize) -> Result<Option<u64>, DecodeError> {
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            assert(crate::specs::part2_narrow_magnitude(crate::specs::tier1_empty_coefficient()) == Some(0u64)) by(compute);
-        }
-        Ok(Some(0))
-    }
-
-    #[inline]
-    fn bounded(self, _index: usize) -> Result<(u64, bool), DecodeError> {
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            assert(crate::specs::part2_narrow_magnitude(crate::specs::tier1_empty_coefficient()) == Some(0u64)) by(compute);
-            assert(!crate::specs::tier1_empty_coefficient().significant);
-        }
-        Ok((0, false))
-    }
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct EmptyBlockPlane {
-    width: u16,
-    height: u16,
-}
-
-impl FusedReadablePlane for EmptyBlockPlane {
-    type Row = EmptyRow;
-
-    #[cfg(verus_keep_ghost)]
-    verus! {
-        closed spec fn raw_plane(self) -> crate::specs::Tier1RawPlane {
-            crate::specs::Tier1RawPlane {
-                width: self.width,
-                height: self.height,
-                coefficients: Seq::new((self.width as nat) * (self.height as nat), |_: int| crate::specs::tier1_empty_coefficient()),
-            }
-        }
-        closed spec fn plane_valid(self) -> bool {
-            (self.width as nat) * (self.height as nat) <= usize::MAX
-        }
-    }
-
-    #[inline]
-    fn dimensions(self) -> (u16, u16) {
-        (self.width, self.height)
-    }
-
-    #[inline]
-    fn coefficient_count(self) -> usize {
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            assert(crate::specs::tier1_empty_coefficient().limbs.len() == 6) by(compute);
-        }
-        usize::from(self.width) * usize::from(self.height)
-    }
-
-    #[inline]
-    fn row(self, start: usize, end: usize) -> Self::Row {
-        let len = end - start;
-        #[cfg(verus_keep_ghost)]
-        proof! {
-            assert(Seq::new(len as nat, |_: int| crate::specs::tier1_empty_coefficient())
-                =~= self.raw_plane().coefficients.subrange(start as int, end as int));
-        }
-        EmptyRow { len }
-    }
-}
-
-#[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    ensures result.plane_valid(),
-        result.raw_plane() == (crate::specs::Tier1RawPlane {
-            width,
-            height,
-            coefficients: words@.map_values(|word: u64| crate::specs::compact_coefficient(word)),
-        }),
-))]
-#[inline]
-pub(super) fn from_compact_words<'a>(
-    width: u16,
-    height: u16,
-    words: &'a [u64],
-) -> CompactWordsPlane<'a> {
-    CompactWordsPlane {
-        width,
-        height,
-        words,
-    }
-}
-
-#[cfg_attr(verus_keep_ghost, verus_spec(result =>
-    requires (width as nat) * (height as nat) <= usize::MAX,
-    ensures result.plane_valid(),
-        result.raw_plane() == (crate::specs::Tier1RawPlane {
-            width,
-            height,
-            coefficients: Seq::new((width as nat) * (height as nat), |_: int| crate::specs::tier1_empty_coefficient()),
-        }),
-))]
-#[inline]
-pub(super) fn from_empty_block(width: u16, height: u16) -> EmptyBlockPlane {
-    EmptyBlockPlane { width, height }
 }
 
 #[cfg_attr(verus_keep_ghost, verus_spec(result =>
